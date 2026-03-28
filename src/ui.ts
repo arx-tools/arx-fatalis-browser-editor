@@ -1,0 +1,18 @@
+import { State } from './ui/State.js'
+
+export const isLoading = new State(false)
+
+export const downloadBtn = document.querySelector<HTMLButtonElement>('#download') as HTMLButtonElement
+export const loadingIndicator = document.querySelector<HTMLParagraphElement>(
+  '#loading-indicator',
+) as HTMLParagraphElement
+
+isLoading.addEventListener('change', (event: CustomEventInit<{ oldValue: boolean; currentValue: boolean }>) => {
+  if (event.detail?.currentValue === true) {
+    downloadBtn.disabled = true
+    loadingIndicator.style.display = 'block'
+  } else {
+    downloadBtn.disabled = false
+    loadingIndicator.style.display = 'none'
+  }
+})

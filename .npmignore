@@ -1,0 +1,10 @@
+original-c-lib
+test
+.editorconfig
+.eslintrc
+.gitignore
+.prettierrc
+tsconfig.json
+src
+.xo-config
+tsconfig.tsbuildinfo

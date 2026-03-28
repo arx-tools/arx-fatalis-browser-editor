@@ -1,0 +1,56 @@
+{
+  "name": "arx-fatalis-browser-editor",
+  "version": "0.0.1",
+  "description": "A browser based editor for Arx Fatalis levels",
+  "engines": {
+    "npm": ">=8.0.0",
+    "node": ">=18.0.0"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc && tsc-alias",
+    "build:watch": "nodemon --watch src --exec \"npm run build\" --ext ts",
+    "lint": "xo",
+    "lint:watch": "nodemon --watch src --exec \"npm run lint\" --ext ts",
+    "test": "ts-mocha --import=@hyperse/ts-node/register src/**/*.spec.ts",
+    "test:watch": "nodemon --watch src --exec \"npm run test\" --ext ts",
+    "serve": "http-server ./public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arx-tools/arx-fatalis-browser-editor.git"
+  },
+  "author": "Lajos Meszaros <m_lajos@hotmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/arx-tools/arx-fatalis-browser-editor/issues"
+  },
+  "homepage": "https://github.com/arx-tools/arx-fatalis-browser-editor#readme",
+  "dependencies": {
+    "arx-convert": "^10.4.2",
+    "arx-header-size": "^3.2.1",
+    "node-pkware": "^5.9.1",
+    "three": "^0.182.0"
+  },
+  "devDependencies": {
+    "@hyperse/ts-node": "^1.1.0",
+    "@trivago/prettier-plugin-sort-imports": "^6.0.2",
+    "@types/expect": "^1.20.4",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^25.0.10",
+    "@types/three": "^0.182.0",
+    "eslint-plugin-unused-imports": "^4.3.0",
+    "expect": "^30.2.0",
+    "http-server": "^14.1.1",
+    "mocha": "^11.7.5",
+    "nodemon": "^3.1.11",
+    "ts-mocha": "^11.1.0",
+    "tsc-alias": "^1.8.16",
+    "type-fest": "^5.4.1",
+    "typescript": "^5.9.3",
+    "xo": "^1.2.3"
+  },
+  "keywords": [
+    "arx-fatalis"
+  ]
+}

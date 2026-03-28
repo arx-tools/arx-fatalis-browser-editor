@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Arx Fatalis Browser Editor</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  </head>
+  <body>
+    <h1>Arx Fatalis Browser Editor</h1>
+    <canvas id="screen" style="border: 1px solid black; width: 800px; height: 600px"></canvas>
+    <br />
+    <button id="download">Download</button>
+
+    <br />
+    <p id="loading-indicator">Loading, please wait...</p>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "node-pkware/simple": "https://esm.sh/node-pkware@5.9.1/simple",
+          "arx-header-size": "https://esm.sh/arx-header-size@3.2.1",
+          "arx-convert": "https://esm.sh/arx-convert@10.4.2"
+        }
+      }
+    </script>
+    <script type="module" src="/dist/index.js"></script>
+  </body>
+</html>

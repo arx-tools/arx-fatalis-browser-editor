@@ -80,6 +80,9 @@ const xoConfig: FlatXoConfig = {
     '@typescript-eslint/no-unsafe-call': 'off',
     '@typescript-eslint/no-unsafe-assignment': 'off',
     '@typescript-eslint/no-unsafe-type-assertion': 'off',
+
+    // this is buggy in xo 2.0.2 and always getting triggered
+    '@typescript-eslint/only-throw-error': 'off',
   },
 }
 

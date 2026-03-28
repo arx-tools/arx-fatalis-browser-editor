@@ -83,6 +83,8 @@ const xoConfig: FlatXoConfig = {
 
     // this is buggy in xo 2.0.2 and always getting triggered
     '@typescript-eslint/only-throw-error': 'off',
+
+    'require-unicode-regexp': 'off',
   },
 }
 

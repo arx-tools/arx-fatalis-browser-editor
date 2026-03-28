@@ -2,7 +2,7 @@ import { explode, implode, concatArrayBuffers, sliceArrayBufferAt } from 'node-p
 import { getHeaderSize } from 'arx-header-size'
 import { FTS } from 'arx-convert'
 import type { ArxFTS } from 'arx-convert/types'
-import { downloadBinaryAs } from './download.js'
+import { downloadBinaryAs, zipBuffers } from './download.js'
 import { downloadBtn, isLoading } from './ui/ui.js'
 
 // --------------------
@@ -19,7 +19,7 @@ async function getFTS(level: number): Promise<ArxFTS> {
   console.log(`downloading level ${level} fts...`)
 
   const response = await fetch(
-    `https://github.com/arx-tools/pkware-test-files/raw/refs/heads/main/arx-fatalis/level${level}/fast.fts`,
+    `https://raw.githubusercontent.com/arx-tools/pkware-test-files/main/arx-fatalis/level${level}/fast.fts`,
   )
   if (!response.ok) {
     const errorResponse = await response.text()
@@ -106,21 +106,27 @@ function changeStuff(fts: ArxFTS, level: number): void {
 
 // --------------------
 
+const level = 11
+
 isLoading.currentValue = true
 
-const fts = await getFTS(11)
-changeStuff(fts, 11)
+const fts = await getFTS(level)
+changeStuff(fts, level)
 
 isLoading.currentValue = false
 
 downloadBtn.addEventListener('click', async () => {
   isLoading.currentValue = true
 
-  console.log('dávnloáding')
+  console.log('downloading')
 
-  const packedFts = await saveFTS(fts, 11)
+  const packedFts = await saveFTS(fts, level)
 
-  downloadBinaryAs('fast.fts', packedFts, 'application/octet-stream')
+  const zip = await zipBuffers({
+    [`/game/graph/levels/level${level}/fast.fts`]: packedFts,
+  })
+
+  downloadBinaryAs('mod.zip', zip, 'application/zip')
 
   isLoading.currentValue = false
 })

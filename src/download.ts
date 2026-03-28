@@ -1,3 +1,5 @@
+import JSZip from 'jszip'
+
 function downloadAs(filename: string, data: string): void {
   const link = document.createElement('a')
   link.setAttribute('href', data)
@@ -21,4 +23,22 @@ export function downloadBinaryAs(filename: string, data: string | ArrayBuffer | 
   downloadAs(filename, url)
 
   URL.revokeObjectURL(url)
+}
+
+export async function zipBuffers(buffers: Record<string, ArrayBuffer>): Promise<ArrayBuffer> {
+  console.log('bundling assets into a zip...')
+  console.time('done bundling assets into a zip')
+
+  const zip = new JSZip()
+
+  for (const pathToFile in buffers) {
+    const buffer = buffers[pathToFile]
+    zip.file(pathToFile, buffer)
+  }
+
+  const buffer = await zip.generateAsync({ compression: 'DEFLATE', type: 'arraybuffer' })
+
+  console.timeEnd('done bundling assets into a zip')
+
+  return buffer
 }

@@ -3,7 +3,7 @@ import { getHeaderSize } from 'arx-header-size'
 import { FTS } from 'arx-convert'
 import type { ArxFTS } from 'arx-convert/types'
 import { downloadBinaryAs } from './download.js'
-import { downloadBtn, isLoading } from './ui.js'
+import { downloadBtn, isLoading } from './ui/ui.js'
 
 // --------------------
 

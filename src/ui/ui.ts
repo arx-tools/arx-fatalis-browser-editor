@@ -1,4 +1,4 @@
-import { State } from './ui/State.js'
+import { State } from './State.js'
 
 export const isLoading = new State(false)
 

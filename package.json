@@ -27,10 +27,11 @@
   },
   "homepage": "https://github.com/arx-tools/arx-fatalis-browser-editor#readme",
   "dependencies": {
-    "arx-convert": "^10.4.2",
-    "arx-header-size": "^3.2.1",
-    "node-pkware": "^5.9.1",
-    "three": "^0.182.0"
+    "arx-convert": "10.4.2",
+    "arx-header-size": "3.2.1",
+    "jszip": "3.10.1",
+    "node-pkware": "5.9.1",
+    "three": "0.182.0"
   },
   "devDependencies": {
     "@hyperse/ts-node": "^1.1.0",

@@ -31,25 +31,25 @@
     "arx-header-size": "3.2.1",
     "jszip": "3.10.1",
     "node-pkware": "5.9.1",
-    "three": "0.182.0"
+    "three": "0.183.2"
   },
   "devDependencies": {
     "@hyperse/ts-node": "^1.1.0",
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
-    "@types/expect": "^1.20.4",
+    "@types/expect": "^24.3.2",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^25.0.10",
-    "@types/three": "^0.182.0",
-    "eslint-plugin-unused-imports": "^4.3.0",
-    "expect": "^30.2.0",
+    "@types/node": "^25.5.0",
+    "@types/three": "^0.183.1",
+    "eslint-plugin-unused-imports": "^4.4.1",
+    "expect": "^30.3.0",
     "http-server": "^14.1.1",
     "mocha": "^11.7.5",
-    "nodemon": "^3.1.11",
+    "nodemon": "^3.1.14",
     "ts-mocha": "^11.1.0",
     "tsc-alias": "^1.8.16",
-    "type-fest": "^5.4.1",
-    "typescript": "^5.9.3",
-    "xo": "^1.2.3"
+    "type-fest": "^5.5.0",
+    "typescript": "^6.0.2",
+    "xo": "^2.0.2"
   },
   "keywords": [
     "arx-fatalis"

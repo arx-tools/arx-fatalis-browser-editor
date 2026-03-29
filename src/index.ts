@@ -4,7 +4,7 @@ import { FTS } from 'arx-convert'
 import type { ArxFTS } from 'arx-convert/types'
 import { BoxGeometry, DirectionalLight, Mesh, MeshPhongMaterial, PerspectiveCamera, Scene, WebGLRenderer } from 'three'
 import { downloadBinaryAs, zipBuffers } from './download.js'
-import { canvas, downloadBtn, isLoading } from './ui/ui.js'
+import { canvas, downloadBtn, isLoading, isWindowFocused } from './ui/ui.js'
 
 // --------------------
 
@@ -191,8 +191,10 @@ function resizeRendererToDisplaySize(renderer: WebGLRenderer): boolean {
   return needResize
 }
 
+let d = 0
+
 function render(timeInMs: number): void {
-  const d = timeInMs * 0.001
+  d = d + 1 / 60
 
   cubes.forEach((cube, ndx) => {
     const speed = 1 + ndx * 0.1
@@ -209,7 +211,15 @@ function render(timeInMs: number): void {
 
   renderer.render(scene, camera)
 
-  requestAnimationFrame(render)
+  if (isWindowFocused.currentValue === true) {
+    requestAnimationFrame(render)
+  }
 }
 
 requestAnimationFrame(render)
+
+isWindowFocused.addEventListener('change', (event: CustomEventInit<{ oldValue: boolean; currentValue: boolean }>) => {
+  if (event.detail?.currentValue === true) {
+    requestAnimationFrame(render)
+  }
+})

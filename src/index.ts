@@ -2,8 +2,9 @@ import { explode, implode, concatArrayBuffers, sliceArrayBufferAt } from 'node-p
 import { getHeaderSize } from 'arx-header-size'
 import { FTS } from 'arx-convert'
 import type { ArxFTS } from 'arx-convert/types'
+import { BoxGeometry, DirectionalLight, Mesh, MeshPhongMaterial, PerspectiveCamera, Scene, WebGLRenderer } from 'three'
 import { downloadBinaryAs, zipBuffers } from './download.js'
-import { downloadBtn, isLoading } from './ui/ui.js'
+import { canvas, downloadBtn, isLoading } from './ui/ui.js'
 
 // --------------------
 
@@ -111,7 +112,6 @@ const level = 11
 isLoading.currentValue = true
 
 const fts = await getFTS(level)
-changeStuff(fts, level)
 
 isLoading.currentValue = false
 
@@ -130,3 +130,68 @@ downloadBtn.addEventListener('click', async () => {
 
   isLoading.currentValue = false
 })
+
+// --------------------
+
+function makeInstance(geometry: BoxGeometry, color: number, x: number): Mesh {
+  const material = new MeshPhongMaterial({ color })
+
+  const cube = new Mesh(geometry, material)
+
+  cube.position.x = x
+
+  return cube
+}
+
+const renderer = new WebGLRenderer({ antialias: true, canvas })
+renderer.setSize(800, 600, false)
+
+const fov = 75
+const aspect = 800 / 600
+const near = 0.1
+const far = 10
+const camera = new PerspectiveCamera(fov, aspect, near, far)
+
+camera.position.z = 5
+
+const scene = new Scene()
+
+const boxWidth = 1
+const boxHeight = 1
+const boxDepth = 1
+const geometry = new BoxGeometry(boxWidth, boxHeight, boxDepth)
+
+const cubes = [
+  makeInstance(geometry, 0x44_aa_88, 0),
+  makeInstance(geometry, 0x88_44_aa, -2),
+  makeInstance(geometry, 0xaa_88_44, 2),
+]
+
+cubes.forEach((cube) => {
+  scene.add(cube)
+})
+
+renderer.render(scene, camera)
+
+const color = 0xff_ff_ff
+const intensity = 3
+const light = new DirectionalLight(color, intensity)
+light.position.set(-1, 2, 4)
+scene.add(light)
+
+function render(timeInMs: number): void {
+  const d = timeInMs * 0.001
+
+  cubes.forEach((cube, ndx) => {
+    const speed = 1 + ndx * 0.1
+    const rot = d * speed
+    cube.rotation.x = rot
+    cube.rotation.y = rot
+  })
+
+  renderer.render(scene, camera)
+
+  requestAnimationFrame(render)
+}
+
+requestAnimationFrame(render)

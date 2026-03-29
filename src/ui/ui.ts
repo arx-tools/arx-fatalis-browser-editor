@@ -16,3 +16,5 @@ isLoading.addEventListener('change', (event: CustomEventInit<{ oldValue: boolean
     loadingIndicator.style.display = 'none'
   }
 })
+
+export const canvas = document.querySelector<HTMLCanvasElement>('#screen') as HTMLCanvasElement

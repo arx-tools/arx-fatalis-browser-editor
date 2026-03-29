@@ -133,15 +133,30 @@ downloadBtn.addEventListener('click', async () => {
 
 // --------------------
 
-function makeInstance(geometry: BoxGeometry, color: number, x: number): Mesh {
-  const material = new MeshPhongMaterial({ color })
+const scene = new Scene()
 
+function createBox(color: number, offsetX: number): Mesh {
+  const material = new MeshPhongMaterial({ color })
+  const geometry = new BoxGeometry(1, 1, 1)
   const cube = new Mesh(geometry, material)
 
-  cube.position.x = x
+  cube.position.x = offsetX
 
   return cube
 }
+
+const meshes = [createBox(0x88_44_aa, -2), createBox(0x44_aa_88, 0), createBox(0xaa_88_44, 2)]
+meshes.forEach((mesh) => {
+  scene.add(mesh)
+})
+
+const color = 0xff_ff_ff
+const intensity = 3
+const light = new DirectionalLight(color, intensity)
+light.position.set(-1, 2, 4)
+scene.add(light)
+
+// --------------------
 
 const renderer = new WebGLRenderer({ antialias: true, canvas })
 renderer.setSize(canvas.clientWidth, canvas.clientHeight, false)
@@ -154,30 +169,7 @@ const camera = new PerspectiveCamera(fov, aspect, near, far)
 
 camera.position.z = 5
 
-const scene = new Scene()
-
-const boxWidth = 1
-const boxHeight = 1
-const boxDepth = 1
-const geometry = new BoxGeometry(boxWidth, boxHeight, boxDepth)
-
-const cubes = [
-  makeInstance(geometry, 0x44_aa_88, 0),
-  makeInstance(geometry, 0x88_44_aa, -2),
-  makeInstance(geometry, 0xaa_88_44, 2),
-]
-
-cubes.forEach((cube) => {
-  scene.add(cube)
-})
-
 renderer.render(scene, camera)
-
-const color = 0xff_ff_ff
-const intensity = 3
-const light = new DirectionalLight(color, intensity)
-light.position.set(-1, 2, 4)
-scene.add(light)
 
 function resizeRendererToDisplaySize(renderer: WebGLRenderer): boolean {
   const canvas = renderer.domElement
@@ -191,18 +183,7 @@ function resizeRendererToDisplaySize(renderer: WebGLRenderer): boolean {
   return needResize
 }
 
-let d = 0
-
 function render(timeInMs: number): void {
-  d = d + 1 / 60
-
-  cubes.forEach((cube, ndx) => {
-    const speed = 1 + ndx * 0.1
-    const rot = d * speed
-    cube.rotation.x = rot
-    cube.rotation.y = rot
-  })
-
   if (resizeRendererToDisplaySize(renderer)) {
     const canvas = renderer.domElement
     camera.aspect = canvas.clientWidth / canvas.clientHeight

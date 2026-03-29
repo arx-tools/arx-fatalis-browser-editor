@@ -6,7 +6,6 @@ const xoConfig: FlatXoConfig = {
   semicolon: false,
   prettier: true,
   plugins: {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- god knows why this keeps coming back...
     'unused-imports': unusedImports,
   },
   files: ['xo.config.ts', 'src/**/*.ts'],

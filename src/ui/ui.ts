@@ -1,29 +1,26 @@
 import { State } from './State.js'
 
 export const isLoading = new State(false)
-export const isWindowFocused = new State(document.hasFocus())
 
 export const downloadBtn = document.querySelector<HTMLButtonElement>('#download') as HTMLButtonElement
 export const loadingIndicator = document.querySelector<HTMLParagraphElement>(
   '#loading-indicator',
 ) as HTMLParagraphElement
 
+export const mouseLocked = document.querySelector<HTMLParagraphElement>('#mouse-locked') as HTMLParagraphElement
+export const mouseUnlocked = document.querySelector<HTMLParagraphElement>('#mouse-unlocked') as HTMLParagraphElement
+
 isLoading.addEventListener('change', (event: CustomEventInit<{ oldValue: boolean; currentValue: boolean }>) => {
   if (event.detail?.currentValue === true) {
     downloadBtn.disabled = true
-    loadingIndicator.style.display = 'block'
+    loadingIndicator.style.visibility = 'visible'
   } else {
     downloadBtn.disabled = false
-    loadingIndicator.style.display = 'none'
+    loadingIndicator.style.visibility = 'hidden'
   }
 })
 
 export const canvas = document.querySelector<HTMLCanvasElement>('#screen') as HTMLCanvasElement
 
-window.addEventListener('focus', () => {
-  isWindowFocused.currentValue = true
-})
-
-window.addEventListener('blur', () => {
-  isWindowFocused.currentValue = false
-})
+mouseLocked.style.display = 'none'
+mouseUnlocked.style.display = 'none'

@@ -151,31 +151,36 @@ offset = offset.add(new Vector3(50, 10, 50))
 fts.polygons.forEach((polygonData) => {
   const material = new MeshPhongMaterial({ color: 0xaa_88_44 })
 
-  // TODO: polygons are mirrored
-
   if (isQuad(polygonData)) {
     const [a, b, c, d] = polygonData.vertices
 
     // prettier-ignore
     const vertices = new Float32Array([
-      c.x - offset.x, -(c.y - offset.y), c.z - offset.z,
-      b.x - offset.x, -(b.y - offset.y), b.z - offset.z,
-      a.x - offset.x, -(a.y - offset.y), a.z - offset.z,
+      -(a.x - offset.x), -(a.y - offset.y), a.z - offset.z,
+      -(b.x - offset.x), -(b.y - offset.y), b.z - offset.z,
+      -(c.x - offset.x), -(c.y - offset.y), c.z - offset.z,
 
-      d.x - offset.x, -(d.y - offset.y), d.z - offset.z,
-      b.x - offset.x, -(b.y - offset.y), b.z - offset.z,
-      c.x - offset.x, -(c.y - offset.y), c.z - offset.z,
+      -(c.x - offset.x), -(c.y - offset.y), c.z - offset.z,
+      -(b.x - offset.x), -(b.y - offset.y), b.z - offset.z,
+      -(d.x - offset.x), -(d.y - offset.y), d.z - offset.z,
     ])
+
+    const [nA, nB, nC, nD] = polygonData.normals ?? [
+      polygonData.norm,
+      polygonData.norm,
+      polygonData.norm,
+      polygonData.norm2,
+    ]
 
     // prettier-ignore
     const normals = new Float32Array([
-      polygonData.norm.x, polygonData.norm.y, polygonData.norm.z,
-      polygonData.norm.x, polygonData.norm.y, polygonData.norm.z,
-      polygonData.norm.x, polygonData.norm.y, polygonData.norm.z,
+      nA.x, nA.y, nA.z,
+      nB.x, nB.y, nB.z,
+      nC.x, nC.y, nC.z,
 
-      polygonData.norm.x, polygonData.norm.y, polygonData.norm.z,
-      polygonData.norm.x, polygonData.norm.y, polygonData.norm.z,
-      polygonData.norm2.x, polygonData.norm2.y, polygonData.norm2.z,
+      nC.x, nC.y, nC.z,
+      nB.x, nB.y, nB.z,
+      nD.x, nD.y, nD.z,
     ])
 
     const geometry = new BufferGeometry()
@@ -189,16 +194,23 @@ fts.polygons.forEach((polygonData) => {
 
     // prettier-ignore
     const vertices = new Float32Array([
-      c.x - offset.x, -(c.y - offset.y), c.z - offset.z,
-      b.x - offset.x, -(b.y - offset.y), b.z - offset.z,
-      a.x - offset.x, -(a.y - offset.y), a.z - offset.z,
+      -(a.x - offset.x), -(a.y - offset.y), a.z - offset.z,
+      -(b.x - offset.x), -(b.y - offset.y), b.z - offset.z,
+      -(c.x - offset.x), -(c.y - offset.y), c.z - offset.z,
     ])
 
     // prettier-ignore
+    const [nA, nB, nC, nD] = polygonData.normals ?? [
+      polygonData.norm,
+      polygonData.norm,
+      polygonData.norm,
+    ]
+
+    // prettier-ignore
     const normals = new Float32Array([
-      polygonData.norm.x, polygonData.norm.y, polygonData.norm.z,
-      polygonData.norm.x, polygonData.norm.y, polygonData.norm.z,
-      polygonData.norm.x, polygonData.norm.y, polygonData.norm.z,
+      nA.x, nA.y, nA.z,
+      nB.x, nB.y, nB.z,
+      nC.x, nC.y, nC.z,
     ])
 
     const geometry = new BufferGeometry()

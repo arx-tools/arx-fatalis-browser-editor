@@ -144,10 +144,10 @@ function makeInstance(geometry: BoxGeometry, color: number, x: number): Mesh {
 }
 
 const renderer = new WebGLRenderer({ antialias: true, canvas })
-renderer.setSize(800, 600, false)
+renderer.setSize(canvas.clientWidth, canvas.clientHeight, false)
 
 const fov = 75
-const aspect = 800 / 600
+const aspect = canvas.clientWidth / canvas.clientHeight
 const near = 0.1
 const far = 10
 const camera = new PerspectiveCamera(fov, aspect, near, far)
@@ -179,6 +179,18 @@ const light = new DirectionalLight(color, intensity)
 light.position.set(-1, 2, 4)
 scene.add(light)
 
+function resizeRendererToDisplaySize(renderer: WebGLRenderer): boolean {
+  const canvas = renderer.domElement
+  const width = canvas.clientWidth
+  const height = canvas.clientHeight
+  const needResize = canvas.width !== width || canvas.height !== height
+  if (needResize) {
+    renderer.setSize(width, height, false)
+  }
+
+  return needResize
+}
+
 function render(timeInMs: number): void {
   const d = timeInMs * 0.001
 
@@ -188,6 +200,12 @@ function render(timeInMs: number): void {
     cube.rotation.x = rot
     cube.rotation.y = rot
   })
+
+  if (resizeRendererToDisplaySize(renderer)) {
+    const canvas = renderer.domElement
+    camera.aspect = canvas.clientWidth / canvas.clientHeight
+    camera.updateProjectionMatrix()
+  }
 
   renderer.render(scene, camera)
 

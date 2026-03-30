@@ -222,12 +222,12 @@ scene.add(polygon)
 
 // --------------------
 
-const color = 0xff_ff_ff
+const white = 0xff_ff_ff
 
-const light1 = new DirectionalLight(color, 2)
+const light1 = new DirectionalLight(white, 2)
 light1.position.set(-1, 2, 4)
 
-const light2 = new AmbientLight(color, 0.1)
+const light2 = new AmbientLight(white, 0.1)
 
 scene.add(light1, light2)
 
@@ -286,6 +286,8 @@ function animate(): void {
 
     const direction = new Vector3(0, 0, 0)
 
+    // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/code
+
     if (pressedKeys.KeyA || pressedKeys.ArrowLeft) {
       const rotation = new Euler(0, MathUtils.degToRad(90), 0, 'XYZ')
       const sideDirection = facing.clone().applyEuler(rotation)
@@ -310,7 +312,13 @@ function animate(): void {
 
     const cameraSpeed = 10
     direction.normalize()
-    direction.multiplyScalar(cameraSpeed)
+
+    if (pressedKeys.ShiftLeft || pressedKeys.ShiftRight) {
+      direction.multiplyScalar(cameraSpeed / 2)
+    } else {
+      direction.multiplyScalar(cameraSpeed)
+    }
+
     camera.position.add(direction)
   } else {
     mouseLocked.style.display = 'none'

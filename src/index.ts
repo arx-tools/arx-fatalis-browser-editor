@@ -347,5 +347,8 @@ window.addEventListener('blur', () => {
 
 // TODO: add point light that follows the camera
 // TODO: add wireframe helper
+// TODO: make movement speed adjustable
+// TODO: make polygons double sided (toggleable)
+// TODO: make transparent polygons look semi-transparent
 
 // TODO: add gizmo - current gizmos I found seem to be not compatible with PointerLockControls

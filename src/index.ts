@@ -145,17 +145,20 @@ const timer = new Timer()
 
 timer.connect(document)
 
-let offset = new Vector3(fts.polygons[0].vertices[0].x, fts.polygons[0].vertices[0].y, fts.polygons[0].vertices[0].z)
-offset = offset.add(new Vector3(50, 10, 50))
+const offset = new Vector3(fts.polygons[0].vertices[0].x, fts.polygons[0].vertices[0].y, fts.polygons[0].vertices[0].z)
+offset.add(new Vector3(50, 10, 50))
+
+// --------------------
+
+const vertices: number[] = []
+const normals: number[] = []
 
 fts.polygons.forEach((polygonData) => {
-  const material = new MeshPhongMaterial({ color: 0xaa_88_44 })
-
   if (isQuad(polygonData)) {
     const [a, b, c, d] = polygonData.vertices
 
     // prettier-ignore
-    const vertices = new Float32Array([
+    vertices.push(
       -(a.x - offset.x), -(a.y - offset.y), a.z - offset.z,
       -(b.x - offset.x), -(b.y - offset.y), b.z - offset.z,
       -(c.x - offset.x), -(c.y - offset.y), c.z - offset.z,
@@ -163,7 +166,7 @@ fts.polygons.forEach((polygonData) => {
       -(c.x - offset.x), -(c.y - offset.y), c.z - offset.z,
       -(b.x - offset.x), -(b.y - offset.y), b.z - offset.z,
       -(d.x - offset.x), -(d.y - offset.y), d.z - offset.z,
-    ])
+    )
 
     const [nA, nB, nC, nD] = polygonData.normals ?? [
       polygonData.norm,
@@ -173,7 +176,7 @@ fts.polygons.forEach((polygonData) => {
     ]
 
     // prettier-ignore
-    const normals = new Float32Array([
+    normals.push(
       nA.x, nA.y, nA.z,
       nB.x, nB.y, nB.z,
       nC.x, nC.y, nC.z,
@@ -181,46 +184,43 @@ fts.polygons.forEach((polygonData) => {
       nC.x, nC.y, nC.z,
       nB.x, nB.y, nB.z,
       nD.x, nD.y, nD.z,
-    ])
-
-    const geometry = new BufferGeometry()
-    geometry.setAttribute('position', new BufferAttribute(vertices, 3))
-    geometry.setAttribute('normal', new BufferAttribute(normals, 3))
-
-    const polygon = new Mesh(geometry, material)
-    scene.add(polygon)
+    )
   } else {
     const [a, b, c] = polygonData.vertices
 
     // prettier-ignore
-    const vertices = new Float32Array([
+    vertices.push(
       -(a.x - offset.x), -(a.y - offset.y), a.z - offset.z,
       -(b.x - offset.x), -(b.y - offset.y), b.z - offset.z,
       -(c.x - offset.x), -(c.y - offset.y), c.z - offset.z,
-    ])
+    )
 
     // prettier-ignore
-    const [nA, nB, nC, nD] = polygonData.normals ?? [
+    const [nA, nB, nC] = polygonData.normals ?? [
       polygonData.norm,
       polygonData.norm,
       polygonData.norm,
     ]
 
     // prettier-ignore
-    const normals = new Float32Array([
+    normals.push(
       nA.x, nA.y, nA.z,
       nB.x, nB.y, nB.z,
       nC.x, nC.y, nC.z,
-    ])
-
-    const geometry = new BufferGeometry()
-    geometry.setAttribute('position', new BufferAttribute(vertices, 3))
-    geometry.setAttribute('normal', new BufferAttribute(normals, 3))
-
-    const polygon = new Mesh(geometry, material)
-    scene.add(polygon)
+    )
   }
 })
+
+const geometry = new BufferGeometry()
+geometry.setAttribute('position', new BufferAttribute(new Float32Array(vertices), 3))
+geometry.setAttribute('normal', new BufferAttribute(new Float32Array(normals), 3))
+
+const material = new MeshPhongMaterial({ color: 0xaa_88_44 })
+
+const polygon = new Mesh(geometry, material)
+scene.add(polygon)
+
+// --------------------
 
 const color = 0xff_ff_ff
 
@@ -239,7 +239,7 @@ renderer.setSize(canvas.clientWidth, canvas.clientHeight, false)
 const fov = 75
 const aspect = canvas.clientWidth / canvas.clientHeight
 const near = 0.1
-const far = 1000
+const far = 10_000 // draw distance
 const camera = new PerspectiveCamera(fov, aspect, near, far)
 
 camera.position.z = 500
@@ -345,4 +345,7 @@ window.addEventListener('blur', () => {
   controls.unlock()
 })
 
-// TODO: add gizmo
+// TODO: add point light that follows the camera
+// TODO: add wireframe helper
+
+// TODO: add gizmo - current gizmos I found seem to be not compatible with PointerLockControls

@@ -6,16 +6,20 @@ import {
   AmbientLight,
   BufferAttribute,
   BufferGeometry,
-  DirectionalLight,
   Euler,
+  LineSegments,
   MathUtils,
   Mesh,
-  MeshPhongMaterial,
+  MeshBasicMaterial,
+  MeshLambertMaterial,
   PerspectiveCamera,
+  PointLight,
+  PointLightHelper,
   Scene,
   Timer,
   Vector3,
   WebGLRenderer,
+  WireframeGeometry,
 } from 'three'
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js'
 import { isQuad } from 'arx-convert/utils'
@@ -177,13 +181,13 @@ fts.polygons.forEach((polygonData) => {
 
     // prettier-ignore
     normals.push(
-      nA.x, nA.y, nA.z,
-      nB.x, nB.y, nB.z,
-      nC.x, nC.y, nC.z,
+      -nA.x, -nA.y, nA.z,
+      -nB.x, -nB.y, nB.z,
+      -nC.x, -nC.y, nC.z,
 
-      nC.x, nC.y, nC.z,
-      nB.x, nB.y, nB.z,
-      nD.x, nD.y, nD.z,
+      -nC.x, -nC.y, nC.z,
+      -nB.x, -nB.y, nB.z,
+      -nD.x, -nD.y, nD.z,
     )
   } else {
     const [a, b, c] = polygonData.vertices
@@ -204,9 +208,9 @@ fts.polygons.forEach((polygonData) => {
 
     // prettier-ignore
     normals.push(
-      nA.x, nA.y, nA.z,
-      nB.x, nB.y, nB.z,
-      nC.x, nC.y, nC.z,
+      -nA.x, -nA.y, nA.z,
+      -nB.x, -nB.y, nB.z,
+      -nC.x, -nC.y, nC.z,
     )
   }
 })
@@ -215,21 +219,28 @@ const geometry = new BufferGeometry()
 geometry.setAttribute('position', new BufferAttribute(new Float32Array(vertices), 3))
 geometry.setAttribute('normal', new BufferAttribute(new Float32Array(normals), 3))
 
-const material = new MeshPhongMaterial({ color: 0xaa_88_44 })
+const material = new MeshLambertMaterial({ color: 0xff_ff_ff })
 
 const polygon = new Mesh(geometry, material)
 scene.add(polygon)
+
+const wireframe = new WireframeGeometry(geometry)
+const line = new LineSegments(wireframe, new MeshBasicMaterial({ color: 0x88_88_88 }))
+// scene.add(line)
 
 // --------------------
 
 const white = 0xff_ff_ff
 
-const light1 = new DirectionalLight(white, 2)
-light1.position.set(-1, 2, 4)
+// const light1 = new DirectionalLight(white, 2)
+// light1.position.set(-1, 2, 4)
+// scene.add(light1)
 
-const light2 = new AmbientLight(white, 0.1)
+// const light2 = new AmbientLight(white, 0.01)
+// scene.add(light2)
 
-scene.add(light1, light2)
+const cameraLight = new PointLight(0xff_ff_ff, 10_000)
+scene.add(cameraLight)
 
 // --------------------
 
@@ -320,6 +331,7 @@ function animate(): void {
     }
 
     camera.position.add(direction)
+    cameraLight.position.set(camera.position.x, camera.position.y, camera.position.z)
   } else {
     mouseLocked.style.display = 'none'
     mouseUnlocked.style.display = 'block'
@@ -329,6 +341,7 @@ function animate(): void {
 }
 
 renderer.setAnimationLoop(animate)
+cameraLight.position.set(camera.position.x, camera.position.y, camera.position.z)
 
 function onKeyDown(event: KeyboardEvent): void {
   if (event.code === 'KeyEsc') {
@@ -353,8 +366,29 @@ window.addEventListener('blur', () => {
   controls.unlock()
 })
 
+// ------------------
+
+function randomBetween(a: number, b: number): number {
+  return a + Math.floor(Math.random() * (b - a))
+}
+
+for (let x = -3; x < 3; x++) {
+  for (let y = -2; y < 2; y++) {
+    for (let z = -3; z < 3; z++) {
+      const r = randomBetween(0, 255) << 16
+      const g = randomBetween(0, 255) << 8
+      const b = randomBetween(0, 255)
+      const color = r + g + b
+
+      const light = new PointLight(color, randomBetween(10_000, 100_000))
+      light.position.set(x * 500, y * 500, z * 500)
+      const helper = new PointLightHelper(light, 10)
+      scene.add(light, helper)
+    }
+  }
+}
+
 // TODO: add point light that follows the camera
-// TODO: add wireframe helper
 // TODO: make movement speed adjustable
 // TODO: make polygons double sided (toggleable)
 // TODO: make transparent polygons look semi-transparent

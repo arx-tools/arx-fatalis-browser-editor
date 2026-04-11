@@ -24,16 +24,9 @@ import { PointerLockControls } from 'three/addons/controls/PointerLockControls.j
 import { isQuad } from 'arx-convert/utils'
 import { downloadBinaryAs, zipBuffers } from './download.js'
 import { canvas, downloadBtn, isLoading, mouseLocked, mouseUnlocked, wireframeVisible } from './ui/ui.js'
+import { randomIntBetween, wait } from './functions.js'
 
 // --------------------
-
-async function wait(delayInMs: number): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    setTimeout(() => {
-      resolve()
-    }, delayInMs)
-  })
-}
 
 async function getFTS(level: number): Promise<ArxFTS> {
   console.log(`downloading level ${level} fts...`)
@@ -223,10 +216,10 @@ const material = new MeshLambertMaterial({ color: 0xff_ff_ff })
 const polygon = new Mesh(geometry, material)
 scene.add(polygon)
 
+// --------------------
+
 const wireframe = new WireframeGeometry(geometry)
 const line = new LineSegments(wireframe, new MeshBasicMaterial({ color: 0x88_88_88 }))
-
-// --------------------
 
 wireframeVisible.addEventListener('change', (event: CustomEventInit<{ oldValue: boolean; currentValue: boolean }>) => {
   if (event.detail?.currentValue === true) {
@@ -371,19 +364,15 @@ window.addEventListener('blur', () => {
 
 // ------------------
 
-function randomBetween(a: number, b: number): number {
-  return a + Math.floor(Math.random() * (b - a))
-}
-
 for (let x = -3; x < 3; x++) {
   for (let y = -2; y < 2; y++) {
     for (let z = -3; z < 3; z++) {
-      const r = randomBetween(0, 255) << 16
-      const g = randomBetween(0, 255) << 8
-      const b = randomBetween(0, 255)
+      const r = randomIntBetween(0, 255) << 16
+      const g = randomIntBetween(0, 255) << 8
+      const b = randomIntBetween(0, 255)
       const color = r + g + b
 
-      const light = new PointLight(color, randomBetween(10_000, 100_000))
+      const light = new PointLight(color, randomIntBetween(10_000, 100_000))
       light.position.set(x * 500, y * 500, z * 500)
       const helper = new PointLightHelper(light, 10)
       scene.add(light, helper)

@@ -25,9 +25,11 @@ export const canvas = document.querySelector<HTMLCanvasElement>('#screen') as HT
 mouseLocked.style.display = 'none'
 mouseUnlocked.style.display = 'none'
 
-export const wireframeVisible = new State(false)
+export const wireframeVisible = new State(true)
 
 const wireframeVisibleCheckbox = document.querySelector<HTMLInputElement>('#wireframe-visible') as HTMLInputElement
 wireframeVisibleCheckbox.addEventListener('input', () => {
   wireframeVisible.currentValue = wireframeVisibleCheckbox.checked
 })
+
+wireframeVisibleCheckbox.checked = wireframeVisible.currentValue

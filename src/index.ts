@@ -1,7 +1,7 @@
 import { explode, implode, concatArrayBuffers, sliceArrayBufferAt } from 'node-pkware/simple'
 import { getHeaderSize } from 'arx-header-size'
-import { FTS } from 'arx-convert'
-import type { ArxFTS } from 'arx-convert/types'
+import { FTS, LLF } from 'arx-convert'
+import type { ArxFTS, ArxLLF } from 'arx-convert/types'
 import {
   BufferAttribute,
   BufferGeometry,
@@ -24,26 +24,26 @@ import { PointerLockControls } from 'three/addons/controls/PointerLockControls.j
 import { isQuad } from 'arx-convert/utils'
 import { downloadBinaryAs, zipBuffers } from './download.js'
 import { canvas, downloadBtn, isLoading, mouseLocked, mouseUnlocked, wireframeVisible } from './ui/ui.js'
-import { randomIntBetween, wait } from './functions.js'
+import { wait } from './functions.js'
 
 // --------------------
 
 async function getFTS(level: number): Promise<ArxFTS> {
-  console.log(`downloading level ${level} fts...`)
+  console.log(`[fts]: downloading level ${level} fts...`)
 
   const response = await fetch(
     `https://raw.githubusercontent.com/arx-tools/pkware-test-files/main/arx-fatalis/level${level}/fast.fts`,
   )
   if (!response.ok) {
     const errorResponse = await response.text()
-    throw new Error(`Failed to load level ${level}: ${errorResponse}`)
+    throw new Error(`Failed to download level ${level} fts: ${errorResponse}`)
   }
 
-  console.log(`finished downloading level ${level} fts`)
+  console.log(`[fts]: finished downloading level ${level} fts`)
 
   await wait(100)
 
-  console.log(`unpacking level ${level} fts...`)
+  console.log(`[fts]: unpacking level ${level} fts...`)
 
   const packedFts = await response.arrayBuffer()
   const headerSize = getHeaderSize(packedFts, 'fts')
@@ -63,9 +63,49 @@ async function getFTS(level: number): Promise<ArxFTS> {
 
   const fts = FTS.load(unpackedFts)
 
-  console.log(`finished unpacking level ${level} fts`)
+  console.log(`[fts]: finished unpacking level ${level} fts`)
 
   return fts
+}
+
+async function getLLF(level: number): Promise<ArxLLF> {
+  console.log(`[llf]: downloading level ${level} llf...`)
+
+  const response = await fetch(
+    `https://raw.githubusercontent.com/arx-tools/pkware-test-files/main/arx-fatalis/level${level}/level${level}.llf`,
+  )
+  if (!response.ok) {
+    const errorResponse = await response.text()
+    throw new Error(`Failed to download level ${level} llf: ${errorResponse}`)
+  }
+
+  console.log(`[llf]: finished downloading level ${level} llf`)
+
+  await wait(100)
+
+  console.log(`[llf]: unpacking level ${level} llf...`)
+
+  const packedLlf = await response.arrayBuffer()
+  const headerSize = getHeaderSize(packedLlf, 'llf')
+
+  await wait(100)
+
+  const [header, body] = sliceArrayBufferAt(packedLlf, headerSize.total)
+
+  await wait(100)
+
+  const explodedBody = explode(body)
+  await wait(100)
+
+  const unpackedLlf = concatArrayBuffers([header, explodedBody])
+
+  await wait(100)
+
+  const llf = LLF.load(unpackedLlf)
+
+  console.log(`[llf]: finished unpacking level ${level} llf`)
+
+  return llf
 }
 
 async function saveFTS(fts: ArxFTS, level: number): Promise<ArrayBuffer> {
@@ -114,7 +154,7 @@ const level = 11
 
 isLoading.currentValue = true
 
-const fts = await getFTS(level)
+const [fts, llf] = await Promise.all([getFTS(level), getLLF(level)])
 
 isLoading.currentValue = false
 
@@ -141,8 +181,10 @@ const timer = new Timer()
 
 timer.connect(document)
 
-const offset = new Vector3(fts.polygons[0].vertices[0].x, fts.polygons[0].vertices[0].y, fts.polygons[0].vertices[0].z)
-offset.add(new Vector3(50, 10, 50))
+// const offset = new Vector3(fts.polygons[0].vertices[0].x, fts.polygons[0].vertices[0].y, fts.polygons[0].vertices[0].z)
+// offset.add(new Vector3(50, 10, 50))
+
+const offset = fts.sceneHeader.mScenePosition
 
 // --------------------
 
@@ -364,25 +406,19 @@ window.addEventListener('blur', () => {
 
 // ------------------
 
-for (let x = -3; x < 3; x++) {
-  for (let y = -2; y < 2; y++) {
-    for (let z = -3; z < 3; z++) {
-      const r = randomIntBetween(0, 255) << 16
-      const g = randomIntBetween(0, 255) << 8
-      const b = randomIntBetween(0, 255)
-      const color = r + g + b
+for (const light of llf.lights) {
+  const color = 0xff_ff_ff
 
-      const light = new PointLight(color, randomIntBetween(10_000, 100_000))
-      light.position.set(x * 500, y * 500, z * 500)
-      const helper = new PointLightHelper(light, 10)
-      scene.add(light, helper)
-    }
-  }
+  const pointLight = new PointLight(color, light.intensity * 1000)
+  pointLight.position.set(-light.pos.x, -light.pos.y, light.pos.z)
+
+  const helper = new PointLightHelper(pointLight, 10)
+
+  scene.add(pointLight, helper)
 }
 
 // TODO: make camera light toggleable
 // TODO: show controls (WASD + shift + mouse)
-// TODO: load lights from LLF file
 // TODO: make lights toggleable
 
 // TODO: make polygons double sided (toggleable)

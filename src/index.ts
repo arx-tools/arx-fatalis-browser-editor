@@ -542,8 +542,6 @@ for (const light of llf.lights) {
   // scene.add(helper)
 }
 
-// TODO: make camera light toggleable
-// TODO: show controls (WASD + shift + mouse)
 // TODO: make lights toggleable
 
 // TODO: when saving FTS data use the three.js mesh instead of the loaded FTS data

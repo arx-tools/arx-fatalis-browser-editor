@@ -3,7 +3,6 @@ import { getHeaderSize } from 'arx-header-size'
 import { FTS } from 'arx-convert'
 import type { ArxFTS } from 'arx-convert/types'
 import {
-  AmbientLight,
   BufferAttribute,
   BufferGeometry,
   Euler,
@@ -24,7 +23,7 @@ import {
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js'
 import { isQuad } from 'arx-convert/utils'
 import { downloadBinaryAs, zipBuffers } from './download.js'
-import { canvas, downloadBtn, isLoading, mouseLocked, mouseUnlocked } from './ui/ui.js'
+import { canvas, downloadBtn, isLoading, mouseLocked, mouseUnlocked, wireframeVisible } from './ui/ui.js'
 
 // --------------------
 
@@ -226,18 +225,22 @@ scene.add(polygon)
 
 const wireframe = new WireframeGeometry(geometry)
 const line = new LineSegments(wireframe, new MeshBasicMaterial({ color: 0x88_88_88 }))
-// scene.add(line)
 
 // --------------------
 
-const white = 0xff_ff_ff
+wireframeVisible.addEventListener('change', (event: CustomEventInit<{ oldValue: boolean; currentValue: boolean }>) => {
+  if (event.detail?.currentValue === true) {
+    scene.add(line)
+  } else {
+    scene.remove(line)
+  }
+})
 
-// const light1 = new DirectionalLight(white, 2)
-// light1.position.set(-1, 2, 4)
-// scene.add(light1)
+if (wireframeVisible.currentValue === true) {
+  scene.add(line)
+}
 
-// const light2 = new AmbientLight(white, 0.01)
-// scene.add(light2)
+// --------------------
 
 const cameraLight = new PointLight(0xff_ff_ff, 10_000)
 scene.add(cameraLight)
@@ -388,7 +391,6 @@ for (let x = -3; x < 3; x++) {
   }
 }
 
-// TODO: make wireframe toggleable
 // TODO: make camera light toggleable
 // TODO: show controls (WASD + shift + mouse)
 // TODO: load lights from LLF file

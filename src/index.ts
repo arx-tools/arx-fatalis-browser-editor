@@ -1,7 +1,7 @@
 import { explode, implode, concatArrayBuffers, sliceArrayBufferAt } from 'node-pkware/simple'
 import { getHeaderSize } from 'arx-header-size'
-import { FTS, LLF } from 'arx-convert'
-import { type ArxPolygon, ArxPolygonFlags, type ArxFTS, type ArxLLF } from 'arx-convert/types'
+import { DLF, FTS, LLF } from 'arx-convert'
+import { type ArxPolygon, ArxPolygonFlags, type ArxFTS, type ArxLLF, type ArxDLF } from 'arx-convert/types'
 import {
   BufferAttribute,
   BufferGeometry,
@@ -111,6 +111,46 @@ async function getLLF(level: number): Promise<ArxLLF> {
   return llf
 }
 
+async function getDLF(level: number): Promise<ArxDLF> {
+  console.log(`[dlf]: downloading level ${level} dlf...`)
+
+  const response = await fetch(
+    `https://raw.githubusercontent.com/arx-tools/pkware-test-files/main/arx-fatalis/level${level}/level${level}.dlf`,
+  )
+  if (!response.ok) {
+    const errorResponse = await response.text()
+    throw new Error(`Failed to download level ${level} dlf: ${errorResponse}`)
+  }
+
+  console.log(`[dlf]: finished downloading level ${level} dlf`)
+
+  await wait(100)
+
+  console.log(`[dlf]: unpacking level ${level} dlf...`)
+
+  const packedDlf = await response.arrayBuffer()
+  const headerSize = getHeaderSize(packedDlf, 'dlf')
+
+  await wait(100)
+
+  const [header, body] = sliceArrayBufferAt(packedDlf, headerSize.total)
+
+  await wait(100)
+
+  const explodedBody = explode(body)
+  await wait(100)
+
+  const unpackedDlf = concatArrayBuffers([header, explodedBody])
+
+  await wait(100)
+
+  const dlf = DLF.load(unpackedDlf)
+
+  console.log(`[dlf]: finished unpacking level ${level} dlf`)
+
+  return dlf
+}
+
 async function saveFTS(fts: ArxFTS, level: number): Promise<ArrayBuffer> {
   console.log(`packing level ${level} fts...`)
 
@@ -157,7 +197,7 @@ const level = 11
 
 isLoading.currentValue = true
 
-const [fts, llf] = await Promise.all([getFTS(level), getLLF(level)])
+const [fts, llf, dlf] = await Promise.all([getFTS(level), getLLF(level), getDLF(level)])
 
 isLoading.currentValue = false
 
@@ -183,9 +223,6 @@ const scene = new Scene()
 const timer = new Timer()
 
 timer.connect(document)
-
-// const offset = new Vector3(fts.polygons[0].vertices[0].x, fts.polygons[0].vertices[0].y, fts.polygons[0].vertices[0].z)
-// offset.add(new Vector3(50, 10, 50))
 
 const offset = fts.sceneHeader.mScenePosition
 
@@ -300,7 +337,7 @@ scene.add(transparentMesh)
 // --------------------
 
 const wireframe = new WireframeGeometry(solidSingleSidedMesh.geometry)
-const line = new LineSegments(wireframe, new MeshBasicMaterial({ color: 0x88_88_88 }))
+const line = new LineSegments(wireframe, new MeshBasicMaterial({ color: Color.white.darken(50).getHex() }))
 
 wireframeVisible.addEventListener('change', (event: CustomEventInit<{ oldValue: boolean; currentValue: boolean }>) => {
   if (event.detail?.currentValue === true) {
@@ -316,22 +353,21 @@ if (wireframeVisible.currentValue === true) {
 
 // --------------------
 
-const cameraLight = new PointLight(0xff_ff_ff, 10_000)
+const cameraLight = new PointLight(Color.white.getHex(), 10_000)
 scene.add(cameraLight)
 
 // --------------------
 
 const renderer = new WebGLRenderer({ antialias: true, canvas })
-renderer.setClearColor(0x11_11_11)
+renderer.setClearColor(Color.white.darken(90).getHex())
 renderer.setSize(canvas.clientWidth, canvas.clientHeight, false)
 
 const fov = 75
 const aspect = canvas.clientWidth / canvas.clientHeight
 const near = 0.1
-const far = 10_000 // draw distance
+const far = 10_000
 const camera = new PerspectiveCamera(fov, aspect, near, far)
-
-camera.position.z = 500
+camera.position.set(-dlf.header.posEdit.x, -dlf.header.posEdit.y, dlf.header.posEdit.z)
 
 function resizeRendererToDisplaySize(renderer: WebGLRenderer): boolean {
   const canvas = renderer.domElement

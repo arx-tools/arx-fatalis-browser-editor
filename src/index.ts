@@ -25,7 +25,15 @@ import {
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js'
 import { isQuad } from 'arx-convert/utils'
 import { downloadBinaryAs, zipBuffers } from './download.js'
-import { canvas, downloadBtn, isLoading, mouseLocked, mouseUnlocked, wireframeVisible } from './ui/ui.js'
+import {
+  cameraLightVisible,
+  canvas,
+  downloadBtn,
+  isLoading,
+  mouseLocked,
+  mouseUnlocked,
+  wireframeVisible,
+} from './ui/ui.js'
 import { wait } from './functions.js'
 import { Color } from './Color.js'
 
@@ -193,7 +201,20 @@ async function saveFTS(fts: ArxFTS, level: number): Promise<ArrayBuffer> {
 
 // --------------------
 
-const level = 1
+const level = Number.parseInt(new URLSearchParams(globalThis.location.search).get('level') ?? '11', 10)
+
+function isValidArxLevelId(level: number): boolean {
+  if (Number.isNaN(level)) {
+    return false
+  }
+
+  const validArxLevelIds = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
+  return validArxLevelIds.includes(level)
+}
+
+if (!isValidArxLevelId(level)) {
+  throw new Error(`Invalid level id "${level}"`)
+}
 
 isLoading.currentValue = true
 
@@ -362,7 +383,21 @@ if (wireframeVisible.currentValue === true) {
 // --------------------
 
 const cameraLight = new PointLight(Color.white.getHex(), 10_000)
-scene.add(cameraLight)
+
+cameraLightVisible.addEventListener(
+  'change',
+  (event: CustomEventInit<{ oldValue: boolean; currentValue: boolean }>) => {
+    if (event.detail?.currentValue === true) {
+      scene.add(cameraLight)
+    } else {
+      scene.remove(cameraLight)
+    }
+  },
+)
+
+if (cameraLightVisible.currentValue === true) {
+  scene.add(cameraLight)
+}
 
 // --------------------
 

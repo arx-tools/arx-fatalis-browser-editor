@@ -193,7 +193,7 @@ async function saveFTS(fts: ArxFTS, level: number): Promise<ArrayBuffer> {
 
 // --------------------
 
-const level = 11
+const level = 1
 
 isLoading.currentValue = true
 
@@ -311,15 +311,19 @@ function isDoubleSided(flags: ArxPolygonFlags): boolean {
   return (flags & ArxPolygonFlags.DoubleSided) > 0
 }
 
+function isNoDraw(flags: ArxPolygonFlags): boolean {
+  return (flags & ArxPolygonFlags.NoDraw) > 0
+}
+
 const solidSingleSidedMaterial = new MeshLambertMaterial({ color: Color.white.getHex() })
 const solidSingleSidedMesh = createMesh(solidSingleSidedMaterial, ({ flags }) => {
-  return !isTransparent(flags) && !isDoubleSided(flags)
+  return !isTransparent(flags) && !isDoubleSided(flags) && !isNoDraw(flags)
 })
 scene.add(solidSingleSidedMesh)
 
 const solidDoubleSidedMaterial = new MeshLambertMaterial({ color: Color.white.getHex(), side: DoubleSide })
 const solidDoubleSidedMesh = createMesh(solidDoubleSidedMaterial, ({ flags }) => {
-  return !isTransparent(flags) && isDoubleSided(flags)
+  return !isTransparent(flags) && isDoubleSided(flags) && !isNoDraw(flags)
 })
 scene.add(solidDoubleSidedMesh)
 
@@ -330,11 +334,15 @@ const transparentMaterial = new MeshLambertMaterial({
   side: DoubleSide,
 })
 const transparentMesh = createMesh(transparentMaterial, ({ flags }) => {
-  return isTransparent(flags)
+  return isTransparent(flags) && !isNoDraw(flags)
 })
 scene.add(transparentMesh)
 
+// TODO: add noDraw polygons
+
 // --------------------
+
+// TODO: wireframe for the other polygons? (transparent, doublesided, etc...)
 
 const wireframe = new WireframeGeometry(solidSingleSidedMesh.geometry)
 const line = new LineSegments(wireframe, new MeshBasicMaterial({ color: Color.white.darken(50).getHex() }))

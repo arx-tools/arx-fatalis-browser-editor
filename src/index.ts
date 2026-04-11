@@ -1,10 +1,11 @@
 import { explode, implode, concatArrayBuffers, sliceArrayBufferAt } from 'node-pkware/simple'
 import { getHeaderSize } from 'arx-header-size'
 import { FTS, LLF } from 'arx-convert'
-import type { ArxFTS, ArxLLF } from 'arx-convert/types'
+import { ArxPolygonFlags, type ArxFTS, type ArxLLF } from 'arx-convert/types'
 import {
   BufferAttribute,
   BufferGeometry,
+  DoubleSide,
   Euler,
   LineSegments,
   MathUtils,
@@ -193,6 +194,10 @@ const vertices: number[] = []
 const normals: number[] = []
 
 fts.polygons.forEach((polygonData) => {
+  if (polygonData.flags & ArxPolygonFlags.Transparent) {
+    return
+  }
+
   if (isQuad(polygonData)) {
     const [a, b, c, d] = polygonData.vertices
 
@@ -250,18 +255,99 @@ fts.polygons.forEach((polygonData) => {
   }
 })
 
-const geometry = new BufferGeometry()
-geometry.setAttribute('position', new BufferAttribute(new Float32Array(vertices), 3))
-geometry.setAttribute('normal', new BufferAttribute(new Float32Array(normals), 3))
+const solidGeometry = new BufferGeometry()
+solidGeometry.setAttribute('position', new BufferAttribute(new Float32Array(vertices), 3))
+solidGeometry.setAttribute('normal', new BufferAttribute(new Float32Array(normals), 3))
 
-const material = new MeshLambertMaterial({ color: 0xff_ff_ff })
+const solidMaterial = new MeshLambertMaterial({ color: Color.white.getHex() })
 
-const polygon = new Mesh(geometry, material)
-scene.add(polygon)
+const solidMesh = new Mesh(solidGeometry, solidMaterial)
+scene.add(solidMesh)
 
 // --------------------
 
-const wireframe = new WireframeGeometry(geometry)
+vertices.length = 0
+normals.length = 0
+
+fts.polygons.forEach((polygonData) => {
+  if (!(polygonData.flags & ArxPolygonFlags.Transparent)) {
+    return
+  }
+
+  if (isQuad(polygonData)) {
+    const [a, b, c, d] = polygonData.vertices
+
+    // prettier-ignore
+    vertices.push(
+      -(a.x - offset.x), -(a.y - offset.y), a.z - offset.z,
+      -(b.x - offset.x), -(b.y - offset.y), b.z - offset.z,
+      -(c.x - offset.x), -(c.y - offset.y), c.z - offset.z,
+
+      -(c.x - offset.x), -(c.y - offset.y), c.z - offset.z,
+      -(b.x - offset.x), -(b.y - offset.y), b.z - offset.z,
+      -(d.x - offset.x), -(d.y - offset.y), d.z - offset.z,
+    )
+
+    const [nA, nB, nC, nD] = polygonData.normals ?? [
+      polygonData.norm,
+      polygonData.norm,
+      polygonData.norm,
+      polygonData.norm2,
+    ]
+
+    // prettier-ignore
+    normals.push(
+      -nA.x, -nA.y, nA.z,
+      -nB.x, -nB.y, nB.z,
+      -nC.x, -nC.y, nC.z,
+
+      -nC.x, -nC.y, nC.z,
+      -nB.x, -nB.y, nB.z,
+      -nD.x, -nD.y, nD.z,
+    )
+  } else {
+    const [a, b, c] = polygonData.vertices
+
+    // prettier-ignore
+    vertices.push(
+      -(a.x - offset.x), -(a.y - offset.y), a.z - offset.z,
+      -(b.x - offset.x), -(b.y - offset.y), b.z - offset.z,
+      -(c.x - offset.x), -(c.y - offset.y), c.z - offset.z,
+    )
+
+    // prettier-ignore
+    const [nA, nB, nC] = polygonData.normals ?? [
+      polygonData.norm,
+      polygonData.norm,
+      polygonData.norm,
+    ]
+
+    // prettier-ignore
+    normals.push(
+      -nA.x, -nA.y, nA.z,
+      -nB.x, -nB.y, nB.z,
+      -nC.x, -nC.y, nC.z,
+    )
+  }
+})
+
+const transparentGeometry = new BufferGeometry()
+transparentGeometry.setAttribute('position', new BufferAttribute(new Float32Array(vertices), 3))
+transparentGeometry.setAttribute('normal', new BufferAttribute(new Float32Array(normals), 3))
+
+const transparentMaterial = new MeshLambertMaterial({
+  color: Color.white.getHex(),
+  transparent: true,
+  opacity: 0.5,
+  side: DoubleSide,
+})
+
+const transparentMesh = new Mesh(transparentGeometry, transparentMaterial)
+scene.add(transparentMesh)
+
+// --------------------
+
+const wireframe = new WireframeGeometry(solidGeometry)
 const line = new LineSegments(wireframe, new MeshBasicMaterial({ color: 0x88_88_88 }))
 
 wireframeVisible.addEventListener('change', (event: CustomEventInit<{ oldValue: boolean; currentValue: boolean }>) => {
@@ -411,7 +497,7 @@ window.addEventListener('blur', () => {
 for (const light of llf.lights) {
   const color = Color.fromArxColor(light.color)
 
-  const colorIntensityMultiplier = 1000
+  const colorIntensityMultiplier = 2000
 
   const pointLight = new PointLight(
     color.getHex(),

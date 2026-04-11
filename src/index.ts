@@ -388,9 +388,16 @@ for (let x = -3; x < 3; x++) {
   }
 }
 
-// TODO: add point light that follows the camera
-// TODO: make movement speed adjustable
+// TODO: make wireframe toggleable
+// TODO: make camera light toggleable
+// TODO: show controls (WASD + shift + mouse)
+// TODO: load lights from LLF file
+// TODO: make lights toggleable
+
 // TODO: make polygons double sided (toggleable)
 // TODO: make transparent polygons look semi-transparent
+
+// TODO: when saving FTS data use the three.js mesh instead of the loaded FTS data
+// TODO: add seedrandom package to the project + migrate "random" functions from arx-level-generator
 
 // TODO: add gizmo - current gizmos I found seem to be not compatible with PointerLockControls

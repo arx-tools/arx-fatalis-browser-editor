@@ -1,13 +1,14 @@
 import { explode, implode, concatArrayBuffers, sliceArrayBufferAt } from 'node-pkware/simple'
 import { getHeaderSize } from 'arx-header-size'
 import { FTS, LLF } from 'arx-convert'
-import { ArxPolygonFlags, type ArxFTS, type ArxLLF } from 'arx-convert/types'
+import { type ArxPolygon, ArxPolygonFlags, type ArxFTS, type ArxLLF } from 'arx-convert/types'
 import {
   BufferAttribute,
   BufferGeometry,
   DoubleSide,
   Euler,
   LineSegments,
+  type Material,
   MathUtils,
   Mesh,
   MeshBasicMaterial,
@@ -190,19 +191,20 @@ const offset = fts.sceneHeader.mScenePosition
 
 // --------------------
 
-const vertices: number[] = []
-const normals: number[] = []
+function createMesh(material: Material, filter: (polygonData: ArxPolygon) => boolean = () => true): Mesh {
+  const vertices: number[] = []
+  const normals: number[] = []
 
-fts.polygons.forEach((polygonData) => {
-  if (polygonData.flags & ArxPolygonFlags.Transparent) {
-    return
-  }
+  fts.polygons.forEach((polygonData) => {
+    if (filter(polygonData) === false) {
+      return
+    }
 
-  if (isQuad(polygonData)) {
-    const [a, b, c, d] = polygonData.vertices
+    if (isQuad(polygonData)) {
+      const [a, b, c, d] = polygonData.vertices
 
-    // prettier-ignore
-    vertices.push(
+      // prettier-ignore
+      vertices.push(
       -(a.x - offset.x), -(a.y - offset.y), a.z - offset.z,
       -(b.x - offset.x), -(b.y - offset.y), b.z - offset.z,
       -(c.x - offset.x), -(c.y - offset.y), c.z - offset.z,
@@ -212,15 +214,15 @@ fts.polygons.forEach((polygonData) => {
       -(d.x - offset.x), -(d.y - offset.y), d.z - offset.z,
     )
 
-    const [nA, nB, nC, nD] = polygonData.normals ?? [
-      polygonData.norm,
-      polygonData.norm,
-      polygonData.norm,
-      polygonData.norm2,
-    ]
+      const [nA, nB, nC, nD] = polygonData.normals ?? [
+        polygonData.norm,
+        polygonData.norm,
+        polygonData.norm,
+        polygonData.norm2,
+      ]
 
-    // prettier-ignore
-    normals.push(
+      // prettier-ignore
+      normals.push(
       -nA.x, -nA.y, nA.z,
       -nB.x, -nB.y, nB.z,
       -nC.x, -nC.y, nC.z,
@@ -229,111 +231,60 @@ fts.polygons.forEach((polygonData) => {
       -nB.x, -nB.y, nB.z,
       -nD.x, -nD.y, nD.z,
     )
-  } else {
-    const [a, b, c] = polygonData.vertices
+    } else {
+      const [a, b, c] = polygonData.vertices
 
-    // prettier-ignore
-    vertices.push(
+      // prettier-ignore
+      vertices.push(
       -(a.x - offset.x), -(a.y - offset.y), a.z - offset.z,
       -(b.x - offset.x), -(b.y - offset.y), b.z - offset.z,
       -(c.x - offset.x), -(c.y - offset.y), c.z - offset.z,
     )
 
-    // prettier-ignore
-    const [nA, nB, nC] = polygonData.normals ?? [
+      // prettier-ignore
+      const [nA, nB, nC] = polygonData.normals ?? [
       polygonData.norm,
       polygonData.norm,
       polygonData.norm,
     ]
 
-    // prettier-ignore
-    normals.push(
+      // prettier-ignore
+      normals.push(
       -nA.x, -nA.y, nA.z,
       -nB.x, -nB.y, nB.z,
       -nC.x, -nC.y, nC.z,
     )
-  }
-})
+    }
+  })
 
-const solidGeometry = new BufferGeometry()
-solidGeometry.setAttribute('position', new BufferAttribute(new Float32Array(vertices), 3))
-solidGeometry.setAttribute('normal', new BufferAttribute(new Float32Array(normals), 3))
+  const geometry = new BufferGeometry()
+  geometry.setAttribute('position', new BufferAttribute(new Float32Array(vertices), 3))
+  geometry.setAttribute('normal', new BufferAttribute(new Float32Array(normals), 3))
 
-const solidMaterial = new MeshLambertMaterial({ color: Color.white.getHex() })
-
-const solidMesh = new Mesh(solidGeometry, solidMaterial)
-scene.add(solidMesh)
+  return new Mesh(geometry, material)
+}
 
 // --------------------
 
-vertices.length = 0
-normals.length = 0
+function isTransparent(flags: ArxPolygonFlags): boolean {
+  return (flags & ArxPolygonFlags.Transparent) > 0
+}
 
-fts.polygons.forEach((polygonData) => {
-  if (!(polygonData.flags & ArxPolygonFlags.Transparent)) {
-    return
-  }
+function isDoubleSided(flags: ArxPolygonFlags): boolean {
+  return (flags & ArxPolygonFlags.DoubleSided) > 0
+}
 
-  if (isQuad(polygonData)) {
-    const [a, b, c, d] = polygonData.vertices
-
-    // prettier-ignore
-    vertices.push(
-      -(a.x - offset.x), -(a.y - offset.y), a.z - offset.z,
-      -(b.x - offset.x), -(b.y - offset.y), b.z - offset.z,
-      -(c.x - offset.x), -(c.y - offset.y), c.z - offset.z,
-
-      -(c.x - offset.x), -(c.y - offset.y), c.z - offset.z,
-      -(b.x - offset.x), -(b.y - offset.y), b.z - offset.z,
-      -(d.x - offset.x), -(d.y - offset.y), d.z - offset.z,
-    )
-
-    const [nA, nB, nC, nD] = polygonData.normals ?? [
-      polygonData.norm,
-      polygonData.norm,
-      polygonData.norm,
-      polygonData.norm2,
-    ]
-
-    // prettier-ignore
-    normals.push(
-      -nA.x, -nA.y, nA.z,
-      -nB.x, -nB.y, nB.z,
-      -nC.x, -nC.y, nC.z,
-
-      -nC.x, -nC.y, nC.z,
-      -nB.x, -nB.y, nB.z,
-      -nD.x, -nD.y, nD.z,
-    )
-  } else {
-    const [a, b, c] = polygonData.vertices
-
-    // prettier-ignore
-    vertices.push(
-      -(a.x - offset.x), -(a.y - offset.y), a.z - offset.z,
-      -(b.x - offset.x), -(b.y - offset.y), b.z - offset.z,
-      -(c.x - offset.x), -(c.y - offset.y), c.z - offset.z,
-    )
-
-    // prettier-ignore
-    const [nA, nB, nC] = polygonData.normals ?? [
-      polygonData.norm,
-      polygonData.norm,
-      polygonData.norm,
-    ]
-
-    // prettier-ignore
-    normals.push(
-      -nA.x, -nA.y, nA.z,
-      -nB.x, -nB.y, nB.z,
-      -nC.x, -nC.y, nC.z,
-    )
-  }
+const solidSingleSidedMaterial = new MeshLambertMaterial({ color: Color.white.getHex() })
+const solidSingleSidedMesh = createMesh(solidSingleSidedMaterial, ({ flags }) => {
+  return !isTransparent(flags) && !isDoubleSided(flags)
 })
+scene.add(solidSingleSidedMesh)
 
-const transparentGeometry = new BufferGeometry()
-transparentGeometry.setAttribute('position', new BufferAttribute(new Float32Array(vertices), 3))
-transparentGeometry.setAttribute('normal', new BufferAttribute(new Float32Array(normals), 3))
+const solidDoubleSidedMaterial = new MeshLambertMaterial({ color: Color.white.getHex(), side: DoubleSide })
+const solidDoubleSidedMesh = createMesh(solidDoubleSidedMaterial, ({ flags }) => {
+  return !isTransparent(flags) && isDoubleSided(flags)
+})
+scene.add(solidDoubleSidedMesh)
 
 const transparentMaterial = new MeshLambertMaterial({
   color: Color.white.getHex(),
@@ -341,13 +292,14 @@ const transparentMaterial = new MeshLambertMaterial({
   opacity: 0.5,
   side: DoubleSide,
 })
-
-const transparentMesh = new Mesh(transparentGeometry, transparentMaterial)
+const transparentMesh = createMesh(transparentMaterial, ({ flags }) => {
+  return isTransparent(flags)
+})
 scene.add(transparentMesh)
 
 // --------------------
 
-const wireframe = new WireframeGeometry(solidGeometry)
+const wireframe = new WireframeGeometry(solidSingleSidedMesh.geometry)
 const line = new LineSegments(wireframe, new MeshBasicMaterial({ color: 0x88_88_88 }))
 
 wireframeVisible.addEventListener('change', (event: CustomEventInit<{ oldValue: boolean; currentValue: boolean }>) => {
@@ -365,7 +317,7 @@ if (wireframeVisible.currentValue === true) {
 // --------------------
 
 const cameraLight = new PointLight(0xff_ff_ff, 10_000)
-// scene.add(cameraLight)
+scene.add(cameraLight)
 
 // --------------------
 
@@ -514,9 +466,6 @@ for (const light of llf.lights) {
 // TODO: make camera light toggleable
 // TODO: show controls (WASD + shift + mouse)
 // TODO: make lights toggleable
-
-// TODO: make polygons double sided (toggleable)
-// TODO: make transparent polygons look semi-transparent
 
 // TODO: when saving FTS data use the three.js mesh instead of the loaded FTS data
 // TODO: add seedrandom package to the project + migrate "random" functions from arx-level-generator

@@ -13,7 +13,7 @@ import {
   MeshLambertMaterial,
   PerspectiveCamera,
   PointLight,
-  PointLightHelper,
+  // PointLightHelper,
   Scene,
   Timer,
   Vector3,
@@ -25,6 +25,7 @@ import { isQuad } from 'arx-convert/utils'
 import { downloadBinaryAs, zipBuffers } from './download.js'
 import { canvas, downloadBtn, isLoading, mouseLocked, mouseUnlocked, wireframeVisible } from './ui/ui.js'
 import { wait } from './functions.js'
+import { Color } from './Color.js'
 
 // --------------------
 
@@ -278,11 +279,12 @@ if (wireframeVisible.currentValue === true) {
 // --------------------
 
 const cameraLight = new PointLight(0xff_ff_ff, 10_000)
-scene.add(cameraLight)
+// scene.add(cameraLight)
 
 // --------------------
 
 const renderer = new WebGLRenderer({ antialias: true, canvas })
+renderer.setClearColor(0x11_11_11)
 renderer.setSize(canvas.clientWidth, canvas.clientHeight, false)
 
 const fov = 75
@@ -407,14 +409,20 @@ window.addEventListener('blur', () => {
 // ------------------
 
 for (const light of llf.lights) {
-  const color = 0xff_ff_ff
+  const color = Color.fromArxColor(light.color)
 
-  const pointLight = new PointLight(color, light.intensity * 1000)
+  const colorIntensityMultiplier = 1000
+
+  const pointLight = new PointLight(
+    color.getHex(),
+    light.intensity * colorIntensityMultiplier,
+    light.fallStart * colorIntensityMultiplier,
+  )
   pointLight.position.set(-light.pos.x, -light.pos.y, light.pos.z)
+  scene.add(pointLight)
 
-  const helper = new PointLightHelper(pointLight, 10)
-
-  scene.add(pointLight, helper)
+  // const helper = new PointLightHelper(pointLight, 10)
+  // scene.add(helper)
 }
 
 // TODO: make camera light toggleable

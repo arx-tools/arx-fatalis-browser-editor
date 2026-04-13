@@ -23,6 +23,7 @@ import {
   WireframeGeometry,
 } from 'three'
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js'
+import { ViewHelper } from 'three/examples/jsm/helpers/ViewHelper.js'
 import { isQuad } from 'arx-convert/utils'
 import { downloadBinaryAs, zipBuffers } from './download.js'
 import {
@@ -405,6 +406,8 @@ const renderer = new WebGLRenderer({ antialias: true, canvas })
 renderer.setClearColor(Color.white.darken(90).getHex())
 renderer.setSize(canvas.clientWidth, canvas.clientHeight, false)
 
+renderer.autoClear = false
+
 const fov = 75
 const aspect = canvas.clientWidth / canvas.clientHeight
 const near = 0.1
@@ -426,6 +429,7 @@ function resizeRendererToDisplaySize(renderer: WebGLRenderer): boolean {
 }
 
 const controls = new PointerLockControls(camera, document.body)
+const viewHelper = new ViewHelper(camera, document.body)
 
 const pressedKeys: Record<string, boolean> = {}
 
@@ -440,7 +444,9 @@ function render(): void {
 
   controls.update(delta)
 
+  renderer.clear()
   renderer.render(scene, camera)
+  viewHelper.render(renderer)
 }
 
 function animate(): void {

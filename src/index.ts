@@ -641,3 +641,5 @@ for (const light of llf.lights) {
 
 // TODO: when saving FTS data use the three.js mesh instead of the loaded FTS data
 // TODO: add seedrandom package to the project + migrate "random" functions from arx-level-generator
+
+// TODO: make header show something more useful then a large text of "Arx Fatalis Browser Editor"

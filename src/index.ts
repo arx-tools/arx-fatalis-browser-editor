@@ -553,5 +553,3 @@ for (const light of llf.lights) {
 
 // TODO: when saving FTS data use the three.js mesh instead of the loaded FTS data
 // TODO: add seedrandom package to the project + migrate "random" functions from arx-level-generator
-
-// TODO: add gizmo - current gizmos I found seem to be not compatible with PointerLockControls

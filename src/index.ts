@@ -161,7 +161,7 @@ async function getDLF(level: number): Promise<ArxDLF> {
 }
 
 async function saveFTS(fts: ArxFTS, level: number): Promise<ArrayBuffer> {
-  console.log(`packing level ${level} fts...`)
+  console.log(`[fts]: packing level ${level} fts...`)
 
   await wait(100)
 
@@ -195,14 +195,92 @@ async function saveFTS(fts: ArxFTS, level: number): Promise<ArrayBuffer> {
 
   await wait(100)
 
-  console.log(`finished packing level ${level} fts`)
+  console.log(`[fts]: finished packing level ${level} fts`)
 
   return packedFts
 }
 
-// --------------------
+async function saveLLF(llf: ArxLLF, level: number): Promise<ArrayBuffer> {
+  console.log(`[llf]: packing level ${level} llf...`)
 
-const level = Number.parseInt(new URLSearchParams(globalThis.location.search).get('level') ?? '11', 10)
+  await wait(100)
+
+  console.time('LLF.save')
+  const unpackedLlf = LLF.save(llf)
+  console.timeEnd('LLF.save')
+
+  await wait(100)
+
+  console.time('getHeaderSize')
+  const headerSize = getHeaderSize(unpackedLlf, 'llf')
+  console.timeEnd('getHeaderSize')
+
+  await wait(100)
+
+  console.time('sliceArrayBufferAt')
+  const [header, body] = sliceArrayBufferAt(unpackedLlf, headerSize.total)
+  console.timeEnd('sliceArrayBufferAt')
+
+  await wait(100)
+
+  console.time('implode')
+  const implodedBody = implode(body, 'binary', 'large')
+  console.timeEnd('implode')
+
+  await wait(100)
+
+  console.time('concatArrayBuffers')
+  const packedLlf = concatArrayBuffers([header, implodedBody])
+  console.timeEnd('concatArrayBuffers')
+
+  await wait(100)
+
+  console.log(`[llf]: finished packing level ${level} llf`)
+
+  return packedLlf
+}
+
+async function saveDLF(dlf: ArxDLF, level: number): Promise<ArrayBuffer> {
+  console.log(`[dlf]: packing level ${level} dlf...`)
+
+  await wait(100)
+
+  console.time('DLF.save')
+  const unpackedDlf = DLF.save(dlf)
+  console.timeEnd('DLF.save')
+
+  await wait(100)
+
+  console.time('getHeaderSize')
+  const headerSize = getHeaderSize(unpackedDlf, 'dlf')
+  console.timeEnd('getHeaderSize')
+
+  await wait(100)
+
+  console.time('sliceArrayBufferAt')
+  const [header, body] = sliceArrayBufferAt(unpackedDlf, headerSize.total)
+  console.timeEnd('sliceArrayBufferAt')
+
+  await wait(100)
+
+  console.time('implode')
+  const implodedBody = implode(body, 'binary', 'large')
+  console.timeEnd('implode')
+
+  await wait(100)
+
+  console.time('concatArrayBuffers')
+  const packedDlf = concatArrayBuffers([header, implodedBody])
+  console.timeEnd('concatArrayBuffers')
+
+  await wait(100)
+
+  console.log(`[dlf]: finished packing level ${level} dlf`)
+
+  return packedDlf
+}
+
+// --------------------
 
 function isValidArxLevelId(level: number): boolean {
   if (Number.isNaN(level)) {
@@ -212,6 +290,8 @@ function isValidArxLevelId(level: number): boolean {
   const validArxLevelIds = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
   return validArxLevelIds.includes(level)
 }
+
+const level = Number.parseInt(new URLSearchParams(globalThis.location.search).get('level') ?? '11', 10)
 
 if (!isValidArxLevelId(level)) {
   throw new Error(`Invalid level id "${level}"`)
@@ -226,12 +306,20 @@ isLoading.currentValue = false
 downloadBtn.addEventListener('click', async () => {
   isLoading.currentValue = true
 
+  // TODO: generate fts, llf and dlf from scene
+
   console.log('downloading')
 
-  const packedFts = await saveFTS(fts, level)
+  const [packedFts, packedLlf, packedDlf] = await Promise.all([
+    saveFTS(fts, level),
+    saveLLF(llf, level),
+    saveDLF(dlf, level),
+  ])
 
   const zip = await zipBuffers({
     [`/game/graph/levels/level${level}/fast.fts`]: packedFts,
+    [`/graph/levels/level${level}/level${level}.llf`]: packedLlf,
+    [`/graph/levels/level${level}/level${level}.dlf`]: packedDlf,
   })
 
   downloadBinaryAs('mod.zip', zip, 'application/zip')

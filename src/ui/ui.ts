@@ -13,10 +13,10 @@ export const mouseUnlocked = document.querySelector<HTMLParagraphElement>('#mous
 isLoading.addEventListener('change', (event: CustomEventInit<{ oldValue: boolean; currentValue: boolean }>) => {
   if (event.detail?.currentValue === true) {
     downloadBtn.disabled = true
-    loadingIndicator.style.visibility = 'visible'
+    loadingIndicator.classList.remove('hidden')
   } else {
     downloadBtn.disabled = false
-    loadingIndicator.style.visibility = 'hidden'
+    loadingIndicator.classList.add('hidden')
   }
 })
 

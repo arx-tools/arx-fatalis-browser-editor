@@ -7,6 +7,7 @@ import {
   BufferGeometry,
   DoubleSide,
   Euler,
+  type Face,
   LineSegments,
   type Material,
   MathUtils,
@@ -15,8 +16,10 @@ import {
   MeshLambertMaterial,
   PerspectiveCamera,
   PointLight,
+  Raycaster,
   Scene,
   Timer,
+  Triangle,
   Vector2,
   Vector3,
   WebGLRenderer,
@@ -25,6 +28,7 @@ import {
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js'
 import { ViewHelper } from 'three/examples/jsm/helpers/ViewHelper.js'
 import { isQuad } from 'arx-convert/utils'
+// import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh'
 import { downloadBinaryAs, zipBuffers } from './download.js'
 import {
   cameraLightVisible,
@@ -38,6 +42,8 @@ import {
 import { arxVector3toVector3, isDoubleSided, isNoDraw, isTransparent, wait } from './functions.js'
 import { Color } from './Color.js'
 import { isValidOriginalArxLevelId } from './constants.js'
+
+// Mesh.prototype.raycast = acceleratedRaycast
 
 // --------------------
 
@@ -325,6 +331,8 @@ const timer = new Timer()
 
 timer.connect(document)
 
+const raycaster = new Raycaster()
+
 // --------------------
 
 function createMesh(
@@ -431,6 +439,8 @@ function createMesh(
   geometry.setAttribute('normal', new BufferAttribute(new Float32Array(normals), 3))
   geometry.setAttribute('uv', new BufferAttribute(new Float32Array(uvs), 2))
 
+  // geometry.boundsTree = new MeshBVH(geometry)
+
   return new Mesh(geometry, material)
 }
 
@@ -491,6 +501,21 @@ if (wireframeVisible.currentValue === true) {
 }
 
 // --------------------
+
+for (const light of llf.lights) {
+  const color = Color.fromArxColor(light.color)
+
+  const colorIntensityMultiplier = 2000
+
+  const pointLight = new PointLight(
+    color.getHex(),
+    light.intensity * colorIntensityMultiplier,
+    light.fallStart * colorIntensityMultiplier,
+  )
+  pointLight.position.set(-light.pos.x, -light.pos.y, light.pos.z)
+
+  scene.add(pointLight)
+}
 
 const cameraLight = new PointLight(Color.white.getHex(), 10_000)
 
@@ -635,30 +660,66 @@ document.addEventListener('keyup', onKeyUp, false)
 canvas.addEventListener('click', () => {
   controls.lock()
 })
+
 window.addEventListener('blur', () => {
   controls.unlock()
 })
 
-// ------------------
+// --------------
 
-for (const light of llf.lights) {
-  const color = Color.fromArxColor(light.color)
+// TODO: store selected triangle / allow adding with left click and removing with right click
 
-  const colorIntensityMultiplier = 2000
+function renderTriangle(triangle: Triangle): BufferGeometry {
+  const geometry = new BufferGeometry()
 
-  const pointLight = new PointLight(
-    color.getHex(),
-    light.intensity * colorIntensityMultiplier,
-    light.fallStart * colorIntensityMultiplier,
-  )
-  pointLight.position.set(-light.pos.x, -light.pos.y, light.pos.z)
+  // prettier-ignore
+  const vertices = new Float32Array([
+    ...triangle.a.toArray(),
+    ...triangle.b.toArray(),
+    ...triangle.c.toArray()
+  ]);
 
-  scene.add(pointLight)
+  geometry.setAttribute('position', new BufferAttribute(vertices, 3))
+
+  return new WireframeGeometry(geometry)
 }
 
-// TODO: make lights toggleable
+const cursorTriangleMesh = new LineSegments(
+  renderTriangle(new Triangle()),
+  new MeshBasicMaterial({ color: Color.red.getHex() }),
+)
+scene.add(cursorTriangleMesh)
+
+controls.addEventListener('change', () => {
+  const lookingAt = new Vector3()
+  controls.getDirection(lookingAt)
+
+  raycaster.set(camera.position, lookingAt)
+
+  const intersects = raycaster.intersectObjects(meshes, false)
+  const intersectedMeshes = intersects.filter(({ object }) => object instanceof Mesh)
+
+  if (intersectedMeshes.length === 0) {
+    scene.remove(cursorTriangleMesh)
+    return
+  }
+
+  const p = (intersectedMeshes[0].object as Mesh).geometry.getAttribute('position')
+  const face = intersectedMeshes[0].face as Face
+  const a = new Vector3(p.getX(face.a), p.getY(face.a), p.getZ(face.a))
+  const b = new Vector3(p.getX(face.b), p.getY(face.b), p.getZ(face.b))
+  const c = new Vector3(p.getX(face.c), p.getY(face.c), p.getZ(face.c))
+  cursorTriangleMesh.geometry = renderTriangle(new Triangle(a, b, c))
+  scene.add(cursorTriangleMesh)
+})
+
+// ------------------
 
 // TODO: when saving FTS data use the three.js mesh instead of the loaded FTS data
 // TODO: add seedrandom package to the project + migrate "random" functions from arx-level-generator
 
 // TODO: make header show something more useful then a large text of "Arx Fatalis Browser Editor"
+
+// TODO: three-mesh-bvh fails to load via esm.sh -> the project needs a bundler
+
+// TODO: add crosshair

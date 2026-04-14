@@ -37,7 +37,7 @@ import {
 } from './ui/ui.js'
 import { arxVector3toVector3, isDoubleSided, isNoDraw, isTransparent, wait } from './functions.js'
 import { Color } from './Color.js'
-import { isValidArxLevelId } from './constants.js'
+import { isValidOriginalArxLevelId } from './constants.js'
 
 // --------------------
 
@@ -284,7 +284,7 @@ async function saveDLF(dlf: ArxDLF, level: number): Promise<ArrayBuffer> {
 // --------------------
 
 const level = Number.parseInt(new URLSearchParams(globalThis.location.search).get('level') ?? '11', 10)
-if (!isValidArxLevelId(level)) {
+if (!isValidOriginalArxLevelId(level)) {
   throw new Error(`Invalid level id "${level}"`)
 }
 

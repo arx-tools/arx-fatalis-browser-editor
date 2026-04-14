@@ -704,11 +704,11 @@ controls.addEventListener('change', () => {
     return
   }
 
-  const p = (intersectedMeshes[0].object as Mesh).geometry.getAttribute('position')
+  const point = (intersectedMeshes[0].object as Mesh).geometry.getAttribute('position')
   const face = intersectedMeshes[0].face as Face
-  const a = new Vector3(p.getX(face.a), p.getY(face.a), p.getZ(face.a))
-  const b = new Vector3(p.getX(face.b), p.getY(face.b), p.getZ(face.b))
-  const c = new Vector3(p.getX(face.c), p.getY(face.c), p.getZ(face.c))
+  const a = new Vector3(point.getX(face.a), point.getY(face.a), point.getZ(face.a))
+  const b = new Vector3(point.getX(face.b), point.getY(face.b), point.getZ(face.b))
+  const c = new Vector3(point.getX(face.c), point.getY(face.c), point.getZ(face.c))
   cursorTriangleMesh.geometry = renderTriangle(new Triangle(a, b, c))
   scene.add(cursorTriangleMesh)
 })

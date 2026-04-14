@@ -1,7 +1,7 @@
 import { explode, implode, concatArrayBuffers, sliceArrayBufferAt } from 'node-pkware/simple'
 import { getHeaderSize } from 'arx-header-size'
 import { DLF, FTS, LLF } from 'arx-convert'
-import { type ArxPolygon, ArxPolygonFlags, type ArxFTS, type ArxLLF, type ArxDLF } from 'arx-convert/types'
+import type { ArxPolygon, ArxFTS, ArxLLF, ArxDLF } from 'arx-convert/types'
 import {
   BufferAttribute,
   BufferGeometry,
@@ -35,8 +35,9 @@ import {
   mouseUnlocked,
   wireframeVisible,
 } from './ui/ui.js'
-import { wait } from './functions.js'
+import { arxVector3toVector3, isDoubleSided, isNoDraw, isTransparent, wait } from './functions.js'
 import { Color } from './Color.js'
+import { isValidArxLevelId } from './constants.js'
 
 // --------------------
 
@@ -282,17 +283,7 @@ async function saveDLF(dlf: ArxDLF, level: number): Promise<ArrayBuffer> {
 
 // --------------------
 
-function isValidArxLevelId(level: number): boolean {
-  if (Number.isNaN(level)) {
-    return false
-  }
-
-  const validArxLevelIds = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
-  return validArxLevelIds.includes(level)
-}
-
 const level = Number.parseInt(new URLSearchParams(globalThis.location.search).get('level') ?? '11', 10)
-
 if (!isValidArxLevelId(level)) {
   throw new Error(`Invalid level id "${level}"`)
 }
@@ -415,23 +406,7 @@ function createMesh(
 
 // --------------------
 
-function isTransparent(flags: ArxPolygonFlags): boolean {
-  return (flags & ArxPolygonFlags.Transparent) > 0
-}
-
-function isDoubleSided(flags: ArxPolygonFlags): boolean {
-  return (flags & ArxPolygonFlags.DoubleSided) > 0
-}
-
-function isNoDraw(flags: ArxPolygonFlags): boolean {
-  return (flags & ArxPolygonFlags.NoDraw) > 0
-}
-
-const offset = new Vector3(
-  fts.sceneHeader.mScenePosition.x,
-  fts.sceneHeader.mScenePosition.y,
-  fts.sceneHeader.mScenePosition.z,
-)
+const offset = arxVector3toVector3(fts.sceneHeader.mScenePosition)
 
 const meshes: Mesh[] = []
 
@@ -464,13 +439,11 @@ meshes.push(transparentMesh)
 
 scene.add(...meshes)
 
-const wireframeLineColor = Color.white.darken(50).getHex()
-
 const wireframeLines: LineSegments[] = meshes.map((mesh) => {
   return new LineSegments(
     new WireframeGeometry(mesh.geometry),
     new MeshBasicMaterial({
-      color: wireframeLineColor,
+      color: Color.white.darken(50).getHex(),
     }),
   )
 })

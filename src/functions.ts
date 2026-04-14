@@ -22,13 +22,13 @@ export function arxVector3toVector3({ x, y, z }: ArxVector3): Vector3 {
 }
 
 export function isTransparent(flags: ArxPolygonFlags): boolean {
-  return (flags & ArxPolygonFlags.Transparent) > 0
+  return (flags & ArxPolygonFlags.Transparent) !== 0
 }
 
 export function isDoubleSided(flags: ArxPolygonFlags): boolean {
-  return (flags & ArxPolygonFlags.DoubleSided) > 0
+  return (flags & ArxPolygonFlags.DoubleSided) !== 0
 }
 
 export function isNoDraw(flags: ArxPolygonFlags): boolean {
-  return (flags & ArxPolygonFlags.NoDraw) > 0
+  return (flags & ArxPolygonFlags.NoDraw) !== 0
 }

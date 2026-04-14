@@ -341,59 +341,65 @@ function createMesh(
     }
 
     if (isQuad(polygonData)) {
-      const [a, b, c, d] = polygonData.vertices
+      const [a, b, c, d] = polygonData.vertices.map((vertex) => {
+        return arxVector3toVector3(vertex)
+          .sub(offset)
+          .multiply(new Vector3(-1, -1, 1))
+      })
 
       // prettier-ignore
       vertices.push(
-      -(a.x - offset.x), -(a.y - offset.y), a.z - offset.z,
-      -(b.x - offset.x), -(b.y - offset.y), b.z - offset.z,
-      -(c.x - offset.x), -(c.y - offset.y), c.z - offset.z,
+        ...a.toArray(),
+        ...b.toArray(),
+        ...c.toArray(),
 
-      -(c.x - offset.x), -(c.y - offset.y), c.z - offset.z,
-      -(b.x - offset.x), -(b.y - offset.y), b.z - offset.z,
-      -(d.x - offset.x), -(d.y - offset.y), d.z - offset.z,
-    )
+        ...c.toArray(),
+        ...b.toArray(),
+        ...d.toArray(),
+      )
 
-      const [nA, nB, nC, nD] = polygonData.normals ?? [
-        polygonData.norm,
-        polygonData.norm,
-        polygonData.norm,
-        polygonData.norm2,
-      ]
+      const [nA, nB, nC, nD] = (
+        polygonData.normals ?? [polygonData.norm, polygonData.norm, polygonData.norm, polygonData.norm2]
+      ).map((vector) => {
+        return arxVector3toVector3(vector).multiply(new Vector3(-1, -1, 1))
+      })
 
       // prettier-ignore
       normals.push(
-      -nA.x, -nA.y, nA.z,
-      -nB.x, -nB.y, nB.z,
-      -nC.x, -nC.y, nC.z,
+        ...nA.toArray(),
+        ...nB.toArray(),
+        ...nC.toArray(),
 
-      -nC.x, -nC.y, nC.z,
-      -nB.x, -nB.y, nB.z,
-      -nD.x, -nD.y, nD.z,
-    )
+        ...nC.toArray(),
+        ...nB.toArray(),
+        ...nD.toArray(),
+      )
     } else {
-      const [a, b, c] = polygonData.vertices
+      const [a, b, c] = polygonData.vertices.map((vertex) => {
+        return arxVector3toVector3(vertex)
+          .sub(offset)
+          .multiply(new Vector3(-1, -1, 1))
+      })
 
       // prettier-ignore
       vertices.push(
-      -(a.x - offset.x), -(a.y - offset.y), a.z - offset.z,
-      -(b.x - offset.x), -(b.y - offset.y), b.z - offset.z,
-      -(c.x - offset.x), -(c.y - offset.y), c.z - offset.z,
-    )
+        ...a.toArray(),
+        ...b.toArray(),
+        ...c.toArray(),
+      )
 
-      // prettier-ignore
-      const [nA, nB, nC] = polygonData.normals ?? [
-      polygonData.norm,
-      polygonData.norm,
-      polygonData.norm,
-    ]
+      const [nA, nB, nC] = (polygonData.normals ?? [polygonData.norm, polygonData.norm, polygonData.norm]).map(
+        (vector) => {
+          return arxVector3toVector3(vector).multiply(new Vector3(-1, -1, 1))
+        },
+      )
 
       // prettier-ignore
       normals.push(
-      -nA.x, -nA.y, nA.z,
-      -nB.x, -nB.y, nB.z,
-      -nC.x, -nC.y, nC.z,
-    )
+        ...nA.toArray(),
+        ...nB.toArray(),
+        ...nC.toArray(),
+      )
     }
   })
 

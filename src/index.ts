@@ -28,7 +28,7 @@ import {
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js'
 import { ViewHelper } from 'three/examples/jsm/helpers/ViewHelper.js'
 import { isQuad } from 'arx-convert/utils'
-// import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh'
+import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh'
 import { downloadBinaryAs, zipBuffers } from './download.js'
 import {
   cameraLightVisible,
@@ -43,7 +43,7 @@ import { arxVector3toVector3, isDoubleSided, isNoDraw, isTransparent, wait } fro
 import { Color } from './Color.js'
 import { isValidOriginalArxLevelId } from './constants.js'
 
-// Mesh.prototype.raycast = acceleratedRaycast
+Mesh.prototype.raycast = acceleratedRaycast
 
 // --------------------
 
@@ -439,7 +439,7 @@ function createMesh(
   geometry.setAttribute('normal', new BufferAttribute(new Float32Array(normals), 3))
   geometry.setAttribute('uv', new BufferAttribute(new Float32Array(uvs), 2))
 
-  // geometry.boundsTree = new MeshBVH(geometry)
+  geometry.boundsTree = new MeshBVH(geometry)
 
   return new Mesh(geometry, material)
 }
@@ -719,7 +719,5 @@ controls.addEventListener('change', () => {
 // TODO: add seedrandom package to the project + migrate "random" functions from arx-level-generator
 
 // TODO: make header show something more useful then a large text of "Arx Fatalis Browser Editor"
-
-// TODO: three-mesh-bvh fails to load via esm.sh -> the project needs a bundler
 
 // TODO: add crosshair

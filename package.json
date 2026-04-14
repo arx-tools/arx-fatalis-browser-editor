@@ -32,7 +32,8 @@
     "color-rgba": "3.0.0",
     "jszip": "3.10.1",
     "node-pkware": "5.9.1",
-    "three": "0.183.2"
+    "three": "0.183.2",
+    "three-mesh-bvh": "0.9.9"
   },
   "devDependencies": {
     "@hyperse/ts-node": "^1.1.0",

@@ -334,11 +334,13 @@ const timer = new Timer()
 
 timer.connect(document)
 
-const offset = fts.sceneHeader.mScenePosition
-
 // --------------------
 
-function createMesh(material: Material, filter: (polygonData: ArxPolygon) => boolean = () => true): Mesh {
+function createMesh(
+  material: Material,
+  offset: Vector3,
+  filter: (polygonData: ArxPolygon) => boolean = () => true,
+): Mesh {
   const vertices: number[] = []
   const normals: number[] = []
 
@@ -425,48 +427,64 @@ function isNoDraw(flags: ArxPolygonFlags): boolean {
   return (flags & ArxPolygonFlags.NoDraw) > 0
 }
 
+const offset = new Vector3(
+  fts.sceneHeader.mScenePosition.x,
+  fts.sceneHeader.mScenePosition.y,
+  fts.sceneHeader.mScenePosition.z,
+)
+
+const meshes: Mesh[] = []
+
 const solidSingleSidedMaterial = new MeshLambertMaterial({ color: Color.white.getHex() })
-const solidSingleSidedMesh = createMesh(solidSingleSidedMaterial, ({ flags }) => {
+const solidSingleSidedMesh = createMesh(solidSingleSidedMaterial, offset, ({ flags }) => {
   return !isTransparent(flags) && !isDoubleSided(flags) && !isNoDraw(flags)
 })
-scene.add(solidSingleSidedMesh)
+meshes.push(solidSingleSidedMesh)
 
-const solidDoubleSidedMaterial = new MeshLambertMaterial({ color: Color.white.getHex(), side: DoubleSide })
-const solidDoubleSidedMesh = createMesh(solidDoubleSidedMaterial, ({ flags }) => {
+const solidDoubleSidedMaterial = new MeshLambertMaterial({ color: Color.red.lighten(75).getHex(), side: DoubleSide })
+const solidDoubleSidedMesh = createMesh(solidDoubleSidedMaterial, offset, ({ flags }) => {
   return !isTransparent(flags) && isDoubleSided(flags) && !isNoDraw(flags)
 })
-scene.add(solidDoubleSidedMesh)
+meshes.push(solidDoubleSidedMesh)
 
 const transparentMaterial = new MeshLambertMaterial({
-  color: Color.white.getHex(),
+  color: Color.green.lighten(75).getHex(),
   transparent: true,
   opacity: 0.5,
   side: DoubleSide,
 })
-const transparentMesh = createMesh(transparentMaterial, ({ flags }) => {
+const transparentMesh = createMesh(transparentMaterial, offset, ({ flags }) => {
   return isTransparent(flags) && !isNoDraw(flags)
 })
-scene.add(transparentMesh)
+meshes.push(transparentMesh)
 
 // TODO: add noDraw polygons
 
 // --------------------
 
-// TODO: wireframe for the other polygons? (transparent, doublesided, etc...)
+scene.add(...meshes)
 
-const wireframe = new WireframeGeometry(solidSingleSidedMesh.geometry)
-const line = new LineSegments(wireframe, new MeshBasicMaterial({ color: Color.white.darken(50).getHex() }))
+const wireframeLineColor = Color.white.darken(50).getHex()
+
+const wireframeLines: LineSegments[] = meshes.map((mesh) => {
+  return new LineSegments(
+    new WireframeGeometry(mesh.geometry),
+    new MeshBasicMaterial({
+      color: wireframeLineColor,
+    }),
+  )
+})
 
 wireframeVisible.addEventListener('change', (event: CustomEventInit<{ oldValue: boolean; currentValue: boolean }>) => {
   if (event.detail?.currentValue === true) {
-    scene.add(line)
+    scene.add(...wireframeLines)
   } else {
-    scene.remove(line)
+    scene.remove(...wireframeLines)
   }
 })
 
 if (wireframeVisible.currentValue === true) {
-  scene.add(line)
+  scene.add(...wireframeLines)
 }
 
 // --------------------
@@ -631,6 +649,7 @@ for (const light of llf.lights) {
     light.fallStart * colorIntensityMultiplier,
   )
   pointLight.position.set(-light.pos.x, -light.pos.y, light.pos.z)
+
   scene.add(pointLight)
 
   // const helper = new PointLightHelper(pointLight, 10)

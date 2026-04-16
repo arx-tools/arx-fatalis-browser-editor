@@ -721,3 +721,5 @@ controls.addEventListener('change', () => {
 // TODO: make header show something more useful then a large text of "Arx Fatalis Browser Editor"
 
 // TODO: add crosshair
+
+// TODO: make a GUI level selector (loading image + text)

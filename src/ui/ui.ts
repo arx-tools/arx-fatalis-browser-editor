@@ -20,7 +20,7 @@ isLoading.addEventListener('change', (event: CustomEventInit<{ oldValue: boolean
   if (value === 'loading') {
     loadingIndicator.textContent = 'Loading, please wait...'
   } else if (value === 'rejected') {
-    loadingIndicator.textContent = 'Error'
+    loadingIndicator.textContent = 'An error occurred, see logs for details!'
   }
 
   downloadBtn.disabled = value !== 'fulfilled'

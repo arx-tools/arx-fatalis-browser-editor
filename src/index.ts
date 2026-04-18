@@ -43,6 +43,7 @@ import { arxVector3toVector3, isDoubleSided, isNoDraw, isTransparent, wait } fro
 import { Color } from './Color.js'
 import { isValidOriginalArxLevelId } from './constants.js'
 import { Logger } from './ui/Logger.js'
+import { Exception } from './ui/Exception.js'
 
 Mesh.prototype.raycast = acceleratedRaycast
 
@@ -51,7 +52,7 @@ const logger = new Logger(document.querySelector('#logs') as HTMLDivElement)
 // --------------------
 
 async function getFTS(level: number): Promise<ArxFTS> {
-  const line1 = logger.log(`[fts]: loading level ${level} fts...`)
+  const line1 = logger.log(`- [fts]: loading level ${level} fts...`)
 
   const response = await fetch(
     `https://raw.githubusercontent.com/arx-tools/pkware-test-files/main/arx-fatalis/level${level}/fast.fts`,
@@ -65,7 +66,7 @@ async function getFTS(level: number): Promise<ArxFTS> {
 
   await wait(100)
 
-  const line2 = logger.log(`[fts]: unpacking level ${level} fts...`)
+  const line2 = logger.log(`- [fts]: unpacking level ${level} fts...`)
 
   const packedFts = await response.arrayBuffer()
   const headerSize = getHeaderSize(packedFts, 'fts')
@@ -91,7 +92,7 @@ async function getFTS(level: number): Promise<ArxFTS> {
 }
 
 async function getLLF(level: number): Promise<ArxLLF> {
-  const line1 = logger.log(`[llf]: loading level ${level} llf...`)
+  const line1 = logger.log(`- [llf]: loading level ${level} llf...`)
 
   const response = await fetch(
     `https://raw.githubusercontent.com/arx-tools/pkware-test-files/main/arx-fatalis/level${level}/level${level}.llf`,
@@ -105,7 +106,7 @@ async function getLLF(level: number): Promise<ArxLLF> {
 
   await wait(100)
 
-  const line2 = logger.log(`[llf]: unpacking level ${level} llf...`)
+  const line2 = logger.log(`- [llf]: unpacking level ${level} llf...`)
 
   const packedLlf = await response.arrayBuffer()
   const headerSize = getHeaderSize(packedLlf, 'llf')
@@ -131,7 +132,7 @@ async function getLLF(level: number): Promise<ArxLLF> {
 }
 
 async function getDLF(level: number): Promise<ArxDLF> {
-  const line1 = logger.log(`[dlf]: loading level ${level} dlf...`)
+  const line1 = logger.log(`- [dlf]: loading level ${level} dlf...`)
 
   const response = await fetch(
     `https://raw.githubusercontent.com/arx-tools/pkware-test-files/main/arx-fatalis/level${level}/level${level}.dlf`,
@@ -145,7 +146,7 @@ async function getDLF(level: number): Promise<ArxDLF> {
 
   await wait(100)
 
-  const line2 = logger.log(`[dlf]: unpacking level ${level} dlf...`)
+  const line2 = logger.log(`- [dlf]: unpacking level ${level} dlf...`)
 
   const packedDlf = await response.arrayBuffer()
   const headerSize = getHeaderSize(packedDlf, 'dlf')
@@ -299,12 +300,10 @@ if (!isValidOriginalArxLevelId(level)) {
   isLoading.currentValue = 'rejected'
 
   if (level === 9) {
-    logger.error(`Invalid level ID "9", Arx Fatalis doesn't have a level 9.`)
+    throw new Exception(`Invalid level ID "9", Arx Fatalis doesn't have a level 9.`, logger)
   } else {
-    logger.error(`Invalid level ID "${level}"`)
+    throw new Exception(`Invalid level ID "${level}"`, logger)
   }
-
-  throw new Error(`Invalid level ID "${level}"`)
 }
 
 const line1 = logger.log('loading level data...')

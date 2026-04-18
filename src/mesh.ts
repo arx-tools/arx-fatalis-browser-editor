@@ -3,7 +3,7 @@ import { isQuad } from 'arx-convert/utils'
 import { BufferAttribute, BufferGeometry, type Material, Mesh, Vector2, Vector3 } from 'three'
 import { MeshBVH } from 'three-mesh-bvh'
 
-export function createMesh(polygons: ArxPolygon[], material: Material, offset: Vector3): Mesh {
+export function arxPolygonsToMesh(polygons: ArxPolygon[], material: Material, offset: Vector3): Mesh {
   const vertices: number[] = []
   const normals: number[] = []
   const uvs: number[] = []
@@ -102,4 +102,9 @@ export function createMesh(polygons: ArxPolygon[], material: Material, offset: V
   geometry.boundsTree = new MeshBVH(geometry)
 
   return new Mesh(geometry, material)
+}
+
+export function meshToArxPolygons(mesh: Mesh): ArxPolygon[] {
+  // TODO
+  return []
 }

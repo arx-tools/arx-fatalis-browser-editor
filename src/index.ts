@@ -41,7 +41,7 @@ import { Color } from './Color.js'
 import { isValidOriginalArxLevelId } from './constants.js'
 import { Logger } from './ui/Logger.js'
 import { Exception } from './ui/Exception.js'
-import { createMesh } from './mesh.js'
+import { arxPolygonsToMesh } from './mesh.js'
 
 Mesh.prototype.raycast = acceleratedRaycast
 
@@ -360,7 +360,7 @@ const offset = arxVector3toVector3(fts.sceneHeader.mScenePosition)
 const meshes: Mesh[] = []
 
 const solidSingleSidedMaterial = new MeshLambertMaterial({ color: Color.white.getHex() })
-const solidSingleSidedMesh = createMesh(
+const solidSingleSidedMesh = arxPolygonsToMesh(
   fts.polygons.filter(({ flags }) => {
     return !isTransparent(flags) && !isDoubleSided(flags) && !isNoDraw(flags)
   }),
@@ -370,7 +370,7 @@ const solidSingleSidedMesh = createMesh(
 meshes.push(solidSingleSidedMesh)
 
 const solidDoubleSidedMaterial = new MeshLambertMaterial({ color: Color.red.lighten(75).getHex(), side: DoubleSide })
-const solidDoubleSidedMesh = createMesh(
+const solidDoubleSidedMesh = arxPolygonsToMesh(
   fts.polygons.filter(({ flags }) => {
     return !isTransparent(flags) && isDoubleSided(flags) && !isNoDraw(flags)
   }),
@@ -385,7 +385,7 @@ const transparentMaterial = new MeshLambertMaterial({
   opacity: 0.5,
   side: DoubleSide,
 })
-const transparentMesh = createMesh(
+const transparentMesh = arxPolygonsToMesh(
   fts.polygons.filter(({ flags }) => {
     return isTransparent(flags) && !isNoDraw(flags)
   }),

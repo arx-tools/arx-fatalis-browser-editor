@@ -1,7 +1,7 @@
 import { explode, implode, concatArrayBuffers, sliceArrayBufferAt } from 'node-pkware/simple'
 import { getHeaderSize } from 'arx-header-size'
 import { DLF, FTS, LLF } from 'arx-convert'
-import type { ArxPolygon, ArxFTS, ArxLLF, ArxDLF } from 'arx-convert/types'
+import type { ArxFTS, ArxLLF, ArxDLF } from 'arx-convert/types'
 import {
   BufferAttribute,
   BufferGeometry,
@@ -9,7 +9,6 @@ import {
   Euler,
   type Face,
   LineSegments,
-  type Material,
   MathUtils,
   Mesh,
   MeshBasicMaterial,
@@ -20,15 +19,13 @@ import {
   Scene,
   Timer,
   Triangle,
-  Vector2,
   Vector3,
   WebGLRenderer,
   WireframeGeometry,
 } from 'three'
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js'
 import { ViewHelper } from 'three/examples/jsm/helpers/ViewHelper.js'
-import { isQuad } from 'arx-convert/utils'
-import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh'
+import { acceleratedRaycast } from 'three-mesh-bvh'
 import { downloadBinaryAs, zipBuffers } from './download.js'
 import {
   cameraLightVisible,
@@ -44,6 +41,7 @@ import { Color } from './Color.js'
 import { isValidOriginalArxLevelId } from './constants.js'
 import { Logger } from './ui/Logger.js'
 import { Exception } from './ui/Exception.js'
+import { createMesh } from './mesh.js'
 
 Mesh.prototype.raycast = acceleratedRaycast
 
@@ -354,109 +352,6 @@ const timer = new Timer()
 timer.connect(document)
 
 const raycaster = new Raycaster()
-
-// --------------------
-
-function createMesh(polygons: ArxPolygon[], material: Material, offset: Vector3): Mesh {
-  const vertices: number[] = []
-  const normals: number[] = []
-  const uvs: number[] = []
-
-  polygons.forEach((polygonData) => {
-    if (isQuad(polygonData)) {
-      const [a, b, c, d] = polygonData.vertices.map(({ x, y, z }) => {
-        return new Vector3(x, y, z).sub(offset).multiply(new Vector3(-1, -1, 1))
-      })
-
-      // prettier-ignore
-      vertices.push(
-        ...a.toArray(),
-        ...b.toArray(),
-        ...c.toArray(),
-
-        ...c.toArray(),
-        ...b.toArray(),
-        ...d.toArray(),
-      )
-
-      const [nA, nB, nC, nD] = (
-        polygonData.normals ?? [polygonData.norm, polygonData.norm, polygonData.norm, polygonData.norm2]
-      ).map(({ x, y, z }) => {
-        return new Vector3(x, y, z).multiply(new Vector3(-1, -1, 1))
-      })
-
-      // prettier-ignore
-      normals.push(
-        ...nA.toArray(),
-        ...nB.toArray(),
-        ...nC.toArray(),
-
-        ...nC.toArray(),
-        ...nB.toArray(),
-        ...nD.toArray(),
-      )
-
-      const [uvA, uvB, uvC, uvD] = polygonData.vertices.map(({ u, v }) => {
-        return new Vector2(u, v)
-      })
-
-      // prettier-ignore
-      uvs.push(
-        ...uvA.toArray(),
-        ...uvB.toArray(),
-        ...uvC.toArray(),
-
-        ...uvC.toArray(),
-        ...uvB.toArray(),
-        ...uvD.toArray(),
-      )
-    } else {
-      const [a, b, c] = polygonData.vertices.map(({ x, y, z }) => {
-        return new Vector3(x, y, z).sub(offset).multiply(new Vector3(-1, -1, 1))
-      })
-
-      // prettier-ignore
-      vertices.push(
-        ...a.toArray(),
-        ...b.toArray(),
-        ...c.toArray(),
-      )
-
-      const [nA, nB, nC] = (polygonData.normals ?? [polygonData.norm, polygonData.norm, polygonData.norm]).map(
-        ({ x, y, z }) => {
-          return new Vector3(x, y, z).multiply(new Vector3(-1, -1, 1))
-        },
-      )
-
-      // prettier-ignore
-      normals.push(
-        ...nA.toArray(),
-        ...nB.toArray(),
-        ...nC.toArray(),
-      )
-
-      const [uvA, uvB, uvC] = polygonData.vertices.map(({ u, v }) => {
-        return new Vector2(u, v)
-      })
-
-      // prettier-ignore
-      uvs.push(
-        ...uvA.toArray(),
-        ...uvB.toArray(),
-        ...uvC.toArray(),
-      )
-    }
-  })
-
-  const geometry = new BufferGeometry()
-  geometry.setAttribute('position', new BufferAttribute(new Float32Array(vertices), 3))
-  geometry.setAttribute('normal', new BufferAttribute(new Float32Array(normals), 3))
-  geometry.setAttribute('uv', new BufferAttribute(new Float32Array(uvs), 2))
-
-  geometry.boundsTree = new MeshBVH(geometry)
-
-  return new Mesh(geometry, material)
-}
 
 // --------------------
 

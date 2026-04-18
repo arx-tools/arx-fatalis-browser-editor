@@ -1,5 +1,4 @@
-import { ArxPolygonFlags, type ArxVector3 } from 'arx-convert/types'
-import { Vector3 } from 'three'
+import { ArxPolygonFlags } from 'arx-convert/types'
 
 export async function wait(delayInMs: number): Promise<void> {
   await new Promise<void>((resolve, reject) => {
@@ -15,10 +14,6 @@ export function randomIntBetween(a: number, b: number): number {
 
 export function percentOf(percentage: number, maxValue: number): number {
   return (maxValue / 100) * percentage
-}
-
-export function arxVector3toVector3({ x, y, z }: ArxVector3): Vector3 {
-  return new Vector3(x, y, z)
 }
 
 export function isTransparent(flags: ArxPolygonFlags): boolean {

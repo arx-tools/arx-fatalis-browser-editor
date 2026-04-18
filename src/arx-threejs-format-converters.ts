@@ -1,4 +1,4 @@
-import type { ArxPolygon } from 'arx-convert/types'
+import type { ArxPolygon, ArxVector3 } from 'arx-convert/types'
 import { isQuad } from 'arx-convert/utils'
 import { BufferAttribute, BufferGeometry, type Material, Mesh, Vector2, Vector3 } from 'three'
 import { MeshBVH } from 'three-mesh-bvh'
@@ -107,4 +107,8 @@ export function arxPolygonsToMesh(polygons: ArxPolygon[], material: Material, of
 export function meshToArxPolygons(mesh: Mesh): ArxPolygon[] {
   // TODO
   return []
+}
+
+export function arxVector3toVector3({ x, y, z }: ArxVector3): Vector3 {
+  return new Vector3(x, y, z)
 }

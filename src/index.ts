@@ -36,12 +36,12 @@ import {
   mouseUnlocked,
   wireframeVisible,
 } from './ui/ui.js'
-import { arxVector3toVector3, isDoubleSided, isNoDraw, isTransparent, wait } from './functions.js'
+import { isDoubleSided, isNoDraw, isTransparent, wait } from './functions.js'
 import { Color } from './Color.js'
 import { isValidOriginalArxLevelId } from './constants.js'
 import { Logger } from './ui/Logger.js'
 import { Exception } from './ui/Exception.js'
-import { arxPolygonsToMesh } from './mesh.js'
+import { arxPolygonsToMesh, arxVector3toVector3 } from './arx-threejs-format-converters.js'
 
 Mesh.prototype.raycast = acceleratedRaycast
 

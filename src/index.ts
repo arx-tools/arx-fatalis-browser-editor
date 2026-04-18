@@ -42,13 +42,16 @@ import {
 import { arxVector3toVector3, isDoubleSided, isNoDraw, isTransparent, wait } from './functions.js'
 import { Color } from './Color.js'
 import { isValidOriginalArxLevelId } from './constants.js'
+import { Logger } from './ui/Logger.js'
 
 Mesh.prototype.raycast = acceleratedRaycast
+
+const logger = new Logger(document.querySelector('#logs') as HTMLDivElement)
 
 // --------------------
 
 async function getFTS(level: number): Promise<ArxFTS> {
-  console.log(`[fts]: downloading level ${level} fts...`)
+  const line1 = logger.log(`[fts]: loading level ${level} fts...`)
 
   const response = await fetch(
     `https://raw.githubusercontent.com/arx-tools/pkware-test-files/main/arx-fatalis/level${level}/fast.fts`,
@@ -58,11 +61,11 @@ async function getFTS(level: number): Promise<ArxFTS> {
     throw new Error(`Failed to download level ${level} fts: ${errorResponse}`)
   }
 
-  console.log(`[fts]: finished downloading level ${level} fts`)
+  logger.log('done', line1)
 
   await wait(100)
 
-  console.log(`[fts]: unpacking level ${level} fts...`)
+  const line2 = logger.log(`[fts]: unpacking level ${level} fts...`)
 
   const packedFts = await response.arrayBuffer()
   const headerSize = getHeaderSize(packedFts, 'fts')
@@ -82,13 +85,13 @@ async function getFTS(level: number): Promise<ArxFTS> {
 
   const fts = FTS.load(unpackedFts)
 
-  console.log(`[fts]: finished unpacking level ${level} fts`)
+  logger.log('done', line2)
 
   return fts
 }
 
 async function getLLF(level: number): Promise<ArxLLF> {
-  console.log(`[llf]: downloading level ${level} llf...`)
+  const line1 = logger.log(`[llf]: loading level ${level} llf...`)
 
   const response = await fetch(
     `https://raw.githubusercontent.com/arx-tools/pkware-test-files/main/arx-fatalis/level${level}/level${level}.llf`,
@@ -98,11 +101,11 @@ async function getLLF(level: number): Promise<ArxLLF> {
     throw new Error(`Failed to download level ${level} llf: ${errorResponse}`)
   }
 
-  console.log(`[llf]: finished downloading level ${level} llf`)
+  logger.log('done', line1)
 
   await wait(100)
 
-  console.log(`[llf]: unpacking level ${level} llf...`)
+  const line2 = logger.log(`[llf]: unpacking level ${level} llf...`)
 
   const packedLlf = await response.arrayBuffer()
   const headerSize = getHeaderSize(packedLlf, 'llf')
@@ -122,13 +125,13 @@ async function getLLF(level: number): Promise<ArxLLF> {
 
   const llf = LLF.load(unpackedLlf)
 
-  console.log(`[llf]: finished unpacking level ${level} llf`)
+  logger.log('done', line2)
 
   return llf
 }
 
 async function getDLF(level: number): Promise<ArxDLF> {
-  console.log(`[dlf]: downloading level ${level} dlf...`)
+  const line1 = logger.log(`[dlf]: loading level ${level} dlf...`)
 
   const response = await fetch(
     `https://raw.githubusercontent.com/arx-tools/pkware-test-files/main/arx-fatalis/level${level}/level${level}.dlf`,
@@ -138,11 +141,11 @@ async function getDLF(level: number): Promise<ArxDLF> {
     throw new Error(`Failed to download level ${level} dlf: ${errorResponse}`)
   }
 
-  console.log(`[dlf]: finished downloading level ${level} dlf`)
+  logger.log('done', line1)
 
   await wait(100)
 
-  console.log(`[dlf]: unpacking level ${level} dlf...`)
+  const line2 = logger.log(`[dlf]: unpacking level ${level} dlf...`)
 
   const packedDlf = await response.arrayBuffer()
   const headerSize = getHeaderSize(packedDlf, 'dlf')
@@ -162,13 +165,13 @@ async function getDLF(level: number): Promise<ArxDLF> {
 
   const dlf = DLF.load(unpackedDlf)
 
-  console.log(`[dlf]: finished unpacking level ${level} dlf`)
+  logger.log('done', line2)
 
   return dlf
 }
 
 async function saveFTS(fts: ArxFTS, level: number): Promise<ArrayBuffer> {
-  console.log(`[fts]: packing level ${level} fts...`)
+  const line1 = logger.log(`[fts]: packing level ${level} fts...`)
 
   await wait(100)
 
@@ -202,13 +205,13 @@ async function saveFTS(fts: ArxFTS, level: number): Promise<ArrayBuffer> {
 
   await wait(100)
 
-  console.log(`[fts]: finished packing level ${level} fts`)
+  logger.log('done', line1)
 
   return packedFts
 }
 
 async function saveLLF(llf: ArxLLF, level: number): Promise<ArrayBuffer> {
-  console.log(`[llf]: packing level ${level} llf...`)
+  const line1 = logger.log(`[llf]: packing level ${level} llf...`)
 
   await wait(100)
 
@@ -242,13 +245,13 @@ async function saveLLF(llf: ArxLLF, level: number): Promise<ArrayBuffer> {
 
   await wait(100)
 
-  console.log(`[llf]: finished packing level ${level} llf`)
+  logger.log('done', line1)
 
   return packedLlf
 }
 
 async function saveDLF(dlf: ArxDLF, level: number): Promise<ArrayBuffer> {
-  console.log(`[dlf]: packing level ${level} dlf...`)
+  const line1 = logger.log(`[dlf]: packing level ${level} dlf...`)
 
   await wait(100)
 
@@ -282,30 +285,44 @@ async function saveDLF(dlf: ArxDLF, level: number): Promise<ArrayBuffer> {
 
   await wait(100)
 
-  console.log(`[dlf]: finished packing level ${level} dlf`)
+  logger.log('done', line1)
 
   return packedDlf
 }
 
 // --------------------
 
+isLoading.currentValue = 'loading'
+
 const level = Number.parseInt(new URLSearchParams(globalThis.location.search).get('level') ?? '11', 10)
 if (!isValidOriginalArxLevelId(level)) {
-  throw new Error(`Invalid level id "${level}"`)
+  isLoading.currentValue = 'rejected'
+
+  if (level === 9) {
+    logger.error(`Invalid level ID "9", Arx Fatalis doesn't have a level 9.`)
+  } else {
+    logger.error(`Invalid level ID "${level}"`)
+  }
+
+  throw new Error(`Invalid level ID "${level}"`)
 }
 
-isLoading.currentValue = true
-
+const line1 = logger.log('loading level data...')
 const [fts, llf, dlf] = await Promise.all([getFTS(level), getLLF(level), getDLF(level)])
+logger.log('done', line1)
 
-isLoading.currentValue = false
+isLoading.currentValue = 'fulfilled'
 
 downloadBtn.addEventListener('click', async () => {
-  isLoading.currentValue = true
+  if (isLoading.currentValue === 'loading' || isLoading.currentValue === 'rejected') {
+    return
+  }
+
+  isLoading.currentValue = 'loading'
 
   // TODO: generate fts, llf and dlf from scene
 
-  console.log('downloading')
+  const line1 = logger.log('packing level data...')
 
   const [packedFts, packedLlf, packedDlf] = await Promise.all([
     saveFTS(fts, level),
@@ -313,15 +330,21 @@ downloadBtn.addEventListener('click', async () => {
     saveDLF(dlf, level),
   ])
 
+  logger.log('done', line1)
+
+  const line2 = logger.log('zipping files...')
+
   const zip = await zipBuffers({
     [`/game/graph/levels/level${level}/fast.fts`]: packedFts,
     [`/graph/levels/level${level}/level${level}.llf`]: packedLlf,
     [`/graph/levels/level${level}/level${level}.dlf`]: packedDlf,
   })
 
+  logger.log('done', line2)
+
   downloadBinaryAs('mod.zip', zip, 'application/zip')
 
-  isLoading.currentValue = false
+  isLoading.currentValue = 'fulfilled'
 })
 
 // --------------------

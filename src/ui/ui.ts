@@ -1,6 +1,7 @@
 import { State } from './State.js'
 
-export const isLoading = new State(false)
+type LoadingState = 'idle' | 'loading' | 'fulfilled' | 'rejected'
+export const isLoading = new State<LoadingState>('idle')
 
 export const downloadBtn = document.querySelector<HTMLButtonElement>('#download') as HTMLButtonElement
 export const loadingIndicator = document.querySelector<HTMLParagraphElement>(
@@ -10,15 +11,23 @@ export const loadingIndicator = document.querySelector<HTMLParagraphElement>(
 export const mouseLocked = document.querySelector<HTMLParagraphElement>('#mouse-locked') as HTMLParagraphElement
 export const mouseUnlocked = document.querySelector<HTMLParagraphElement>('#mouse-unlocked') as HTMLParagraphElement
 
-isLoading.addEventListener('change', (event: CustomEventInit<{ oldValue: boolean; currentValue: boolean }>) => {
-  if (event.detail?.currentValue === true) {
-    downloadBtn.disabled = true
-    loadingIndicator.classList.remove('hidden')
-  } else {
-    downloadBtn.disabled = false
-    loadingIndicator.classList.add('hidden')
+isLoading.addEventListener('change', (event: CustomEventInit<{ oldValue: boolean; currentValue: LoadingState }>) => {
+  const value = event.detail?.currentValue as LoadingState
+
+  loadingIndicator.classList.toggle('hidden', value === 'idle' || value === 'fulfilled')
+  loadingIndicator.classList.toggle('error', value === 'rejected')
+
+  if (value === 'loading') {
+    loadingIndicator.textContent = 'Loading, please wait...'
+  } else if (value === 'rejected') {
+    loadingIndicator.textContent = 'Error'
   }
+
+  downloadBtn.disabled = value !== 'fulfilled'
 })
+
+loadingIndicator.classList.toggle('hidden', isLoading.currentValue !== 'loading')
+downloadBtn.disabled = isLoading.currentValue !== 'fulfilled'
 
 export const canvas = document.querySelector<HTMLCanvasElement>('#screen') as HTMLCanvasElement
 

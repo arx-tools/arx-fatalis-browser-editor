@@ -67,3 +67,26 @@ header {
 #info-and-controls {
   padding: 0 10px;
 }
+
+#logs {
+  font-family: monospace;
+  height: 200px;
+  width: 100%;
+  overflow-x: hidden;
+  overflow-y: scroll;
+  background: #d3d3d3;
+}
+
+.log {
+  color: green !important;
+}
+
+.error {
+  color: red !important;
+}
+
+code {
+  background: #e3e3e3;
+  padding: 1px 1px;
+  border-radius: 3px;
+}

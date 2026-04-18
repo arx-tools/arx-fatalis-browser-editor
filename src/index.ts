@@ -357,20 +357,12 @@ const raycaster = new Raycaster()
 
 // --------------------
 
-function createMesh(
-  material: Material,
-  offset: Vector3,
-  filter: (polygonData: ArxPolygon) => boolean = () => true,
-): Mesh {
+function createMesh(polygons: ArxPolygon[], material: Material, offset: Vector3): Mesh {
   const vertices: number[] = []
   const normals: number[] = []
   const uvs: number[] = []
 
-  fts.polygons.forEach((polygonData) => {
-    if (filter(polygonData) === false) {
-      return
-    }
-
+  polygons.forEach((polygonData) => {
     if (isQuad(polygonData)) {
       const [a, b, c, d] = polygonData.vertices.map(({ x, y, z }) => {
         return new Vector3(x, y, z).sub(offset).multiply(new Vector3(-1, -1, 1))
@@ -473,15 +465,23 @@ const offset = arxVector3toVector3(fts.sceneHeader.mScenePosition)
 const meshes: Mesh[] = []
 
 const solidSingleSidedMaterial = new MeshLambertMaterial({ color: Color.white.getHex() })
-const solidSingleSidedMesh = createMesh(solidSingleSidedMaterial, offset, ({ flags }) => {
-  return !isTransparent(flags) && !isDoubleSided(flags) && !isNoDraw(flags)
-})
+const solidSingleSidedMesh = createMesh(
+  fts.polygons.filter(({ flags }) => {
+    return !isTransparent(flags) && !isDoubleSided(flags) && !isNoDraw(flags)
+  }),
+  solidSingleSidedMaterial,
+  offset,
+)
 meshes.push(solidSingleSidedMesh)
 
 const solidDoubleSidedMaterial = new MeshLambertMaterial({ color: Color.red.lighten(75).getHex(), side: DoubleSide })
-const solidDoubleSidedMesh = createMesh(solidDoubleSidedMaterial, offset, ({ flags }) => {
-  return !isTransparent(flags) && isDoubleSided(flags) && !isNoDraw(flags)
-})
+const solidDoubleSidedMesh = createMesh(
+  fts.polygons.filter(({ flags }) => {
+    return !isTransparent(flags) && isDoubleSided(flags) && !isNoDraw(flags)
+  }),
+  solidDoubleSidedMaterial,
+  offset,
+)
 meshes.push(solidDoubleSidedMesh)
 
 const transparentMaterial = new MeshLambertMaterial({
@@ -490,9 +490,13 @@ const transparentMaterial = new MeshLambertMaterial({
   opacity: 0.5,
   side: DoubleSide,
 })
-const transparentMesh = createMesh(transparentMaterial, offset, ({ flags }) => {
-  return isTransparent(flags) && !isNoDraw(flags)
-})
+const transparentMesh = createMesh(
+  fts.polygons.filter(({ flags }) => {
+    return isTransparent(flags) && !isNoDraw(flags)
+  }),
+  transparentMaterial,
+  offset,
+)
 meshes.push(transparentMesh)
 
 // TODO: add noDraw polygons

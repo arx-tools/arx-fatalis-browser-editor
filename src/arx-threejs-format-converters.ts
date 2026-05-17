@@ -3,6 +3,14 @@ import { isQuad } from 'arx-convert/utils'
 import { BufferAttribute, BufferGeometry, type Material, Mesh, Vector2, Vector3 } from 'three'
 import { MeshBVH } from 'three-mesh-bvh'
 
+function arxCoordinateToThreejsCoordinate(vector: Vector3): Vector3 {
+  return vector.clone().multiply(new Vector3(-1, -1, 1))
+}
+
+export function arxVector3toVector3({ x, y, z }: ArxVector3): Vector3 {
+  return arxCoordinateToThreejsCoordinate(new Vector3(x, y, z))
+}
+
 export function arxPolygonsToMesh(polygons: ArxPolygon[], material: Material, offset: Vector3): Mesh {
   const vertices: number[] = []
   const normals: number[] = []
@@ -11,86 +19,49 @@ export function arxPolygonsToMesh(polygons: ArxPolygon[], material: Material, of
   polygons.forEach((polygonData) => {
     if (isQuad(polygonData)) {
       const [a, b, c, d] = polygonData.vertices.map(({ x, y, z }) => {
-        return new Vector3(x, y, z).sub(offset).multiply(new Vector3(-1, -1, 1))
+        return arxVector3toVector3({ x, y, z }).sub(offset).toArray()
       })
 
-      // prettier-ignore
-      vertices.push(
-        ...a.toArray(),
-        ...b.toArray(),
-        ...c.toArray(),
+      vertices.push(...a, ...b, ...c, ...c, ...b, ...d)
 
-        ...c.toArray(),
-        ...b.toArray(),
-        ...d.toArray(),
-      )
+      const rawNormals = polygonData.normals ?? [
+        polygonData.norm,
+        polygonData.norm,
+        polygonData.norm,
+        polygonData.norm2,
+      ]
 
-      const [nA, nB, nC, nD] = (
-        polygonData.normals ?? [polygonData.norm, polygonData.norm, polygonData.norm, polygonData.norm2]
-      ).map(({ x, y, z }) => {
-        return new Vector3(x, y, z).multiply(new Vector3(-1, -1, 1))
+      const [nA, nB, nC, nD] = rawNormals.map((normal) => {
+        return arxVector3toVector3(normal).toArray()
       })
 
-      // prettier-ignore
-      normals.push(
-        ...nA.toArray(),
-        ...nB.toArray(),
-        ...nC.toArray(),
-
-        ...nC.toArray(),
-        ...nB.toArray(),
-        ...nD.toArray(),
-      )
+      normals.push(...nA, ...nB, ...nC, ...nC, ...nB, ...nD)
 
       const [uvA, uvB, uvC, uvD] = polygonData.vertices.map(({ u, v }) => {
-        return new Vector2(u, v)
+        return new Vector2(u, v).toArray()
       })
 
-      // prettier-ignore
-      uvs.push(
-        ...uvA.toArray(),
-        ...uvB.toArray(),
-        ...uvC.toArray(),
-
-        ...uvC.toArray(),
-        ...uvB.toArray(),
-        ...uvD.toArray(),
-      )
+      uvs.push(...uvA, ...uvB, ...uvC, ...uvC, ...uvB, ...uvD)
     } else {
       const [a, b, c] = polygonData.vertices.map(({ x, y, z }) => {
-        return new Vector3(x, y, z).sub(offset).multiply(new Vector3(-1, -1, 1))
+        return arxVector3toVector3({ x, y, z }).sub(offset).toArray()
       })
 
-      // prettier-ignore
-      vertices.push(
-        ...a.toArray(),
-        ...b.toArray(),
-        ...c.toArray(),
-      )
+      vertices.push(...a, ...b, ...c)
 
-      const [nA, nB, nC] = (polygonData.normals ?? [polygonData.norm, polygonData.norm, polygonData.norm]).map(
-        ({ x, y, z }) => {
-          return new Vector3(x, y, z).multiply(new Vector3(-1, -1, 1))
-        },
-      )
+      const rawNormals = polygonData.normals ?? [polygonData.norm, polygonData.norm, polygonData.norm]
 
-      // prettier-ignore
-      normals.push(
-        ...nA.toArray(),
-        ...nB.toArray(),
-        ...nC.toArray(),
-      )
+      const [nA, nB, nC] = rawNormals.map((normal) => {
+        return arxVector3toVector3(normal).toArray()
+      })
+
+      normals.push(...nA, ...nB, ...nC)
 
       const [uvA, uvB, uvC] = polygonData.vertices.map(({ u, v }) => {
-        return new Vector2(u, v)
+        return new Vector2(u, v).toArray()
       })
 
-      // prettier-ignore
-      uvs.push(
-        ...uvA.toArray(),
-        ...uvB.toArray(),
-        ...uvC.toArray(),
-      )
+      uvs.push(...uvA, ...uvB, ...uvC)
     }
   })
 
@@ -107,8 +78,4 @@ export function arxPolygonsToMesh(polygons: ArxPolygon[], material: Material, of
 export function meshToArxPolygons(mesh: Mesh): ArxPolygon[] {
   // TODO
   return []
-}
-
-export function arxVector3toVector3({ x, y, z }: ArxVector3): Vector3 {
-  return new Vector3(x, y, z)
 }

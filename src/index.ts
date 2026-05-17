@@ -355,7 +355,7 @@ const raycaster = new Raycaster()
 
 // --------------------
 
-const offset = arxVector3toVector3(fts.sceneHeader.mScenePosition)
+const offset = arxVector3toVector3(fts.header.mScenePosition)
 
 const meshes: Mesh[] = []
 
@@ -433,7 +433,8 @@ for (const light of llf.lights) {
     light.intensity * colorIntensityMultiplier,
     light.fallStart * colorIntensityMultiplier,
   )
-  pointLight.position.set(-light.pos.x, -light.pos.y, light.pos.z)
+
+  pointLight.position.copy(arxVector3toVector3(light.position))
 
   scene.add(pointLight)
 }
@@ -468,7 +469,8 @@ const aspect = canvas.clientWidth / canvas.clientHeight
 const near = 0.1
 const far = 10_000
 const camera = new PerspectiveCamera(fov, aspect, near, far)
-camera.position.set(-dlf.header.posEdit.x, -dlf.header.posEdit.y, dlf.header.posEdit.z)
+
+camera.position.copy(arxVector3toVector3(dlf.header.player.position))
 camera.rotation.y = MathUtils.degToRad(180)
 
 function resizeRendererToDisplaySize(renderer: WebGLRenderer): boolean {

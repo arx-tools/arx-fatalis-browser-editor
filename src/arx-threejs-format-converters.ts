@@ -17,51 +17,27 @@ export function arxPolygonsToMesh(polygons: ArxPolygon[], material: Material, of
   const uvs: number[] = []
 
   polygons.forEach((polygonData) => {
+    const [a, b, c, d] = polygonData.vertices.map(({ x, y, z }) => {
+      return arxVector3toVector3({ x, y, z }).sub(offset).toArray()
+    })
+
+    const [uvA, uvB, uvC, uvD] = polygonData.vertices.map(({ u, v }) => {
+      return new Vector2(u, v).toArray()
+    })
+
+    const rawNormals = polygonData.normals ?? [polygonData.norm, polygonData.norm, polygonData.norm, polygonData.norm2]
+    const [nA, nB, nC, nD] = rawNormals.map((normal) => {
+      return arxVector3toVector3(normal).toArray()
+    })
+
+    vertices.push(...a, ...b, ...c)
+    uvs.push(...uvA, ...uvB, ...uvC)
+    normals.push(...nA, ...nB, ...nC)
+
     if (isQuad(polygonData)) {
-      const [a, b, c, d] = polygonData.vertices.map(({ x, y, z }) => {
-        return arxVector3toVector3({ x, y, z }).sub(offset).toArray()
-      })
-
-      vertices.push(...a, ...b, ...c, ...c, ...b, ...d)
-
-      const rawNormals = polygonData.normals ?? [
-        polygonData.norm,
-        polygonData.norm,
-        polygonData.norm,
-        polygonData.norm2,
-      ]
-
-      const [nA, nB, nC, nD] = rawNormals.map((normal) => {
-        return arxVector3toVector3(normal).toArray()
-      })
-
-      normals.push(...nA, ...nB, ...nC, ...nC, ...nB, ...nD)
-
-      const [uvA, uvB, uvC, uvD] = polygonData.vertices.map(({ u, v }) => {
-        return new Vector2(u, v).toArray()
-      })
-
-      uvs.push(...uvA, ...uvB, ...uvC, ...uvC, ...uvB, ...uvD)
-    } else {
-      const [a, b, c] = polygonData.vertices.map(({ x, y, z }) => {
-        return arxVector3toVector3({ x, y, z }).sub(offset).toArray()
-      })
-
-      vertices.push(...a, ...b, ...c)
-
-      const rawNormals = polygonData.normals ?? [polygonData.norm, polygonData.norm, polygonData.norm]
-
-      const [nA, nB, nC] = rawNormals.map((normal) => {
-        return arxVector3toVector3(normal).toArray()
-      })
-
-      normals.push(...nA, ...nB, ...nC)
-
-      const [uvA, uvB, uvC] = polygonData.vertices.map(({ u, v }) => {
-        return new Vector2(u, v).toArray()
-      })
-
-      uvs.push(...uvA, ...uvB, ...uvC)
+      vertices.push(...c, ...b, ...d)
+      uvs.push(...uvC, ...uvB, ...uvD)
+      normals.push(...nC, ...nB, ...nD)
     }
   })
 

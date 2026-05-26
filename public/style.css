@@ -32,8 +32,8 @@ header {
   display: flex;
   justify-content: space-between;
   padding: 10px;
-  background: #1e1e1e;
-  color: #e3e3e3;
+  background: #2c2828;
+  color: #d3c0c0;
 }
 
 header h2 {

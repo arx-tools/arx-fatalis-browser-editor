@@ -87,3 +87,12 @@ document.addEventListener(
   },
   false,
 )
+
+// ------------
+
+export const uiTitle = new State('')
+
+const uiTitleElement = document.querySelector<HTMLHeadingElement>('#title') as HTMLHeadingElement
+uiTitle.addEventListener('change', (event: CustomEventInit<{ oldValue: string; currentValue: string }>) => {
+  uiTitleElement.textContent = event.detail?.currentValue ?? ''
+})

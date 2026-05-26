@@ -34,6 +34,7 @@ import {
   isLoading,
   mouseLocked,
   mouseUnlocked,
+  uiTitle,
   wireframeVisible,
 } from './ui/ui.js'
 import { isDoubleSided, isNoDraw, isTransparent, wait } from './functions.js'
@@ -293,20 +294,26 @@ async function saveDLF(dlf: ArxDLF, level: number): Promise<ArrayBuffer> {
 
 isLoading.currentValue = 'loading'
 
-const level = Number.parseInt(new URLSearchParams(globalThis.location.search).get('level') ?? '11', 10)
-if (!isValidOriginalArxLevelId(level)) {
+const levelId = Number.parseInt(new URLSearchParams(globalThis.location.search).get('level') ?? '11', 10)
+if (!isValidOriginalArxLevelId(levelId)) {
   isLoading.currentValue = 'rejected'
 
-  if (level === 9) {
+  uiTitle.currentValue = `Invalid level ID "${levelId}"`
+
+  if (levelId === 9) {
     throw new Exception(`Invalid level ID "9", Arx Fatalis doesn't have a level 9.`, logger)
   } else {
-    throw new Exception(`Invalid level ID "${level}"`, logger)
+    throw new Exception(`Invalid level ID "${levelId}"`, logger)
   }
 }
 
+uiTitle.currentValue = `Arx Fatalis Level ${levelId} (loading)`
+
 const line1 = logger.log('loading level data...')
-const [fts, llf, dlf] = await Promise.all([getFTS(level), getLLF(level), getDLF(level)])
+const [fts, llf, dlf] = await Promise.all([getFTS(levelId), getLLF(levelId), getDLF(levelId)])
 logger.log('done', line1)
+
+uiTitle.currentValue = `Arx Fatalis Level ${levelId}`
 
 isLoading.currentValue = 'fulfilled'
 
@@ -322,9 +329,9 @@ downloadBtn.addEventListener('click', async () => {
   const line1 = logger.log('packing level data...')
 
   const [packedFts, packedLlf, packedDlf] = await Promise.all([
-    saveFTS(fts, level),
-    saveLLF(llf, level),
-    saveDLF(dlf, level),
+    saveFTS(fts, levelId),
+    saveLLF(llf, levelId),
+    saveDLF(dlf, levelId),
   ])
 
   logger.log('done', line1)
@@ -332,9 +339,9 @@ downloadBtn.addEventListener('click', async () => {
   const line2 = logger.log('zipping files...')
 
   const zip = await zipBuffers({
-    [`/game/graph/levels/level${level}/fast.fts`]: packedFts,
-    [`/graph/levels/level${level}/level${level}.llf`]: packedLlf,
-    [`/graph/levels/level${level}/level${level}.dlf`]: packedDlf,
+    [`/game/graph/levels/level${levelId}/fast.fts`]: packedFts,
+    [`/graph/levels/level${levelId}/level${levelId}.llf`]: packedLlf,
+    [`/graph/levels/level${levelId}/level${levelId}.dlf`]: packedDlf,
   })
 
   logger.log('done', line2)

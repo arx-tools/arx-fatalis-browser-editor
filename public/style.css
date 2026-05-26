@@ -32,6 +32,12 @@ header {
   display: flex;
   justify-content: space-between;
   padding: 10px;
+  background: #1e1e1e;
+  color: #e3e3e3;
+}
+
+header h2 {
+  margin: 0;
 }
 
 #screen-wrapper {

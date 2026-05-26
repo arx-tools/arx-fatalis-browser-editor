@@ -614,11 +614,12 @@ function renderTriangle(triangle: Triangle): BufferGeometry {
   return new WireframeGeometry(geometry)
 }
 
-const cursorTriangleMesh = new LineSegments(
-  renderTriangle(new Triangle()),
-  new MeshBasicMaterial({ color: Color.red.getHex() }),
-)
+const cursorTriangleMaterial = new MeshBasicMaterial({ color: Color.red.getHex() })
+
+const cursorTriangleMesh = new LineSegments(renderTriangle(new Triangle()), cursorTriangleMaterial)
 scene.add(cursorTriangleMesh)
+
+// cursorTriangleMaterial.color.set(Color.green.getHex())
 
 controls.addEventListener('change', () => {
   const lookingAt = new Vector3()
@@ -647,9 +648,5 @@ controls.addEventListener('change', () => {
 
 // TODO: when saving FTS data use the three.js mesh instead of the loaded FTS data
 // TODO: add seedrandom package to the project + migrate "random" functions from arx-level-generator
-
-// TODO: make header show something more useful then a large text of "Arx Fatalis Browser Editor"
-
-// TODO: add crosshair
 
 // TODO: make a GUI level selector (loading image + text)

@@ -408,7 +408,9 @@ meshes.push(transparentMesh)
 scene.add(...meshes)
 
 let wireframeLines: LineSegments[] = meshes.map(({ geometry }) => {
-  return createWireframe(geometry)
+  const wireframe = createWireframe(geometry)
+  wireframe.renderOrder = 5
+  return wireframe
 })
 
 wireframeVisible.addEventListener('change', (event: CustomEventInit<{ oldValue: boolean; currentValue: boolean }>) => {
@@ -635,6 +637,10 @@ function areFaceOfMeshesEqual(a: FaceOfMesh, b: FaceOfMesh): boolean {
 document.addEventListener(
   'click',
   () => {
+    if (!controls.isLocked) {
+      return
+    }
+
     if (faceBeingLookedAt === undefined) {
       return
     }
@@ -667,6 +673,8 @@ window.addEventListener('blur', () => {
 // --------------
 
 scene.add(cursorTriangleMesh)
+
+cursorTriangleMesh.renderOrder = 10
 
 controls.addEventListener('change', () => {
   const lookingAt = new Vector3()
@@ -714,3 +722,9 @@ controls.addEventListener('change', () => {
 // TODO: add seedrandom package to the project + migrate "random" functions from arx-level-generator
 
 // TODO: make a GUI level selector (loading image + text)
+
+// TODO: make the selection visible (selected faces)
+// TODO: rework adding to / removing from selection with clicks to being able to draw them with mousedown/mouseup events
+// TODO: make geometry toggelable so that it would be possible to only have the wireframe rendered
+
+// TODO: test in chrome

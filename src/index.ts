@@ -29,12 +29,16 @@ import {
   canvas,
   downloadBtn,
   isLoading,
+  MouseButton,
   mouseLocked,
+  mousePressed,
   mouseUnlocked,
   uiTitle,
+  updateMouseButtonState,
+  updateMouseButtonStates,
   wireframeVisible,
 } from './ui/ui.js'
-import { isDoubleSided, isNoDraw, isTransparent, wait } from './functions.js'
+import { areFacesEqual, isDoubleSided, isNoDraw, isTransparent, wait } from './functions.js'
 import { Color } from './Color.js'
 import { isValidOriginalArxLevelId } from './constants.js'
 import { Logger } from './ui/Logger.js'
@@ -501,6 +505,17 @@ let faceBeingLookedAt: FaceOfMesh | undefined
 const cursorTriangleMaterial = new MeshBasicMaterial({ color: Color.green.getHex() })
 const cursorTriangleMesh = new LineSegments(createTriangle(new Triangle()), cursorTriangleMaterial)
 
+/**
+ * being relevant when new faces are to be added to or removed from the selectedFaces
+ *
+ * if the left mouse button is pressed with a face that is already in the selection,
+ * that means the face will be removed and all subsequent faces will get removed from selectedFaces
+ * otherwise all subsequent faces will be added
+ *
+ * until the first face is clicked the state is undefined
+ */
+let isAddingToSelection: boolean | undefined
+
 function render(): void {
   if (resizeRendererToDisplaySize(renderer)) {
     const canvas = renderer.domElement
@@ -613,6 +628,11 @@ cameraLight.position.set(camera.position.x, camera.position.y, camera.position.z
 function onKeyDown(event: KeyboardEvent): void {
   if (event.code === 'KeyEsc') {
     controls.unlock()
+
+    updateMouseButtonState(MouseButton.Left, false)
+    updateMouseButtonState(MouseButton.Right, false)
+    updateMouseButtonState(MouseButton.Middle, false)
+
     return
   }
 
@@ -626,48 +646,68 @@ function onKeyUp(event: KeyboardEvent): void {
 document.addEventListener('keydown', onKeyDown, false)
 document.addEventListener('keyup', onKeyUp, false)
 
-function areFacesEqual(a: Face, b: Face): boolean {
-  return a.a === b.a && a.b === b.b && a.c === b.c && a.materialIndex === b.materialIndex && a.normal.equals(b.normal)
-}
-
 function areFaceOfMeshesEqual(a: FaceOfMesh, b: FaceOfMesh): boolean {
   return a.mesh === b.mesh && areFacesEqual(a.face, b.face)
 }
 
 document.addEventListener(
-  'click',
-  () => {
+  'mousedown',
+  (event) => {
     if (!controls.isLocked) {
       return
     }
 
-    if (faceBeingLookedAt === undefined) {
-      return
-    }
+    updateMouseButtonStates(event)
 
     const positionInSelection = selectedFaces.findIndex((faceOfMesh) => {
       return areFaceOfMeshesEqual(faceOfMesh, faceBeingLookedAt as FaceOfMesh)
     })
 
-    if (positionInSelection === -1) {
-      selectedFaces.push(faceBeingLookedAt)
+    const alreadySelected = positionInSelection !== -1
+
+    if (alreadySelected) {
       cursorTriangleMaterial.color.set(Color.red.getHex())
     } else {
-      selectedFaces.splice(positionInSelection, 1)
       cursorTriangleMaterial.color.set(Color.green.getHex())
     }
-
-    console.log(`Selected faces: ${selectedFaces.length}`)
   },
   false,
 )
 
-canvas.addEventListener('click', () => {
+document.addEventListener(
+  'mouseup',
+  (event) => {
+    if (!controls.isLocked) {
+      return
+    }
+
+    updateMouseButtonStates(event)
+
+    const positionInSelection = selectedFaces.findIndex((faceOfMesh) => {
+      return areFaceOfMeshesEqual(faceOfMesh, faceBeingLookedAt as FaceOfMesh)
+    })
+
+    const alreadySelected = positionInSelection !== -1
+
+    if (alreadySelected) {
+      cursorTriangleMaterial.color.set(Color.red.getHex())
+    } else {
+      cursorTriangleMaterial.color.set(Color.green.getHex())
+    }
+  },
+  false,
+)
+
+canvas.addEventListener('click', (e) => {
   controls.lock()
 })
 
 window.addEventListener('blur', () => {
   controls.unlock()
+
+  updateMouseButtonState(MouseButton.Left, false)
+  updateMouseButtonState(MouseButton.Right, false)
+  updateMouseButtonState(MouseButton.Middle, false)
 })
 
 // --------------
@@ -705,14 +745,46 @@ controls.addEventListener('change', () => {
 
   faceBeingLookedAt = { mesh, face }
 
-  const alreadySelected = selectedFaces.some((faceOfMesh) => {
+  const positionInSelection = selectedFaces.findIndex((faceOfMesh) => {
     return areFaceOfMeshesEqual(faceOfMesh, faceBeingLookedAt as FaceOfMesh)
   })
+
+  const alreadySelected = positionInSelection !== -1
 
   if (alreadySelected) {
     cursorTriangleMaterial.color.set(Color.red.getHex())
   } else {
     cursorTriangleMaterial.color.set(Color.green.getHex())
+  }
+
+  if (mousePressed[MouseButton.Left].currentValue) {
+    if (!mousePressed[MouseButton.Left].oldValue) {
+      // left mouse button was pressed
+      isAddingToSelection = !alreadySelected
+    }
+
+    if (isAddingToSelection) {
+      cursorTriangleMaterial.color.set(Color.green.getHex())
+      if (!alreadySelected) {
+        selectedFaces.push(faceBeingLookedAt)
+        console.log(`Selected faces: ${selectedFaces.length}`)
+      }
+    } else {
+      cursorTriangleMaterial.color.set(Color.red.getHex())
+      if (alreadySelected) {
+        selectedFaces.splice(positionInSelection, 1)
+        console.log(`Selected faces: ${selectedFaces.length}`)
+      }
+    }
+
+    updateMouseButtonState(MouseButton.Left, true)
+  } else {
+    if (mousePressed[MouseButton.Left].oldValue) {
+      // left mouse button was released
+      isAddingToSelection = undefined
+    }
+
+    updateMouseButtonState(MouseButton.Left, false)
   }
 })
 
@@ -724,7 +796,8 @@ controls.addEventListener('change', () => {
 // TODO: make a GUI level selector (loading image + text)
 
 // TODO: make the selection visible (selected faces)
-// TODO: rework adding to / removing from selection with clicks to being able to draw them with mousedown/mouseup events
 // TODO: make geometry toggelable so that it would be possible to only have the wireframe rendered
 
 // TODO: test in chrome
+
+// TODO: create some sort of lookup for quads

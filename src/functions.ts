@@ -1,4 +1,5 @@
 import { ArxPolygonFlags } from 'arx-convert/types'
+import type { Face } from 'three'
 
 export async function wait(delayInMs: number): Promise<void> {
   await new Promise<void>((resolve, reject) => {
@@ -26,4 +27,8 @@ export function isDoubleSided(flags: ArxPolygonFlags): boolean {
 
 export function isNoDraw(flags: ArxPolygonFlags): boolean {
   return (flags & ArxPolygonFlags.NoDraw) !== 0
+}
+
+export function areFacesEqual(a: Face, b: Face): boolean {
+  return a.a === b.a && a.b === b.b && a.c === b.c && a.materialIndex === b.materialIndex && a.normal.equals(b.normal)
 }

@@ -101,3 +101,30 @@ const uiTitleElement = document.querySelector<HTMLHeadingElement>('#title') as H
 uiTitle.addEventListener('change', (event: CustomEventInit<{ oldValue: string; currentValue: string }>) => {
   uiTitleElement.textContent = event.detail?.currentValue ?? ''
 })
+
+// ------------
+
+export enum MouseButton {
+  Left = 1 << 0,
+  Right = 1 << 1,
+  Middle = 1 << 2,
+}
+
+export const mousePressed: Record<MouseButton, { oldValue: boolean; currentValue: boolean }> = {
+  [MouseButton.Left]: { oldValue: false, currentValue: false },
+  [MouseButton.Right]: { oldValue: false, currentValue: false },
+  [MouseButton.Middle]: { oldValue: false, currentValue: false },
+}
+
+export function updateMouseButtonState(button: MouseButton, value: boolean): void {
+  mousePressed[button] = {
+    oldValue: mousePressed[button].currentValue,
+    currentValue: value,
+  }
+}
+
+export function updateMouseButtonStates(event: MouseEvent): void {
+  updateMouseButtonState(MouseButton.Left, (event.buttons & MouseButton.Left) > 0)
+  updateMouseButtonState(MouseButton.Right, (event.buttons & MouseButton.Right) > 0)
+  updateMouseButtonState(MouseButton.Middle, (event.buttons & MouseButton.Middle) > 0)
+}

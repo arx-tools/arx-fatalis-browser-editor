@@ -3,8 +3,6 @@ import { getHeaderSize } from 'arx-header-size'
 import { DLF, FTS, LLF } from 'arx-convert'
 import type { ArxFTS, ArxLLF, ArxDLF } from 'arx-convert/types'
 import {
-  BufferAttribute,
-  BufferGeometry,
   DoubleSide,
   Euler,
   type Face,
@@ -21,7 +19,6 @@ import {
   Triangle,
   Vector3,
   WebGLRenderer,
-  WireframeGeometry,
 } from 'three'
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js'
 import { ViewHelper } from 'three/examples/jsm/helpers/ViewHelper.js'
@@ -43,6 +40,9 @@ import { isValidOriginalArxLevelId } from './constants.js'
 import { Logger } from './ui/Logger.js'
 import { Exception } from './ui/Exception.js'
 import { arxPolygonsToMesh, arxVector3toVector3 } from './arx-threejs-format-converters.js'
+import { removeFaces } from './geometry/removeFaces.js'
+import { createWireframe } from './geometry/createWireframe.js'
+import { createTriangle } from './geometry/createTriangle.js'
 
 Mesh.prototype.raycast = acceleratedRaycast
 
@@ -407,13 +407,8 @@ meshes.push(transparentMesh)
 
 scene.add(...meshes)
 
-const wireframeLines: LineSegments[] = meshes.map((mesh) => {
-  return new LineSegments(
-    new WireframeGeometry(mesh.geometry),
-    new MeshBasicMaterial({
-      color: Color.white.darken(50).getHex(),
-    }),
-  )
+let wireframeLines: LineSegments[] = meshes.map(({ geometry }) => {
+  return createWireframe(geometry)
 })
 
 wireframeVisible.addEventListener('change', (event: CustomEventInit<{ oldValue: boolean; currentValue: boolean }>) => {
@@ -599,24 +594,9 @@ window.addEventListener('blur', () => {
 
 // TODO: store selected triangle / allow adding with left click and removing with right click
 
-function renderTriangle(triangle: Triangle): BufferGeometry {
-  const geometry = new BufferGeometry()
-
-  // prettier-ignore
-  const vertices = new Float32Array([
-    ...triangle.a.toArray(),
-    ...triangle.b.toArray(),
-    ...triangle.c.toArray()
-  ]);
-
-  geometry.setAttribute('position', new BufferAttribute(vertices, 3))
-
-  return new WireframeGeometry(geometry)
-}
-
 const cursorTriangleMaterial = new MeshBasicMaterial({ color: Color.red.getHex() })
 
-const cursorTriangleMesh = new LineSegments(renderTriangle(new Triangle()), cursorTriangleMaterial)
+const cursorTriangleMesh = new LineSegments(createTriangle(new Triangle()), cursorTriangleMaterial)
 scene.add(cursorTriangleMesh)
 
 // cursorTriangleMaterial.color.set(Color.green.getHex())
@@ -635,13 +615,33 @@ controls.addEventListener('change', () => {
     return
   }
 
-  const point = (intersectedMeshes[0].object as Mesh).geometry.getAttribute('position')
+  const mesh = intersectedMeshes[0].object as Mesh
+
+  const { geometry } = mesh
+
+  const vertices = geometry.getAttribute('position')
   const face = intersectedMeshes[0].face as Face
-  const a = new Vector3(point.getX(face.a), point.getY(face.a), point.getZ(face.a))
-  const b = new Vector3(point.getX(face.b), point.getY(face.b), point.getZ(face.b))
-  const c = new Vector3(point.getX(face.c), point.getY(face.c), point.getZ(face.c))
-  cursorTriangleMesh.geometry = renderTriangle(new Triangle(a, b, c))
+  const a = new Vector3(vertices.getX(face.a), vertices.getY(face.a), vertices.getZ(face.a))
+  const b = new Vector3(vertices.getX(face.b), vertices.getY(face.b), vertices.getZ(face.b))
+  const c = new Vector3(vertices.getX(face.c), vertices.getY(face.c), vertices.getZ(face.c))
+  cursorTriangleMesh.geometry = createTriangle(new Triangle(a, b, c))
   scene.add(cursorTriangleMesh)
+
+  // ---------------------
+
+  mesh.geometry = removeFaces([face], geometry)
+
+  if (wireframeVisible.currentValue) {
+    scene.remove(...wireframeLines)
+  }
+
+  wireframeLines = meshes.map(({ geometry }) => {
+    return createWireframe(geometry)
+  })
+
+  if (wireframeVisible.currentValue) {
+    scene.add(...wireframeLines)
+  }
 })
 
 // ------------------
@@ -650,3 +650,5 @@ controls.addEventListener('change', () => {
 // TODO: add seedrandom package to the project + migrate "random" functions from arx-level-generator
 
 // TODO: make a GUI level selector (loading image + text)
+
+// TODO: add crosshair

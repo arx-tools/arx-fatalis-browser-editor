@@ -650,5 +650,3 @@ controls.addEventListener('change', () => {
 // TODO: add seedrandom package to the project + migrate "random" functions from arx-level-generator
 
 // TODO: make a GUI level selector (loading image + text)
-
-// TODO: add crosshair

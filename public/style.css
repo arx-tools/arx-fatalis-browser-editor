@@ -96,3 +96,17 @@ code {
   padding: 1px 1px;
   border-radius: 3px;
 }
+
+#crosshair {
+  color: black;
+  width: 50px;
+  height: 50px;
+  display: grid;
+  place-items: center;
+  position: absolute;
+  z-index: 20;
+  top: calc(50% - 25px);
+  left: calc(50% - 25px);
+  filter: invert(1);
+  mix-blend-mode: difference;
+}

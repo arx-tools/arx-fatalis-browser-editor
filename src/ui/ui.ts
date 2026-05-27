@@ -1,7 +1,10 @@
 import { State } from './State.js'
 
 type LoadingState = 'idle' | 'loading' | 'fulfilled' | 'rejected'
+
 export const isLoading = new State<LoadingState>('idle')
+
+const crosshair = document.querySelector<HTMLDivElement>('#crosshair') as HTMLDivElement
 
 export const downloadBtn = document.querySelector<HTMLButtonElement>('#download') as HTMLButtonElement
 export const loadingIndicator = document.querySelector<HTMLParagraphElement>(
@@ -24,6 +27,8 @@ isLoading.addEventListener('change', (event: CustomEventInit<{ oldValue: boolean
   }
 
   downloadBtn.disabled = value !== 'fulfilled'
+
+  crosshair.classList.toggle('hidden', value === 'loading')
 })
 
 loadingIndicator.classList.toggle('hidden', isLoading.currentValue !== 'loading')

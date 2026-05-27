@@ -492,6 +492,13 @@ const viewHelper = new ViewHelper(camera, document.body)
 
 const pressedKeys: Record<string, boolean> = {}
 
+type FaceOfMesh = { mesh: Mesh; face: Face }
+
+const selectedFaces: FaceOfMesh[] = []
+let faceBeingLookedAt: FaceOfMesh | undefined
+const cursorTriangleMaterial = new MeshBasicMaterial({ color: Color.green.getHex() })
+const cursorTriangleMesh = new LineSegments(createTriangle(new Triangle()), cursorTriangleMaterial)
+
 function render(): void {
   if (resizeRendererToDisplaySize(renderer)) {
     const canvas = renderer.domElement
@@ -555,6 +562,41 @@ function animate(): void {
 
     camera.position.add(direction)
     cameraLight.position.set(camera.position.x, camera.position.y, camera.position.z)
+
+    if (pressedKeys.Delete && selectedFaces.length > 0) {
+      const facesByMeshes = new Map<Mesh, Face[]>()
+
+      for (const { mesh, face } of selectedFaces) {
+        if (!facesByMeshes.has(mesh)) {
+          facesByMeshes.set(mesh, [])
+        }
+
+        const facesByMesh = facesByMeshes.get(mesh) as Face[]
+        facesByMesh.push(face)
+      }
+
+      facesByMeshes.entries().forEach(([mesh, faces]) => {
+        mesh.geometry = removeFaces(faces, mesh.geometry)
+      })
+
+      if (wireframeVisible.currentValue) {
+        scene.remove(...wireframeLines)
+      }
+
+      wireframeLines = meshes.map(({ geometry }) => {
+        return createWireframe(geometry)
+      })
+
+      if (wireframeVisible.currentValue) {
+        scene.add(...wireframeLines)
+      }
+
+      selectedFaces.length = 0
+      faceBeingLookedAt = undefined
+
+      cursorTriangleMaterial.color.set(Color.green.getHex())
+      scene.remove(cursorTriangleMesh)
+    }
   } else {
     mouseLocked.style.display = 'none'
     mouseUnlocked.style.display = 'block'
@@ -582,6 +624,38 @@ function onKeyUp(event: KeyboardEvent): void {
 document.addEventListener('keydown', onKeyDown, false)
 document.addEventListener('keyup', onKeyUp, false)
 
+function areFacesEqual(a: Face, b: Face): boolean {
+  return a.a === b.a && a.b === b.b && a.c === b.c && a.materialIndex === b.materialIndex && a.normal.equals(b.normal)
+}
+
+function areFaceOfMeshesEqual(a: FaceOfMesh, b: FaceOfMesh): boolean {
+  return a.mesh === b.mesh && areFacesEqual(a.face, b.face)
+}
+
+document.addEventListener(
+  'click',
+  () => {
+    if (faceBeingLookedAt === undefined) {
+      return
+    }
+
+    const positionInSelection = selectedFaces.findIndex((faceOfMesh) => {
+      return areFaceOfMeshesEqual(faceOfMesh, faceBeingLookedAt as FaceOfMesh)
+    })
+
+    if (positionInSelection === -1) {
+      selectedFaces.push(faceBeingLookedAt)
+      cursorTriangleMaterial.color.set(Color.red.getHex())
+    } else {
+      selectedFaces.splice(positionInSelection, 1)
+      cursorTriangleMaterial.color.set(Color.green.getHex())
+    }
+
+    console.log(`Selected faces: ${selectedFaces.length}`)
+  },
+  false,
+)
+
 canvas.addEventListener('click', () => {
   controls.lock()
 })
@@ -592,14 +666,7 @@ window.addEventListener('blur', () => {
 
 // --------------
 
-// TODO: store selected triangle / allow adding with left click and removing with right click
-
-const cursorTriangleMaterial = new MeshBasicMaterial({ color: Color.red.getHex() })
-
-const cursorTriangleMesh = new LineSegments(createTriangle(new Triangle()), cursorTriangleMaterial)
 scene.add(cursorTriangleMesh)
-
-// cursorTriangleMaterial.color.set(Color.green.getHex())
 
 controls.addEventListener('change', () => {
   const lookingAt = new Vector3()
@@ -612,35 +679,32 @@ controls.addEventListener('change', () => {
 
   if (intersectedMeshes.length === 0) {
     scene.remove(cursorTriangleMesh)
+    faceBeingLookedAt = undefined
     return
   }
 
   const mesh = intersectedMeshes[0].object as Mesh
+  const face = intersectedMeshes[0].face as Face
 
   const { geometry } = mesh
 
   const vertices = geometry.getAttribute('position')
-  const face = intersectedMeshes[0].face as Face
   const a = new Vector3(vertices.getX(face.a), vertices.getY(face.a), vertices.getZ(face.a))
   const b = new Vector3(vertices.getX(face.b), vertices.getY(face.b), vertices.getZ(face.b))
   const c = new Vector3(vertices.getX(face.c), vertices.getY(face.c), vertices.getZ(face.c))
   cursorTriangleMesh.geometry = createTriangle(new Triangle(a, b, c))
   scene.add(cursorTriangleMesh)
 
-  // ---------------------
+  faceBeingLookedAt = { mesh, face }
 
-  mesh.geometry = removeFaces([face], geometry)
-
-  if (wireframeVisible.currentValue) {
-    scene.remove(...wireframeLines)
-  }
-
-  wireframeLines = meshes.map(({ geometry }) => {
-    return createWireframe(geometry)
+  const alreadySelected = selectedFaces.some((faceOfMesh) => {
+    return areFaceOfMeshesEqual(faceOfMesh, faceBeingLookedAt as FaceOfMesh)
   })
 
-  if (wireframeVisible.currentValue) {
-    scene.add(...wireframeLines)
+  if (alreadySelected) {
+    cursorTriangleMaterial.color.set(Color.red.getHex())
+  } else {
+    cursorTriangleMaterial.color.set(Color.green.getHex())
   }
 })
 

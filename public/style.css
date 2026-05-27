@@ -109,4 +109,5 @@ code {
   left: calc(50% - 25px);
   filter: invert(1);
   mix-blend-mode: difference;
+  user-select: none;
 }

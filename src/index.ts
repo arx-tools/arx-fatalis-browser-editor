@@ -3,6 +3,8 @@ import { getHeaderSize } from 'arx-header-size'
 import { DLF, FTS, LLF } from 'arx-convert'
 import type { ArxFTS, ArxLLF, ArxDLF } from 'arx-convert/types'
 import {
+  BufferAttribute,
+  BufferGeometry,
   DoubleSide,
   Euler,
   type Face,
@@ -46,7 +48,9 @@ import { Exception } from './ui/Exception.js'
 import { arxPolygonsToMesh, arxVector3toVector3 } from './arx-threejs-format-converters.js'
 import { removeFaces } from './geometry/removeFaces.js'
 import { createWireframe } from './geometry/createWireframe.js'
-import { createTriangle } from './geometry/createTriangle.js'
+import { createTriangle as renderTriangle } from './geometry/renderTriangle.js'
+import { getVerticesByFace } from './geometry/getVerticesByFace.js'
+import { getNormalsByFace } from './geometry/getNormalByFace.js'
 
 Mesh.prototype.raycast = acceleratedRaycast
 
@@ -503,7 +507,64 @@ type FaceOfMesh = { mesh: Mesh; face: Face }
 const selectedFaces: FaceOfMesh[] = []
 let faceBeingLookedAt: FaceOfMesh | undefined
 const cursorTriangleMaterial = new MeshBasicMaterial({ color: Color.green.getHex() })
-const cursorTriangleMesh = new LineSegments(createTriangle(new Triangle()), cursorTriangleMaterial)
+const cursorTriangleMesh = new LineSegments(renderTriangle(new Triangle()), cursorTriangleMaterial)
+
+let highlightOfSelectedFaces: Mesh[] = []
+
+function updateHighlightOfSelectedFaces(): void {
+  if (highlightOfSelectedFaces.length > 0) {
+    scene.remove(...highlightOfSelectedFaces)
+  }
+
+  highlightOfSelectedFaces = selectedFaces.map(({ face, mesh }) => {
+    const vertices = getVerticesByFace(face, mesh.geometry)
+    const normals = getNormalsByFace(face, mesh.geometry)
+
+    const geometry = new BufferGeometry()
+
+    geometry.setAttribute(
+      'position',
+      new BufferAttribute(
+        // prettier-ignore
+        new Float32Array([
+          ...vertices[0].toArray(),
+          ...vertices[1].toArray(),
+          ...vertices[2].toArray()
+        ]),
+        3,
+      ),
+    )
+
+    geometry.setAttribute(
+      'normal',
+      new BufferAttribute(
+        // prettier-ignore
+        new Float32Array([
+          ...normals[0].toArray(),
+          ...normals[1].toArray(),
+          ...normals[2].toArray()
+        ]),
+        3,
+      ),
+    )
+
+    const material = new MeshBasicMaterial({
+      color: Color.yellow.getHex(),
+      side: DoubleSide,
+      transparent: true,
+      opacity: 0.35,
+    })
+
+    const triangleMesh = new Mesh(geometry, material)
+    triangleMesh.renderOrder = 7 // TODO, ez legyen 5 és 10 között
+
+    return triangleMesh
+  })
+
+  if (highlightOfSelectedFaces.length > 0) {
+    scene.add(...highlightOfSelectedFaces)
+  }
+}
 
 /**
  * being relevant when new faces are to be added to or removed from the selectedFaces
@@ -609,6 +670,7 @@ function animate(): void {
       }
 
       selectedFaces.length = 0
+      updateHighlightOfSelectedFaces()
       faceBeingLookedAt = undefined
 
       cursorTriangleMaterial.color.set(Color.green.getHex())
@@ -683,6 +745,10 @@ document.addEventListener(
 
     updateMouseButtonStates(event)
 
+    if (faceBeingLookedAt === undefined) {
+      return
+    }
+
     const positionInSelection = selectedFaces.findIndex((faceOfMesh) => {
       return areFaceOfMeshesEqual(faceOfMesh, faceBeingLookedAt as FaceOfMesh)
     })
@@ -693,6 +759,18 @@ document.addEventListener(
       cursorTriangleMaterial.color.set(Color.red.getHex())
     } else {
       cursorTriangleMaterial.color.set(Color.green.getHex())
+    }
+
+    if (isAddingToSelection === undefined) {
+      if (alreadySelected) {
+        selectedFaces.splice(positionInSelection, 1)
+      } else {
+        selectedFaces.push(faceBeingLookedAt)
+      }
+
+      updateHighlightOfSelectedFaces()
+    } else {
+      isAddingToSelection = undefined
     }
   },
   false,
@@ -734,13 +812,8 @@ controls.addEventListener('change', () => {
   const mesh = intersectedMeshes[0].object as Mesh
   const face = intersectedMeshes[0].face as Face
 
-  const { geometry } = mesh
-
-  const vertices = geometry.getAttribute('position')
-  const a = new Vector3(vertices.getX(face.a), vertices.getY(face.a), vertices.getZ(face.a))
-  const b = new Vector3(vertices.getX(face.b), vertices.getY(face.b), vertices.getZ(face.b))
-  const c = new Vector3(vertices.getX(face.c), vertices.getY(face.c), vertices.getZ(face.c))
-  cursorTriangleMesh.geometry = createTriangle(new Triangle(a, b, c))
+  const [a, b, c] = getVerticesByFace(face, mesh.geometry)
+  cursorTriangleMesh.geometry = renderTriangle(new Triangle(a, b, c))
   scene.add(cursorTriangleMesh)
 
   faceBeingLookedAt = { mesh, face }
@@ -767,13 +840,13 @@ controls.addEventListener('change', () => {
       cursorTriangleMaterial.color.set(Color.green.getHex())
       if (!alreadySelected) {
         selectedFaces.push(faceBeingLookedAt)
-        console.log(`Selected faces: ${selectedFaces.length}`)
+        updateHighlightOfSelectedFaces()
       }
     } else {
       cursorTriangleMaterial.color.set(Color.red.getHex())
       if (alreadySelected) {
         selectedFaces.splice(positionInSelection, 1)
-        console.log(`Selected faces: ${selectedFaces.length}`)
+        updateHighlightOfSelectedFaces()
       }
     }
 
@@ -795,9 +868,14 @@ controls.addEventListener('change', () => {
 
 // TODO: make a GUI level selector (loading image + text)
 
-// TODO: make the selection visible (selected faces)
 // TODO: make geometry toggelable so that it would be possible to only have the wireframe rendered
 
 // TODO: test in chrome
 
 // TODO: create some sort of lookup for quads
+
+// TODO: make selection semi-transparent
+// TODO: override isAddingToSelection to be false by holding down the right mouse button instead of left
+
+// TODO: add gizmo to the center of the selection
+// TODO: allow moving the selected faces with gizmo

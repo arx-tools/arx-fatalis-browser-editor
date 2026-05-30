@@ -1,5 +1,4 @@
 import { ref, watch } from 'vue'
-import { State } from './State.js'
 
 type LoadingState = 'idle' | 'loading' | 'fulfilled' | 'rejected'
 
@@ -40,34 +39,31 @@ mouseUnlocked.style.display = 'none'
 
 // ------------
 
-export const wireframeVisible = new State(false)
+export const wireframeVisible = ref(false)
 
 const wireframeVisibleCheckbox = document.querySelector<HTMLInputElement>('#wireframe-visible') as HTMLInputElement
 wireframeVisibleCheckbox.addEventListener('input', () => {
   wireframeVisible.value = wireframeVisibleCheckbox.checked
 })
 
-wireframeVisible.addEventListener('change', (event: CustomEventInit<{ oldValue: boolean; currentValue: boolean }>) => {
-  wireframeVisibleCheckbox.checked = event.detail?.currentValue ?? false
+watch(wireframeVisible, (value) => {
+  wireframeVisibleCheckbox.checked = value
 })
 
 wireframeVisibleCheckbox.checked = wireframeVisible.value
 
 // ------------
 
-export const cameraLightVisible = new State(false)
+export const cameraLightVisible = ref(false)
 
 const cameraLightVisibleCheckbox = document.querySelector<HTMLInputElement>('#camera-light-visible') as HTMLInputElement
 cameraLightVisibleCheckbox.addEventListener('input', () => {
   cameraLightVisible.value = cameraLightVisibleCheckbox.checked
 })
 
-cameraLightVisible.addEventListener(
-  'change',
-  (event: CustomEventInit<{ oldValue: boolean; currentValue: boolean }>) => {
-    cameraLightVisibleCheckbox.checked = event.detail?.currentValue ?? false
-  },
-)
+watch(cameraLightVisible, (value) => {
+  cameraLightVisibleCheckbox.checked = value
+})
 
 cameraLightVisibleCheckbox.checked = cameraLightVisible.value
 
@@ -94,11 +90,11 @@ document.addEventListener(
 
 // ------------
 
-export const uiTitle = new State('')
+export const uiTitle = ref('')
 
 const uiTitleElement = document.querySelector<HTMLHeadingElement>('#title') as HTMLHeadingElement
-uiTitle.addEventListener('change', (event: CustomEventInit<{ oldValue: string; currentValue: string }>) => {
-  uiTitleElement.textContent = event.detail?.currentValue ?? ''
+watch(uiTitle, (value) => {
+  uiTitleElement.textContent = value
 })
 
 // ------------

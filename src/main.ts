@@ -31,6 +31,7 @@ import {
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js'
 import { ViewHelper } from 'three/examples/jsm/helpers/ViewHelper.js'
 import { acceleratedRaycast } from 'three-mesh-bvh'
+import { watch } from 'vue'
 import './style.scss'
 import { downloadBinaryAs, zipBuffers } from './download.js'
 import {
@@ -430,8 +431,8 @@ let wireframeLines: LineSegments[] = meshes.map(({ geometry }) => {
   return wireframe
 })
 
-wireframeVisible.addEventListener('change', (event: CustomEventInit<{ oldValue: boolean; currentValue: boolean }>) => {
-  if (event.detail?.currentValue === true) {
+watch(wireframeVisible, (value) => {
+  if (value) {
     scene.add(...wireframeLines)
   } else {
     scene.remove(...wireframeLines)
@@ -462,16 +463,13 @@ for (const light of llf.lights) {
 
 const cameraLight = new PointLight(Color.white.getHex(), 10_000)
 
-cameraLightVisible.addEventListener(
-  'change',
-  (event: CustomEventInit<{ oldValue: boolean; currentValue: boolean }>) => {
-    if (event.detail?.currentValue === true) {
-      scene.add(cameraLight)
-    } else {
-      scene.remove(cameraLight)
-    }
-  },
-)
+watch(cameraLightVisible, (value) => {
+  if (value) {
+    scene.add(cameraLight)
+  } else {
+    scene.remove(cameraLight)
+  }
+})
 
 if (cameraLightVisible.value === true) {
   scene.add(cameraLight)

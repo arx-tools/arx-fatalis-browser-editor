@@ -31,8 +31,8 @@ isLoading.addEventListener('change', (event: CustomEventInit<{ oldValue: boolean
   crosshair.classList.toggle('hidden', value === 'loading')
 })
 
-loadingIndicator.classList.toggle('hidden', isLoading.currentValue !== 'loading')
-downloadBtn.disabled = isLoading.currentValue !== 'fulfilled'
+loadingIndicator.classList.toggle('hidden', isLoading.value !== 'loading')
+downloadBtn.disabled = isLoading.value !== 'fulfilled'
 
 export const canvas = document.querySelector<HTMLCanvasElement>('#screen') as HTMLCanvasElement
 
@@ -45,14 +45,14 @@ export const wireframeVisible = new State(false)
 
 const wireframeVisibleCheckbox = document.querySelector<HTMLInputElement>('#wireframe-visible') as HTMLInputElement
 wireframeVisibleCheckbox.addEventListener('input', () => {
-  wireframeVisible.currentValue = wireframeVisibleCheckbox.checked
+  wireframeVisible.value = wireframeVisibleCheckbox.checked
 })
 
 wireframeVisible.addEventListener('change', (event: CustomEventInit<{ oldValue: boolean; currentValue: boolean }>) => {
   wireframeVisibleCheckbox.checked = event.detail?.currentValue ?? false
 })
 
-wireframeVisibleCheckbox.checked = wireframeVisible.currentValue
+wireframeVisibleCheckbox.checked = wireframeVisible.value
 
 // ------------
 
@@ -60,7 +60,7 @@ export const cameraLightVisible = new State(false)
 
 const cameraLightVisibleCheckbox = document.querySelector<HTMLInputElement>('#camera-light-visible') as HTMLInputElement
 cameraLightVisibleCheckbox.addEventListener('input', () => {
-  cameraLightVisible.currentValue = cameraLightVisibleCheckbox.checked
+  cameraLightVisible.value = cameraLightVisibleCheckbox.checked
 })
 
 cameraLightVisible.addEventListener(
@@ -70,7 +70,7 @@ cameraLightVisible.addEventListener(
   },
 )
 
-cameraLightVisibleCheckbox.checked = cameraLightVisible.currentValue
+cameraLightVisibleCheckbox.checked = cameraLightVisible.value
 
 // ------------
 
@@ -80,12 +80,12 @@ document.addEventListener(
     // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- we don't need to cover all keys here
     switch (event.code) {
       case 'KeyF': {
-        cameraLightVisible.currentValue = !cameraLightVisible.currentValue
+        cameraLightVisible.value = !cameraLightVisible.value
         break
       }
 
       case 'KeyX': {
-        wireframeVisible.currentValue = !wireframeVisible.currentValue
+        wireframeVisible.value = !wireframeVisible.value
         break
       }
     }

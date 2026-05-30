@@ -7,11 +7,11 @@ export class State<T> extends EventTarget {
     this._setValue(undefined, value)
   }
 
-  get currentValue(): T {
+  get value(): T {
     return this._value
   }
 
-  set currentValue(newValue: T) {
+  set value(newValue: T) {
     this._setValue(this._value, newValue)
   }
 

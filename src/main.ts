@@ -309,13 +309,13 @@ async function saveDLF(dlf: ArxDLF, level: number): Promise<ArrayBuffer> {
 
 // --------------------
 
-isLoading.currentValue = 'loading'
+isLoading.value = 'loading'
 
 const levelId = Number.parseInt(new URLSearchParams(globalThis.location.search).get('level') ?? '11', 10)
 if (!isValidOriginalArxLevelId(levelId)) {
-  isLoading.currentValue = 'rejected'
+  isLoading.value = 'rejected'
 
-  uiTitle.currentValue = `Invalid level ID "${levelId}"`
+  uiTitle.value = `Invalid level ID "${levelId}"`
 
   if (levelId === 9) {
     throw new Exception(`Invalid level ID "9", Arx Fatalis doesn't have a level 9.`, logger)
@@ -324,22 +324,22 @@ if (!isValidOriginalArxLevelId(levelId)) {
   }
 }
 
-uiTitle.currentValue = `Arx Fatalis Level ${levelId} (loading)`
+uiTitle.value = `Arx Fatalis Level ${levelId} (loading)`
 
 const line1 = logger.log('loading level data...')
 const [fts, llf, dlf] = await Promise.all([getFTS(levelId), getLLF(levelId), getDLF(levelId)])
 logger.log('done', line1)
 
-uiTitle.currentValue = `Arx Fatalis Level ${levelId}`
+uiTitle.value = `Arx Fatalis Level ${levelId}`
 
-isLoading.currentValue = 'fulfilled'
+isLoading.value = 'fulfilled'
 
 downloadBtn.addEventListener('click', async () => {
-  if (isLoading.currentValue === 'loading' || isLoading.currentValue === 'rejected') {
+  if (isLoading.value === 'loading' || isLoading.value === 'rejected') {
     return
   }
 
-  isLoading.currentValue = 'loading'
+  isLoading.value = 'loading'
 
   // TODO: generate fts, llf and dlf from scene
 
@@ -365,7 +365,7 @@ downloadBtn.addEventListener('click', async () => {
 
   downloadBinaryAs('mod.zip', zip, 'application/zip')
 
-  isLoading.currentValue = 'fulfilled'
+  isLoading.value = 'fulfilled'
 })
 
 // --------------------
@@ -438,7 +438,7 @@ wireframeVisible.addEventListener('change', (event: CustomEventInit<{ oldValue: 
   }
 })
 
-if (wireframeVisible.currentValue === true) {
+if (wireframeVisible.value === true) {
   scene.add(...wireframeLines)
 }
 
@@ -473,7 +473,7 @@ cameraLightVisible.addEventListener(
   },
 )
 
-if (cameraLightVisible.currentValue === true) {
+if (cameraLightVisible.value === true) {
   scene.add(cameraLight)
 }
 
@@ -666,7 +666,7 @@ function animate(): void {
         mesh.geometry = removeFaces(faces, mesh.geometry)
       })
 
-      if (wireframeVisible.currentValue) {
+      if (wireframeVisible.value) {
         scene.remove(...wireframeLines)
       }
 
@@ -674,7 +674,7 @@ function animate(): void {
         return createWireframe(geometry)
       })
 
-      if (wireframeVisible.currentValue) {
+      if (wireframeVisible.value) {
         scene.add(...wireframeLines)
       }
 

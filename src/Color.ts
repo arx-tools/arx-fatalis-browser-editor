@@ -1,7 +1,7 @@
 import type { ArxColor } from 'arx-convert/types'
 import rgba from 'color-rgba'
 import { type Color as ThreeJsColor, MathUtils } from 'three'
-import { percentOf } from '@src/functions.js'
+import { percentOf } from './functions.js'
 
 export const Alpha = {
   Transparent: 0,

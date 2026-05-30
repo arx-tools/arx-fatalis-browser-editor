@@ -1,22 +1,22 @@
 export class State<T> extends EventTarget {
-  private value: T
+  private _value: T
 
   constructor(value: T) {
     super()
-    this.value = value
-    this.changeValue(undefined, value)
+    this._value = value
+    this._setValue(undefined, value)
   }
 
   get currentValue(): T {
-    return this.value
+    return this._value
   }
 
   set currentValue(newValue: T) {
-    this.changeValue(this.value, newValue)
+    this._setValue(this._value, newValue)
   }
 
-  private changeValue(oldValue: T | undefined, newValue: T): void {
-    this.value = newValue
+  private _setValue(oldValue: T | undefined, newValue: T): void {
+    this._value = newValue
 
     const changeEvent = new CustomEvent('change', {
       detail: {

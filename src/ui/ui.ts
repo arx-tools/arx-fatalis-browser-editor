@@ -1,8 +1,9 @@
+import { ref, watch } from 'vue'
 import { State } from './State.js'
 
 type LoadingState = 'idle' | 'loading' | 'fulfilled' | 'rejected'
 
-export const isLoading = new State<LoadingState>('idle')
+export const isLoading = ref<LoadingState>('idle')
 
 const crosshair = document.querySelector<HTMLDivElement>('#crosshair') as HTMLDivElement
 
@@ -14,9 +15,7 @@ export const loadingIndicator = document.querySelector<HTMLParagraphElement>(
 export const mouseLocked = document.querySelector<HTMLParagraphElement>('#mouse-locked') as HTMLParagraphElement
 export const mouseUnlocked = document.querySelector<HTMLParagraphElement>('#mouse-unlocked') as HTMLParagraphElement
 
-isLoading.addEventListener('change', (event: CustomEventInit<{ oldValue: boolean; currentValue: LoadingState }>) => {
-  const value = event.detail?.currentValue as LoadingState
-
+watch(isLoading, (value) => {
   loadingIndicator.classList.toggle('hidden', value === 'idle' || value === 'fulfilled')
   loadingIndicator.classList.toggle('error', value === 'rejected')
 

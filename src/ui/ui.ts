@@ -6,7 +6,6 @@ export const isLoading = ref<LoadingState>('idle')
 
 const crosshair = document.querySelector<HTMLDivElement>('#crosshair') as HTMLDivElement
 
-export const downloadBtn = document.querySelector<HTMLButtonElement>('#download') as HTMLButtonElement
 export const loadingIndicator = document.querySelector<HTMLParagraphElement>(
   '#loading-indicator',
 ) as HTMLParagraphElement
@@ -24,13 +23,10 @@ watch(isLoading, (value) => {
     loadingIndicator.textContent = 'An error occurred, see logs for details!'
   }
 
-  downloadBtn.disabled = value !== 'fulfilled'
-
   crosshair.classList.toggle('hidden', value === 'loading')
 })
 
 loadingIndicator.classList.toggle('hidden', isLoading.value !== 'loading')
-downloadBtn.disabled = isLoading.value !== 'fulfilled'
 
 export const canvas = document.querySelector<HTMLCanvasElement>('#screen') as HTMLCanvasElement
 
@@ -91,11 +87,6 @@ document.addEventListener(
 // ------------
 
 export const uiTitle = ref('')
-
-const uiTitleElement = document.querySelector<HTMLHeadingElement>('#title') as HTMLHeadingElement
-watch(uiTitle, (value) => {
-  uiTitleElement.textContent = value
-})
 
 // ------------
 

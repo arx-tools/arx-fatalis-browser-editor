@@ -1,9 +1,3 @@
-/*
-import { createApp } from 'vue'
-import App from './App.vue'
-createApp(App).mount('#app')
-*/
-
 import { explode, implode, concatArrayBuffers, sliceArrayBufferAt } from 'node-pkware/simple'
 import { getHeaderSize } from 'arx-header-size'
 import { DLF, FTS, LLF } from 'arx-convert'
@@ -31,13 +25,12 @@ import {
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js'
 import { ViewHelper } from 'three/examples/jsm/helpers/ViewHelper.js'
 import { acceleratedRaycast } from 'three-mesh-bvh'
-import { watch } from 'vue'
+import { createApp, watch } from 'vue'
 import './style.scss'
 import { downloadBinaryAs, zipBuffers } from './download.js'
 import {
   cameraLightVisible,
   canvas,
-  downloadBtn,
   isLoading,
   LeftMouseButton,
   MiddleMouseButton,
@@ -61,10 +54,13 @@ import { createWireframe } from './geometry/createWireframe.js'
 import { createTriangle as renderTriangle } from './geometry/renderTriangle.js'
 import { getVerticesByFace } from './geometry/getVerticesByFace.js'
 import { getNormalsByFace } from './geometry/getNormalByFace.js'
+import App from './App.vue'
 
 Mesh.prototype.raycast = acceleratedRaycast
 
 const logger = new Logger(document.querySelector('#logs') as HTMLDivElement)
+
+createApp(App).mount('#app')
 
 // --------------------
 
@@ -335,7 +331,7 @@ uiTitle.value = `Arx Fatalis Level ${levelId}`
 
 isLoading.value = 'fulfilled'
 
-downloadBtn.addEventListener('click', async () => {
+export async function handleDownloadButtonClick(): Promise<void> {
   if (isLoading.value === 'loading' || isLoading.value === 'rejected') {
     return
   }
@@ -367,7 +363,7 @@ downloadBtn.addEventListener('click', async () => {
   downloadBinaryAs('mod.zip', zip, 'application/zip')
 
   isLoading.value = 'fulfilled'
-})
+}
 
 // --------------------
 

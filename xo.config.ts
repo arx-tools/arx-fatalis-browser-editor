@@ -8,7 +8,7 @@ const xoConfig: FlatXoConfig = {
   plugins: {
     'unused-imports': unusedImports,
   },
-  files: ['*.config.ts', 'src/**/*.ts'],
+  files: ['*.config.ts', 'src/**/*.ts', 'src/**/*.vue'],
   rules: {
     'capitalized-comments': 'off',
     'no-bitwise': 'off',

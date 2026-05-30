@@ -55,7 +55,6 @@
     "type-fest": "^5.5.0",
     "typescript": "~6.0.2",
     "vite": "^8.0.12",
-    "vite-tsconfig-paths": "^6.1.1",
     "vue-tsc": "^3.2.8",
     "xo": "^2.0.2"
   },

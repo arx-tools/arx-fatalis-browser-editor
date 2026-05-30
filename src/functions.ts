@@ -2,7 +2,7 @@ import { ArxPolygonFlags } from 'arx-convert/types'
 import type { Face } from 'three'
 
 export async function wait(delayInMs: number): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
+  await new Promise<void>((resolve) => {
     setTimeout(() => {
       resolve()
     }, delayInMs)

@@ -1,11 +1,11 @@
 import type { ArxColor } from 'arx-convert/types'
 import rgba from 'color-rgba'
 import { type Color as ThreeJsColor, MathUtils } from 'three'
-import { percentOf } from './functions.js'
+import { percentOf } from '@src/functions.js'
 
-export enum Alpha {
-  Transparent = 0,
-  Opaque = 1,
+export const Alpha = {
+  Transparent: 0,
+  Opaque: 1,
 }
 
 export class Color {

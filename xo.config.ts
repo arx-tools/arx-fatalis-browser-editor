@@ -8,7 +8,7 @@ const xoConfig: FlatXoConfig = {
   plugins: {
     'unused-imports': unusedImports,
   },
-  files: ['xo.config.ts', 'src/**/*.ts'],
+  files: ['*.config.ts', 'src/**/*.ts'],
   rules: {
     'capitalized-comments': 'off',
     'no-bitwise': 'off',
@@ -84,11 +84,18 @@ const xoConfig: FlatXoConfig = {
     '@typescript-eslint/no-unsafe-call': 'off',
     '@typescript-eslint/no-unsafe-assignment': 'off',
     '@typescript-eslint/no-unsafe-type-assertion': 'off',
+    '@typescript-eslint/no-unsafe-return': 'off',
 
     // this is buggy in xo 2.0.2 and always getting triggered
     '@typescript-eslint/only-throw-error': 'off',
 
     'require-unicode-regexp': 'off',
+
+    // this gives false triggers for functions with overloads
+    '@typescript-eslint/no-unsafe-member-access': 'off',
+
+    // gives false positives for guards and awaiting .text() within the response of a fetch call
+    '@typescript-eslint/no-confusing-void-expression': 'off',
   },
 }
 

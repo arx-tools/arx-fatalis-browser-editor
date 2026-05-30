@@ -18,10 +18,10 @@ label {
 
 button {
   cursor: pointer;
-}
 
-button:disabled {
-  cursor: not-allowed;
+  &:disabled {
+    cursor: not-allowed;
+  }
 }
 
 .hidden {
@@ -34,10 +34,10 @@ header {
   padding: 10px;
   background: #2c2828;
   color: #d3c0c0;
-}
 
-header h2 {
-  margin: 0;
+  h2 {
+    margin: 0;
+  }
 }
 
 #screen-wrapper {

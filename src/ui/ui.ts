@@ -104,16 +104,16 @@ uiTitle.addEventListener('change', (event: CustomEventInit<{ oldValue: string; c
 
 // ------------
 
-export enum MouseButton {
-  Left = 1 << 0,
-  Right = 1 << 1,
-  Middle = 1 << 2,
-}
+export const LeftMouseButton = 1
+export const RightMouseButton = 2
+export const MiddleMouseButton = 4
+
+export type MouseButton = typeof LeftMouseButton | typeof RightMouseButton | typeof MiddleMouseButton
 
 export const mousePressed: Record<MouseButton, { oldValue: boolean; currentValue: boolean }> = {
-  [MouseButton.Left]: { oldValue: false, currentValue: false },
-  [MouseButton.Right]: { oldValue: false, currentValue: false },
-  [MouseButton.Middle]: { oldValue: false, currentValue: false },
+  [LeftMouseButton]: { oldValue: false, currentValue: false },
+  [RightMouseButton]: { oldValue: false, currentValue: false },
+  [MiddleMouseButton]: { oldValue: false, currentValue: false },
 }
 
 export function updateMouseButtonState(button: MouseButton, value: boolean): void {
@@ -124,7 +124,7 @@ export function updateMouseButtonState(button: MouseButton, value: boolean): voi
 }
 
 export function updateMouseButtonStates(event: MouseEvent): void {
-  updateMouseButtonState(MouseButton.Left, (event.buttons & MouseButton.Left) > 0)
-  updateMouseButtonState(MouseButton.Right, (event.buttons & MouseButton.Right) > 0)
-  updateMouseButtonState(MouseButton.Middle, (event.buttons & MouseButton.Middle) > 0)
+  updateMouseButtonState(LeftMouseButton, (event.buttons & LeftMouseButton) > 0)
+  updateMouseButtonState(RightMouseButton, (event.buttons & RightMouseButton) > 0)
+  updateMouseButtonState(MiddleMouseButton, (event.buttons & MiddleMouseButton) > 0)
 }

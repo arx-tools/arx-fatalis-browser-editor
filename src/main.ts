@@ -1,3 +1,9 @@
+/*
+import { createApp } from 'vue'
+import App from './App.vue'
+createApp(App).mount('#app')
+*/
+
 import { explode, implode, concatArrayBuffers, sliceArrayBufferAt } from 'node-pkware/simple'
 import { getHeaderSize } from 'arx-header-size'
 import { DLF, FTS, LLF } from 'arx-convert'
@@ -25,16 +31,19 @@ import {
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js'
 import { ViewHelper } from 'three/examples/jsm/helpers/ViewHelper.js'
 import { acceleratedRaycast } from 'three-mesh-bvh'
+import './style.scss'
 import { downloadBinaryAs, zipBuffers } from './download.js'
 import {
   cameraLightVisible,
   canvas,
   downloadBtn,
   isLoading,
-  MouseButton,
+  LeftMouseButton,
+  MiddleMouseButton,
   mouseLocked,
   mousePressed,
   mouseUnlocked,
+  RightMouseButton,
   uiTitle,
   updateMouseButtonState,
   updateMouseButtonStates,
@@ -653,7 +662,7 @@ function animate(): void {
         facesByMesh.push(face)
       }
 
-      facesByMeshes.entries().forEach(([mesh, faces]) => {
+      ;[...facesByMeshes.entries()].forEach(([mesh, faces]) => {
         mesh.geometry = removeFaces(faces, mesh.geometry)
       })
 
@@ -691,9 +700,9 @@ function onKeyDown(event: KeyboardEvent): void {
   if (event.code === 'KeyEsc') {
     controls.unlock()
 
-    updateMouseButtonState(MouseButton.Left, false)
-    updateMouseButtonState(MouseButton.Right, false)
-    updateMouseButtonState(MouseButton.Middle, false)
+    updateMouseButtonState(LeftMouseButton, false)
+    updateMouseButtonState(RightMouseButton, false)
+    updateMouseButtonState(MiddleMouseButton, false)
 
     return
   }
@@ -745,6 +754,10 @@ document.addEventListener(
 
     updateMouseButtonStates(event)
 
+    if (!(mousePressed[LeftMouseButton].oldValue && !mousePressed[LeftMouseButton].currentValue)) {
+      return
+    }
+
     if (faceBeingLookedAt === undefined) {
       return
     }
@@ -778,16 +791,16 @@ document.addEventListener(
   false,
 )
 
-canvas.addEventListener('click', (e) => {
+canvas.addEventListener('click', () => {
   controls.lock()
 })
 
 window.addEventListener('blur', () => {
   controls.unlock()
 
-  updateMouseButtonState(MouseButton.Left, false)
-  updateMouseButtonState(MouseButton.Right, false)
-  updateMouseButtonState(MouseButton.Middle, false)
+  updateMouseButtonState(LeftMouseButton, false)
+  updateMouseButtonState(RightMouseButton, false)
+  updateMouseButtonState(MiddleMouseButton, false)
 })
 
 // --------------
@@ -832,8 +845,8 @@ controls.addEventListener('change', () => {
     cursorTriangleMaterial.color.set(Color.green.getHex())
   }
 
-  if (mousePressed[MouseButton.Left].currentValue) {
-    if (!mousePressed[MouseButton.Left].oldValue) {
+  if (mousePressed[LeftMouseButton].currentValue) {
+    if (!mousePressed[LeftMouseButton].oldValue) {
       // left mouse button was pressed
       isAddingToSelection = !alreadySelected
     }
@@ -852,14 +865,14 @@ controls.addEventListener('change', () => {
       }
     }
 
-    updateMouseButtonState(MouseButton.Left, true)
+    updateMouseButtonState(LeftMouseButton, true)
   } else {
-    if (mousePressed[MouseButton.Left].oldValue) {
+    if (mousePressed[LeftMouseButton].oldValue) {
       // left mouse button was released
       isAddingToSelection = undefined
     }
 
-    updateMouseButtonState(MouseButton.Left, false)
+    updateMouseButtonState(LeftMouseButton, false)
   }
 })
 

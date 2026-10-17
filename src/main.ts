@@ -589,8 +589,9 @@ if (wireframeVisible.value === true) {
  * Debug overlays: the anchors of the pathfinding graph (links in green, the anchors as little blue
  * vertical ticks), the portal quads between the rooms (cyan) and a small colored gizmo at every LLF
  * light. They are built once from the FTS/LLF data and only toggled by the checkboxes, so there is
- * no per-frame work. `depthTest` is off so the whole network stays visible through the geometry,
- * which is what makes it usable as an overlay.
+ * no per-frame work. The anchors and the light gizmos are depth tested (the mesh hides them, as
+ * usual), the portals are not (their outlines stay visible through the geometry - that is how the
+ * room graph is meant to be read).
  */
 function ftsPositionToThree(position: ArxVector3): Vector3 {
   return arxVector3toVector3(position).sub(offset)
@@ -620,7 +621,7 @@ if (fts.anchors.length > 0) {
   anchorLinksGeometry.setAttribute('position', new BufferAttribute(new Float32Array(anchorLinkPositions), 3))
   const anchorLinks = new LineSegments(
     anchorLinksGeometry,
-    new LineBasicMaterial({ color: 0x35d84a, depthTest: false, transparent: true, opacity: 0.9 }),
+    new LineBasicMaterial({ color: 0x35d84a, transparent: true, opacity: 0.9 }),
   )
   anchorLinks.renderOrder = 8
 
@@ -628,7 +629,7 @@ if (fts.anchors.length > 0) {
   anchorTicksGeometry.setAttribute('position', new BufferAttribute(new Float32Array(anchorTickPositions), 3))
   const anchorTicks = new LineSegments(
     anchorTicksGeometry,
-    new LineBasicMaterial({ color: 0x4b7cff, depthTest: false, transparent: true, opacity: 0.9 }),
+    new LineBasicMaterial({ color: 0x4b7cff, transparent: true, opacity: 0.9 }),
   )
   anchorTicks.renderOrder = 8
 
@@ -673,7 +674,7 @@ let lightGizmos: InstancedMesh | undefined
 if (llf.lights.length > 0) {
   const gizmos = new InstancedMesh(
     new OctahedronGeometry(20, 0),
-    new MeshBasicMaterial({ wireframe: true, depthTest: false, transparent: true, opacity: 0.9 }),
+    new MeshBasicMaterial({ wireframe: true, transparent: true, opacity: 0.9 }),
     llf.lights.length,
   )
 

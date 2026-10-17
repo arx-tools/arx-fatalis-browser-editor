@@ -27,7 +27,7 @@
   },
   "homepage": "https://github.com/arx-tools/arx-fatalis-browser-editor#readme",
   "dependencies": {
-    "arx-convert": "^13.0.0",
+    "arx-convert": "^14.0.1",
     "arx-header-size": "^3.2.1",
     "color-rgba": "^3.0.0",
     "jszip": "^3.10.1",

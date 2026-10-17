@@ -1,7 +1,7 @@
 import { explode, implode, concatArrayBuffers, sliceArrayBufferAt } from 'node-pkware/simple'
 import { getHeaderSize } from 'arx-header-size'
 import { DLF, FTS, LLF } from 'arx-convert'
-import type { ArxFTS, ArxLLF, ArxDLF } from 'arx-convert/types'
+import type { ArxColor, ArxDLF, ArxFTS, ArxLLF } from 'arx-convert/types'
 import {
   BufferAttribute,
   BufferGeometry,
@@ -17,6 +17,7 @@ import {
   PointLight,
   Raycaster,
   Scene,
+  type Side,
   Timer,
   Triangle,
   Vector3,
@@ -378,29 +379,116 @@ const raycaster = new Raycaster()
 
 const offset = arxVector3toVector3(fts.header.mScenePosition)
 
+/**
+ * How the level is lit on screen. This is **not** the same question as how the lighting is
+ * *generated* - see below.
+ *
+ * The LLF is the **pre-computed vertex lighting** of the level: `llf.colors` is the baked result of
+ * `llf.lights`, indexed by `vertex.llfColorIdx`. That is what the game renders, and rendering it
+ * needs an **unlit** material, because the light is already in the vertices.
+ *
+ * - `dynamic` (default): the lights around the camera go into the scene as point lights and a lit
+ *   material is used - the closest thing to "the lights I can grab and move". It is an
+ *   approximation: three.js **bakes every light into the shader** (4 uniform vectors each) and a
+ *   fragment shader may use at most `MAX_FRAGMENT_UNIFORM_VECTORS` (1024 on many windows/angle
+ *   drivers), so only `maxDynamicLights` of them can be added - never all 553 of level 2.
+ * - `baked`: the mesh carries `llf.colors` as a `color` attribute and the material is unlit. This is
+ *   exactly what the game shows: every light of the level contributes, however far it is.
+ * - `flat`: no lighting at all, everything at maximum brightness. This is the `MaxBrightness` mode
+ *   of the generator, and it is what a brand new level starts with, before it has any baked
+ *   lighting (`llf.colors` is empty there, so `baked` would render black).
+ *
+ * Add `?lighting=baked` or `?lighting=flat` to the URL.
+ *
+ * The lighting **generation** modes of the generator - `MaxBrightness`, `CompleteDarkness`, `Arx`
+ * and `Realistic` - are a separate axis: they decide what ends up *in* `llf.colors`.
+ */
+type LightingMode = 'dynamic' | 'baked' | 'flat'
+
+function getLightingMode(): LightingMode {
+  const requested = new URLSearchParams(globalThis.location.search).get('lighting')
+  if (requested === 'baked') {
+    return 'baked'
+  }
+
+  if (requested === 'flat') {
+    return 'flat'
+  }
+
+  // a project without any light (a brand new level) would render black through a lit material
+  if (llf.lights.length === 0) {
+    return 'flat'
+  }
+
+  return 'dynamic'
+}
+
+const lightingMode = getLightingMode()
+
+/**
+ * How many point lights the dynamic mode may add. The hard limit is
+ * `(MAX_FRAGMENT_UNIFORM_VECTORS - 16) / 4`, which is 252 lights with the smallest limit seen in
+ * the wild (1024) - but that already includes the camera light, and the shader cost grows with
+ * every light, so stay well below it.
+ */
+const maxDynamicLights = 64
+
+function createMaterial(options: {
+  color: number
+  side?: Side
+  transparent?: boolean
+  opacity?: number
+}): MeshBasicMaterial | MeshLambertMaterial {
+  if (lightingMode === 'dynamic') {
+    return new MeshLambertMaterial(options)
+  }
+
+  if (lightingMode === 'baked') {
+    // the vertex color is the light, so the material color has to stay white
+    return new MeshBasicMaterial({ ...options, color: Color.white.getHex(), vertexColors: true })
+  }
+
+  return new MeshBasicMaterial(options)
+}
+
+function getVertexColors(): ArxColor[] | undefined {
+  if (lightingMode === 'baked') {
+    return llf.colors
+  }
+
+  return undefined
+}
+
+const vertexColors = getVertexColors()
+
 const meshes: Mesh[] = []
 
-const solidSingleSidedMaterial = new MeshLambertMaterial({ color: Color.white.getHex() })
+const solidSingleSidedMaterial = createMaterial({ color: Color.white.getHex() })
 const solidSingleSidedMesh = arxPolygonsToMesh(
   fts.polygons.filter(({ flags }) => {
     return !isTransparent(flags) && !isDoubleSided(flags) && !isNoDraw(flags)
   }),
   solidSingleSidedMaterial,
   offset,
+  vertexColors,
 )
 meshes.push(solidSingleSidedMesh)
 
-const solidDoubleSidedMaterial = new MeshLambertMaterial({ color: Color.red.lighten(75).getHex(), side: DoubleSide })
+const solidDoubleSidedMaterial = createMaterial({
+  color: Color.red.lighten(75).getHex(),
+  side: DoubleSide,
+})
 const solidDoubleSidedMesh = arxPolygonsToMesh(
   fts.polygons.filter(({ flags }) => {
     return !isTransparent(flags) && isDoubleSided(flags) && !isNoDraw(flags)
   }),
   solidDoubleSidedMaterial,
   offset,
+  vertexColors,
 )
 meshes.push(solidDoubleSidedMesh)
 
-const transparentMaterial = new MeshLambertMaterial({
+const transparentMaterial = createMaterial({
   color: Color.green.lighten(75).getHex(),
   transparent: true,
   opacity: 0.5,
@@ -412,6 +500,7 @@ const transparentMesh = arxPolygonsToMesh(
   }),
   transparentMaterial,
   offset,
+  vertexColors,
 )
 meshes.push(transparentMesh)
 
@@ -441,20 +530,42 @@ if (wireframeVisible.value === true) {
 
 // --------------------
 
-for (const light of llf.lights) {
-  const color = Color.fromArxColor(light.color)
+/**
+ * The LLF lights are kept as data: in `baked` mode their result is already in the vertex colors,
+ * and in `dynamic` mode only the lights around the camera may go into the scene (see `lightingMode`).
+ *
+ * Never add one point light per LLF light: level 2 has 553 of them, which is 2228 fragment uniform
+ * vectors, and the shader stops linking above `MAX_FRAGMENT_UNIFORM_VECTORS` (1024 on many
+ * windows/angle drivers) - that is what made the mesh disappear on 13 of the 23 levels.
+ */
+if (lightingMode === 'dynamic') {
+  const cameraPosition = arxVector3toVector3(dlf.header.player.position)
 
-  const colorIntensityMultiplier = 2000
+  const nearestLights = llf.lights
+    .map((light) => {
+      const position = arxVector3toVector3(light.position)
+      return { light, position, distance: position.distanceToSquared(cameraPosition) }
+    })
+    .toSorted((a, b) => {
+      return a.distance - b.distance
+    })
+    .slice(0, maxDynamicLights)
 
-  const pointLight = new PointLight(
-    color.getHex(),
-    light.intensity * colorIntensityMultiplier,
-    light.fallStart * colorIntensityMultiplier,
-  )
+  for (const { light, position } of nearestLights) {
+    const color = Color.fromArxColor(light.color)
 
-  pointLight.position.copy(arxVector3toVector3(light.position))
+    const colorIntensityMultiplier = 2000
 
-  scene.add(pointLight)
+    const pointLight = new PointLight(
+      color.getHex(),
+      light.intensity * colorIntensityMultiplier,
+      light.fallStart * colorIntensityMultiplier,
+    )
+
+    pointLight.position.copy(position)
+
+    scene.add(pointLight)
+  }
 }
 
 const cameraLight = new PointLight(Color.white.getHex(), 10_000)

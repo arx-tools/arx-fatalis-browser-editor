@@ -20,6 +20,7 @@
       <div id="loading-indicator">Loading, please wait...</div>
       <canvas id="screen"></canvas>
       <div id="crosshair" class="hidden">+</div>
+      <div id="camera-info"></div>
     </div>
 
     <div id="info-and-controls">
@@ -40,6 +41,11 @@
         Wireframe visible (<code>[X]</code> key)
       </label>
 
+      <label>
+        <input type="checkbox" id="camera-info-visible" />
+        Camera position (<code>[P]</code> key)
+      </label>
+
       <p>
         <small
           >Add <code>?level=X</code> after the URL with X being a number to load a different level. Supported levels
@@ -52,7 +58,8 @@
         <small
           >Add <code>?positionAt=x,y,z</code> and <code>?angle=yaw,pitch</code> to open a level at a given game
           position and orientation (degrees, a positive pitch looks down). The URL follows the camera, so the
-          current view can be copied from the address bar.</small
+          current view can be copied from the address bar. The overlay shows the rotation in the order the game's
+          debug hud uses: pitch / yaw / roll.</small
         >
       </p>
 

@@ -30,6 +30,8 @@ import { createApp, watch } from 'vue'
 import './style.scss'
 import { downloadBinaryAs, zipBuffers } from './download.js'
 import {
+  cameraInfo,
+  cameraInfoVisible,
   cameraLightVisible,
   canvas,
   isLoading,
@@ -730,6 +732,26 @@ function applyCameraStateFromUrl(): void {
   }
 }
 
+/**
+ * Shows the camera state in the top left corner of the canvas, in the **game coordinate system**
+ * and in the same format as the game's debug hud (`position x y z`, `rotation pitch yaw roll`),
+ * so the two can be compared directly. The url uses `angle=yaw,pitch`, so the rotation here is
+ * deliberately in the game's order.
+ */
+function updateCameraInfo(): void {
+  if (!cameraInfoVisible.value) {
+    return
+  }
+
+  const position = threePositionToGamePosition(camera.position)
+  const { yaw, pitch } = getGameAngleOfCamera()
+
+  cameraInfo.textContent = [
+    `position ${position.x.toFixed(2)} ${position.y.toFixed(2)} ${position.z.toFixed(2)}`,
+    `rotation ${pitch.toFixed(2)} ${yaw.toFixed(2)} 0.00`,
+  ].join('\n')
+}
+
 /** how often the camera state is written into the url (ms) */
 const cameraUrlUpdateInterval = 250
 let lastCameraUrlUpdateAt = Number.NEGATIVE_INFINITY
@@ -751,6 +773,8 @@ function updateCameraUrl(): void {
   const position = threePositionToGamePosition(camera.position)
   const { yaw, pitch } = getGameAngleOfCamera()
 
+  updateCameraInfo()
+
   const params = new URLSearchParams(globalThis.location.search)
   params.set('positionAt', `${position.x.toFixed(1)},${position.y.toFixed(1)},${position.z.toFixed(1)}`)
   params.set('angle', `${yaw.toFixed(2)},${pitch.toFixed(2)}`)
@@ -766,6 +790,10 @@ function updateCameraUrl(): void {
   globalThis.history.replaceState(globalThis.history.state, '', url)
   lastCameraUrl = url
 }
+
+watch(cameraInfoVisible, () => {
+  updateCameraInfo()
+})
 
 applyCameraStateFromUrl()
 updateCameraUrl()

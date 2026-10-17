@@ -65,6 +65,27 @@ cameraLightVisibleCheckbox.checked = cameraLightVisible.value
 
 // ------------
 
+export const cameraInfoVisible = ref(true)
+
+export const cameraInfo = document.querySelector<HTMLDivElement>('#camera-info') as HTMLDivElement
+
+const cameraInfoVisibleCheckbox = document.querySelector<HTMLInputElement>(
+  '#camera-info-visible',
+) as HTMLInputElement
+cameraInfoVisibleCheckbox.addEventListener('input', () => {
+  cameraInfoVisible.value = cameraInfoVisibleCheckbox.checked
+})
+
+watch(cameraInfoVisible, (value) => {
+  cameraInfoVisibleCheckbox.checked = value
+  cameraInfo.style.display = value ? 'block' : 'none'
+})
+
+cameraInfoVisibleCheckbox.checked = cameraInfoVisible.value
+cameraInfo.style.display = cameraInfoVisible.value ? 'block' : 'none'
+
+// ------------
+
 document.addEventListener(
   'keypress',
   (event: KeyboardEvent) => {
@@ -77,6 +98,11 @@ document.addEventListener(
 
       case 'KeyX': {
         wireframeVisible.value = !wireframeVisible.value
+        break
+      }
+
+      case 'KeyP': {
+        cameraInfoVisible.value = !cameraInfoVisible.value
         break
       }
     }

@@ -1,18 +1,24 @@
 import { explode, implode, concatArrayBuffers, sliceArrayBufferAt } from 'node-pkware/simple'
 import { getHeaderSize } from 'arx-header-size'
 import { DLF, FTS, LLF } from 'arx-convert'
-import type { ArxColor, ArxDLF, ArxFTS, ArxLLF } from 'arx-convert/types'
+import type { ArxColor, ArxDLF, ArxFTS, ArxLLF, ArxVector3 } from 'arx-convert/types'
 import {
   BufferAttribute,
   BufferGeometry,
+  Color as ThreeColor,
   DoubleSide,
   Euler,
   type Face,
+  Group,
+  InstancedMesh,
+  LineBasicMaterial,
   LineSegments,
   MathUtils,
   Mesh,
   MeshBasicMaterial,
   MeshLambertMaterial,
+  Object3D,
+  OctahedronGeometry,
   PerspectiveCamera,
   PointLight,
   Raycaster,
@@ -30,6 +36,7 @@ import { createApp, watch } from 'vue'
 import './style.scss'
 import { downloadBinaryAs, zipBuffers } from './download.js'
 import {
+  anchorsVisible,
   cameraInfo,
   cameraInfoVisible,
   cameraLightVisible,
@@ -37,11 +44,13 @@ import {
   currentLevelId,
   isDirty,
   isLoading,
+  lightsVisible,
   LeftMouseButton,
   MiddleMouseButton,
   mouseLocked,
   mousePressed,
   mouseUnlocked,
+  portalsVisible,
   RightMouseButton,
   updateMouseButtonState,
   updateMouseButtonStates,
@@ -573,6 +582,139 @@ watch(wireframeVisible, (value) => {
 if (wireframeVisible.value === true) {
   scene.add(...wireframeLines)
 }
+
+// --------------------
+
+/**
+ * Debug overlays: the anchors of the pathfinding graph (links in green, the anchors as little blue
+ * vertical ticks), the portal quads between the rooms (cyan) and a small colored gizmo at every LLF
+ * light. They are built once from the FTS/LLF data and only toggled by the checkboxes, so there is
+ * no per-frame work. `depthTest` is off so the whole network stays visible through the geometry,
+ * which is what makes it usable as an overlay.
+ */
+function ftsPositionToThree(position: ArxVector3): Vector3 {
+  return arxVector3toVector3(position).sub(offset)
+}
+
+const anchorsGroup = new Group()
+
+if (fts.anchors.length > 0) {
+  const anchorLinkPositions: number[] = []
+  const anchorTickPositions: number[] = []
+
+  fts.anchors.forEach((anchor, index) => {
+    const from = ftsPositionToThree(anchor.data.position)
+    anchorTickPositions.push(from.x, from.y, from.z, from.x, from.y + 50, from.z)
+
+    for (const linkedIndex of anchor.linkedAnchors) {
+      if (linkedIndex <= index || linkedIndex >= fts.anchors.length) {
+        continue
+      }
+
+      const to = ftsPositionToThree(fts.anchors[linkedIndex].data.position)
+      anchorLinkPositions.push(from.x, from.y, from.z, to.x, to.y, to.z)
+    }
+  })
+
+  const anchorLinksGeometry = new BufferGeometry()
+  anchorLinksGeometry.setAttribute('position', new BufferAttribute(new Float32Array(anchorLinkPositions), 3))
+  const anchorLinks = new LineSegments(
+    anchorLinksGeometry,
+    new LineBasicMaterial({ color: 0x35d84a, depthTest: false, transparent: true, opacity: 0.9 }),
+  )
+  anchorLinks.renderOrder = 8
+
+  const anchorTicksGeometry = new BufferGeometry()
+  anchorTicksGeometry.setAttribute('position', new BufferAttribute(new Float32Array(anchorTickPositions), 3))
+  const anchorTicks = new LineSegments(
+    anchorTicksGeometry,
+    new LineBasicMaterial({ color: 0x4b7cff, depthTest: false, transparent: true, opacity: 0.9 }),
+  )
+  anchorTicks.renderOrder = 8
+
+  anchorsGroup.add(anchorLinks, anchorTicks)
+}
+
+anchorsGroup.visible = anchorsVisible.value
+scene.add(anchorsGroup)
+
+const portalsGroup = new Group()
+
+if (fts.portals.length > 0) {
+  const portalPositions: number[] = []
+
+  for (const portal of fts.portals) {
+    const vertices = portal.polygon.vertices.map(({ position }) => ftsPositionToThree(position))
+
+    // the stored vertex order is a "Z" (0, 1, 2, 3), the perimeter is 0-1-3-2 - with the stored
+    // order the last two edges would be the diagonals of the quad
+    for (const [fromIndex, toIndex] of [[0, 1], [1, 3], [3, 2], [2, 0]]) {
+      const from = vertices[fromIndex]
+      const to = vertices[toIndex]
+      portalPositions.push(from.x, from.y, from.z, to.x, to.y, to.z)
+    }
+  }
+
+  const portalGeometry = new BufferGeometry()
+  portalGeometry.setAttribute('position', new BufferAttribute(new Float32Array(portalPositions), 3))
+  const portalLines = new LineSegments(
+    portalGeometry,
+    new LineBasicMaterial({ color: 0x00ffcc, depthTest: false, transparent: true, opacity: 0.9 }),
+  )
+  portalLines.renderOrder = 8
+  portalsGroup.add(portalLines)
+}
+
+portalsGroup.visible = portalsVisible.value
+scene.add(portalsGroup)
+
+let lightGizmos: InstancedMesh | undefined
+
+if (llf.lights.length > 0) {
+  const gizmos = new InstancedMesh(
+    new OctahedronGeometry(20, 0),
+    new MeshBasicMaterial({ wireframe: true, depthTest: false, transparent: true, opacity: 0.9 }),
+    llf.lights.length,
+  )
+
+  const dummy = new Object3D()
+  const color = new ThreeColor()
+
+  llf.lights.forEach((light, index) => {
+    dummy.position.copy(arxVector3toVector3(light.position))
+    dummy.updateMatrix()
+    gizmos.setMatrixAt(index, dummy.matrix)
+
+    color.setHex(Color.fromArxColor(light.color).getHex())
+    gizmos.setColorAt(index, color)
+  })
+
+  gizmos.instanceMatrix.needsUpdate = true
+
+  if (gizmos.instanceColor !== null) {
+    gizmos.instanceColor.needsUpdate = true
+  }
+
+  gizmos.renderOrder = 9
+  gizmos.visible = lightsVisible.value
+  scene.add(gizmos)
+
+  lightGizmos = gizmos
+}
+
+watch(anchorsVisible, (value) => {
+  anchorsGroup.visible = value
+})
+
+watch(portalsVisible, (value) => {
+  portalsGroup.visible = value
+})
+
+watch(lightsVisible, (value) => {
+  if (lightGizmos !== undefined) {
+    lightGizmos.visible = value
+  }
+})
 
 // --------------------
 

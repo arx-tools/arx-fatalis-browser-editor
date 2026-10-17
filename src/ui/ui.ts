@@ -1,4 +1,4 @@
-import { ref, watch } from 'vue'
+import { ref, watch, type Ref } from 'vue'
 
 type LoadingState = 'idle' | 'loading' | 'fulfilled' | 'rejected'
 
@@ -86,6 +86,30 @@ cameraInfo.style.display = cameraInfoVisible.value ? 'block' : 'none'
 
 // ------------
 
+/** binds a plain visibility checkbox to a ref (the component reads the ref) */
+function bindCheckbox(id: string): Ref<boolean> {
+  const checkbox = document.querySelector<HTMLInputElement>(`#${id}`) as HTMLInputElement
+  const visible = ref(false)
+
+  checkbox.addEventListener('input', () => {
+    visible.value = checkbox.checked
+  })
+
+  watch(visible, (value) => {
+    checkbox.checked = value
+  })
+
+  checkbox.checked = visible.value
+
+  return visible
+}
+
+export const anchorsVisible = bindCheckbox('anchors-visible')
+export const portalsVisible = bindCheckbox('portals-visible')
+export const lightsVisible = bindCheckbox('lights-visible')
+
+// ------------
+
 document.addEventListener(
   'keypress',
   (event: KeyboardEvent) => {
@@ -103,6 +127,11 @@ document.addEventListener(
 
       case 'KeyP': {
         cameraInfoVisible.value = !cameraInfoVisible.value
+        break
+      }
+
+      case 'KeyL': {
+        lightsVisible.value = !lightsVisible.value
         break
       }
     }

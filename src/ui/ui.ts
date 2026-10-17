@@ -130,6 +130,18 @@ document.addEventListener(
         break
       }
 
+      // the three overlay hotkeys sit next to each other on both the english and the hungarian
+      // layouts (event.code is the physical key, not the character)
+      case 'KeyJ': {
+        anchorsVisible.value = !anchorsVisible.value
+        break
+      }
+
+      case 'KeyK': {
+        portalsVisible.value = !portalsVisible.value
+        break
+      }
+
       case 'KeyL': {
         lightsVisible.value = !lightsVisible.value
         break

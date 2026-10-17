@@ -38,8 +38,9 @@ function openLevel(levelId: number): void {
 
 <template>
   <header>
-    <div class="title-group">
-      <span class="brand">Arx Fatalis</span>
+    <span class="brand">Arx Fatalis</span>
+
+    <div class="level-group">
       <span class="level-label">Level</span>
       <nav class="levels" aria-label="Level selector">
         <button
@@ -58,7 +59,7 @@ function openLevel(levelId: number): void {
       </nav>
     </div>
 
-    <button :disabled="isLoading !== 'fulfilled'" @click="$emit('download')">
+    <button class="download-button" :disabled="isLoading !== 'fulfilled'" @click="$emit('download')">
       <i class="fa-solid fa-download"></i>
       Download
     </button>
@@ -67,31 +68,34 @@ function openLevel(levelId: number): void {
 
 <style lang="scss" scoped>
 header {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
   padding: 10px;
   background: #2c2828;
   color: #d3c0c0;
 
-  .title-group {
-    display: flex;
-    align-items: center;
-    min-width: 0;
-  }
-
   .brand {
-    margin-right: 15px;
+    justify-self: start;
     font-size: 1.5em;
     font-weight: bold;
     white-space: nowrap;
   }
 
+  .level-group {
+    display: flex;
+    align-items: center;
+    justify-self: center;
+  }
+
   .level-label {
     margin-right: 8px;
     white-space: nowrap;
+  }
+
+  .download-button {
+    justify-self: end;
   }
 
   .levels {
@@ -137,6 +141,27 @@ header {
         0 1px 3px rgb(0 0 0 / 60%),
         0 0 8px rgb(216 180 74 / 45%),
         inset 0 1px 0 rgb(255 255 255 / 45%);
+    }
+  }
+}
+
+/* on narrow screens the centered group does not fit next to the title and the download button */
+@media (max-width: 1150px) {
+  header {
+    display: flex;
+    flex-wrap: wrap;
+
+    .brand {
+      flex: 1;
+    }
+
+    .download-button {
+      order: 2;
+    }
+
+    .level-group {
+      order: 3;
+      flex-basis: 100%;
     }
   }
 }

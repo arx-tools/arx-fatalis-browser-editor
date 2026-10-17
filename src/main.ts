@@ -651,6 +651,125 @@ const camera = new PerspectiveCamera(fov, aspect, near, far)
 camera.position.copy(arxVector3toVector3(dlf.header.player.position))
 camera.rotation.y = MathUtils.degToRad(180)
 
+/**
+ * The camera state is mirrored into the URL, so a view can be shared: `?positionAt=x,y,z` and
+ * `?angle=yaw,pitch`. The values are in the **game coordinate system** (the one `player.pos` uses):
+ * the position is `dlf.position + mScenePosition`, the angle is the game yaw and pitch in degrees
+ * (yaw 0..360, pitch -90..90, a positive pitch looks down).
+ *
+ * The conversion follows from the transform of the mesh (see `context/koordinata-rendszer.md` in
+ * the .infos repository): the geometry is `M(v - mScenePosition)` with `M(x, y, z) = (-x, -y, z)`,
+ * so `three = M(game - s)` and `game = M(three) + s`. For a three camera with a `YXZ` euler,
+ * `yaw_game = three_yaw + 180` (three looks towards -Z) and `pitch_game = -three_pitch` (M flips
+ * the Y axis).
+ */
+const scenePosition = fts.header.mScenePosition
+const cameraEuler = new Euler(0, 0, 0, 'YXZ')
+
+function gamePositionToThreePosition(x: number, y: number, z: number): Vector3 {
+  return new Vector3(scenePosition.x - x, scenePosition.y - y, z - scenePosition.z)
+}
+
+function threePositionToGamePosition(position: Vector3): { x: number; y: number; z: number } {
+  return {
+    x: scenePosition.x - position.x,
+    y: scenePosition.y - position.y,
+    z: scenePosition.z + position.z,
+  }
+}
+
+function setCameraAngleFromGameAngle(yaw: number, pitch: number): void {
+  camera.rotation.set(MathUtils.degToRad(-pitch), MathUtils.degToRad(yaw - 180), 0, 'YXZ')
+}
+
+function getGameAngleOfCamera(): { yaw: number; pitch: number } {
+  cameraEuler.setFromQuaternion(camera.quaternion, 'YXZ')
+
+  return {
+    yaw: (MathUtils.radToDeg(cameraEuler.y) + 180 + 360) % 360,
+    pitch: -MathUtils.radToDeg(cameraEuler.x),
+  }
+}
+
+/** parses `x,y,z` (or `yaw,pitch`); `undefined` when the value is missing or malformed */
+function parseNumberTuple(value: string | null, length: number): number[] | undefined {
+  if (value === null) {
+    return undefined
+  }
+
+  const parts = value.split(',').map((part) => {
+    return Number.parseFloat(part.trim())
+  })
+
+  if (parts.length !== length || parts.some((part) => !Number.isFinite(part))) {
+    return undefined
+  }
+
+  return parts
+}
+
+function applyCameraStateFromUrl(): void {
+  const params = new URLSearchParams(globalThis.location.search)
+
+  const position = parseNumberTuple(params.get('positionAt'), 3)
+  if (position !== undefined) {
+    const [x, y, z] = position
+    camera.position.copy(gamePositionToThreePosition(x, y, z))
+  }
+
+  const angle = parseNumberTuple(params.get('angle'), 2)
+  if (angle !== undefined) {
+    const [yaw, pitch] = angle
+
+    // a broken angle should not move the camera
+    if (yaw >= 0 && yaw < 360 && pitch >= -90 && pitch <= 90) {
+      setCameraAngleFromGameAngle(yaw, pitch)
+    } else {
+      console.warn(`[camera] ignoring the angle from the url: ${angle.join(',')}`)
+    }
+  }
+}
+
+/** how often the camera state is written into the url (ms) */
+const cameraUrlUpdateInterval = 250
+let lastCameraUrlUpdateAt = Number.NEGATIVE_INFINITY
+let lastCameraUrl: string | undefined
+
+/**
+ * Writes the camera state into the **current** history entry with `replaceState`: the address bar
+ * always shows the current view, but no new history entries are created, so the back button still
+ * goes to the page that was open before the editor.
+ */
+function updateCameraUrl(): void {
+  const now = performance.now()
+  if (now - lastCameraUrlUpdateAt < cameraUrlUpdateInterval) {
+    return
+  }
+
+  lastCameraUrlUpdateAt = now
+
+  const position = threePositionToGamePosition(camera.position)
+  const { yaw, pitch } = getGameAngleOfCamera()
+
+  const params = new URLSearchParams(globalThis.location.search)
+  params.set('positionAt', `${position.x.toFixed(1)},${position.y.toFixed(1)},${position.z.toFixed(1)}`)
+  params.set('angle', `${yaw.toFixed(2)},${pitch.toFixed(2)}`)
+
+  // the commas are legal in a query string and make the url readable
+  const search = params.toString().replaceAll('%2C', ',')
+  const url = `${globalThis.location.pathname}?${search}${globalThis.location.hash}`
+
+  if (url === lastCameraUrl) {
+    return
+  }
+
+  globalThis.history.replaceState(globalThis.history.state, '', url)
+  lastCameraUrl = url
+}
+
+applyCameraStateFromUrl()
+updateCameraUrl()
+
 /** how often the dynamic light pool follows the camera (ms) */
 const dynamicLightsUpdateInterval = 250
 let lastDynamicLightsUpdateAt = Number.NEGATIVE_INFINITY
@@ -807,6 +926,8 @@ function render(): void {
   const delta = timer.getDelta()
 
   controls.update(delta)
+
+  updateCameraUrl()
 
   renderer.clear()
   renderer.render(scene, camera)

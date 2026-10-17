@@ -778,7 +778,7 @@ function updateCameraUrl(): void {
   updateCameraInfo()
 
   const params = new URLSearchParams(globalThis.location.search)
-  params.set('positionAt', `${position.x.toFixed(1)},${position.y.toFixed(1)},${position.z.toFixed(1)}`)
+  params.set('positionAt', `${position.x.toFixed(2)},${position.y.toFixed(2)},${position.z.toFixed(2)}`)
   params.set('angle', `${pitch.toFixed(2)},${yaw.toFixed(2)},0.00`)
 
   // the commas are legal in a query string and make the url readable

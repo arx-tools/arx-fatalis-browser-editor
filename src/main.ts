@@ -605,7 +605,11 @@ if (fts.anchors.length > 0) {
 
   fts.anchors.forEach((anchor, index) => {
     const from = ftsPositionToThree(anchor.data.position)
-    anchorTickPositions.push(from.x, from.y, from.z, from.x, from.y + 50, from.z)
+
+    // the FTS anchor has a `height` (always -165 in the original levels, arx-convert does not
+    // expose it because it is uniform) - the game's Pathfinding debug view draws the anchor as a
+    // vertical line of this height, which is about the eye height of the player
+    anchorTickPositions.push(from.x, from.y, from.z, from.x, from.y + 165, from.z)
 
     for (const linkedIndex of anchor.linkedAnchors) {
       if (linkedIndex <= index || linkedIndex >= fts.anchors.length) {

@@ -56,10 +56,10 @@
 
       <p>
         <small
-          >Add <code>?positionAt=x,y,z</code> and <code>?angle=yaw,pitch</code> to open a level at a given game
-          position and orientation (degrees, a positive pitch looks down). The URL follows the camera, so the
-          current view can be copied from the address bar. The overlay shows the rotation in the order the game's
-          debug hud uses: pitch / yaw / roll.</small
+          >Add <code>?positionAt=x,y,z</code> and <code>?angle=pitch,yaw,roll</code> to open a level at a given game
+          position and orientation (degrees, a positive pitch looks down; the roll is ignored). The URL follows the
+          camera, so the current view can be copied from the address bar. The three angle values match the
+          <code>rotation</code> line of the game's debug hud, so it can be copied over directly.</small
         >
       </p>
 

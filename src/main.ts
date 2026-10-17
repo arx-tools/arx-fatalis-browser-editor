@@ -655,9 +655,11 @@ camera.rotation.y = MathUtils.degToRad(180)
 
 /**
  * The camera state is mirrored into the URL, so a view can be shared: `?positionAt=x,y,z` and
- * `?angle=yaw,pitch`. The values are in the **game coordinate system** (the one `player.pos` uses):
- * the position is `dlf.position + mScenePosition`, the angle is the game yaw and pitch in degrees
- * (yaw 0..360, pitch -90..90, a positive pitch looks down).
+ * `?angle=pitch,yaw,roll`. The values are in the **game coordinate system** (the one `player.pos`
+ * uses): the position is `dlf.position + mScenePosition`, the angle is the game rotation in degrees
+ * (pitch -90..90, a positive pitch looks down; yaw 0..360; roll is accepted but ignored, the editor
+ * has no roll). The order and the three values match the `rotation` line of the game's debug hud,
+ * so it can be copied over directly.
  *
  * The conversion follows from the transform of the mesh (see `context/koordinata-rendszer.md` in
  * the .infos repository): the geometry is `M(v - mScenePosition)` with `M(x, y, z) = (-x, -y, z)`,
@@ -680,7 +682,8 @@ function threePositionToGamePosition(position: Vector3): { x: number; y: number;
   }
 }
 
-function setCameraAngleFromGameAngle(yaw: number, pitch: number): void {
+function setCameraAngleFromGameAngle(pitch: number, yaw: number): void {
+  // the roll is not wired in: the camera of the editor has no roll
   camera.rotation.set(MathUtils.degToRad(-pitch), MathUtils.degToRad(yaw - 180), 0, 'YXZ')
 }
 
@@ -693,7 +696,7 @@ function getGameAngleOfCamera(): { yaw: number; pitch: number } {
   }
 }
 
-/** parses `x,y,z` (or `yaw,pitch`); `undefined` when the value is missing or malformed */
+/** parses `x,y,z` (or `pitch,yaw,roll`); `undefined` when the value is missing or malformed */
 function parseNumberTuple(value: string | null, length: number): number[] | undefined {
   if (value === null) {
     return undefined
@@ -719,13 +722,13 @@ function applyCameraStateFromUrl(): void {
     camera.position.copy(gamePositionToThreePosition(x, y, z))
   }
 
-  const angle = parseNumberTuple(params.get('angle'), 2)
+  const angle = parseNumberTuple(params.get('angle'), 3)
   if (angle !== undefined) {
-    const [yaw, pitch] = angle
+    const [pitch, yaw] = angle
 
-    // a broken angle should not move the camera
+    // a broken angle should not move the camera; the third value (the roll) is ignored
     if (yaw >= 0 && yaw < 360 && pitch >= -90 && pitch <= 90) {
-      setCameraAngleFromGameAngle(yaw, pitch)
+      setCameraAngleFromGameAngle(pitch, yaw)
     } else {
       console.warn(`[camera] ignoring the angle from the url: ${angle.join(',')}`)
     }
@@ -735,8 +738,7 @@ function applyCameraStateFromUrl(): void {
 /**
  * Shows the camera state in the top left corner of the canvas, in the **game coordinate system**
  * and in the same format as the game's debug hud (`position x y z`, `rotation pitch yaw roll`),
- * so the two can be compared directly. The url uses `angle=yaw,pitch`, so the rotation here is
- * deliberately in the game's order.
+ * so the two can be compared directly. The url uses the same order (`angle=pitch,yaw,roll`).
  */
 function updateCameraInfo(): void {
   if (!cameraInfoVisible.value) {
@@ -777,7 +779,7 @@ function updateCameraUrl(): void {
 
   const params = new URLSearchParams(globalThis.location.search)
   params.set('positionAt', `${position.x.toFixed(1)},${position.y.toFixed(1)},${position.z.toFixed(1)}`)
-  params.set('angle', `${yaw.toFixed(2)},${pitch.toFixed(2)}`)
+  params.set('angle', `${pitch.toFixed(2)},${yaw.toFixed(2)},0.00`)
 
   // the commas are legal in a query string and make the url readable
   const search = params.toString().replaceAll('%2C', ',')

@@ -6,6 +6,13 @@ defineEmits<{
   (event: 'download'): void
 }>()
 
+/** Arx Fatalis does not have a level 9 - the button is an easter egg, it links to a video */
+const levelNineId = 9
+const levelNineUrl = 'https://www.youtube.com/watch?v=E4WlUXrJgy4'
+
+/** the level buttons in display order (0..8, the easter egg 9, 10..23) */
+const levelButtons = [...originalArxLevelIds.slice(0, 9), levelNineId, ...originalArxLevelIds.slice(9)]
+
 /**
  * Loads another level. The level data is fetched and parsed when the module is evaluated, so the
  * switch is a reload: it navigates to `?level=N` and leaves the camera state (`positionAt`,
@@ -43,19 +50,29 @@ function openLevel(levelId: number): void {
     <div class="level-group">
       <span class="level-label">Level</span>
       <nav class="levels" aria-label="Level selector">
-        <button
-          v-for="id in originalArxLevelIds"
-          :key="id"
-          type="button"
-          class="level-button"
-          :class="{ active: id === currentLevelId }"
-          :disabled="id === currentLevelId"
-          :aria-current="id === currentLevelId ? 'true' : undefined"
-          :title="`Load level ${id}`"
-          @click="openLevel(id)"
-        >
-          {{ id }}
-        </button>
+        <template v-for="id in levelButtons" :key="id">
+          <a
+            v-if="id === levelNineId"
+            class="level-button"
+            :href="levelNineUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Level 9"
+            >9</a
+          >
+          <button
+            v-else
+            type="button"
+            class="level-button"
+            :class="{ active: id === currentLevelId }"
+            :disabled="id === currentLevelId"
+            :aria-current="id === currentLevelId ? 'true' : undefined"
+            :title="`Load level ${id}`"
+            @click="openLevel(id)"
+          >
+            {{ id }}
+          </button>
+        </template>
       </nav>
     </div>
 
@@ -105,6 +122,9 @@ header {
   }
 
   .level-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 30px;
     height: 30px;
     padding: 0;
@@ -115,6 +135,7 @@ header {
     font: inherit;
     font-size: 12px;
     line-height: 1;
+    text-decoration: none;
     cursor: pointer;
     box-shadow:
       inset 0 1px 2px rgb(0 0 0 / 60%),

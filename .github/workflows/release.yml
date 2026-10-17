@@ -1,0 +1,103 @@
+name: Release
+
+# A release is a tag on main: this workflow builds the editor and writes the result into
+# public/editor of arx-tools.github.io, whose own workflow deploys it to
+# https://arx-tools.github.io/editor/ .
+#
+# The push into the website needs a token which can write there - secrets.SITE_REPO_TOKEN, a
+# personal access token with "contents: read and write" on arx-tools/arx-tools.github.io. A push
+# made with the GITHUB_TOKEN of this repository can not write into another one, and a push made
+# with it would not trigger the deploy of the website either.
+#
+# The manual run builds the same way and shows what would be committed, but it pushes nothing
+# unless dry_run is turned off.
+
+on:
+  push:
+    tags: ['v*']
+
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: build and show what would change in the website, but do not push
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: build and deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout the editor
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: setup node
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: install
+        run: npm ci
+
+      # the tag is what the release is called, so it has to be the version of package.json
+      - name: check the tag against package.json
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "v$version" != "${GITHUB_REF_NAME}" ]; then
+            echo "the tag ${GITHUB_REF_NAME} does not match the version v$version of package.json" >&2
+            exit 1
+          fi
+
+      # vue-tsc -b && vite build, into dist/ with base /editor/
+      - name: build
+        run: npm run build
+
+      - name: checkout the website
+        uses: actions/checkout@v7.0.1
+        with:
+          repository: arx-tools/arx-tools.github.io
+          ref: main
+          path: website
+          token: ${{ secrets.SITE_REPO_TOKEN }}
+
+      # the whole folder is replaced, so an asset of an older build can not stay behind
+      - name: replace public/editor
+        run: |
+          rm -rf website/public/editor
+          mkdir -p website/public/editor
+          cp -r dist/. website/public/editor/
+          find website/public/editor -type f | sort
+
+      - name: commit and push
+        working-directory: website
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          version=$(node -p "require('../package.json').version")
+          commit="${GITHUB_SHA:0:7}"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A public/editor
+
+          if git diff --cached --quiet; then
+            echo "public/editor is already up to date, nothing to commit"
+            exit 0
+          fi
+
+          git status --short
+
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "dry run: the changes above are not committed"
+            exit 0
+          fi
+
+          git commit -m "chore(editor): update to v${version} (${commit})"
+          git push origin main

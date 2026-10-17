@@ -34,6 +34,8 @@ import {
   cameraInfoVisible,
   cameraLightVisible,
   canvas,
+  currentLevelId,
+  isDirty,
   isLoading,
   LeftMouseButton,
   MiddleMouseButton,
@@ -41,7 +43,6 @@ import {
   mousePressed,
   mouseUnlocked,
   RightMouseButton,
-  uiTitle,
   updateMouseButtonState,
   updateMouseButtonStates,
   wireframeVisible,
@@ -315,8 +316,6 @@ const levelId = Number.parseInt(new URLSearchParams(globalThis.location.search).
 if (!isValidOriginalArxLevelId(levelId)) {
   isLoading.value = 'rejected'
 
-  uiTitle.value = `Invalid level ID "${levelId}"`
-
   if (levelId === 9) {
     throw new Exception(`Invalid level ID "9", Arx Fatalis doesn't have a level 9.`, logger)
   } else {
@@ -324,13 +323,11 @@ if (!isValidOriginalArxLevelId(levelId)) {
   }
 }
 
-uiTitle.value = `Arx Fatalis Level ${levelId} (loading)`
+currentLevelId.value = levelId
 
 const line1 = logger.log('loading level data...')
 const [fts, llf, dlf] = await Promise.all([getFTS(levelId), getLLF(levelId), getDLF(levelId)])
 logger.log('done', line1)
-
-uiTitle.value = `Arx Fatalis Level ${levelId}`
 
 isLoading.value = 'fulfilled'
 
@@ -1028,6 +1025,8 @@ function animate(): void {
       ;[...facesByMeshes.entries()].forEach(([mesh, faces]) => {
         mesh.geometry = removeFaces(faces, mesh.geometry)
       })
+
+      isDirty.value = true
 
       if (wireframeVisible.value) {
         scene.remove(...wireframeLines)

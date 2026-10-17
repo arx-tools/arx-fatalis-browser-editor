@@ -112,7 +112,11 @@ document.addEventListener(
 
 // ------------
 
-export const uiTitle = ref('')
+/** the level that is currently loaded (set by main.ts after the url validation) */
+export const currentLevelId = ref<number | undefined>(undefined)
+
+/** true when the mesh has been changed since the level was loaded - used by the level switcher */
+export const isDirty = ref(false)
 
 // ------------
 

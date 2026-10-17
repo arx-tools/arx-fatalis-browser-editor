@@ -30,6 +30,8 @@ import { createApp, watch } from 'vue'
 import './style.scss'
 import { downloadBinaryAs, zipBuffers } from './download.js'
 import {
+  cameraInfo,
+  cameraInfoVisible,
   cameraLightVisible,
   canvas,
   isLoading,
@@ -387,16 +389,20 @@ const offset = arxVector3toVector3(fts.header.mScenePosition)
  * `llf.lights`, indexed by `vertex.llfColorIdx`. That is what the game renders, and rendering it
  * needs an **unlit** material, because the light is already in the vertices.
  *
- * - `dynamic` (default): the lights around the camera go into the scene as point lights and a lit
- *   material is used - the closest thing to "the lights I can grab and move". It is an
- *   approximation: three.js **bakes every light into the shader** (4 uniform vectors each) and a
- *   fragment shader may use at most `MAX_FRAGMENT_UNIFORM_VECTORS` (1024 on many windows/angle
- *   drivers), so only `maxDynamicLights` of them can be added - never all 553 of level 2.
+ * - `dynamic` (default): the baked LLF color is the **base color** of the mesh (that is what keeps
+ *   the level visible at all) and the lights around the camera are added **on top of it** as point
+ *   lights, using the Arx falloff (`fallStart`/`fallEnd`) - the closest thing to "the lights I can
+ *   grab and move". It is an approximation: three.js **bakes every light into the shader** (4
+ *   uniform vectors each) and a fragment shader may use at most `MAX_FRAGMENT_UNIFORM_VECTORS`
+ *   (1024 on many windows/angle drivers), so only `maxDynamicLights` of them can be added - never
+ *   all 553 of level 2. The baked color already contains the contribution of every static light,
+ *   so the added point lights are a *preview* of where the lights are and how far they reach
+ *   (they brighten that area, and close to a light the shaded color can clip to white).
  * - `baked`: the mesh carries `llf.colors` as a `color` attribute and the material is unlit. This is
  *   exactly what the game shows: every light of the level contributes, however far it is.
  * - `flat`: no lighting at all, everything at maximum brightness. This is the `MaxBrightness` mode
  *   of the generator, and it is what a brand new level starts with, before it has any baked
- *   lighting (`llf.colors` is empty there, so `baked` would render black).
+ *   lighting (with an empty LLF the default falls back to `flat`).
  *
  * Add `?lighting=baked` or `?lighting=flat` to the URL.
  *
@@ -415,8 +421,8 @@ function getLightingMode(): LightingMode {
     return 'flat'
   }
 
-  // a project without any light (a brand new level) would render black through a lit material
-  if (llf.lights.length === 0) {
+  // a project without any light or without baked colors (a brand new level) would render black
+  if (llf.lights.length === 0 || llf.colors.length === 0) {
     return 'flat'
   }
 
@@ -433,6 +439,45 @@ const lightingMode = getLightingMode()
  */
 const maxDynamicLights = 64
 
+function getVertexColors(): ArxColor[] | undefined {
+  // both `dynamic` and `baked` start from the pre-computed lighting; `flat` does not. An empty LLF
+  // (a brand new level) has nothing to show, so it falls back to the type colors of `flat`.
+  if (lightingMode === 'flat' || llf.colors.length === 0) {
+    return undefined
+  }
+
+  return llf.colors
+}
+
+const vertexColors = getVertexColors()
+
+/**
+ * `MeshLambertMaterial` multiplies the albedo by the incoming light, so a vertex color would only
+ * tint the lit areas and would stay black everywhere else. The baked LLF color is a *light*, not
+ * an albedo, so it has to be added to the output instead: this patch adds `vColor` to
+ * `totalEmissiveRadiance` and removes it from the diffuse color, so the dynamic point lights add
+ * **on top of** the baked base instead of being multiplied by it.
+ *
+ * `vColor` is available because the material has `vertexColors: true`.
+ */
+function addBakedLightToEmissive(material: MeshLambertMaterial): void {
+  material.onBeforeCompile = (shader) => {
+    const colorChunk = '#include <color_fragment>'
+    const emissiveDeclaration = 'vec3 totalEmissiveRadiance = emissive;'
+
+    if (!shader.fragmentShader.includes(colorChunk) || !shader.fragmentShader.includes(emissiveDeclaration)) {
+      // Three.js changed its Lambert shader: the baked base would silently disappear from the
+      // dynamic mode. Keep the mode working (the point lights still render) but say it out loud.
+      console.warn('[lighting] the Lambert fragment shader changed, the baked LLF base is not applied')
+      return
+    }
+
+    shader.fragmentShader = shader.fragmentShader
+      .replace(colorChunk, '')
+      .replace(emissiveDeclaration, 'vec3 totalEmissiveRadiance = emissive + vColor.rgb;')
+  }
+}
+
 function createMaterial(options: {
   color: number
   side?: Side
@@ -440,26 +485,30 @@ function createMaterial(options: {
   opacity?: number
 }): MeshBasicMaterial | MeshLambertMaterial {
   if (lightingMode === 'dynamic') {
-    return new MeshLambertMaterial(options)
+    // the baked LLF color is the base of the lighting, the point lights of the dynamic mode add to
+    // it (see the comment above). The type colors (red for double sided, green for transparent) are
+    // an aid of the `flat` mode: they would tint the baked colors of the game, so they are not used
+    // here - same as in `baked`.
+    const material = new MeshLambertMaterial({
+      ...options,
+      color: Color.white.getHex(),
+      vertexColors: vertexColors !== undefined,
+    })
+
+    if (vertexColors !== undefined) {
+      addBakedLightToEmissive(material)
+    }
+
+    return material
   }
 
   if (lightingMode === 'baked') {
     // the vertex color is the light, so the material color has to stay white
-    return new MeshBasicMaterial({ ...options, color: Color.white.getHex(), vertexColors: true })
+    return new MeshBasicMaterial({ ...options, color: Color.white.getHex(), vertexColors: vertexColors !== undefined })
   }
 
   return new MeshBasicMaterial(options)
 }
-
-function getVertexColors(): ArxColor[] | undefined {
-  if (lightingMode === 'baked') {
-    return llf.colors
-  }
-
-  return undefined
-}
-
-const vertexColors = getVertexColors()
 
 const meshes: Mesh[] = []
 
@@ -531,40 +580,45 @@ if (wireframeVisible.value === true) {
 // --------------------
 
 /**
- * The LLF lights are kept as data: in `baked` mode their result is already in the vertex colors,
- * and in `dynamic` mode only the lights around the camera may go into the scene (see `lightingMode`).
+ * The Arx light model is **not** inverse-square: a light is at full strength until `fallStart`,
+ * then fades linearly to zero at `fallEnd` (`ArxLibertatis/src/scene/Light.cpp`, `GetColorz()` and
+ * `CALC_DLIGHT`), and the LLF `colors` were baked with exactly this formula (the old
+ * `arx-level-generator` repeats it in `calculateDanaeVertexColor()`).
+ *
+ * three.js has no such falloff, but `decay = 0` (no distance falloff) with `distance = fallEnd`
+ * (the cutoff) is close: the smooth cutoff is ~1 until `fallStart` - which is usually around
+ * `fallEnd / 2` - and then falls to 0, very much like the linear ramp.
+ *
+ * The intensity is converted to three's physical unit: the Arx formula multiplies
+ * `dot(normal, lightDirection) * intensity * GLOBAL_LIGHT_FACTOR` into the vertex color, and
+ * three's Lambert BRDF divides the irradiance by π, so `intensity = arx.intensity * 0.85 * π`.
+ */
+const ARX_GLOBAL_LIGHT_FACTOR = 0.85
+
+/**
+ * The baked LLF color already contains the contribution of every static light of the level, so
+ * the dynamic point lights would count those lights twice. They are added with this fraction of
+ * their true intensity: enough to see where a light is and how far it reaches, but not enough to
+ * blow out the baked base. Set it to 1 once the editor handles lights that are not baked yet.
+ */
+const dynamicLightIntensityScale = 0.25
+
+/**
+ * A fixed pool of point lights, refilled with the lights closest to the camera. The size of the
+ * pool never changes: the number of point lights is baked into the shader, so adding or removing
+ * one would re-link the program. An unused slot has `intensity = 0`.
  *
  * Never add one point light per LLF light: level 2 has 553 of them, which is 2228 fragment uniform
  * vectors, and the shader stops linking above `MAX_FRAGMENT_UNIFORM_VECTORS` (1024 on many
  * windows/angle drivers) - that is what made the mesh disappear on 13 of the 23 levels.
  */
+const dynamicLights: PointLight[] = []
+
 if (lightingMode === 'dynamic') {
-  const cameraPosition = arxVector3toVector3(dlf.header.player.position)
-
-  const nearestLights = llf.lights
-    .map((light) => {
-      const position = arxVector3toVector3(light.position)
-      return { light, position, distance: position.distanceToSquared(cameraPosition) }
-    })
-    .toSorted((a, b) => {
-      return a.distance - b.distance
-    })
-    .slice(0, maxDynamicLights)
-
-  for (const { light, position } of nearestLights) {
-    const color = Color.fromArxColor(light.color)
-
-    const colorIntensityMultiplier = 2000
-
-    const pointLight = new PointLight(
-      color.getHex(),
-      light.intensity * colorIntensityMultiplier,
-      light.fallStart * colorIntensityMultiplier,
-    )
-
-    pointLight.position.copy(position)
-
+  for (let i = 0; i < maxDynamicLights; i++) {
+    const pointLight = new PointLight(Color.white.getHex(), 0, 0, 0)
     scene.add(pointLight)
+    dynamicLights.push(pointLight)
   }
 }
 
@@ -598,6 +652,207 @@ const camera = new PerspectiveCamera(fov, aspect, near, far)
 
 camera.position.copy(arxVector3toVector3(dlf.header.player.position))
 camera.rotation.y = MathUtils.degToRad(180)
+
+/**
+ * The camera state is mirrored into the URL, so a view can be shared: `?positionAt=x,y,z` and
+ * `?angle=pitch,yaw,roll`. The values are in the **game coordinate system** (the one `player.pos`
+ * uses): the position is `dlf.position + mScenePosition`, the angle is the game rotation in degrees
+ * (pitch -90..90, a positive pitch looks down; yaw 0..360; roll is accepted but ignored, the editor
+ * has no roll). The order and the three values match the `rotation` line of the game's debug hud,
+ * so it can be copied over directly.
+ *
+ * The conversion follows from the transform of the mesh (see `context/koordinata-rendszer.md` in
+ * the .infos repository): the geometry is `M(v - mScenePosition)` with `M(x, y, z) = (-x, -y, z)`,
+ * so `three = M(game - s)` and `game = M(three) + s`. For a three camera with a `YXZ` euler,
+ * `yaw_game = three_yaw + 180` (three looks towards -Z) and `pitch_game = -three_pitch` (M flips
+ * the Y axis).
+ */
+const scenePosition = fts.header.mScenePosition
+const cameraEuler = new Euler(0, 0, 0, 'YXZ')
+
+function gamePositionToThreePosition(x: number, y: number, z: number): Vector3 {
+  return new Vector3(scenePosition.x - x, scenePosition.y - y, z - scenePosition.z)
+}
+
+function threePositionToGamePosition(position: Vector3): { x: number; y: number; z: number } {
+  return {
+    x: scenePosition.x - position.x,
+    y: scenePosition.y - position.y,
+    z: scenePosition.z + position.z,
+  }
+}
+
+function setCameraAngleFromGameAngle(pitch: number, yaw: number): void {
+  // the roll is not wired in: the camera of the editor has no roll
+  camera.rotation.set(MathUtils.degToRad(-pitch), MathUtils.degToRad(yaw - 180), 0, 'YXZ')
+}
+
+function getGameAngleOfCamera(): { yaw: number; pitch: number } {
+  cameraEuler.setFromQuaternion(camera.quaternion, 'YXZ')
+
+  return {
+    yaw: (MathUtils.radToDeg(cameraEuler.y) + 180 + 360) % 360,
+    pitch: -MathUtils.radToDeg(cameraEuler.x),
+  }
+}
+
+/** parses `x,y,z` (or `pitch,yaw,roll`); `undefined` when the value is missing or malformed */
+function parseNumberTuple(value: string | null, length: number): number[] | undefined {
+  if (value === null) {
+    return undefined
+  }
+
+  const parts = value.split(',').map((part) => {
+    return Number.parseFloat(part.trim())
+  })
+
+  if (parts.length !== length || parts.some((part) => !Number.isFinite(part))) {
+    return undefined
+  }
+
+  return parts
+}
+
+function applyCameraStateFromUrl(): void {
+  const params = new URLSearchParams(globalThis.location.search)
+
+  const position = parseNumberTuple(params.get('positionAt'), 3)
+  if (position !== undefined) {
+    const [x, y, z] = position
+    camera.position.copy(gamePositionToThreePosition(x, y, z))
+  }
+
+  const angle = parseNumberTuple(params.get('angle'), 3)
+  if (angle !== undefined) {
+    const [pitch, yaw] = angle
+
+    // a broken angle should not move the camera; the third value (the roll) is ignored
+    if (yaw >= 0 && yaw < 360 && pitch >= -90 && pitch <= 90) {
+      setCameraAngleFromGameAngle(pitch, yaw)
+    } else {
+      console.warn(`[camera] ignoring the angle from the url: ${angle.join(',')}`)
+    }
+  }
+}
+
+/**
+ * Shows the camera state in the top left corner of the canvas, in the **game coordinate system**
+ * and in the same format as the game's debug hud (`position x y z`, `rotation pitch yaw roll`),
+ * so the two can be compared directly. The url uses the same order (`angle=pitch,yaw,roll`).
+ */
+function updateCameraInfo(): void {
+  if (!cameraInfoVisible.value) {
+    return
+  }
+
+  const position = threePositionToGamePosition(camera.position)
+  const { yaw, pitch } = getGameAngleOfCamera()
+
+  cameraInfo.textContent = [
+    `position ${position.x.toFixed(2)} ${position.y.toFixed(2)} ${position.z.toFixed(2)}`,
+    `rotation ${pitch.toFixed(2)} ${yaw.toFixed(2)} 0.00`,
+  ].join('\n')
+}
+
+/** how often the camera state is written into the url (ms) */
+const cameraUrlUpdateInterval = 250
+let lastCameraUrlUpdateAt = Number.NEGATIVE_INFINITY
+let lastCameraUrl: string | undefined
+
+/**
+ * Writes the camera state into the **current** history entry with `replaceState`: the address bar
+ * always shows the current view, but no new history entries are created, so the back button still
+ * goes to the page that was open before the editor.
+ */
+function updateCameraUrl(): void {
+  const now = performance.now()
+  if (now - lastCameraUrlUpdateAt < cameraUrlUpdateInterval) {
+    return
+  }
+
+  lastCameraUrlUpdateAt = now
+
+  const position = threePositionToGamePosition(camera.position)
+  const { yaw, pitch } = getGameAngleOfCamera()
+
+  updateCameraInfo()
+
+  const params = new URLSearchParams(globalThis.location.search)
+  params.set('positionAt', `${position.x.toFixed(2)},${position.y.toFixed(2)},${position.z.toFixed(2)}`)
+  params.set('angle', `${pitch.toFixed(2)},${yaw.toFixed(2)},0.00`)
+
+  // the commas are legal in a query string and make the url readable
+  const search = params.toString().replaceAll('%2C', ',')
+  const url = `${globalThis.location.pathname}?${search}${globalThis.location.hash}`
+
+  if (url === lastCameraUrl) {
+    return
+  }
+
+  globalThis.history.replaceState(globalThis.history.state, '', url)
+  lastCameraUrl = url
+}
+
+watch(cameraInfoVisible, () => {
+  updateCameraInfo()
+})
+
+applyCameraStateFromUrl()
+updateCameraUrl()
+
+/** how often the dynamic light pool follows the camera (ms) */
+const dynamicLightsUpdateInterval = 250
+let lastDynamicLightsUpdateAt = Number.NEGATIVE_INFINITY
+
+/**
+ * Refills the fixed point light pool with the `maxDynamicLights` lights closest to the camera, in
+ * the Arx falloff of the level (see `ARX_GLOBAL_LIGHT_FACTOR`). The baked vertex color is the base
+ * of the dynamic mode, so these lights are a preview of where the lights are and how far they
+ * reach - they are not an independent second lighting pass.
+ */
+function updateDynamicLights(): void {
+  if (lightingMode !== 'dynamic') {
+    return
+  }
+
+  const now = performance.now()
+  if (now - lastDynamicLightsUpdateAt < dynamicLightsUpdateInterval) {
+    return
+  }
+
+  lastDynamicLightsUpdateAt = now
+
+  const cameraPosition = camera.position
+
+  const nearestLights = llf.lights
+    .map((light) => {
+      const position = arxVector3toVector3(light.position)
+      return { light, position, distance: position.distanceToSquared(cameraPosition) }
+    })
+    .toSorted((a, b) => {
+      return a.distance - b.distance
+    })
+    .slice(0, maxDynamicLights)
+
+  dynamicLights.forEach((pointLight, index) => {
+    const nearest = nearestLights[index]
+
+    if (nearest === undefined) {
+      pointLight.intensity = 0
+      return
+    }
+
+    const { light, position } = nearest
+
+    pointLight.position.copy(position)
+    pointLight.color.setHex(Color.fromArxColor(light.color).getHex())
+    pointLight.intensity = light.intensity * ARX_GLOBAL_LIGHT_FACTOR * Math.PI * dynamicLightIntensityScale
+    pointLight.distance = light.fallEnd
+    pointLight.decay = 0
+  })
+}
+
+updateDynamicLights()
 
 function resizeRendererToDisplaySize(renderer: WebGLRenderer): boolean {
   const canvas = renderer.domElement
@@ -702,6 +957,8 @@ function render(): void {
 
   controls.update(delta)
 
+  updateCameraUrl()
+
   renderer.clear()
   renderer.render(scene, camera)
   viewHelper.render(renderer)
@@ -709,6 +966,7 @@ function render(): void {
 
 function animate(): void {
   timer.update()
+  updateDynamicLights()
 
   if (controls.isLocked) {
     mouseLocked.style.display = 'block'

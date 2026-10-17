@@ -17,7 +17,9 @@ of the formats is done by [arx-convert](https://github.com/arx-tools/arx-convert
 | `npm run preview` | serves the build of `dist/`                         |
 
 `?level=N` in the url loads another level, `?lighting=baked` and `?lighting=flat` change how the
-level is lit.
+level is lit. `?positionAt=x,y,z` and `?angle=pitch,yaw,roll` open a level at a given game position
+and orientation (the roll is ignored); the url follows the camera (with `history.replaceState`, so
+no history entries are created), which makes a view shareable.
 
 ## Branches
 

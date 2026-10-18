@@ -1799,7 +1799,15 @@ function getPolygonsUnderCameraRay(): Array<{ polygonIndex: number; distance: nu
     }
 
     for (const intersection of boundsTree.raycast(ray, DoubleSide, 0, SELECTION_RAY_FAR)) {
-      const polygonIndex = triangleToPolygon[intersection.faceIndex ?? 0]
+      // `intersection.faceIndex` is an internal index of the BVH (it reorders the triangles), the
+      // vertex index of the hit triangle is in `face.a` - the same value the raycaster used to give.
+      const face = intersection.face
+
+      if (face === undefined || face === null) {
+        continue
+      }
+
+      const polygonIndex = triangleToPolygon[face.a / 3]
 
       if (polygonIndex !== undefined) {
         hits.push({ polygonIndex, distance: intersection.distance })

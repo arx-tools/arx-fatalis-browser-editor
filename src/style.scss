@@ -70,6 +70,28 @@ button {
   margin-left: 30px;
 }
 
+.lighting-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-left: 8px;
+  vertical-align: middle;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #ffd23f;
+  border-radius: 50%;
+  animation: lighting-spinner-spin 0.7s linear infinite;
+}
+
+.lighting-spinner[hidden] {
+  display: none;
+}
+
+@keyframes lighting-spinner-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* advanced settings are reachable from the URL only for now */
 .settings-row .advanced {
   display: none;

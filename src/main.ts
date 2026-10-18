@@ -48,6 +48,7 @@ import {
   currentLevelId,
   downloadCompleted,
   downloadProgress,
+  isComputingLighting,
   isDirty,
   isDownloading,
   isLoading,
@@ -381,7 +382,7 @@ export async function handleDownloadButtonClick(): Promise<void> {
     const exportFts = buildExportFts(fts, deletedPolygons)
     // the Realistic palette is already computed for the display - reuse it instead of baking twice
     const exportPalette =
-      lightingCalculatorMode.value === 'Realistic' ? getRealisticPalette() : undefined
+      lightingCalculatorMode.value === 'Realistic' ? await getRealisticPalette() : undefined
     const exportLlf = buildExportLlf(
       fts,
       llf,
@@ -666,24 +667,33 @@ export function invalidateRealisticPalette(): void {
   realisticPaletteCache = undefined
 }
 
-function getRealisticPalette(): ArxColor[] {
+async function getRealisticPalette(): Promise<ArxColor[]> {
   const key = `${ambientFloor.value}|${shadows.value}`
 
   if (realisticPaletteCache?.key === key) {
     return realisticPaletteCache.palette
   }
 
-  const line = logger.log('computing lighting...')
-  const palette = bakeLlfColors(fts, llf, 'Realistic', meshes, ambientFloor.value, shadows.value)
-  logger.log('done', line)
+  // the bake is a synchronous, CPU heavy loop - let the browser paint the throbber and disable the
+  // controls that would start another bake before it starts
+  isComputingLighting.value = true
+  await wait(50)
 
-  realisticPaletteCache = { key, palette }
+  try {
+    const line = logger.log('computing lighting...')
+    const palette = bakeLlfColors(fts, llf, 'Realistic', meshes, ambientFloor.value, shadows.value)
+    logger.log('done', line)
 
-  return palette
+    realisticPaletteCache = { key, palette }
+
+    return palette
+  } finally {
+    isComputingLighting.value = false
+  }
 }
 
-function applyRealisticBakedColors(): void {
-  const palette = getRealisticPalette()
+async function applyRealisticBakedColors(): Promise<void> {
+  const palette = await getRealisticPalette()
 
   for (const group of meshGroups) {
     const attribute = group.mesh.geometry.getAttribute('baked')
@@ -1255,7 +1265,7 @@ function updateDynamicLights(): void {
 updateDynamicLights()
 
 /** swaps the materials of the three groups and the light pool to the selected display mode */
-function applyLightingCalculatorMode(): void {
+async function applyLightingCalculatorMode(): Promise<void> {
   const displayMode = getDisplayLightingMode()
 
   for (const group of meshGroups) {
@@ -1267,7 +1277,7 @@ function applyLightingCalculatorMode(): void {
   }
 
   if (displayMode === 'dynamic' && lightingCalculatorMode.value === 'Realistic') {
-    applyRealisticBakedColors()
+    await applyRealisticBakedColors()
   } else {
     for (const { mesh } of meshGroups) {
       setBakedColors(mesh, displayMode === 'completeDarkness' ? 0 : originalBakedColors.get(mesh))
@@ -1283,23 +1293,23 @@ function applyLightingCalculatorMode(): void {
 }
 
 watch(lightingCalculatorMode, () => {
-  applyLightingCalculatorMode()
+  void applyLightingCalculatorMode()
 })
 
 // changing the ambient floor or the shadows re-bakes the Realistic palette (both are part of the
 // bake, so the exported LLF gets the same values as the display)
 watch(ambientFloor, () => {
-  applyLightingCalculatorMode()
+  void applyLightingCalculatorMode()
 })
 
 watch(shadows, () => {
-  applyLightingCalculatorMode()
+  void applyLightingCalculatorMode()
 })
 
 // the URL (`?lightingCalculatorMode=Realistic`) and the select both set the ref, but a watcher
 // only fires on *changes* - so without this the mode from the URL was never applied on load: the
 // level was shown with the LLF's own palette (the `Arx` look) until the select was touched twice
-applyLightingCalculatorMode()
+void applyLightingCalculatorMode()
 
 function resizeRendererToDisplaySize(renderer: WebGLRenderer): boolean {
   const canvas = renderer.domElement

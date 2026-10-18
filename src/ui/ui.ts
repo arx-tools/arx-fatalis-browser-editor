@@ -154,6 +154,12 @@ function getAmbientFloorFromUrl(): number {
 export const ambientFloor = ref<number>(getAmbientFloorFromUrl())
 
 /**
+ * True while the `Realistic` lighting calculator runs. The throbber next to the lighting mode select
+ * is shown and the shadows switch is disabled, so a second bake cannot be started in the meantime.
+ */
+export const isComputingLighting = ref<boolean>(false)
+
+/**
  * Whether the `Realistic` bake casts shadows (the Fred `DistanceAngleShadowNoTransparency`
  * occlusion). Off = every light reaches every vertex it faces (the Danae-like look, the game's
  * original palette has no occlusion). `?shadows=0` in the URL; on by default.
@@ -195,6 +201,13 @@ watch(ambientFloor, (value) => {
     url.searchParams.set('ambientFloor', String(value))
   }
   globalThis.history.replaceState(null, '', url)
+})
+
+const lightingSpinner = document.querySelector<HTMLElement>('#lighting-spinner') as HTMLElement
+
+watch(isComputingLighting, (value) => {
+  lightingSpinner.hidden = !value
+  shadowsInput.disabled = value
 })
 
 const lightingCalculatorModeSelect = document.querySelector<HTMLSelectElement>(

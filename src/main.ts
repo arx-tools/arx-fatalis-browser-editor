@@ -1814,7 +1814,7 @@ function getPolygonsUnderCameraRay(): Array<{ polygonIndex: number; distance: nu
   return hits
 }
 
-controls.addEventListener('change', () => {
+function updatePolygonUnderCursor(): void {
   const hits = getPolygonsUnderCameraRay()
 
   if (hits.length === 0) {
@@ -1910,7 +1910,9 @@ controls.addEventListener('change', () => {
 
     updateMouseButtonState(LeftMouseButton, false)
   }
-})
+}
+
+controls.addEventListener('change', updatePolygonUnderCursor)
 
 // ------------------
 

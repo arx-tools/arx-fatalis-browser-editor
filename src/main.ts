@@ -653,11 +653,16 @@ function applyRealisticBakedColors(): void {
     let index = 0
 
     for (const { polygon } of survivingEntries(group)) {
-      const used = isQuad(polygon) ? 4 : 3
       const flat = flatColors.get(polygon.textureContainerId) ?? [255, 255, 255]
 
-      for (let i = 0; i < used; i++) {
-        const colorIndex = polygon.vertices[i].llfColorIdx
+      // the geometry of a quad is made of two triangles: (a, b, c) and (c, b, d) - see
+      // `arxPolygonsToMesh()` - so the baked attribute needs **six** values per quad, in that order.
+      // Writing four (the LLF's palette order) shifts every following vertex and every polygon gets
+      // the colour of its neighbour.
+      const vertexOrder = isQuad(polygon) ? [0, 1, 2, 2, 1, 3] : [0, 1, 2]
+
+      for (const vertexIndex of vertexOrder) {
+        const colorIndex = polygon.vertices[vertexIndex].llfColorIdx
         const color = colorIndex === undefined ? undefined : palette[colorIndex]
 
         if (color !== undefined) {

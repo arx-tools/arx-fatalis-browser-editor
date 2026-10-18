@@ -60,7 +60,7 @@ export function bakeLlfColors(
   // the `Realistic` (the Fred `DistanceAngleShadowNoTransparency` behaviour) has no ambient floor:
   // the shadowed vertices go all the way to 0, which is what makes the shadows solid black
   const ambient = mode === 'Realistic' ? 0 : AMBIENT
-  const globalLightFactor = mode === 'Realistic' ? 1 : GLOBAL_LIGHT_FACTOR
+  const globalLightFactor = GLOBAL_LIGHT_FACTOR
   const raycaster = mode === 'Realistic' ? new Raycaster() : undefined
   const blockers = mode === 'Realistic' ? [...occluders] : []
   if (raycaster !== undefined) {

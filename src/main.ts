@@ -375,7 +375,7 @@ export async function handleDownloadButtonClick(): Promise<void> {
     // M1: the surviving polygons and the LLF palette filtered to them; the DLF is saved as it was
     // opened (the editor does not handle entities yet)
     const exportFts = buildExportFts(fts, deletedPolygons)
-    const exportLlf = buildExportLlf(fts, llf, deletedPolygons)
+    const exportLlf = buildExportLlf(fts, llf, deletedPolygons, lightingCalculatorMode.value, meshes)
 
     // the steps are sequential so the progress can follow them: 20 / 40 / 60 / 80 / 100
     const line1 = logger.log('packing level data...')
@@ -552,9 +552,19 @@ function createMaterial(
     return material
   }
 
-  const color = displayMode === 'maxBrightness' ? Color.white.getHex() : Color.black.getHex()
+  if (displayMode === 'maxBrightness') {
+    return new MeshBasicMaterial({ ...options, color: Color.white.getHex() })
+  }
 
-  return new MeshBasicMaterial({ ...options, color })
+  // CompleteDarkness: the baked attribute is zeroed by `applyLightingCalculatorMode`, so the only
+  // light on the lambert surface is the camera light ([F]) - the darkest the editor can show
+  const material = new MeshLambertMaterial({ ...options, color: Color.white.getHex(), vertexColors: vertexColors !== undefined })
+
+  if (vertexColors !== undefined) {
+    addBakedColorToShader(material, 'emissive')
+  }
+
+  return material
 }
 
 type MaterialOptions = {
@@ -611,6 +621,37 @@ const meshGroups: MeshGroup[] = [
 ]
 
 const meshes: Mesh[] = meshGroups.map(({ mesh }) => mesh)
+
+/** the baked attribute of each group as loaded - the Arx display restores it after a mode switch */
+const originalBakedColors = new Map<Mesh, Float32Array>()
+for (const { mesh } of meshGroups) {
+  const attribute = mesh.geometry.getAttribute('baked')
+  if (attribute !== undefined) {
+    originalBakedColors.set(mesh, (attribute.array as Float32Array).slice())
+  }
+}
+
+function setBakedColors(mesh: Mesh, values: Float32Array | 0 | undefined): void {
+  if (values === undefined) {
+    return
+  }
+
+  const attribute = mesh.geometry.getAttribute('baked')
+
+  if (attribute === undefined) {
+    return
+  }
+
+  const array = attribute.array as Float32Array
+
+  if (values === 0) {
+    array.fill(0)
+  } else {
+    array.set(values)
+  }
+
+  attribute.needsUpdate = true
+}
 
 function survivingEntries(group: MeshGroup): SourcePolygon[] {
   return group.entries.filter(({ sourceIndex }) => {
@@ -1115,6 +1156,10 @@ function applyLightingCalculatorMode(): void {
     group.material = material
     group.mesh.material = material
     oldMaterial.dispose()
+  }
+
+  for (const { mesh } of meshGroups) {
+    setBakedColors(mesh, displayMode === 'completeDarkness' ? 0 : originalBakedColors.get(mesh))
   }
 
   setDynamicLightsVisible(displayMode === 'dynamic')

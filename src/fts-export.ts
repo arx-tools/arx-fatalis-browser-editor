@@ -1,4 +1,6 @@
 import { getCellCoords, isQuad, MAP_WIDTH_IN_CELLS } from 'arx-convert/utils'
+import type { Mesh } from 'three'
+import { bakeLlfColors, type LightingCalculatorMode } from './lighting/bake.js'
 import type { ArxColor, ArxEPData, ArxFTS, ArxLLF, ArxPolygon } from 'arx-convert/types'
 
 export type SourcePolygon = {
@@ -127,11 +129,20 @@ export function buildExportFts(fts: ArxFTS, deletedPolygons: ReadonlySet<number>
  * polygons are removed, the palette has to be filtered in the same order, otherwise the surviving
  * vertices get the colors of another polygon.
  */
-export function buildExportLlf(fts: ArxFTS, llf: ArxLLF, deletedPolygons: ReadonlySet<number>): ArxLLF {
+export function buildExportLlf(
+  fts: ArxFTS,
+  llf: ArxLLF,
+  deletedPolygons: ReadonlySet<number>,
+  mode: LightingCalculatorMode = 'Arx',
+  occluders: readonly Mesh[] = [],
+): ArxLLF {
   if (llf.colors.length === 0) {
     return { ...llf, colors: [] }
   }
 
+  // the palette is computed from the lights (the `lightingCalculatorMode`), not copied from the
+  // original LLF - the points of the M3a export
+  const bakedColors = bakeLlfColors(fts, llf, mode, occluders)
   const colors: ArxColor[] = []
 
   fts.polygons.forEach((polygon, sourceIndex) => {
@@ -143,10 +154,10 @@ export function buildExportLlf(fts: ArxFTS, llf: ArxLLF, deletedPolygons: Readon
     const count = isQuad(polygon) ? 4 : 3
 
     for (let i = 0; i < count; i++) {
-      const color = llf.colors[base + i]
+      const color = bakedColors[base + i]
 
       if (color === undefined) {
-        console.warn('[export] missing LLF color for polygon', sourceIndex, '- using white')
+        console.warn('[export] missing baked LLF color for polygon', sourceIndex, '- using white')
         colors.push({ r: 255, g: 255, b: 255, a: 255 })
       } else {
         colors.push(color)

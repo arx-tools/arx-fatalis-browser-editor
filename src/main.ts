@@ -43,7 +43,9 @@ import {
   cameraLightVisible,
   canvas,
   currentLevelId,
+  downloadProgress,
   isDirty,
+  isDownloading,
   isLoading,
   lightsVisible,
   LeftMouseButton,
@@ -65,6 +67,7 @@ import { Exception } from './ui/Exception.js'
 import { arxPolygonsToMesh, arxVector3toVector3 } from './arx-threejs-format-converters.js'
 import { buildExportFts, buildExportLlf, buildTriangleToPolygonMap, type SourcePolygon } from './fts-export.js'
 import { createPolygonWireframe } from './geometry/createWireframe.js'
+import { removeTriangles } from './geometry/removeTriangles.js'
 import { createTriangle as renderTriangle } from './geometry/renderTriangle.js'
 import { getVerticesByFace } from './geometry/getVerticesByFace.js'
 import App from './App.vue'
@@ -341,40 +344,53 @@ logger.log('done', line1)
 isLoading.value = 'fulfilled'
 
 export async function handleDownloadButtonClick(): Promise<void> {
-  if (isLoading.value === 'loading' || isLoading.value === 'rejected') {
+  if (isLoading.value !== 'fulfilled' || isDownloading.value) {
     return
   }
 
-  isLoading.value = 'loading'
+  isDownloading.value = true
+  downloadProgress.value = 0
 
-  // M1: the surviving polygons and the LLF palette filtered to them; the DLF is saved as it was
-  // opened (the editor does not handle entities yet)
-  const exportFts = buildExportFts(fts, deletedPolygons)
-  const exportLlf = buildExportLlf(fts, llf, deletedPolygons)
+  try {
+    // M1: the surviving polygons and the LLF palette filtered to them; the DLF is saved as it was
+    // opened (the editor does not handle entities yet)
+    const exportFts = buildExportFts(fts, deletedPolygons)
+    const exportLlf = buildExportLlf(fts, llf, deletedPolygons)
 
-  const line1 = logger.log('packing level data...')
+    // the steps are sequential so the progress can follow them: 20 / 40 / 60 / 80 / 100
+    const line1 = logger.log('packing level data...')
+    downloadProgress.value = 20
 
-  const [packedFts, packedLlf, packedDlf] = await Promise.all([
-    saveFTS(exportFts, levelId),
-    saveLLF(exportLlf, levelId),
-    saveDLF(dlf, levelId),
-  ])
+    const packedFts = await saveFTS(exportFts, levelId)
+    downloadProgress.value = 40
 
-  logger.log('done', line1)
+    const packedLlf = await saveLLF(exportLlf, levelId)
+    downloadProgress.value = 60
 
-  const line2 = logger.log('zipping files...')
+    const packedDlf = await saveDLF(dlf, levelId)
+    downloadProgress.value = 80
 
-  const zip = await zipBuffers({
-    [`/game/graph/levels/level${levelId}/fast.fts`]: packedFts,
-    [`/graph/levels/level${levelId}/level${levelId}.llf`]: packedLlf,
-    [`/graph/levels/level${levelId}/level${levelId}.dlf`]: packedDlf,
-  })
+    logger.log('done', line1)
 
-  logger.log('done', line2)
+    const line2 = logger.log('zipping files...')
 
-  downloadBinaryAs('mod.zip', zip, 'application/zip')
+    const zip = await zipBuffers({
+      [`/game/graph/levels/level${levelId}/fast.fts`]: packedFts,
+      [`/graph/levels/level${levelId}/level${levelId}.llf`]: packedLlf,
+      [`/graph/levels/level${levelId}/level${levelId}.dlf`]: packedDlf,
+    })
 
-  isLoading.value = 'fulfilled'
+    logger.log('done', line2)
+
+    downloadProgress.value = 100
+
+    downloadBinaryAs('mod.zip', zip, 'application/zip')
+
+    // let the 100% be visible for a moment before the indicator disappears
+    await wait(300)
+  } finally {
+    isDownloading.value = false
+  }
 }
 
 // --------------------
@@ -585,52 +601,46 @@ function updateTriangleToPolygonMap(): void {
 
 updateTriangleToPolygonMap()
 
-/**
- * The FTS polygon is the unit of the level data, so deleting any of its triangles deletes the
- * whole polygon; the three merged geometries are rebuilt from the surviving polygons.
- */
-function rebuildMeshes(): void {
-  for (const group of meshGroups) {
-    const entries = survivingEntries(group)
-    const rebuilt = arxPolygonsToMesh(
-      entries.map(({ polygon }) => polygon),
-      group.material,
-      offset,
-      vertexColors,
-    )
-
-    group.mesh.geometry.dispose()
-    group.mesh.geometry = rebuilt.geometry
-  }
-
-  updateTriangleToPolygonMap()
-}
-
 // TODO: add noDraw polygons
 
 // --------------------
 
 scene.add(...meshes)
 
-let wireframeLines: LineSegments[] = meshGroups.map((group) => {
-  const wireframe = createPolygonWireframe(
-    survivingEntries(group).map(({ polygon }) => polygon),
-    offset,
-  )
-  wireframe.renderOrder = 5
-  return wireframe
-})
+let wireframeLines: LineSegments[] | undefined
+let wireframeDirty = true
+
+function createWireframeLines(): LineSegments[] {
+  return meshGroups.map((group) => {
+    const wireframe = createPolygonWireframe(
+      survivingEntries(group).map(({ polygon }) => polygon),
+      offset,
+    )
+    wireframe.renderOrder = 5
+    return wireframe
+  })
+}
+
+/** built lazily, and only rebuilt on the next show after a deletion while it was hidden */
+function ensureWireframeLines(): LineSegments[] {
+  if (wireframeLines === undefined || wireframeDirty) {
+    wireframeLines = createWireframeLines()
+    wireframeDirty = false
+  }
+
+  return wireframeLines
+}
 
 watch(wireframeVisible, (value) => {
   if (value) {
-    scene.add(...wireframeLines)
-  } else {
+    scene.add(...ensureWireframeLines())
+  } else if (wireframeLines !== undefined) {
     scene.remove(...wireframeLines)
   }
 })
 
 if (wireframeVisible.value === true) {
-  scene.add(...wireframeLines)
+  scene.add(...ensureWireframeLines())
 }
 
 // --------------------
@@ -1169,23 +1179,42 @@ function deletePolygons(polygonsToDelete: ReadonlySet<number>): void {
     deletedPolygons.add(polygonIndex)
   }
 
-  rebuildMeshes()
+  for (const group of meshGroups) {
+    const triangleToPolygon = triangleToPolygonByMesh.get(group.mesh)
+
+    if (triangleToPolygon === undefined) {
+      continue
+    }
+
+    const removedTriangles = new Set<number>()
+
+    for (let triangle = 0; triangle < triangleToPolygon.length; triangle++) {
+      if (polygonsToDelete.has(triangleToPolygon[triangle])) {
+        removedTriangles.add(triangle)
+      }
+    }
+
+    if (removedTriangles.size === 0) {
+      continue
+    }
+
+    const geometry = removeTriangles(group.mesh.geometry, removedTriangles)
+    group.mesh.geometry.dispose()
+    group.mesh.geometry = geometry
+  }
+
+  updateTriangleToPolygonMap()
 
   isDirty.value = true
 
-  if (wireframeVisible.value) {
-    scene.remove(...wireframeLines)
-  }
-
-  wireframeLines = meshGroups.map((group) => {
-    return createPolygonWireframe(
-      survivingEntries(group).map(({ polygon }) => polygon),
-      offset,
-    )
-  })
+  wireframeDirty = true
 
   if (wireframeVisible.value) {
-    scene.add(...wireframeLines)
+    if (wireframeLines !== undefined) {
+      scene.remove(...wireframeLines)
+    }
+
+    scene.add(...ensureWireframeLines())
   }
 
   selectedPolygons.clear()

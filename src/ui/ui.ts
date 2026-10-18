@@ -159,6 +159,12 @@ export const currentLevelId = ref<number | undefined>(undefined)
 /** true when the mesh has been changed since the level was loaded - used by the level switcher */
 export const isDirty = ref(false)
 
+/** 0..100 while the download runs, driven by the download steps */
+export const downloadProgress = ref(0)
+
+/** true only while `handleDownloadButtonClick` is running (the level load also uses `isLoading`) */
+export const isDownloading = ref(false)
+
 // ------------
 
 export const LeftMouseButton = 1

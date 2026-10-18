@@ -70,6 +70,15 @@ button {
   margin-left: 30px;
 }
 
+/* advanced settings are reachable from the URL only for now */
+.settings-row .advanced {
+  display: none;
+}
+
+.settings-row #shadows-row[hidden] {
+  display: none;
+}
+
 #logs {
   font-family: monospace;
   height: 200px;

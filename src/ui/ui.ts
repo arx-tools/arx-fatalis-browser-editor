@@ -201,13 +201,30 @@ const lightingCalculatorModeSelect = document.querySelector<HTMLSelectElement>(
   '#lighting-calculator-mode',
 ) as HTMLSelectElement
 
-lightingCalculatorModeSelect.value = lightingCalculatorMode.value
+/** the select only contains a subset of the modes (the rest are URL-only for now) */
+function syncLightingCalculatorModeSelect(value: LightingCalculatorMode): void {
+  if ([...lightingCalculatorModeSelect.options].some((option) => option.value === value)) {
+    lightingCalculatorModeSelect.value = value
+  }
+}
+
+syncLightingCalculatorModeSelect(lightingCalculatorMode.value)
 lightingCalculatorModeSelect.addEventListener('change', () => {
   lightingCalculatorMode.value = lightingCalculatorModeSelect.value as LightingCalculatorMode
 })
 
+/** the shadows switch is only meaningful for the Realistic mode */
+const shadowsRow = document.querySelector<HTMLElement>('#shadows-row') as HTMLElement
+
+function updateShadowsRowVisibility(): void {
+  shadowsRow.hidden = lightingCalculatorMode.value !== 'Realistic'
+}
+
+updateShadowsRowVisibility()
+
 watch(lightingCalculatorMode, (value) => {
-  lightingCalculatorModeSelect.value = value
+  syncLightingCalculatorModeSelect(value)
+  updateShadowsRowVisibility()
   const url = new URL(globalThis.location.href)
   url.searchParams.set('lightingCalculatorMode', value)
   url.searchParams.delete('lighting')

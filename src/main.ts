@@ -1491,35 +1491,32 @@ function deletePolygons(polygonsToDelete: ReadonlySet<number>): void {
 /** the selection is polygon based: a quad is one unit, both of its triangles are highlighted */
 
 /**
- * The edge keys of the polygons that were selected **during the current drag**. A new polygon is only
- * added when it shares an **edge** with one of them: without this, a fast drag jumps over the gaps of
- * the geometry and selects disconnected "islands" on the other side of the level.
+ * The vertex keys of the polygons that were selected **during the current drag**. A new polygon is
+ * only added when it shares a **vertex** with one of them: without this, a fast drag jumps over the
+ * gaps of the geometry and selects disconnected "islands" on the other side of the level.
  *
- * Edge sharing (two common vertex positions) and not vertex sharing: the level 11 has roughly 16 000
- * polygons that share one "degenerate" vertex position, so a vertex based test would let the
- * selection jump between unrelated parts. With edges the largest group is 4 polygons (2 triangles of
- * a quad, 2 quads of a split polygon), so a polygon has at most 3 edge neighbours.
+ * Only the **used** vertices are taken (3 for a triangle, 4 for a quad): the fourth vertex of a
+ * triangle is a "degenerate" placeholder, and on level 0 about 9 500 polygons share the same
+ * (0, 0, 0) placeholder position - including it would connect the whole level. Without it a polygon
+ * has 2-20 neighbours (8 on average, plus a few corner fans), so the selection stays local.
+ *
+ * Vertex sharing and not edge sharing: the level meshes are not perfectly welded (level 0 has ~6 400
+ * polygons without a single edge-sharing neighbour), so an edge based test would stop the drag at
+ * those seams (the polygon looks adjacent but shares no full edge).
  *
  * A simple click (no drag) is not restricted, so a separate selection can still be started elsewhere.
  */
-let selectionDragEdgeKeys: Set<string> | undefined
+let selectionDragVertexKeys: Set<string> | undefined
 
 function getVertexKey(vertex: { x: number; y: number; z: number }): string {
   return `${vertex.x.toFixed(2)}:${vertex.y.toFixed(2)}:${vertex.z.toFixed(2)}`
 }
 
-function getEdgeKeysOf(polygon: ArxPolygon): string[] {
-  const keys = polygon.vertices.map(getVertexKey)
+/** the keys of the vertices the polygon actually renders (the 4th vertex of a triangle is unused) */
+function getUsedVertexKeysOf(polygon: ArxPolygon): string[] {
   const count = isQuad(polygon) ? 4 : 3
-  const edges: string[] = []
 
-  for (let i = 0; i < count; i++) {
-    const a = keys[i]
-    const b = keys[(i + 1) % count]
-    edges.push(a < b ? `${a}|${b}` : `${b}|${a}`)
-  }
-
-  return edges
+  return polygon.vertices.slice(0, count).map(getVertexKey)
 }
 
 let isAddingToSelection: boolean | undefined
@@ -1661,7 +1658,7 @@ document.addEventListener(
 
     const alreadySelected = selectedPolygons.has(polygonBeingLookedAt)
 
-    selectionDragEdgeKeys = undefined
+    selectionDragVertexKeys = undefined
 
     if (isAddingToSelection === undefined) {
       if (alreadySelected) {
@@ -1742,11 +1739,11 @@ controls.addEventListener('change', () => {
     if (!mousePressed[LeftMouseButton].oldValue) {
       // left mouse button was pressed
       isAddingToSelection = !alreadySelected
-      selectionDragEdgeKeys = isAddingToSelection ? new Set() : undefined
+      selectionDragVertexKeys = isAddingToSelection ? new Set() : undefined
 
       if (isAddingToSelection && polygon !== undefined) {
-        for (const key of getEdgeKeysOf(polygon)) {
-          selectionDragEdgeKeys?.add(key)
+        for (const key of getUsedVertexKeysOf(polygon)) {
+          selectionDragVertexKeys?.add(key)
         }
       }
     }
@@ -1754,17 +1751,17 @@ controls.addEventListener('change', () => {
     if (isAddingToSelection) {
       cursorTriangleMaterial.color.set(Color.green.getHex())
       if (polygon !== undefined && polygonIndex !== undefined && !alreadySelected) {
-        const edgeKeys = getEdgeKeysOf(polygon)
+        const vertexKeys = getUsedVertexKeysOf(polygon)
         const connected =
-          selectionDragEdgeKeys === undefined ||
-          selectionDragEdgeKeys.size === 0 ||
-          edgeKeys.some((key) => selectionDragEdgeKeys?.has(key))
+          selectionDragVertexKeys === undefined ||
+          selectionDragVertexKeys.size === 0 ||
+          vertexKeys.some((key) => selectionDragVertexKeys?.has(key))
 
         if (connected) {
           selectedPolygons.add(polygonIndex)
 
-          for (const key of edgeKeys) {
-            selectionDragEdgeKeys?.add(key)
+          for (const key of vertexKeys) {
+            selectionDragVertexKeys?.add(key)
           }
 
           updateHighlightOfSelectedPolygons()
@@ -1786,7 +1783,7 @@ controls.addEventListener('change', () => {
     if (mousePressed[LeftMouseButton].oldValue) {
       // left mouse button was released
       isAddingToSelection = undefined
-      selectionDragEdgeKeys = undefined
+      selectionDragVertexKeys = undefined
     }
 
     updateMouseButtonState(LeftMouseButton, false)

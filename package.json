@@ -31,7 +31,7 @@
     "arx-header-size": "^3.2.1",
     "color-rgba": "^3.0.0",
     "jszip": "^3.10.1",
-    "node-pkware": "^5.9.1",
+    "node-pkware": "^5.9.2",
     "sass-embedded": "^1.100.0",
     "three": "^0.183.1",
     "three-mesh-bvh": "^0.9.9",

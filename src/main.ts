@@ -61,6 +61,7 @@ import {
   mouseUnlocked,
   portalsVisible,
   RightMouseButton,
+  selectionConnectDistance,
   shadows,
   updateMouseButtonState,
   updateMouseButtonStates,
@@ -1491,32 +1492,94 @@ function deletePolygons(polygonsToDelete: ReadonlySet<number>): void {
 /** the selection is polygon based: a quad is one unit, both of its triangles are highlighted */
 
 /**
- * The vertex keys of the polygons that were selected **during the current drag**. A new polygon is
- * only added when it shares a **vertex** with one of them: without this, a fast drag jumps over the
- * gaps of the geometry and selects disconnected "islands" on the other side of the level.
+ * The vertices of the polygons that were selected **during the current drag**, in a grid so a
+ * candidate can be tested quickly. A new polygon is only added when one of its vertices is closer
+ * than `selectionConnectDistance` to one of them: without this, a fast drag jumps over the gaps of
+ * the geometry and selects disconnected "islands" on the other side of the level.
  *
- * Only the **used** vertices are taken (3 for a triangle, 4 for a quad): the fourth vertex of a
- * triangle is a "degenerate" placeholder, and on level 0 about 9 500 polygons share the same
- * (0, 0, 0) placeholder position - including it would connect the whole level. Without it a polygon
- * has 2-20 neighbours (8 on average, plus a few corner fans), so the selection stays local.
- *
- * Vertex sharing and not edge sharing: the level meshes are not perfectly welded (level 0 has ~6 400
- * polygons without a single edge-sharing neighbour), so an edge based test would stop the drag at
- * those seams (the polygon looks adjacent but shares no full edge).
+ * The distance is a tolerance instead of an exact match because the level meshes are not welded:
+ * their seams are off by less than 0.1 units, and an exact match stops the drag there (the polygons
+ * look adjacent). Only the **used** vertices are stored (3 for a triangle, 4 for a quad): the fourth
+ * vertex of a triangle is a degenerate placeholder, and about 9 500 polygons of level 0 share the
+ * same (0, 0, 0) position - including it would connect the whole level.
  *
  * A simple click (no drag) is not restricted, so a separate selection can still be started elsewhere.
  */
-let selectionDragVertexKeys: Set<string> | undefined
+let selectionDragVertices: Map<string, { x: number; y: number; z: number }[]> | undefined
 
-function getVertexKey(vertex: { x: number; y: number; z: number }): string {
-  return `${vertex.x.toFixed(2)}:${vertex.y.toFixed(2)}:${vertex.z.toFixed(2)}`
+/** the grid cell of the selection lookup (game units) */
+const SELECTION_GRID_CELL = 4
+
+function getSelectionGridKey(x: number, y: number, z: number): string {
+  return `${Math.floor(x / SELECTION_GRID_CELL)}:${Math.floor(y / SELECTION_GRID_CELL)}:${Math.floor(z / SELECTION_GRID_CELL)}`
 }
 
-/** the keys of the vertices the polygon actually renders (the 4th vertex of a triangle is unused) */
-function getUsedVertexKeysOf(polygon: ArxPolygon): string[] {
+/** the vertices the polygon actually renders (the 4th vertex of a triangle is unused) */
+function getUsedVerticesOf(polygon: ArxPolygon): { x: number; y: number; z: number }[] {
   const count = isQuad(polygon) ? 4 : 3
 
-  return polygon.vertices.slice(0, count).map(getVertexKey)
+  return polygon.vertices.slice(0, count).map(({ x, y, z }) => {
+    return { x, y, z }
+  })
+}
+
+function addVerticesToSelectionGrid(vertices: { x: number; y: number; z: number }[]): void {
+  if (selectionDragVertices === undefined) {
+    return
+  }
+
+  for (const vertex of vertices) {
+    const key = getSelectionGridKey(vertex.x, vertex.y, vertex.z)
+    let cell = selectionDragVertices.get(key)
+
+    if (cell === undefined) {
+      cell = []
+      selectionDragVertices.set(key, cell)
+    }
+
+    cell.push(vertex)
+  }
+}
+
+/** is any of the vertices closer than `selectionConnectDistance` to a vertex selected in this drag? */
+function isConnectedToSelection(vertices: { x: number; y: number; z: number }[]): boolean {
+  if (selectionDragVertices === undefined || selectionDragVertices.size === 0) {
+    return true
+  }
+
+  const distance = Math.min(10, Math.max(0, selectionConnectDistance.value))
+  const distanceSquared = distance * distance
+  const reach = Math.max(1, Math.ceil(distance / SELECTION_GRID_CELL))
+
+  for (const vertex of vertices) {
+    const cellX = Math.floor(vertex.x / SELECTION_GRID_CELL)
+    const cellY = Math.floor(vertex.y / SELECTION_GRID_CELL)
+    const cellZ = Math.floor(vertex.z / SELECTION_GRID_CELL)
+
+    for (let dx = -reach; dx <= reach; dx++) {
+      for (let dy = -reach; dy <= reach; dy++) {
+        for (let dz = -reach; dz <= reach; dz++) {
+          const cell = selectionDragVertices.get(`${cellX + dx}:${cellY + dy}:${cellZ + dz}`)
+
+          if (cell === undefined) {
+            continue
+          }
+
+          for (const other of cell) {
+            const x = other.x - vertex.x
+            const y = other.y - vertex.y
+            const z = other.z - vertex.z
+
+            if (x * x + y * y + z * z <= distanceSquared) {
+              return true
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return false
 }
 
 let isAddingToSelection: boolean | undefined
@@ -1658,7 +1721,7 @@ document.addEventListener(
 
     const alreadySelected = selectedPolygons.has(polygonBeingLookedAt)
 
-    selectionDragVertexKeys = undefined
+    selectionDragVertices = undefined
 
     if (isAddingToSelection === undefined) {
       if (alreadySelected) {
@@ -1739,30 +1802,21 @@ controls.addEventListener('change', () => {
     if (!mousePressed[LeftMouseButton].oldValue) {
       // left mouse button was pressed
       isAddingToSelection = !alreadySelected
-      selectionDragVertexKeys = isAddingToSelection ? new Set() : undefined
+      selectionDragVertices = isAddingToSelection ? new Map() : undefined
 
       if (isAddingToSelection && polygon !== undefined) {
-        for (const key of getUsedVertexKeysOf(polygon)) {
-          selectionDragVertexKeys?.add(key)
-        }
+        addVerticesToSelectionGrid(getUsedVerticesOf(polygon))
       }
     }
 
     if (isAddingToSelection) {
       cursorTriangleMaterial.color.set(Color.green.getHex())
       if (polygon !== undefined && polygonIndex !== undefined && !alreadySelected) {
-        const vertexKeys = getUsedVertexKeysOf(polygon)
-        const connected =
-          selectionDragVertexKeys === undefined ||
-          selectionDragVertexKeys.size === 0 ||
-          vertexKeys.some((key) => selectionDragVertexKeys?.has(key))
+        const vertices = getUsedVerticesOf(polygon)
 
-        if (connected) {
+        if (isConnectedToSelection(vertices)) {
           selectedPolygons.add(polygonIndex)
-
-          for (const key of vertexKeys) {
-            selectionDragVertexKeys?.add(key)
-          }
+          addVerticesToSelectionGrid(vertices)
 
           updateHighlightOfSelectedPolygons()
         } else {
@@ -1783,7 +1837,7 @@ controls.addEventListener('change', () => {
     if (mousePressed[LeftMouseButton].oldValue) {
       // left mouse button was released
       isAddingToSelection = undefined
-      selectionDragVertexKeys = undefined
+      selectionDragVertices = undefined
     }
 
     updateMouseButtonState(LeftMouseButton, false)

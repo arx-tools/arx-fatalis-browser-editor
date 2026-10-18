@@ -154,6 +154,18 @@ function getAmbientFloorFromUrl(): number {
 export const ambientFloor = ref<number>(getAmbientFloorFromUrl())
 
 /**
+ * How close (in game units) two polygon vertices have to be to count as the same point when the
+ * editor decides whether a dragged polygon is connected to the ones selected during the drag. The
+ * level meshes are not welded: the gaps at the seams are below 0.1 units while the shortest real
+ * edge of the shipped levels is around 1.2 units, so 0.25 bridges the seams without letting the
+ * selection jump over a thin polygon (`experiments/m3-realistic-lights/vertex-distances.mjs`).
+ *
+ * It is a plain ref on purpose: a settings input (number/range) can change it at runtime, the
+ * selection reads it on every check. Not exposed in the URL.
+ */
+export const selectionConnectDistance = ref<number>(0.25)
+
+/**
  * True while the `Realistic` lighting calculator runs. The throbber next to the lighting mode select
  * is shown and the shadows switch is disabled, so a second bake cannot be started in the meantime.
  */

@@ -2,7 +2,7 @@ import { explode, implode, concatArrayBuffers, sliceArrayBufferAt } from 'node-p
 import { getHeaderSize } from 'arx-header-size'
 import { DLF, FTS, LLF } from 'arx-convert'
 import { isQuad } from 'arx-convert/utils'
-import type { ArxColor, ArxDLF, ArxFTS, ArxLLF, ArxPolygon, ArxVector3 } from 'arx-convert/types'
+import { ArxLightFlags, type ArxColor, type ArxDLF, type ArxFTS, type ArxLLF, type ArxPolygon, type ArxVector3 } from 'arx-convert/types'
 import {
   BufferAttribute,
   BufferGeometry,
@@ -35,6 +35,7 @@ import { ViewHelper } from 'three/examples/jsm/helpers/ViewHelper.js'
 import { acceleratedRaycast } from 'three-mesh-bvh'
 import { createApp, watch } from 'vue'
 import './style.scss'
+import flatColorsByFilename from './assets/flat-colors.json'
 import { downloadBinaryAs, zipBuffers } from './download.js'
 import {
   anchorsVisible,
@@ -340,6 +341,21 @@ currentLevelId.value = levelId
 
 const line1 = logger.log('loading level data...')
 const [fts, llf, dlf] = await Promise.all([getFTS(levelId), getLLF(levelId), getDLF(levelId)])
+
+/**
+ * The flat/average color of the game textures, keyed by the texture container id of the FTS. The
+ * palette of the LLF is the baked *light*, this is the *albedo* the light has to be multiplied
+ * with - the `textureContainerId -> filename -> average color` table comes from the game's
+ * `data.pak` (see `.infos/experiments/editor-lighting/`).
+ */
+const flatColors = new Map<number, [number, number, number]>()
+const flatColorsByContainerId = flatColorsByFilename as unknown as Record<string, [number, number, number]>
+for (const container of fts.textureContainers) {
+  const flatColor = flatColorsByContainerId[container.filename]
+  if (flatColor !== undefined) {
+    flatColors.set(container.id, flatColor)
+  }
+}
 logger.log('done', line1)
 
 isLoading.value = 'fulfilled'
@@ -426,11 +442,17 @@ const offset = arxVector3toVector3(fts.header.mScenePosition)
  *   all 553 of level 2. The baked color already contains the contribution of every static light,
  *   so the added point lights are a *preview* of where the lights are and how far they reach
  *   (they brighten that area, and close to a light the shaded color can clip to white).
- * - `baked`: the mesh carries `llf.colors` as a `color` attribute and the material is unlit. This is
- *   exactly what the game shows: every light of the level contributes, however far it is.
+ * - `baked`: the mesh carries the `baked` attribute (the LLF light multiplied by the texture
+ *   albedo) and the material is unlit. This is exactly what the game shows for the static
+ *   geometry: the baked light of every static light, however far it is. It does not show the fire
+ *   of a torch (those lights are `SemiDynamic`), so it is a little darker than the game.
  * - `flat`: no lighting at all, everything at maximum brightness. This is the `MaxBrightness` mode
  *   of the generator, and it is what a brand new level starts with, before it has any baked
  *   lighting (with an empty LLF the default falls back to `flat`).
+ *
+ * The albedo of the mesh comes from the game's texture averages (`flatColors`), because the editor
+ * does not load the textures yet - this is what makes the level look like the game's untextured
+ * (flat color) mode instead of a white clay render.
  *
  * Add `?lighting=baked` or `?lighting=flat` to the URL.
  *
@@ -480,29 +502,45 @@ function getVertexColors(): ArxColor[] | undefined {
 const vertexColors = getVertexColors()
 
 /**
- * `MeshLambertMaterial` multiplies the albedo by the incoming light, so a vertex color would only
- * tint the lit areas and would stay black everywhere else. The baked LLF color is a *light*, not
- * an albedo, so it has to be added to the output instead: this patch adds `vColor` to
- * `totalEmissiveRadiance` and removes it from the diffuse color, so the dynamic point lights add
- * **on top of** the baked base instead of being multiplied by it.
+ * The `baked` attribute is the **final** baked color (the LLF light multiplied by the texture
+ * albedo), which is not a light color the material can multiply - it is what the game shows.
  *
- * `vColor` is available because the material has `vertexColors: true`.
+ * - in the `dynamic` mode the `MeshLambertMaterial` keeps the albedo (`color` attribute) as the
+ *   diffuse and the baked color is added to `totalEmissiveRadiance`, so the semi-dynamic point
+ *   lights add **on top of** the baked base (the game does the same at runtime),
+ * - in the `baked` mode the `MeshBasicMaterial` is unlit and `diffuseColor.rgb` is replaced with
+ *   the baked color.
  */
-function addBakedLightToEmissive(material: MeshLambertMaterial): void {
+function addBakedColorToShader(material: MeshLambertMaterial | MeshBasicMaterial, target: 'emissive' | 'diffuse'): void {
   material.onBeforeCompile = (shader) => {
-    const colorChunk = '#include <color_fragment>'
-    const emissiveDeclaration = 'vec3 totalEmissiveRadiance = emissive;'
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute vec3 baked;\nvarying vec3 vBaked;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvBaked = baked;')
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vBaked;')
 
-    if (!shader.fragmentShader.includes(colorChunk) || !shader.fragmentShader.includes(emissiveDeclaration)) {
-      // Three.js changed its Lambert shader: the baked base would silently disappear from the
-      // dynamic mode. Keep the mode working (the point lights still render) but say it out loud.
-      console.warn('[lighting] the Lambert fragment shader changed, the baked LLF base is not applied')
+    if (target === 'emissive') {
+      const emissiveDeclaration = 'vec3 totalEmissiveRadiance = emissive;'
+
+      if (!shader.fragmentShader.includes(emissiveDeclaration)) {
+        console.warn('[lighting] the Lambert fragment shader changed, the baked light is not applied')
+        return
+      }
+
+      shader.fragmentShader = shader.fragmentShader.replace(
+        emissiveDeclaration,
+        'vec3 totalEmissiveRadiance = emissive + vBaked;',
+      )
       return
     }
 
-    shader.fragmentShader = shader.fragmentShader
-      .replace(colorChunk, '')
-      .replace(emissiveDeclaration, 'vec3 totalEmissiveRadiance = emissive + vColor.rgb;')
+    const colorChunk = '#include <color_fragment>'
+
+    if (!shader.fragmentShader.includes(colorChunk)) {
+      console.warn('[lighting] the basic fragment shader changed, the baked light is not applied')
+      return
+    }
+
+    shader.fragmentShader = shader.fragmentShader.replace(colorChunk, 'diffuseColor.rgb = vBaked;')
   }
 }
 
@@ -513,26 +551,28 @@ function createMaterial(options: {
   opacity?: number
 }): MeshBasicMaterial | MeshLambertMaterial {
   if (lightingMode === 'dynamic') {
-    // the baked LLF color is the base of the lighting, the point lights of the dynamic mode add to
-    // it (see the comment above). The type colors (red for double sided, green for transparent) are
-    // an aid of the `flat` mode: they would tint the baked colors of the game, so they are not used
-    // here - same as in `baked`.
+    // the baked color is the base of the lighting (the light is already in the vertices), the
+    // semi-dynamic point lights add to it. The type colors (red for double sided, green for
+    // transparent) are an aid of the `flat` mode: they would tint the baked colors of the game,
+    // so they are not used here - same as in `baked`.
     const material = new MeshLambertMaterial({
       ...options,
       color: Color.white.getHex(),
-      vertexColors: vertexColors !== undefined,
+      vertexColors: true,
     })
 
-    if (vertexColors !== undefined) {
-      addBakedLightToEmissive(material)
-    }
+    addBakedColorToShader(material, 'emissive')
 
     return material
   }
 
   if (lightingMode === 'baked') {
-    // the vertex color is the light, so the material color has to stay white
-    return new MeshBasicMaterial({ ...options, color: Color.white.getHex(), vertexColors: vertexColors !== undefined })
+    // the baked color is the final color of the vertex, the material color has to stay white
+    const material = new MeshBasicMaterial({ ...options, color: Color.white.getHex() })
+
+    addBakedColorToShader(material, 'diffuse')
+
+    return material
   }
 
   return new MeshBasicMaterial(options)
@@ -561,6 +601,7 @@ function createMeshGroup(
     material,
     offset,
     vertexColors,
+    flatColors,
   )
 
   return { material, entries, mesh }
@@ -1012,10 +1053,11 @@ const dynamicLightsUpdateInterval = 250
 let lastDynamicLightsUpdateAt = Number.NEGATIVE_INFINITY
 
 /**
- * Refills the fixed point light pool with the `maxDynamicLights` lights closest to the camera, in
- * the Arx falloff of the level (see `ARX_GLOBAL_LIGHT_FACTOR`). The baked vertex color is the base
- * of the dynamic mode, so these lights are a preview of where the lights are and how far they
- * reach - they are not an independent second lighting pass.
+ * Refills the fixed point light pool with the `maxDynamicLights` **semi-dynamic** lights closest
+ * to the camera, in the Arx falloff of the level (see `ARX_GLOBAL_LIGHT_FACTOR`). The static
+ * lights are already baked into the palette, so adding them here would light the level twice -
+ * only the `SemiDynamic` lights (the fire of the torches, the extinguishable sources) are added,
+ * exactly like the game does at runtime.
  */
 function updateDynamicLights(): void {
   if (lightingMode !== 'dynamic') {
@@ -1032,6 +1074,9 @@ function updateDynamicLights(): void {
   const cameraPosition = camera.position
 
   const nearestLights = llf.lights
+    .filter((light) => {
+      return (light.flags & ArxLightFlags.SemiDynamic) !== 0
+    })
     .map((light) => {
       const position = arxVector3toVector3(light.position)
       return { light, position, distance: position.distanceToSquared(cameraPosition) }

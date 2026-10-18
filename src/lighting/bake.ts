@@ -39,6 +39,7 @@ export function bakeLlfColors(
   llf: ArxLLF,
   mode: LightingCalculatorMode,
   occluders: readonly Mesh[] = [],
+  ambientFloor = 0,
 ): ArxColor[] {
   if (mode === 'MaxBrightness') {
     return llf.colors.map(() => ({ r: 255, g: 255, b: 255, a: 255 }))
@@ -62,9 +63,11 @@ export function bakeLlfColors(
       return { light, position: arxVector3toVector3(light.position) }
     })
 
-  // the `Realistic` (the Fred `DistanceAngleShadowNoTransparency` behaviour) has no ambient floor:
-  // the shadowed vertices go all the way to 0, which is what makes the shadows solid black
-  const ambient = mode === 'Realistic' ? 0 : AMBIENT
+  // the `Realistic` (the Fred `DistanceAngleShadowNoTransparency` behaviour) has no ambient floor by
+  // default: the shadowed vertices go all the way to 0, which is what makes the shadows solid black.
+  // `ambientFloor` (0..64, from the settings / the URL) lifts that: 23 is the floor of the game's
+  // original (Danae) palette, which is why the game never looks fully black.
+  const ambient = mode === 'Realistic' ? Math.min(255, Math.max(0, Math.round(ambientFloor))) : AMBIENT
   const globalLightFactor = GLOBAL_LIGHT_FACTOR
   const raycaster = mode === 'Realistic' ? new Raycaster() : undefined
   const blockers = mode === 'Realistic' ? [...occluders] : []

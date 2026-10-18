@@ -153,6 +153,25 @@ function getAmbientFloorFromUrl(): number {
 
 export const ambientFloor = ref<number>(getAmbientFloorFromUrl())
 
+const ambientFloorInput = document.querySelector<HTMLInputElement>('#ambient-floor') as HTMLInputElement
+
+ambientFloorInput.value = String(ambientFloor.value)
+ambientFloorInput.addEventListener('change', () => {
+  const parsed = Number.parseInt(ambientFloorInput.value, 10)
+  ambientFloor.value = Number.isNaN(parsed) ? 0 : Math.min(64, Math.max(0, parsed))
+})
+
+watch(ambientFloor, (value) => {
+  ambientFloorInput.value = String(value)
+  const url = new URL(globalThis.location.href)
+  if (value === 0) {
+    url.searchParams.delete('ambientFloor')
+  } else {
+    url.searchParams.set('ambientFloor', String(value))
+  }
+  globalThis.history.replaceState(null, '', url)
+})
+
 const lightingCalculatorModeSelect = document.querySelector<HTMLSelectElement>(
   '#lighting-calculator-mode',
 ) as HTMLSelectElement

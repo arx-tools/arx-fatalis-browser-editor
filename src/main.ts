@@ -377,7 +377,7 @@ export async function handleDownloadButtonClick(): Promise<void> {
     // M1: the surviving polygons and the LLF palette filtered to them; the DLF is saved as it was
     // opened (the editor does not handle entities yet)
     const exportFts = buildExportFts(fts, deletedPolygons)
-    const exportLlf = buildExportLlf(fts, llf, deletedPolygons, lightingCalculatorMode.value, meshes)
+    const exportLlf = buildExportLlf(fts, llf, deletedPolygons, lightingCalculatorMode.value, meshes, ambientFloor.value)
 
     // the steps are sequential so the progress can follow them: 20 / 40 / 60 / 80 / 100
     const line1 = logger.log('packing level data...')
@@ -639,7 +639,7 @@ for (const { mesh } of meshGroups) {
  * final value is the light multiplied by the flat texture albedo, sRGB -> linear.
  */
 function applyRealisticBakedColors(): void {
-  const palette = bakeLlfColors(fts, llf, 'Realistic', meshes)
+  const palette = bakeLlfColors(fts, llf, 'Realistic', meshes, ambientFloor.value)
 
   for (const group of meshGroups) {
     const attribute = group.mesh.geometry.getAttribute('baked')
@@ -660,12 +660,9 @@ function applyRealisticBakedColors(): void {
         const color = colorIndex === undefined ? undefined : palette[colorIndex]
 
         if (color !== undefined) {
-          // the display only ambient floor (see `ambientFloor` in the ui) keeps the unlit surfaces
-          // visible; the exported palette is not affected
-          const floor = ambientFloor.value
-          array[index * 3] = srgbToLinear((Math.max(color.r, floor) / 255) * (flat[0] / 255))
-          array[index * 3 + 1] = srgbToLinear((Math.max(color.g, floor) / 255) * (flat[1] / 255))
-          array[index * 3 + 2] = srgbToLinear((Math.max(color.b, floor) / 255) * (flat[2] / 255))
+          array[index * 3] = srgbToLinear((color.r / 255) * (flat[0] / 255))
+          array[index * 3 + 1] = srgbToLinear((color.g / 255) * (flat[1] / 255))
+          array[index * 3 + 2] = srgbToLinear((color.b / 255) * (flat[2] / 255))
         }
 
         index++
@@ -1237,6 +1234,12 @@ function applyLightingCalculatorMode(): void {
 }
 
 watch(lightingCalculatorMode, () => {
+  applyLightingCalculatorMode()
+})
+
+// changing the ambient floor re-bakes the Realistic palette (it is part of the bake, so the
+// exported LLF gets the same floor as the display)
+watch(ambientFloor, () => {
   applyLightingCalculatorMode()
 })
 

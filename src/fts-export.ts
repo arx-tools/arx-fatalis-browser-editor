@@ -135,6 +135,7 @@ export function buildExportLlf(
   deletedPolygons: ReadonlySet<number>,
   mode: LightingCalculatorMode = 'Arx',
   occluders: readonly Mesh[] = [],
+  ambientFloor = 0,
 ): ArxLLF {
   if (llf.colors.length === 0) {
     return { ...llf, colors: [] }
@@ -142,7 +143,7 @@ export function buildExportLlf(
 
   // the palette is computed from the lights (the `lightingCalculatorMode`), not copied from the
   // original LLF - the points of the M3a export
-  const bakedColors = bakeLlfColors(fts, llf, mode, occluders)
+  const bakedColors = bakeLlfColors(fts, llf, mode, occluders, ambientFloor)
   const colors: ArxColor[] = []
 
   fts.polygons.forEach((polygon, sourceIndex) => {

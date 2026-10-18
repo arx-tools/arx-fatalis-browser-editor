@@ -1,6 +1,7 @@
 import { explode, implode, concatArrayBuffers, sliceArrayBufferAt } from 'node-pkware/simple'
 import { getHeaderSize } from 'arx-header-size'
 import { DLF, FTS, LLF } from 'arx-convert'
+import { isQuad } from 'arx-convert/utils'
 import type { ArxColor, ArxDLF, ArxFTS, ArxLLF, ArxPolygon, ArxVector3 } from 'arx-convert/types'
 import {
   BufferAttribute,
@@ -1071,6 +1072,33 @@ const cursorTriangleMesh = new LineSegments(renderTriangle(new Triangle()), curs
 
 let highlightOfSelectedFaces: Mesh[] = []
 
+/** the stored vertex order is a "Z" (0, 1, 2, 3), the perimeter is 0-1-3-2 for a quad */
+function getPolygonPerimeter(polygon: ArxPolygon): number[] {
+  return isQuad(polygon) ? [0, 1, 3, 2] : [0, 1, 2]
+}
+
+/**
+ * The phantom cursor outline of the polygon under the crosshair: the whole quad (both of its
+ * triangles), not just the triangle the raycast hit.
+ */
+function createPolygonOutlineGeometry(polygon: ArxPolygon): BufferGeometry {
+  const vertices = polygon.vertices.map((vertex) => {
+    return arxVector3toVector3(vertex).sub(offset)
+  })
+  const perimeter = getPolygonPerimeter(polygon)
+  const positions: number[] = []
+
+  for (let i = 0; i < perimeter.length; i++) {
+    const from = vertices[perimeter[i]]
+    const to = vertices[perimeter[(i + 1) % perimeter.length]]
+    positions.push(from.x, from.y, from.z, to.x, to.y, to.z)
+  }
+
+  const geometry = new BufferGeometry()
+  geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3))
+  return geometry
+}
+
 function updateHighlightOfSelectedFaces(): void {
   if (highlightOfSelectedFaces.length > 0) {
     scene.remove(...highlightOfSelectedFaces)
@@ -1404,8 +1432,19 @@ controls.addEventListener('change', () => {
   const mesh = intersectedMeshes[0].object as Mesh
   const face = intersectedMeshes[0].face as Face
 
-  const [a, b, c] = getVerticesByFace(face, mesh.geometry)
-  cursorTriangleMesh.geometry = renderTriangle(new Triangle(a, b, c))
+  const polygonIndex = triangleToPolygonByMesh.get(mesh)?.[face.a / 3]
+  const polygon = polygonIndex === undefined ? undefined : fts.polygons[polygonIndex]
+
+  cursorTriangleMesh.geometry.dispose()
+
+  if (polygon === undefined) {
+    // should not happen (the map covers every triangle), but keep the triangle as a fallback
+    const [a, b, c] = getVerticesByFace(face, mesh.geometry)
+    cursorTriangleMesh.geometry = renderTriangle(new Triangle(a, b, c))
+  } else {
+    cursorTriangleMesh.geometry = createPolygonOutlineGeometry(polygon)
+  }
+
   scene.add(cursorTriangleMesh)
 
   faceBeingLookedAt = { mesh, face }

@@ -153,6 +153,31 @@ function getAmbientFloorFromUrl(): number {
 
 export const ambientFloor = ref<number>(getAmbientFloorFromUrl())
 
+/**
+ * Whether the `Realistic` bake casts shadows (the Fred `DistanceAngleShadowNoTransparency`
+ * occlusion). Off = every light reaches every vertex it faces (the Danae-like look, the game's
+ * original palette has no occlusion). `?shadows=0` in the URL; on by default.
+ */
+export const shadows = ref<boolean>(new URLSearchParams(globalThis.location.search).get('shadows') !== '0')
+
+const shadowsInput = document.querySelector<HTMLInputElement>('#shadows') as HTMLInputElement
+
+shadowsInput.checked = shadows.value
+shadowsInput.addEventListener('change', () => {
+  shadows.value = shadowsInput.checked
+})
+
+watch(shadows, (value) => {
+  shadowsInput.checked = value
+  const url = new URL(globalThis.location.href)
+  if (value) {
+    url.searchParams.delete('shadows')
+  } else {
+    url.searchParams.set('shadows', '0')
+  }
+  globalThis.history.replaceState(null, '', url)
+})
+
 const ambientFloorInput = document.querySelector<HTMLInputElement>('#ambient-floor') as HTMLInputElement
 
 ambientFloorInput.value = String(ambientFloor.value)

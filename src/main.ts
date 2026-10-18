@@ -59,6 +59,7 @@ import {
   mouseUnlocked,
   portalsVisible,
   RightMouseButton,
+  shadows,
   updateMouseButtonState,
   updateMouseButtonStates,
   wireframeVisible,
@@ -377,7 +378,7 @@ export async function handleDownloadButtonClick(): Promise<void> {
     // M1: the surviving polygons and the LLF palette filtered to them; the DLF is saved as it was
     // opened (the editor does not handle entities yet)
     const exportFts = buildExportFts(fts, deletedPolygons)
-    const exportLlf = buildExportLlf(fts, llf, deletedPolygons, lightingCalculatorMode.value, meshes, ambientFloor.value)
+    const exportLlf = buildExportLlf(fts, llf, deletedPolygons, lightingCalculatorMode.value, meshes, ambientFloor.value, shadows.value)
 
     // the steps are sequential so the progress can follow them: 20 / 40 / 60 / 80 / 100
     const line1 = logger.log('packing level data...')
@@ -639,7 +640,7 @@ for (const { mesh } of meshGroups) {
  * final value is the light multiplied by the flat texture albedo, sRGB -> linear.
  */
 function applyRealisticBakedColors(): void {
-  const palette = bakeLlfColors(fts, llf, 'Realistic', meshes, ambientFloor.value)
+  const palette = bakeLlfColors(fts, llf, 'Realistic', meshes, ambientFloor.value, shadows.value)
 
   for (const group of meshGroups) {
     const attribute = group.mesh.geometry.getAttribute('baked')
@@ -1237,9 +1238,13 @@ watch(lightingCalculatorMode, () => {
   applyLightingCalculatorMode()
 })
 
-// changing the ambient floor re-bakes the Realistic palette (it is part of the bake, so the
-// exported LLF gets the same floor as the display)
+// changing the ambient floor or the shadows re-bakes the Realistic palette (both are part of the
+// bake, so the exported LLF gets the same values as the display)
 watch(ambientFloor, () => {
+  applyLightingCalculatorMode()
+})
+
+watch(shadows, () => {
   applyLightingCalculatorMode()
 })
 

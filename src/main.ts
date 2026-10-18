@@ -37,6 +37,7 @@ import { createApp, watch } from 'vue'
 import './style.scss'
 import flatColorsByFilename from './assets/flat-colors.json'
 import { downloadBinaryAs, zipBuffers } from './download.js'
+import { registerDownloadHandler } from './download-handler.js'
 import {
   ambientFloor,
   anchorsVisible,
@@ -428,6 +429,8 @@ export async function handleDownloadButtonClick(): Promise<void> {
     isDownloading.value = false
   }
 }
+
+registerDownloadHandler(handleDownloadButtonClick)
 
 // --------------------
 

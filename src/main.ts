@@ -1,7 +1,7 @@
 import { explode, implode, concatArrayBuffers, sliceArrayBufferAt } from 'node-pkware/simple'
 import { getHeaderSize } from 'arx-header-size'
 import { DLF, FTS, LLF } from 'arx-convert'
-import type { ArxColor, ArxDLF, ArxFTS, ArxLLF, ArxVector3 } from 'arx-convert/types'
+import type { ArxColor, ArxDLF, ArxFTS, ArxLLF, ArxPolygon, ArxVector3 } from 'arx-convert/types'
 import {
   BufferAttribute,
   BufferGeometry,
@@ -62,7 +62,7 @@ import { isValidOriginalArxLevelId } from './constants.js'
 import { Logger } from './ui/Logger.js'
 import { Exception } from './ui/Exception.js'
 import { arxPolygonsToMesh, arxVector3toVector3 } from './arx-threejs-format-converters.js'
-import { removeFaces } from './geometry/removeFaces.js'
+import { buildExportFts, buildExportLlf, buildTriangleToPolygonMap, type SourcePolygon } from './fts-export.js'
 import { createWireframe } from './geometry/createWireframe.js'
 import { createTriangle as renderTriangle } from './geometry/renderTriangle.js'
 import { getVerticesByFace } from './geometry/getVerticesByFace.js'
@@ -347,13 +347,16 @@ export async function handleDownloadButtonClick(): Promise<void> {
 
   isLoading.value = 'loading'
 
-  // TODO: generate fts, llf and dlf from scene
+  // M1: the surviving polygons and the LLF palette filtered to them; the DLF is saved as it was
+  // opened (the editor does not handle entities yet)
+  const exportFts = buildExportFts(fts, deletedPolygons)
+  const exportLlf = buildExportLlf(fts, llf, deletedPolygons)
 
   const line1 = logger.log('packing level data...')
 
   const [packedFts, packedLlf, packedDlf] = await Promise.all([
-    saveFTS(fts, levelId),
-    saveLLF(llf, levelId),
+    saveFTS(exportFts, levelId),
+    saveLLF(exportLlf, levelId),
     saveDLF(dlf, levelId),
   ])
 
@@ -516,48 +519,92 @@ function createMaterial(options: {
   return new MeshBasicMaterial(options)
 }
 
-const meshes: Mesh[] = []
+type MeshGroup = {
+  material: MeshBasicMaterial | MeshLambertMaterial
+  entries: SourcePolygon[]
+  mesh: Mesh
+}
 
-const solidSingleSidedMaterial = createMaterial({ color: Color.white.getHex() })
-const solidSingleSidedMesh = arxPolygonsToMesh(
-  fts.polygons.filter(({ flags }) => {
+function createMeshGroup(
+  material: MeshBasicMaterial | MeshLambertMaterial,
+  predicate: (flags: ArxPolygon['flags']) => boolean,
+): MeshGroup {
+  const entries: SourcePolygon[] = fts.polygons
+    .map((polygon, sourceIndex) => {
+      return { polygon, sourceIndex }
+    })
+    .filter(({ polygon }) => {
+      return predicate(polygon.flags)
+    })
+
+  const mesh = arxPolygonsToMesh(
+    entries.map(({ polygon }) => polygon),
+    material,
+    offset,
+    vertexColors,
+  )
+
+  return { material, entries, mesh }
+}
+
+/** the polygons that have been deleted in the editor - the export drops them */
+const deletedPolygons = new Set<number>()
+
+const meshGroups: MeshGroup[] = [
+  createMeshGroup(createMaterial({ color: Color.white.getHex() }), (flags) => {
     return !isTransparent(flags) && !isDoubleSided(flags) && !isNoDraw(flags)
   }),
-  solidSingleSidedMaterial,
-  offset,
-  vertexColors,
-)
-meshes.push(solidSingleSidedMesh)
-
-const solidDoubleSidedMaterial = createMaterial({
-  color: Color.red.lighten(75).getHex(),
-  side: DoubleSide,
-})
-const solidDoubleSidedMesh = arxPolygonsToMesh(
-  fts.polygons.filter(({ flags }) => {
+  createMeshGroup(createMaterial({ color: Color.red.lighten(75).getHex(), side: DoubleSide }), (flags) => {
     return !isTransparent(flags) && isDoubleSided(flags) && !isNoDraw(flags)
   }),
-  solidDoubleSidedMaterial,
-  offset,
-  vertexColors,
-)
-meshes.push(solidDoubleSidedMesh)
+  createMeshGroup(
+    createMaterial({ color: Color.green.lighten(75).getHex(), transparent: true, opacity: 0.5, side: DoubleSide }),
+    (flags) => {
+      return isTransparent(flags) && !isNoDraw(flags)
+    },
+  ),
+]
 
-const transparentMaterial = createMaterial({
-  color: Color.green.lighten(75).getHex(),
-  transparent: true,
-  opacity: 0.5,
-  side: DoubleSide,
-})
-const transparentMesh = arxPolygonsToMesh(
-  fts.polygons.filter(({ flags }) => {
-    return isTransparent(flags) && !isNoDraw(flags)
-  }),
-  transparentMaterial,
-  offset,
-  vertexColors,
-)
-meshes.push(transparentMesh)
+const meshes: Mesh[] = meshGroups.map(({ mesh }) => mesh)
+
+function survivingEntries(group: MeshGroup): SourcePolygon[] {
+  return group.entries.filter(({ sourceIndex }) => {
+    return !deletedPolygons.has(sourceIndex)
+  })
+}
+
+let triangleToPolygonByMesh = new Map<Mesh, Uint32Array>()
+
+function updateTriangleToPolygonMap(): void {
+  triangleToPolygonByMesh = new Map(
+    meshGroups.map((group): [Mesh, Uint32Array] => {
+      return [group.mesh, buildTriangleToPolygonMap(survivingEntries(group))]
+    }),
+  )
+}
+
+updateTriangleToPolygonMap()
+
+/**
+ * The FTS polygon is the unit of the level data, so deleting any of its triangles deletes the
+ * whole polygon; the three merged geometries are rebuilt from the surviving polygons.
+ */
+function rebuildMeshes(): void {
+  for (const group of meshGroups) {
+    const entries = survivingEntries(group)
+    const rebuilt = arxPolygonsToMesh(
+      entries.map(({ polygon }) => polygon),
+      group.material,
+      offset,
+      vertexColors,
+    )
+
+    group.mesh.geometry.dispose()
+    group.mesh.geometry = rebuilt.geometry
+  }
+
+  updateTriangleToPolygonMap()
+}
 
 // TODO: add noDraw polygons
 
@@ -1080,6 +1127,45 @@ function updateHighlightOfSelectedFaces(): void {
 }
 
 /**
+ * The FTS polygon is the unit of the level data: deleting any of its triangles deletes the whole
+ * polygon, the three merged geometries are rebuilt from the surviving polygons, and the deleted
+ * set is what the download drops from the FTS/LLF.
+ */
+function deletePolygons(polygonsToDelete: ReadonlySet<number>): void {
+  if (polygonsToDelete.size === 0) {
+    return
+  }
+
+  for (const polygonIndex of polygonsToDelete) {
+    deletedPolygons.add(polygonIndex)
+  }
+
+  rebuildMeshes()
+
+  isDirty.value = true
+
+  if (wireframeVisible.value) {
+    scene.remove(...wireframeLines)
+  }
+
+  wireframeLines = meshes.map(({ geometry }) => {
+    return createWireframe(geometry)
+  })
+
+  if (wireframeVisible.value) {
+    scene.add(...wireframeLines)
+  }
+
+  selectedFaces.length = 0
+  updateHighlightOfSelectedFaces()
+  faceBeingLookedAt = undefined
+
+  cursorTriangleMaterial.color.set(Color.green.getHex())
+  scene.remove(cursorTriangleMesh)
+}
+
+
+/**
  * being relevant when new faces are to be added to or removed from the selectedFaces
  *
  * if the left mouse button is pressed with a face that is already in the selection,
@@ -1158,41 +1244,23 @@ function animate(): void {
     cameraLight.position.set(camera.position.x, camera.position.y, camera.position.z)
 
     if (pressedKeys.Delete && selectedFaces.length > 0) {
-      const facesByMeshes = new Map<Mesh, Face[]>()
+      const polygonsToDelete = new Set<number>()
 
       for (const { mesh, face } of selectedFaces) {
-        if (!facesByMeshes.has(mesh)) {
-          facesByMeshes.set(mesh, [])
+        const triangleToPolygon = triangleToPolygonByMesh.get(mesh)
+
+        if (triangleToPolygon === undefined) {
+          continue
         }
 
-        const facesByMesh = facesByMeshes.get(mesh) as Face[]
-        facesByMesh.push(face)
+        const polygonIndex = triangleToPolygon[face.a / 3]
+
+        if (polygonIndex !== undefined) {
+          polygonsToDelete.add(polygonIndex)
+        }
       }
 
-      ;[...facesByMeshes.entries()].forEach(([mesh, faces]) => {
-        mesh.geometry = removeFaces(faces, mesh.geometry)
-      })
-
-      isDirty.value = true
-
-      if (wireframeVisible.value) {
-        scene.remove(...wireframeLines)
-      }
-
-      wireframeLines = meshes.map(({ geometry }) => {
-        return createWireframe(geometry)
-      })
-
-      if (wireframeVisible.value) {
-        scene.add(...wireframeLines)
-      }
-
-      selectedFaces.length = 0
-      updateHighlightOfSelectedFaces()
-      faceBeingLookedAt = undefined
-
-      cursorTriangleMaterial.color.set(Color.green.getHex())
-      scene.remove(cursorTriangleMesh)
+      deletePolygons(polygonsToDelete)
     }
   } else {
     mouseLocked.style.display = 'none'

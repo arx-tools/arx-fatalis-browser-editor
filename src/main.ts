@@ -1771,18 +1771,25 @@ scene.add(cursorTriangleMesh)
 cursorTriangleMesh.renderOrder = 10
 
 /**
- * The polygons under the camera ray, nearest first, **including the back faces**: a single sided
- * polygon that faces away from the camera is not rendered, but the cursor has to be able to catch it
- * (otherwise the selection cannot be continued on it from that angle - the polygon "is not there").
+ * The intersections of the camera ray with the meshes, nearest first.
  *
- * All hits are returned instead of only the nearest one: while dragging, the nearest hit can be a
- * polygon that is not connected to the selection, while the next one is. The caller picks.
+ * `side` `undefined` means "follow the viewport": the side of the group's material, exactly what the
+ * renderer culls with, so the picker never selects a polygon that is not drawn.
  */
-function getPolygonsUnderCameraRay(): Array<{ polygonIndex: number; distance: number }> {
-  const direction = new Vector3()
-  controls.getDirection(direction)
+/** the side the renderer culls the mesh with (the editor uses a single material per group) */
+function getMaterialSide(mesh: Mesh): Side {
+  const material = mesh.material
 
-  const ray = new Ray(camera.position, direction)
+  if (Array.isArray(material)) {
+    const [firstMaterial] = material
+
+    return firstMaterial.side
+  }
+
+  return material.side
+}
+
+function collectRayHits(ray: Ray, side: Side | undefined): Array<{ polygonIndex: number; distance: number }> {
   const hits: Array<{ polygonIndex: number; distance: number }> = []
 
   for (const group of meshGroups) {
@@ -1798,7 +1805,9 @@ function getPolygonsUnderCameraRay(): Array<{ polygonIndex: number; distance: nu
       continue
     }
 
-    for (const intersection of boundsTree.raycast(ray, DoubleSide, 0, SELECTION_RAY_FAR)) {
+    const materialSide = side ?? getMaterialSide(group.mesh)
+
+    for (const intersection of boundsTree.raycast(ray, materialSide, 0, SELECTION_RAY_FAR)) {
       // `intersection.faceIndex` is an internal index of the BVH (it reorders the triangles), the
       // vertex index of the hit triangle is in `face.a` - the same value the raycaster used to give.
       const face = intersection.face
@@ -1820,6 +1829,33 @@ function getPolygonsUnderCameraRay(): Array<{ polygonIndex: number; distance: nu
   })
 
   return hits
+}
+
+/**
+ * The polygons under the camera ray, nearest first.
+ *
+ * The picker follows the viewport when it can: the first pass uses the side of each material, the
+ * same culling the renderer uses, so a polygon that is not drawn is never picked instead of a drawn
+ * one. Only when **nothing** is drawn under the cursor the second pass allows the back faces: Arx
+ * levels are single sided, so from the "wrong" side of a wall (or out of bounds) the visible
+ * geometry is the back of the polygons, and without the fallback those surfaces could not be
+ * selected at all.
+ *
+ * All hits are returned instead of only the nearest one: while dragging, the nearest hit can be a
+ * polygon that is not connected to the selection, while the next one is. The caller picks.
+ */
+function getPolygonsUnderCameraRay(): Array<{ polygonIndex: number; distance: number }> {
+  const direction = new Vector3()
+  controls.getDirection(direction)
+
+  const ray = new Ray(camera.position, direction)
+  const visibleHits = collectRayHits(ray, undefined)
+
+  if (visibleHits.length > 0) {
+    return visibleHits
+  }
+
+  return collectRayHits(ray, DoubleSide)
 }
 
 function updatePolygonUnderCursor(): void {

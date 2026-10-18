@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { originalArxLevelIds } from '../constants'
-import { currentLevelId, downloadProgress, isDirty, isDownloading, isLoading } from '../ui/ui'
+import { currentLevelId, downloadCompleted, downloadProgress, isDirty, isDownloading, isLoading } from '../ui/ui'
 
 defineEmits<{
   (event: 'download'): void
@@ -86,6 +86,10 @@ function openLevel(levelId: number): void {
         <i class="fa-solid fa-spinner fa-spin"></i>
         {{ downloadProgress }}%
       </span>
+
+      <span v-else-if="downloadCompleted" class="download-completed" title="Download complete">
+        <i class="fa-solid fa-check"></i>
+      </span>
     </div>
   </header>
 </template>
@@ -131,6 +135,13 @@ header {
     gap: 4px;
     white-space: nowrap;
     font-size: 12px;
+  }
+
+  .download-completed {
+    display: inline-flex;
+    align-items: center;
+    color: #7bd88a;
+    font-size: 14px;
   }
 
   .levels {

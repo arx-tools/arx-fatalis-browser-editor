@@ -165,6 +165,9 @@ export const downloadProgress = ref(0)
 /** true only while `handleDownloadButtonClick` is running (the level load also uses `isLoading`) */
 export const isDownloading = ref(false)
 
+/** true after a successful download - shows the green check until the next download starts */
+export const downloadCompleted = ref(false)
+
 // ------------
 
 export const LeftMouseButton = 1

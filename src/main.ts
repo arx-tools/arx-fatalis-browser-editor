@@ -43,6 +43,7 @@ import {
   cameraLightVisible,
   canvas,
   currentLevelId,
+  downloadCompleted,
   downloadProgress,
   isDirty,
   isDownloading,
@@ -349,6 +350,7 @@ export async function handleDownloadButtonClick(): Promise<void> {
   }
 
   isDownloading.value = true
+  downloadCompleted.value = false
   downloadProgress.value = 0
 
   try {
@@ -386,8 +388,9 @@ export async function handleDownloadButtonClick(): Promise<void> {
 
     downloadBinaryAs('mod.zip', zip, 'application/zip')
 
-    // let the 100% be visible for a moment before the indicator disappears
+    // let the 100% be visible for a moment, then show the green check until the next download
     await wait(300)
+    downloadCompleted.value = true
   } finally {
     isDownloading.value = false
   }

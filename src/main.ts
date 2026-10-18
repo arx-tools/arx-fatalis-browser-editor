@@ -1831,10 +1831,13 @@ controls.addEventListener('change', () => {
   if (isAddingToSelection === true && polygonIndex !== undefined) {
     // only the nearest hits are worth checking (the ray can cross the whole level)
     const connectedHit = hits.slice(0, SELECTION_CANDIDATE_LIMIT).find((hit) => {
-      return (
-        !selectedPolygons.has(hit.polygonIndex) &&
-        isConnectedToSelection(getUsedVerticesOf(fts.polygons[hit.polygonIndex]))
-      )
+      const candidate = fts.polygons[hit.polygonIndex]
+
+      if (candidate === undefined || selectedPolygons.has(hit.polygonIndex)) {
+        return false
+      }
+
+      return isConnectedToSelection(getUsedVerticesOf(candidate))
     })
 
     if (connectedHit !== undefined) {

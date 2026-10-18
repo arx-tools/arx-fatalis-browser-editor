@@ -137,6 +137,8 @@ export function buildExportLlf(
   occluders: readonly Mesh[] = [],
   ambientFloor = 0,
   shadows = true,
+  /** an already computed palette (the caller can cache it between the display and the export) */
+  precomputedColors?: ArxColor[],
 ): ArxLLF {
   if (llf.colors.length === 0) {
     return { ...llf, colors: [] }
@@ -144,7 +146,7 @@ export function buildExportLlf(
 
   // the palette is computed from the lights (the `lightingCalculatorMode`), not copied from the
   // original LLF - the points of the M3a export
-  const bakedColors = bakeLlfColors(fts, llf, mode, occluders, ambientFloor, shadows)
+  const bakedColors = precomputedColors ?? bakeLlfColors(fts, llf, mode, occluders, ambientFloor, shadows)
   const colors: ArxColor[] = []
 
   fts.polygons.forEach((polygon, sourceIndex) => {

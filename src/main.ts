@@ -378,7 +378,19 @@ export async function handleDownloadButtonClick(): Promise<void> {
     // M1: the surviving polygons and the LLF palette filtered to them; the DLF is saved as it was
     // opened (the editor does not handle entities yet)
     const exportFts = buildExportFts(fts, deletedPolygons)
-    const exportLlf = buildExportLlf(fts, llf, deletedPolygons, lightingCalculatorMode.value, meshes, ambientFloor.value, shadows.value)
+    // the Realistic palette is already computed for the display - reuse it instead of baking twice
+    const exportPalette =
+      lightingCalculatorMode.value === 'Realistic' ? getRealisticPalette() : undefined
+    const exportLlf = buildExportLlf(
+      fts,
+      llf,
+      deletedPolygons,
+      lightingCalculatorMode.value,
+      meshes,
+      ambientFloor.value,
+      shadows.value,
+      exportPalette,
+    )
 
     // the steps are sequential so the progress can follow them: 20 / 40 / 60 / 80 / 100
     const line1 = logger.log('packing level data...')
@@ -639,8 +651,36 @@ for (const { mesh } of meshGroups) {
  * The attribute follows the FTS polygons' vertex order (3 per triangle, 4 for a quad), and the
  * final value is the light multiplied by the flat texture albedo, sRGB -> linear.
  */
-function applyRealisticBakedColors(): void {
+/**
+ * The last `Realistic` palette. Switching between the display modes (`Arx` / `Realistic`) must not
+ * re-bake it: the level and the lights do not change, so the result is the same. The cache key holds
+ * everything the bake reads from the settings; a light edit (the future light editor) has to call
+ * `invalidateRealisticPalette()`.
+ */
+let realisticPaletteCache: { key: string; palette: ArxColor[] } | undefined
+
+export function invalidateRealisticPalette(): void {
+  realisticPaletteCache = undefined
+}
+
+function getRealisticPalette(): ArxColor[] {
+  const key = `${ambientFloor.value}|${shadows.value}`
+
+  if (realisticPaletteCache?.key === key) {
+    return realisticPaletteCache.palette
+  }
+
+  const line = logger.log('computing lighting...')
   const palette = bakeLlfColors(fts, llf, 'Realistic', meshes, ambientFloor.value, shadows.value)
+  logger.log('done', line)
+
+  realisticPaletteCache = { key, palette }
+
+  return palette
+}
+
+function applyRealisticBakedColors(): void {
+  const palette = getRealisticPalette()
 
   for (const group of meshGroups) {
     const attribute = group.mesh.geometry.getAttribute('baked')

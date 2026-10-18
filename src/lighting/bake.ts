@@ -23,8 +23,8 @@ export type LightingCalculatorMode = 'MaxBrightness' | 'CompleteDarkness' | 'Arx
 const AMBIENT = Math.round(0.09 * 255) // 23
 const GLOBAL_LIGHT_FACTOR = 0.85
 
-function clampColor(value: number): number {
-  return Math.min(255, Math.max(AMBIENT, Math.round(value)))
+function clampColor(value: number, ambient: number): number {
+  return Math.min(255, Math.max(ambient, Math.round(value)))
 }
 
 /**
@@ -57,6 +57,9 @@ export function bakeLlfColors(
       return { light, position: arxVector3toVector3(light.position) }
     })
 
+  // the `Realistic` (the Fred `DistanceAngleShadowNoTransparency` behaviour) has no ambient floor:
+  // the shadowed vertices go all the way to 0, which is what makes the shadows solid black
+  const ambient = mode === 'Realistic' ? 0 : AMBIENT
   const raycaster = mode === 'Realistic' ? new Raycaster() : undefined
   const blockers = mode === 'Realistic' ? [...occluders] : []
   if (raycaster !== undefined) {
@@ -131,7 +134,12 @@ export function bakeLlfColors(
         b += light.color.b * cosangle
       }
 
-      colors[colorIndex] = { r: clampColor(r), g: clampColor(g), b: clampColor(b), a: 255 }
+      colors[colorIndex] = {
+        r: clampColor(r, ambient),
+        g: clampColor(g, ambient),
+        b: clampColor(b, ambient),
+        a: 255,
+      }
     }
   }
 

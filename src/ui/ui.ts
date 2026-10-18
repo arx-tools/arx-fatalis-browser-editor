@@ -110,6 +110,112 @@ export const lightsVisible = bindCheckbox('lights-visible')
 
 // ------------
 
+/**
+ * The `lightingCalculatorMode` of the generator (the `.env` key). The URL uses the same key and the
+ * select above the canvas is bound to it - the display mode is derived from this on the fly.
+ */
+export type LightingCalculatorMode = 'MaxBrightness' | 'CompleteDarkness' | 'Arx' | 'Realistic'
+
+const lightingCalculatorModes: LightingCalculatorMode[] = ['Arx', 'Realistic', 'MaxBrightness', 'CompleteDarkness']
+
+function getLightingCalculatorModeFromUrl(): LightingCalculatorMode {
+  const params = new URLSearchParams(globalThis.location.search)
+  const requested = params.get('lightingCalculatorMode')
+  if (requested !== null && (lightingCalculatorModes as string[]).includes(requested)) {
+    return requested as LightingCalculatorMode
+  }
+
+  // the legacy `?lighting=` display modes: `flat` was the maximum brightness, the rest was the
+  // game-like (`Arx`) look
+  if (params.get('lighting') === 'flat') {
+    return 'MaxBrightness'
+  }
+
+  return 'Arx'
+}
+
+export const lightingCalculatorMode = ref<LightingCalculatorMode>(getLightingCalculatorModeFromUrl())
+
+/**
+ * A **display only** ambient floor (0..64) for the `Realistic` palette: the baked palette has no
+ * ambient (`ambient = 0` in `bakeLlfColors`, like Fred's `DistanceAngleShadowNoTransparency`), so
+ * every surface that no light reaches is pitch black. The game's original (Danae) palette has an
+ * ambient floor of 23 there, which is why the level never looks fully black in the game - this
+ * value makes the editor look the same without changing the exported LLF.
+ *
+ * `?ambientFloor=12` in the URL; 0 (the default) keeps the exported palette untouched.
+ */
+function getAmbientFloorFromUrl(): number {
+  const raw = Number.parseInt(new URLSearchParams(globalThis.location.search).get('ambientFloor') ?? '0', 10)
+
+  return Number.isNaN(raw) ? 0 : Math.min(64, Math.max(0, raw))
+}
+
+export const ambientFloor = ref<number>(getAmbientFloorFromUrl())
+
+/**
+ * Whether the `Realistic` bake casts shadows (the Fred `DistanceAngleShadowNoTransparency`
+ * occlusion). Off = every light reaches every vertex it faces (the Danae-like look, the game's
+ * original palette has no occlusion). `?shadows=0` in the URL; on by default.
+ */
+export const shadows = ref<boolean>(new URLSearchParams(globalThis.location.search).get('shadows') !== '0')
+
+const shadowsInput = document.querySelector<HTMLInputElement>('#shadows') as HTMLInputElement
+
+shadowsInput.checked = shadows.value
+shadowsInput.addEventListener('change', () => {
+  shadows.value = shadowsInput.checked
+})
+
+watch(shadows, (value) => {
+  shadowsInput.checked = value
+  const url = new URL(globalThis.location.href)
+  if (value) {
+    url.searchParams.delete('shadows')
+  } else {
+    url.searchParams.set('shadows', '0')
+  }
+  globalThis.history.replaceState(null, '', url)
+})
+
+const ambientFloorInput = document.querySelector<HTMLInputElement>('#ambient-floor') as HTMLInputElement
+
+ambientFloorInput.value = String(ambientFloor.value)
+ambientFloorInput.addEventListener('change', () => {
+  const parsed = Number.parseInt(ambientFloorInput.value, 10)
+  ambientFloor.value = Number.isNaN(parsed) ? 0 : Math.min(64, Math.max(0, parsed))
+})
+
+watch(ambientFloor, (value) => {
+  ambientFloorInput.value = String(value)
+  const url = new URL(globalThis.location.href)
+  if (value === 0) {
+    url.searchParams.delete('ambientFloor')
+  } else {
+    url.searchParams.set('ambientFloor', String(value))
+  }
+  globalThis.history.replaceState(null, '', url)
+})
+
+const lightingCalculatorModeSelect = document.querySelector<HTMLSelectElement>(
+  '#lighting-calculator-mode',
+) as HTMLSelectElement
+
+lightingCalculatorModeSelect.value = lightingCalculatorMode.value
+lightingCalculatorModeSelect.addEventListener('change', () => {
+  lightingCalculatorMode.value = lightingCalculatorModeSelect.value as LightingCalculatorMode
+})
+
+watch(lightingCalculatorMode, (value) => {
+  lightingCalculatorModeSelect.value = value
+  const url = new URL(globalThis.location.href)
+  url.searchParams.set('lightingCalculatorMode', value)
+  url.searchParams.delete('lighting')
+  globalThis.history.replaceState(null, '', url)
+})
+
+// ------------
+
 document.addEventListener(
   'keypress',
   (event: KeyboardEvent) => {

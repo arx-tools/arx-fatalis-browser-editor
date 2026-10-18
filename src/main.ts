@@ -38,6 +38,7 @@ import './style.scss'
 import flatColorsByFilename from './assets/flat-colors.json'
 import { downloadBinaryAs, zipBuffers } from './download.js'
 import {
+  ambientFloor,
   anchorsVisible,
   cameraInfo,
   cameraInfoVisible,
@@ -49,6 +50,7 @@ import {
   isDirty,
   isDownloading,
   isLoading,
+  lightingCalculatorMode,
   lightsVisible,
   LeftMouseButton,
   MiddleMouseButton,
@@ -57,6 +59,7 @@ import {
   mouseUnlocked,
   portalsVisible,
   RightMouseButton,
+  shadows,
   updateMouseButtonState,
   updateMouseButtonStates,
   wireframeVisible,
@@ -66,9 +69,10 @@ import { Color } from './Color.js'
 import { isValidOriginalArxLevelId } from './constants.js'
 import { Logger } from './ui/Logger.js'
 import { Exception } from './ui/Exception.js'
-import { arxPolygonsToMesh, arxVector3toVector3 } from './arx-threejs-format-converters.js'
+import { arxPolygonsToMesh, arxVector3toVector3, srgbToLinear } from './arx-threejs-format-converters.js'
 import { buildExportFts, buildExportLlf, buildTriangleToPolygonMap, type SourcePolygon } from './fts-export.js'
 import { createPolygonWireframe } from './geometry/createWireframe.js'
+import { bakeLlfColors } from './lighting/bake.js'
 import { removeTriangles } from './geometry/removeTriangles.js'
 import { createTriangle as renderTriangle } from './geometry/renderTriangle.js'
 import { getVerticesByFace } from './geometry/getVerticesByFace.js'
@@ -326,7 +330,8 @@ async function saveDLF(dlf: ArxDLF, level: number): Promise<ArrayBuffer> {
 
 isLoading.value = 'loading'
 
-const levelId = Number.parseInt(new URLSearchParams(globalThis.location.search).get('level') ?? '11', 10)
+const levelSearchParams = new URLSearchParams(globalThis.location.search)
+const levelId = Number.parseInt(levelSearchParams.get('levelIdx') ?? levelSearchParams.get('level') ?? '11', 10)
 if (!isValidOriginalArxLevelId(levelId)) {
   isLoading.value = 'rejected'
 
@@ -373,7 +378,19 @@ export async function handleDownloadButtonClick(): Promise<void> {
     // M1: the surviving polygons and the LLF palette filtered to them; the DLF is saved as it was
     // opened (the editor does not handle entities yet)
     const exportFts = buildExportFts(fts, deletedPolygons)
-    const exportLlf = buildExportLlf(fts, llf, deletedPolygons)
+    // the Realistic palette is already computed for the display - reuse it instead of baking twice
+    const exportPalette =
+      lightingCalculatorMode.value === 'Realistic' ? getRealisticPalette() : undefined
+    const exportLlf = buildExportLlf(
+      fts,
+      llf,
+      deletedPolygons,
+      lightingCalculatorMode.value,
+      meshes,
+      ambientFloor.value,
+      shadows.value,
+      exportPalette,
+    )
 
     // the steps are sequential so the progress can follow them: 20 / 40 / 60 / 80 / 100
     const line1 = logger.log('packing level data...')
@@ -426,60 +443,41 @@ const raycaster = new Raycaster()
 const offset = arxVector3toVector3(fts.header.mScenePosition)
 
 /**
- * How the level is lit on screen. This is **not** the same question as how the lighting is
- * *generated* - see below.
+ * How the level is lit on screen, driven by the `lightingCalculatorMode` - the same key the
+ * generator's `.env` will have, and the key the URL and the select above the canvas use.
  *
- * The LLF is the **pre-computed vertex lighting** of the level: `llf.colors` is the baked result of
- * `llf.lights`, indexed by `vertex.llfColorIdx`. That is what the game renders, and rendering it
- * needs an **unlit** material, because the light is already in the vertices.
- *
- * - `dynamic` (default): the baked LLF color is the **base color** of the mesh (that is what keeps
- *   the level visible at all) and the lights around the camera are added **on top of it** as point
- *   lights, using the Arx falloff (`fallStart`/`fallEnd`) - the closest thing to "the lights I can
- *   grab and move". It is an approximation: three.js **bakes every light into the shader** (4
- *   uniform vectors each) and a fragment shader may use at most `MAX_FRAGMENT_UNIFORM_VECTORS`
- *   (1024 on many windows/angle drivers), so only `maxDynamicLights` of them can be added - never
- *   all 553 of level 2. The baked color already contains the contribution of every static light,
- *   so the added point lights are a *preview* of where the lights are and how far they reach
- *   (they brighten that area, and close to a light the shaded color can clip to white).
- * - `baked`: the mesh carries the `baked` attribute (the LLF light multiplied by the texture
- *   albedo) and the material is unlit. This is exactly what the game shows for the static
- *   geometry: the baked light of every static light, however far it is. It does not show the fire
- *   of a torch (those lights are `SemiDynamic`), so it is a little darker than the game.
- * - `flat`: no lighting at all, everything at maximum brightness. This is the `MaxBrightness` mode
- *   of the generator, and it is what a brand new level starts with, before it has any baked
- *   lighting (with an empty LLF the default falls back to `flat`).
+ * - `Arx` (the default) and `Realistic`: the `dynamic` display. The baked LLF color (the light
+ *   multiplied by the texture albedo) is the base and the `SemiDynamic` lights around the camera
+ *   are added on top of it as point lights, exactly like the game does at runtime. The
+ *   `Realistic` will show the computed (shadowed) palette once the M3a lighting bake exists -
+ *   until then it looks the same as `Arx`.
+ * - `MaxBrightness`: an unlit white material, the `MaxBrightness` mode of the generator (useful
+ *   for checking edits to a mesh). A level with an empty LLF falls back to this.
+ * - `CompleteDarkness`: an unlit black material, the `CompleteDarkness` mode of the generator.
  *
  * The albedo of the mesh comes from the game's texture averages (`flatColors`), because the editor
  * does not load the textures yet - this is what makes the level look like the game's untextured
  * (flat color) mode instead of a white clay render.
- *
- * Add `?lighting=baked` or `?lighting=flat` to the URL.
- *
- * The lighting **generation** modes of the generator - `MaxBrightness`, `CompleteDarkness`, `Arx`
- * and `Realistic` - are a separate axis: they decide what ends up *in* `llf.colors`.
  */
-type LightingMode = 'dynamic' | 'baked' | 'flat'
+type DisplayLightingMode = 'dynamic' | 'maxBrightness' | 'completeDarkness'
 
-function getLightingMode(): LightingMode {
-  const requested = new URLSearchParams(globalThis.location.search).get('lighting')
-  if (requested === 'baked') {
-    return 'baked'
+/** the `lightingCalculatorMode` (.env) mapped to how the level is displayed */
+function getDisplayLightingMode(): DisplayLightingMode {
+  if (llf.colors.length === 0) {
+    return 'maxBrightness'
   }
 
-  if (requested === 'flat') {
-    return 'flat'
+  switch (lightingCalculatorMode.value) {
+    case 'MaxBrightness':
+      return 'maxBrightness'
+    case 'CompleteDarkness':
+      return 'completeDarkness'
+    case 'Arx':
+    case 'Realistic':
+      // TODO(M3a): the Realistic will show the computed (shadowed) palette once the bake exists
+      return 'dynamic'
   }
-
-  // a project without any light or without baked colors (a brand new level) would render black
-  if (llf.lights.length === 0 || llf.colors.length === 0) {
-    return 'flat'
-  }
-
-  return 'dynamic'
 }
-
-const lightingMode = getLightingMode()
 
 /**
  * How many point lights the dynamic mode may add. The hard limit is
@@ -490,9 +488,9 @@ const lightingMode = getLightingMode()
 const maxDynamicLights = 64
 
 function getVertexColors(): ArxColor[] | undefined {
-  // both `dynamic` and `baked` start from the pre-computed lighting; `flat` does not. An empty LLF
-  // (a brand new level) has nothing to show, so it falls back to the type colors of `flat`.
-  if (lightingMode === 'flat' || llf.colors.length === 0) {
+  // the palette is the light of the level; the max brightness / complete darkness display modes
+  // ignore the vertex colors, the dynamic (Arx/Realistic) uses them
+  if (llf.colors.length === 0) {
     return undefined
   }
 
@@ -544,50 +542,65 @@ function addBakedColorToShader(material: MeshLambertMaterial | MeshBasicMaterial
   }
 }
 
-function createMaterial(options: {
+function createMaterial(
+  options: {
+    color: number
+    side?: Side
+    transparent?: boolean
+    opacity?: number
+  },
+  displayMode: DisplayLightingMode,
+): MeshBasicMaterial | MeshLambertMaterial {
+  if (displayMode === 'dynamic') {
+    // the baked color is the base of the lighting (the light is already in the vertices), the
+    // semi-dynamic point lights add to it
+    const material = new MeshLambertMaterial({
+      ...options,
+      color: Color.white.getHex(),
+      vertexColors: vertexColors !== undefined,
+    })
+
+    if (vertexColors !== undefined) {
+      addBakedColorToShader(material, 'emissive')
+    }
+
+    return material
+  }
+
+  if (displayMode === 'maxBrightness') {
+    return new MeshBasicMaterial({ ...options, color: Color.white.getHex() })
+  }
+
+  // CompleteDarkness: the baked attribute is zeroed by `applyLightingCalculatorMode`, so the only
+  // light on the lambert surface is the camera light ([F]) - the darkest the editor can show
+  const material = new MeshLambertMaterial({ ...options, color: Color.white.getHex(), vertexColors: vertexColors !== undefined })
+
+  if (vertexColors !== undefined) {
+    addBakedColorToShader(material, 'emissive')
+  }
+
+  return material
+}
+
+type MaterialOptions = {
   color: number
   side?: Side
   transparent?: boolean
   opacity?: number
-}): MeshBasicMaterial | MeshLambertMaterial {
-  if (lightingMode === 'dynamic') {
-    // the baked color is the base of the lighting (the light is already in the vertices), the
-    // semi-dynamic point lights add to it. The type colors (red for double sided, green for
-    // transparent) are an aid of the `flat` mode: they would tint the baked colors of the game,
-    // so they are not used here - same as in `baked`.
-    const material = new MeshLambertMaterial({
-      ...options,
-      color: Color.white.getHex(),
-      vertexColors: true,
-    })
-
-    addBakedColorToShader(material, 'emissive')
-
-    return material
-  }
-
-  if (lightingMode === 'baked') {
-    // the baked color is the final color of the vertex, the material color has to stay white
-    const material = new MeshBasicMaterial({ ...options, color: Color.white.getHex() })
-
-    addBakedColorToShader(material, 'diffuse')
-
-    return material
-  }
-
-  return new MeshBasicMaterial(options)
 }
 
 type MeshGroup = {
+  options: MaterialOptions
   material: MeshBasicMaterial | MeshLambertMaterial
   entries: SourcePolygon[]
   mesh: Mesh
 }
 
 function createMeshGroup(
-  material: MeshBasicMaterial | MeshLambertMaterial,
+  options: MaterialOptions,
   predicate: (flags: ArxPolygon['flags']) => boolean,
 ): MeshGroup {
+  const material = createMaterial(options, getDisplayLightingMode())
   const entries: SourcePolygon[] = fts.polygons
     .map((polygon, sourceIndex) => {
       return { polygon, sourceIndex }
@@ -604,28 +617,129 @@ function createMeshGroup(
     flatColors,
   )
 
-  return { material, entries, mesh }
+  return { options, material, entries, mesh }
 }
 
 /** the polygons that have been deleted in the editor - the export drops them */
 const deletedPolygons = new Set<number>()
 
 const meshGroups: MeshGroup[] = [
-  createMeshGroup(createMaterial({ color: Color.white.getHex() }), (flags) => {
+  createMeshGroup({ color: Color.white.getHex() }, (flags) => {
     return !isTransparent(flags) && !isDoubleSided(flags) && !isNoDraw(flags)
   }),
-  createMeshGroup(createMaterial({ color: Color.red.lighten(75).getHex(), side: DoubleSide }), (flags) => {
+  createMeshGroup({ color: Color.white.getHex(), side: DoubleSide }, (flags) => {
     return !isTransparent(flags) && isDoubleSided(flags) && !isNoDraw(flags)
   }),
-  createMeshGroup(
-    createMaterial({ color: Color.green.lighten(75).getHex(), transparent: true, opacity: 0.5, side: DoubleSide }),
-    (flags) => {
-      return isTransparent(flags) && !isNoDraw(flags)
-    },
-  ),
+  createMeshGroup({ color: Color.white.getHex(), transparent: true, opacity: 0.5, side: DoubleSide }, (flags) => {
+    return isTransparent(flags) && !isNoDraw(flags)
+  }),
 ]
 
 const meshes: Mesh[] = meshGroups.map(({ mesh }) => mesh)
+
+/** the baked attribute of each group as loaded - the Arx display restores it after a mode switch */
+const originalBakedColors = new Map<Mesh, Float32Array>()
+for (const { mesh } of meshGroups) {
+  const attribute = mesh.geometry.getAttribute('baked')
+  if (attribute !== undefined) {
+    originalBakedColors.set(mesh, (attribute.array as Float32Array).slice())
+  }
+}
+
+/**
+ * Recomputes the `baked` attribute of every group from the `Realistic` bake (the shadowed palette).
+ * The attribute follows the FTS polygons' vertex order (3 per triangle, 4 for a quad), and the
+ * final value is the light multiplied by the flat texture albedo, sRGB -> linear.
+ */
+/**
+ * The last `Realistic` palette. Switching between the display modes (`Arx` / `Realistic`) must not
+ * re-bake it: the level and the lights do not change, so the result is the same. The cache key holds
+ * everything the bake reads from the settings; a light edit (the future light editor) has to call
+ * `invalidateRealisticPalette()`.
+ */
+let realisticPaletteCache: { key: string; palette: ArxColor[] } | undefined
+
+export function invalidateRealisticPalette(): void {
+  realisticPaletteCache = undefined
+}
+
+function getRealisticPalette(): ArxColor[] {
+  const key = `${ambientFloor.value}|${shadows.value}`
+
+  if (realisticPaletteCache?.key === key) {
+    return realisticPaletteCache.palette
+  }
+
+  const line = logger.log('computing lighting...')
+  const palette = bakeLlfColors(fts, llf, 'Realistic', meshes, ambientFloor.value, shadows.value)
+  logger.log('done', line)
+
+  realisticPaletteCache = { key, palette }
+
+  return palette
+}
+
+function applyRealisticBakedColors(): void {
+  const palette = getRealisticPalette()
+
+  for (const group of meshGroups) {
+    const attribute = group.mesh.geometry.getAttribute('baked')
+
+    if (attribute === undefined) {
+      continue
+    }
+
+    const array = attribute.array as Float32Array
+    let index = 0
+
+    for (const { polygon } of survivingEntries(group)) {
+      const flat = flatColors.get(polygon.textureContainerId) ?? [255, 255, 255]
+
+      // the geometry of a quad is made of two triangles: (a, b, c) and (c, b, d) - see
+      // `arxPolygonsToMesh()` - so the baked attribute needs **six** values per quad, in that order.
+      // Writing four (the LLF's palette order) shifts every following vertex and every polygon gets
+      // the colour of its neighbour.
+      const vertexOrder = isQuad(polygon) ? [0, 1, 2, 2, 1, 3] : [0, 1, 2]
+
+      for (const vertexIndex of vertexOrder) {
+        const colorIndex = polygon.vertices[vertexIndex].llfColorIdx
+        const color = colorIndex === undefined ? undefined : palette[colorIndex]
+
+        if (color !== undefined) {
+          array[index * 3] = srgbToLinear((color.r / 255) * (flat[0] / 255))
+          array[index * 3 + 1] = srgbToLinear((color.g / 255) * (flat[1] / 255))
+          array[index * 3 + 2] = srgbToLinear((color.b / 255) * (flat[2] / 255))
+        }
+
+        index++
+      }
+    }
+
+    attribute.needsUpdate = true
+  }
+}
+
+function setBakedColors(mesh: Mesh, values: Float32Array | 0 | undefined): void {
+  if (values === undefined) {
+    return
+  }
+
+  const attribute = mesh.geometry.getAttribute('baked')
+
+  if (attribute === undefined) {
+    return
+  }
+
+  const array = attribute.array as Float32Array
+
+  if (values === 0) {
+    array.fill(0)
+  } else {
+    array.set(values)
+  }
+
+  attribute.needsUpdate = true
+}
 
 function survivingEntries(group: MeshGroup): SourcePolygon[] {
   return group.entries.filter(({ sourceIndex }) => {
@@ -862,13 +976,27 @@ const dynamicLightIntensityScale = 0.25
  */
 const dynamicLights: PointLight[] = []
 
-if (lightingMode === 'dynamic') {
-  for (let i = 0; i < maxDynamicLights; i++) {
-    const pointLight = new PointLight(Color.white.getHex(), 0, 0, 0)
-    scene.add(pointLight)
-    dynamicLights.push(pointLight)
+for (let i = 0; i < maxDynamicLights; i++) {
+  dynamicLights.push(new PointLight(Color.white.getHex(), 0, 0, 0))
+}
+
+let dynamicLightsVisible = false
+
+function setDynamicLightsVisible(visible: boolean): void {
+  if (visible === dynamicLightsVisible) {
+    return
+  }
+
+  dynamicLightsVisible = visible
+
+  if (visible) {
+    scene.add(...dynamicLights)
+  } else {
+    scene.remove(...dynamicLights)
   }
 }
+
+setDynamicLightsVisible(usesDynamicLightPool())
 
 const cameraLight = new PointLight(Color.white.getHex(), 10_000)
 
@@ -1053,14 +1181,31 @@ const dynamicLightsUpdateInterval = 250
 let lastDynamicLightsUpdateAt = Number.NEGATIVE_INFINITY
 
 /**
+ * The `Realistic` palette is baked from **every** light of the level (the static ones and the
+ * `SemiDynamic` ones, with occlusion), so the point light pool would count the `SemiDynamic`
+ * lights twice. The pool is only used by the `Arx` display, where the palette is the game's
+ * original (static only) background lighting - exactly like the game, which adds the
+ * `SemiDynamic` lights at runtime.
+ */
+function usesDynamicLightPool(): boolean {
+  return getDisplayLightingMode() === 'dynamic' && lightingCalculatorMode.value !== 'Realistic'
+}
+
+/**
  * Refills the fixed point light pool with the `maxDynamicLights` **semi-dynamic** lights closest
  * to the camera, in the Arx falloff of the level (see `ARX_GLOBAL_LIGHT_FACTOR`). The static
  * lights are already baked into the palette, so adding them here would light the level twice -
  * only the `SemiDynamic` lights (the fire of the torches, the extinguishable sources) are added,
- * exactly like the game does at runtime.
+ * exactly like the game does at runtime. The `Realistic` display does not use the pool, see
+ * `usesDynamicLightPool()`.
+ *
+ * NOTE: the lights are the plain objects of the LLF, so an editing UI can move one
+ * (`light.position = ...`) or change its falloff (`light.fallStart`/`light.fallEnd`) and then call
+ * `applyLightingCalculatorMode()` to re-bake the palette. The editing UI itself is not implemented
+ * yet.
  */
 function updateDynamicLights(): void {
-  if (lightingMode !== 'dynamic') {
+  if (!usesDynamicLightPool()) {
     return
   }
 
@@ -1105,6 +1250,53 @@ function updateDynamicLights(): void {
 }
 
 updateDynamicLights()
+
+/** swaps the materials of the three groups and the light pool to the selected display mode */
+function applyLightingCalculatorMode(): void {
+  const displayMode = getDisplayLightingMode()
+
+  for (const group of meshGroups) {
+    const oldMaterial = group.material
+    const material = createMaterial(group.options, displayMode)
+    group.material = material
+    group.mesh.material = material
+    oldMaterial.dispose()
+  }
+
+  if (displayMode === 'dynamic' && lightingCalculatorMode.value === 'Realistic') {
+    applyRealisticBakedColors()
+  } else {
+    for (const { mesh } of meshGroups) {
+      setBakedColors(mesh, displayMode === 'completeDarkness' ? 0 : originalBakedColors.get(mesh))
+    }
+  }
+
+  setDynamicLightsVisible(usesDynamicLightPool())
+
+  if (usesDynamicLightPool()) {
+    lastDynamicLightsUpdateAt = Number.NEGATIVE_INFINITY
+    updateDynamicLights()
+  }
+}
+
+watch(lightingCalculatorMode, () => {
+  applyLightingCalculatorMode()
+})
+
+// changing the ambient floor or the shadows re-bakes the Realistic palette (both are part of the
+// bake, so the exported LLF gets the same values as the display)
+watch(ambientFloor, () => {
+  applyLightingCalculatorMode()
+})
+
+watch(shadows, () => {
+  applyLightingCalculatorMode()
+})
+
+// the URL (`?lightingCalculatorMode=Realistic`) and the select both set the ref, but a watcher
+// only fires on *changes* - so without this the mode from the URL was never applied on load: the
+// level was shown with the LLF's own palette (the `Arx` look) until the select was touched twice
+applyLightingCalculatorMode()
 
 function resizeRendererToDisplaySize(renderer: WebGLRenderer): boolean {
   const canvas = renderer.domElement

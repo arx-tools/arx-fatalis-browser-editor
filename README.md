@@ -16,8 +16,9 @@ of the formats is done by [arx-convert](https://github.com/arx-tools/arx-convert
 | `npm run build`   | typecheck (`vue-tsc -b`) and build into `dist/`     |
 | `npm run preview` | serves the build of `dist/`                         |
 
-`?level=N` in the url loads another level, `?lighting=baked` and `?lighting=flat` change how the
-level is lit. `?positionAt=x,y,z` and `?angle=pitch,yaw,roll` open a level at a given game position
+`?levelIdx=N` in the url loads another level; `?lightingCalculatorMode=` (the same key the
+generator's `.env` uses, default `Arx`; `Realistic`, `MaxBrightness`, `CompleteDarkness` are the
+other values) changes how the level is lit. The legacy `?level=` and `?lighting=` are still read. `?positionAt=x,y,z` and `?angle=pitch,yaw,roll` open a level at a given game position
 and orientation (the roll is ignored); the url follows the camera (with `history.replaceState`, so
 no history entries are created), which makes a view shareable.
 

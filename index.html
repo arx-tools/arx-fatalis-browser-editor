@@ -61,6 +61,24 @@
         Lights visible (<code>[L]</code> key)
       </label>
 
+      <div class="settings-row">
+        Settings:
+        <span class="settings-indent">Lighting Mode:</span>
+        <select id="lighting-calculator-mode">
+          <option value="Arx">Arx</option>
+          <option value="Realistic">Realistic</option>
+          <option value="MaxBrightness">MaxBrightness</option>
+          <option value="CompleteDarkness">CompleteDarkness</option>
+        </select>
+        <span class="settings-indent" title="The minimum brightness of the Realistic palette. 0 = no ambient (like Fred's tool), 23 = the ambient floor of the game's original palette.">
+          Ambient floor:
+        </span>
+        <input type="number" id="ambient-floor" min="0" max="64" step="1" style="width: 4em" />
+        <label class="settings-indent" title="Occlusion test in the Realistic bake. Off = every light reaches every vertex it faces (the game's original palette has no occlusion).">
+          <input type="checkbox" id="shadows" /> Shadows
+        </label>
+      </div>
+
       <p>
         <small
           >Add <code>?positionAt=x,y,z</code> and <code>?angle=pitch,yaw,roll</code> to open a level at a given game

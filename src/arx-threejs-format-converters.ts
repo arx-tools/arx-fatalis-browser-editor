@@ -3,7 +3,7 @@ import { isQuad } from 'arx-convert/utils'
 import { BufferAttribute, BufferGeometry, type Material, Mesh, Vector2, Vector3 } from 'three'
 import { MeshBVH } from 'three-mesh-bvh'
 
-function srgbToLinear(value: number): number {
+export function srgbToLinear(value: number): number {
   return value <= 0.04045 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4)
 }
 

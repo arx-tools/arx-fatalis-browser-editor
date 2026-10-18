@@ -1475,6 +1475,40 @@ function deletePolygons(polygonsToDelete: ReadonlySet<number>): void {
  *
  * until the first polygon is clicked the state is undefined
  */
+/** the selection is polygon based: a quad is one unit, both of its triangles are highlighted */
+
+/**
+ * The edge keys of the polygons that were selected **during the current drag**. A new polygon is only
+ * added when it shares an **edge** with one of them: without this, a fast drag jumps over the gaps of
+ * the geometry and selects disconnected "islands" on the other side of the level.
+ *
+ * Edge sharing (two common vertex positions) and not vertex sharing: the level 11 has roughly 16 000
+ * polygons that share one "degenerate" vertex position, so a vertex based test would let the
+ * selection jump between unrelated parts. With edges the largest group is 4 polygons (2 triangles of
+ * a quad, 2 quads of a split polygon), so a polygon has at most 3 edge neighbours.
+ *
+ * A simple click (no drag) is not restricted, so a separate selection can still be started elsewhere.
+ */
+let selectionDragEdgeKeys: Set<string> | undefined
+
+function getVertexKey(vertex: { x: number; y: number; z: number }): string {
+  return `${vertex.x.toFixed(2)}:${vertex.y.toFixed(2)}:${vertex.z.toFixed(2)}`
+}
+
+function getEdgeKeysOf(polygon: ArxPolygon): string[] {
+  const keys = polygon.vertices.map(getVertexKey)
+  const count = isQuad(polygon) ? 4 : 3
+  const edges: string[] = []
+
+  for (let i = 0; i < count; i++) {
+    const a = keys[i]
+    const b = keys[(i + 1) % count]
+    edges.push(a < b ? `${a}|${b}` : `${b}|${a}`)
+  }
+
+  return edges
+}
+
 let isAddingToSelection: boolean | undefined
 
 function render(): void {
@@ -1614,6 +1648,8 @@ document.addEventListener(
 
     const alreadySelected = selectedPolygons.has(polygonBeingLookedAt)
 
+    selectionDragEdgeKeys = undefined
+
     if (isAddingToSelection === undefined) {
       if (alreadySelected) {
         selectedPolygons.delete(polygonBeingLookedAt)
@@ -1693,13 +1729,36 @@ controls.addEventListener('change', () => {
     if (!mousePressed[LeftMouseButton].oldValue) {
       // left mouse button was pressed
       isAddingToSelection = !alreadySelected
+      selectionDragEdgeKeys = isAddingToSelection ? new Set() : undefined
+
+      if (isAddingToSelection && polygon !== undefined) {
+        for (const key of getEdgeKeysOf(polygon)) {
+          selectionDragEdgeKeys?.add(key)
+        }
+      }
     }
 
     if (isAddingToSelection) {
       cursorTriangleMaterial.color.set(Color.green.getHex())
-      if (polygonIndex !== undefined && !alreadySelected) {
-        selectedPolygons.add(polygonIndex)
-        updateHighlightOfSelectedPolygons()
+      if (polygon !== undefined && polygonIndex !== undefined && !alreadySelected) {
+        const edgeKeys = getEdgeKeysOf(polygon)
+        const connected =
+          selectionDragEdgeKeys === undefined ||
+          selectionDragEdgeKeys.size === 0 ||
+          edgeKeys.some((key) => selectionDragEdgeKeys?.has(key))
+
+        if (connected) {
+          selectedPolygons.add(polygonIndex)
+
+          for (const key of edgeKeys) {
+            selectionDragEdgeKeys?.add(key)
+          }
+
+          updateHighlightOfSelectedPolygons()
+        } else {
+          // no islands: this polygon is not connected to anything selected in this drag
+          cursorTriangleMaterial.color.set(Color.yellow.getHex())
+        }
       }
     } else {
       cursorTriangleMaterial.color.set(Color.red.getHex())
@@ -1714,6 +1773,7 @@ controls.addEventListener('change', () => {
     if (mousePressed[LeftMouseButton].oldValue) {
       // left mouse button was released
       isAddingToSelection = undefined
+      selectionDragEdgeKeys = undefined
     }
 
     updateMouseButtonState(LeftMouseButton, false)

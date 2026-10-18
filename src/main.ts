@@ -67,9 +67,10 @@ import { Color } from './Color.js'
 import { isValidOriginalArxLevelId } from './constants.js'
 import { Logger } from './ui/Logger.js'
 import { Exception } from './ui/Exception.js'
-import { arxPolygonsToMesh, arxVector3toVector3 } from './arx-threejs-format-converters.js'
+import { arxPolygonsToMesh, arxVector3toVector3, srgbToLinear } from './arx-threejs-format-converters.js'
 import { buildExportFts, buildExportLlf, buildTriangleToPolygonMap, type SourcePolygon } from './fts-export.js'
 import { createPolygonWireframe } from './geometry/createWireframe.js'
+import { bakeLlfColors } from './lighting/bake.js'
 import { removeTriangles } from './geometry/removeTriangles.js'
 import { createTriangle as renderTriangle } from './geometry/renderTriangle.js'
 import { getVerticesByFace } from './geometry/getVerticesByFace.js'
@@ -631,6 +632,46 @@ for (const { mesh } of meshGroups) {
   }
 }
 
+/**
+ * Recomputes the `baked` attribute of every group from the `Realistic` bake (the shadowed palette).
+ * The attribute follows the FTS polygons' vertex order (3 per triangle, 4 for a quad), and the
+ * final value is the light multiplied by the flat texture albedo, sRGB -> linear.
+ */
+function applyRealisticBakedColors(): void {
+  const palette = bakeLlfColors(fts, llf, 'Realistic', meshes)
+
+  for (const group of meshGroups) {
+    const attribute = group.mesh.geometry.getAttribute('baked')
+
+    if (attribute === undefined) {
+      continue
+    }
+
+    const array = attribute.array as Float32Array
+    let index = 0
+
+    for (const { polygon } of survivingEntries(group)) {
+      const used = isQuad(polygon) ? 4 : 3
+      const flat = flatColors.get(polygon.textureContainerId) ?? [255, 255, 255]
+
+      for (let i = 0; i < used; i++) {
+        const colorIndex = polygon.vertices[i].llfColorIdx
+        const color = colorIndex === undefined ? undefined : palette[colorIndex]
+
+        if (color !== undefined) {
+          array[index * 3] = srgbToLinear((color.r / 255) * (flat[0] / 255))
+          array[index * 3 + 1] = srgbToLinear((color.g / 255) * (flat[1] / 255))
+          array[index * 3 + 2] = srgbToLinear((color.b / 255) * (flat[2] / 255))
+        }
+
+        index++
+      }
+    }
+
+    attribute.needsUpdate = true
+  }
+}
+
 function setBakedColors(mesh: Mesh, values: Float32Array | 0 | undefined): void {
   if (values === undefined) {
     return
@@ -1158,8 +1199,12 @@ function applyLightingCalculatorMode(): void {
     oldMaterial.dispose()
   }
 
-  for (const { mesh } of meshGroups) {
-    setBakedColors(mesh, displayMode === 'completeDarkness' ? 0 : originalBakedColors.get(mesh))
+  if (displayMode === 'dynamic' && lightingCalculatorMode.value === 'Realistic') {
+    applyRealisticBakedColors()
+  } else {
+    for (const { mesh } of meshGroups) {
+      setBakedColors(mesh, displayMode === 'completeDarkness' ? 0 : originalBakedColors.get(mesh))
+    }
   }
 
   setDynamicLightsVisible(displayMode === 'dynamic')

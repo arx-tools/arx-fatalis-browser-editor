@@ -1,4 +1,4 @@
-import { ArxLightFlags, type ArxColor, type ArxFTS, type ArxLLF } from 'arx-convert/types'
+import { ArxLightFlags, ArxPolygonFlags, type ArxColor, type ArxFTS, type ArxLLF } from 'arx-convert/types'
 import { isQuad } from 'arx-convert/utils'
 import { Mesh, Raycaster, Vector3 } from 'three'
 import 'three-mesh-bvh'
@@ -21,7 +21,7 @@ import { arxVector3toVector3 } from '../arx-threejs-format-converters.js'
 export type LightingCalculatorMode = 'MaxBrightness' | 'CompleteDarkness' | 'Arx' | 'Realistic'
 
 const AMBIENT = Math.round(0.09 * 255) // 23
-const GLOBAL_LIGHT_FACTOR = 0.85
+const GLOBAL_LIGHT_FACTOR = 0.85 // the Arx (Danae) global factor; the Realistic (Fred shadow profiles) uses 1
 
 function clampColor(value: number, ambient: number): number {
   return Math.min(255, Math.max(ambient, Math.round(value)))
@@ -60,6 +60,7 @@ export function bakeLlfColors(
   // the `Realistic` (the Fred `DistanceAngleShadowNoTransparency` behaviour) has no ambient floor:
   // the shadowed vertices go all the way to 0, which is what makes the shadows solid black
   const ambient = mode === 'Realistic' ? 0 : AMBIENT
+  const globalLightFactor = mode === 'Realistic' ? 1 : GLOBAL_LIGHT_FACTOR
   const raycaster = mode === 'Realistic' ? new Raycaster() : undefined
   const blockers = mode === 'Realistic' ? [...occluders] : []
   if (raycaster !== undefined) {
@@ -73,6 +74,7 @@ export function bakeLlfColors(
 
   for (const polygon of fts.polygons) {
     const used = isQuad(polygon) ? 4 : 3
+    const doubleSided = (polygon.flags & ArxPolygonFlags.DoubleSided) !== 0
 
     for (let i = 0; i < used; i++) {
       const vertex = polygon.vertices[i]
@@ -94,13 +96,17 @@ export function bakeLlfColors(
         toLight.subVectors(position, vertexPosition)
         const distance = toLight.length()
 
-        if (distance === 0 || distance >= light.fallEnd) {
+        if (distance === 0 || distance > light.fallEnd) {
           continue
         }
 
         toLight.divideScalar(distance)
 
         let cosangle = vertexNormal.dot(toLight)
+
+        if (doubleSided) {
+          cosangle = Math.abs(cosangle)
+        }
 
         if (cosangle <= 0) {
           continue
@@ -115,7 +121,7 @@ export function bakeLlfColors(
           }
         }
 
-        const precalc = light.intensity * GLOBAL_LIGHT_FACTOR
+        const precalc = light.intensity * globalLightFactor
 
         if (distance <= light.fallStart) {
           cosangle *= precalc

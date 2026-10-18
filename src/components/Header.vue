@@ -15,9 +15,9 @@ const levelButtons = [...originalArxLevelIds.slice(0, 9), levelNineId, ...origin
 
 /**
  * Loads another level. The level data is fetched and parsed when the module is evaluated, so the
- * switch is a reload: it navigates to `?level=N` and leaves the camera state (`positionAt`,
- * `angle`) behind, because a coordinate of another level means nothing here. The `?lighting=`
- * parameter is kept.
+ * switch is a reload: it navigates to `?levelIdx=N` and leaves the camera state (`positionAt`,
+ * `angle`) behind, because a coordinate of another level means nothing here. The
+ * `?lightingCalculatorMode=` parameter is kept.
  *
  * The download of the edited mesh is still on the TODO list (16), so a "saved" state does not
  * exist yet - if the mesh has been changed, ask before throwing the changes away.
@@ -37,7 +37,8 @@ function openLevel(levelId: number): void {
   const params = new URLSearchParams(globalThis.location.search)
   params.delete('positionAt')
   params.delete('angle')
-  params.set('level', String(levelId))
+  params.set('levelIdx', String(levelId))
+  params.delete('level')
 
   globalThis.location.assign(`${globalThis.location.pathname}?${params.toString()}`)
 }

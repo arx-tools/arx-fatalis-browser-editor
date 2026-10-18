@@ -110,6 +110,51 @@ export const lightsVisible = bindCheckbox('lights-visible')
 
 // ------------
 
+/**
+ * The `lightingCalculatorMode` of the generator (the `.env` key). The URL uses the same key and the
+ * select above the canvas is bound to it - the display mode is derived from this on the fly.
+ */
+export type LightingCalculatorMode = 'MaxBrightness' | 'CompleteDarkness' | 'Arx' | 'Realistic'
+
+const lightingCalculatorModes: LightingCalculatorMode[] = ['Arx', 'Realistic', 'MaxBrightness', 'CompleteDarkness']
+
+function getLightingCalculatorModeFromUrl(): LightingCalculatorMode {
+  const params = new URLSearchParams(globalThis.location.search)
+  const requested = params.get('lightingCalculatorMode')
+  if (requested !== null && (lightingCalculatorModes as string[]).includes(requested)) {
+    return requested as LightingCalculatorMode
+  }
+
+  // the legacy `?lighting=` display modes: `flat` was the maximum brightness, the rest was the
+  // game-like (`Arx`) look
+  if (params.get('lighting') === 'flat') {
+    return 'MaxBrightness'
+  }
+
+  return 'Arx'
+}
+
+export const lightingCalculatorMode = ref<LightingCalculatorMode>(getLightingCalculatorModeFromUrl())
+
+const lightingCalculatorModeSelect = document.querySelector<HTMLSelectElement>(
+  '#lighting-calculator-mode',
+) as HTMLSelectElement
+
+lightingCalculatorModeSelect.value = lightingCalculatorMode.value
+lightingCalculatorModeSelect.addEventListener('change', () => {
+  lightingCalculatorMode.value = lightingCalculatorModeSelect.value as LightingCalculatorMode
+})
+
+watch(lightingCalculatorMode, (value) => {
+  lightingCalculatorModeSelect.value = value
+  const url = new URL(globalThis.location.href)
+  url.searchParams.set('lightingCalculatorMode', value)
+  url.searchParams.delete('lighting')
+  globalThis.history.replaceState(null, '', url)
+})
+
+// ------------
+
 document.addEventListener(
   'keypress',
   (event: KeyboardEvent) => {

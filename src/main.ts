@@ -1219,6 +1219,11 @@ watch(lightingCalculatorMode, () => {
   applyLightingCalculatorMode()
 })
 
+// the URL (`?lightingCalculatorMode=Realistic`) and the select both set the ref, but a watcher
+// only fires on *changes* - so without this the mode from the URL was never applied on load: the
+// level was shown with the LLF's own palette (the `Arx` look) until the select was touched twice
+applyLightingCalculatorMode()
+
 function resizeRendererToDisplaySize(renderer: WebGLRenderer): boolean {
   const canvas = renderer.domElement
   const width = canvas.clientWidth

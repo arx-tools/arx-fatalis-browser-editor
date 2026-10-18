@@ -49,9 +49,14 @@ export function bakeLlfColors(
   }
 
   const scenePosition = arxVector3toVector3(fts.header.mScenePosition)
+  // the `Arx` (Danae) profile bakes only the static lights - that is what the game's original
+  // palette was made of. The `Realistic` follows the Fred `DistanceAngleShadowNoTransparency`
+  // profile, which also bakes the `SemiDynamic` lights (they are what lights up the lamps and the
+  // torches themselves). Measured on level 11: with the static lights only the palette mean is
+  // 50.05, with every light it is 55.11 - exactly the mean of Fred's output for the same level.
   const lights = llf.lights
     .filter((light) => {
-      return (light.flags & ArxLightFlags.SemiDynamic) === 0
+      return mode === 'Realistic' || (light.flags & ArxLightFlags.SemiDynamic) === 0
     })
     .map((light) => {
       return { light, position: arxVector3toVector3(light.position) }

@@ -1,4 +1,5 @@
 import { ref, watch, type Ref } from 'vue'
+import { clearSelection } from '../selection-actions.js'
 
 type LoadingState = 'idle' | 'loading' | 'fulfilled' | 'rejected'
 
@@ -69,19 +70,12 @@ export const cameraInfoVisible = ref(true)
 
 export const cameraInfo = document.querySelector<HTMLDivElement>('#camera-info') as HTMLDivElement
 
-const cameraInfoVisibleCheckbox = document.querySelector<HTMLInputElement>(
-  '#camera-info-visible',
-) as HTMLInputElement
-cameraInfoVisibleCheckbox.addEventListener('input', () => {
-  cameraInfoVisible.value = cameraInfoVisibleCheckbox.checked
-})
-
+// there is no checkbox for this one: it is a "settings" item that stays on all the time (the ref is
+// kept so the overlay can be moved under the settings later)
 watch(cameraInfoVisible, (value) => {
-  cameraInfoVisibleCheckbox.checked = value
   cameraInfo.style.display = value ? 'block' : 'none'
 })
 
-cameraInfoVisibleCheckbox.checked = cameraInfoVisible.value
 cameraInfo.style.display = cameraInfoVisible.value ? 'block' : 'none'
 
 // ------------
@@ -164,6 +158,13 @@ export const ambientFloor = ref<number>(getAmbientFloorFromUrl())
  * selection reads it on every check. Not exposed in the URL.
  */
 export const selectionConnectDistance = ref<number>(0.25)
+
+/**
+ * How far (in game units) the double click flood fill may go from the camera when it collects the
+ * connected polygons of the same texture. A plain ref on purpose: a settings input can change it at
+ * runtime, and the fill reads it on every run. Not exposed in the URL.
+ */
+export const selectionFillRadius = ref<number>(1000)
 
 /**
  * True while the `Realistic` lighting calculator runs. The throbber next to the lighting mode select
@@ -258,6 +259,27 @@ watch(lightingCalculatorMode, (value) => {
 
 // ------------
 
+// keydown and not keypress: the browsers do not fire `keypress` for every modifier combination, and
+// ctrl+shift+a opens the tab search in chrome without preventDefault
+document.addEventListener('keydown', (event) => {
+  if (event.code !== 'KeyA') {
+    return
+  }
+
+  if (event.altKey || (event.ctrlKey && event.shiftKey) || (event.metaKey && event.shiftKey)) {
+    event.preventDefault()
+    clearSelection()
+  }
+})
+
+const clearSelectionButton = document.querySelector<HTMLButtonElement>('#clear-selection')
+
+if (clearSelectionButton !== null) {
+  clearSelectionButton.addEventListener('click', () => {
+    clearSelection()
+  })
+}
+
 document.addEventListener(
   'keypress',
   (event: KeyboardEvent) => {
@@ -270,11 +292,6 @@ document.addEventListener(
 
       case 'KeyX': {
         wireframeVisible.value = !wireframeVisible.value
-        break
-      }
-
-      case 'KeyP': {
-        cameraInfoVisible.value = !cameraInfoVisible.value
         break
       }
 

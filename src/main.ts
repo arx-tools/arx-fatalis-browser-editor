@@ -37,6 +37,7 @@ import './style.scss'
 import flatColorsByFilename from './assets/flat-colors.json'
 import { downloadBinaryAs, zipBuffers } from './download.js'
 import { registerDownloadHandler } from './download-handler.js'
+import { registerClearSelection } from './selection-actions.js'
 import {
   ambientFloor,
   anchorsVisible,
@@ -61,6 +62,7 @@ import {
   portalsVisible,
   RightMouseButton,
   selectionConnectDistance,
+  selectionFillRadius,
   shadows,
   updateMouseButtonState,
   updateMouseButtonStates,
@@ -1544,6 +1546,169 @@ function addVerticesToSelectionGrid(vertices: SelectionPoint[]): void {
   }
 }
 
+/** the rounded position of a vertex, the key of the neighbour lookup of the flood fill */
+function getVertexKey(vertex: { x: number; y: number; z: number }): string {
+  return `${vertex.x.toFixed(2)}:${vertex.y.toFixed(2)}:${vertex.z.toFixed(2)}`
+}
+
+/**
+ * The polygons grouped by their vertex positions (built lazily, once per level). Two polygons that
+ * share a vertex position are neighbours - the same rule the dragged selection uses, so the flood
+ * fill follows the welds of the mesh and stops at the seams where the mesh is not welded.
+ */
+let polygonsByVertexKey: Map<string, number[]> | undefined
+
+function getPolygonsByVertexKey(): Map<string, number[]> {
+  if (polygonsByVertexKey !== undefined) {
+    return polygonsByVertexKey
+  }
+
+  const index = new Map<string, number[]>()
+
+  fts.polygons.forEach((polygon, polygonIndex) => {
+    for (const vertex of getUsedVerticesOf(polygon)) {
+      const key = getVertexKey(vertex)
+      let list = index.get(key)
+
+      if (list === undefined) {
+        list = []
+        index.set(key, list)
+      }
+
+      list.push(polygonIndex)
+    }
+  })
+
+  polygonsByVertexKey = index
+
+  return index
+}
+
+const selectionDistanceTriangle = new Triangle()
+const selectionDistancePoint = new Vector3()
+
+/**
+ * The squared distance from the position (three.js space) to the **surface** of the polygon. Not to
+ * its vertices: a floor that spans a room lies under the camera while all of its vertices can be
+ * hundreds of units away, so a vertex based distance would stop the fill at the first polygon.
+ */
+function getSquaredDistanceToPolygon(polygon: ArxPolygon, position: Vector3): number {
+  const vertices = getUsedVerticesOf(polygon)
+
+  // a quad is built from the triangles (a, b, c) and (c, b, d) - see `arxPolygonsToMesh()`
+  const corners = isQuad(polygon)
+    ? [
+        [0, 1, 2],
+        [2, 1, 3],
+      ]
+    : [[0, 1, 2]]
+  let best = Number.POSITIVE_INFINITY
+
+  for (const [a, b, c] of corners) {
+    const first = vertices[a]
+    const second = vertices[b]
+    const third = vertices[c]
+
+    if (first === undefined || second === undefined || third === undefined) {
+      continue
+    }
+
+    selectionDistanceTriangle.set(
+      gamePositionToThreePosition(first.x, first.y, first.z),
+      gamePositionToThreePosition(second.x, second.y, second.z),
+      gamePositionToThreePosition(third.x, third.y, third.z),
+    )
+    selectionDistanceTriangle.closestPointToPoint(position, selectionDistancePoint)
+    best = Math.min(best, selectionDistancePoint.distanceToSquared(position))
+  }
+
+  return best
+}
+
+/**
+ * Selects the connected polygons that use the **same texture** as the start polygon (a double click).
+ * The flood fill is limited to `selectionFillRadius` game units around the camera: a texture that is
+ * used across the whole level would otherwise select thousands of polygons.
+ */
+function selectSameTextureArea(startPolygonIndex: number, mode: 'replace' | 'add'): void {
+  const start = fts.polygons[startPolygonIndex]
+
+  if (start === undefined) {
+    return
+  }
+
+  const index = getPolygonsByVertexKey()
+  const cameraPosition = camera.position
+  const radius = Math.min(100_000, Math.max(1, selectionFillRadius.value))
+  const radiusSquared = radius * radius
+  const selected = new Set<number>()
+  const visited = new Set<number>([startPolygonIndex])
+  const queue = [startPolygonIndex]
+
+  while (queue.length > 0) {
+    const polygonIndex = queue.pop()
+
+    if (polygonIndex === undefined) {
+      break
+    }
+
+    const polygon = fts.polygons[polygonIndex]
+
+    if (polygon === undefined) {
+      continue
+    }
+
+    // the polygon under the cursor is always accepted: it is where the double click happened
+    if (polygonIndex !== startPolygonIndex && getSquaredDistanceToPolygon(polygon, cameraPosition) > radiusSquared) {
+      // out of the radius: neither selected nor used to reach further polygons
+      continue
+    }
+
+    selected.add(polygonIndex)
+
+    for (const vertex of getUsedVerticesOf(polygon)) {
+      for (const neighbour of index.get(getVertexKey(vertex)) ?? []) {
+        if (visited.has(neighbour)) {
+          continue
+        }
+
+        const candidate = fts.polygons[neighbour]
+
+        if (candidate === undefined || candidate.textureContainerId !== start.textureContainerId) {
+          continue
+        }
+
+        visited.add(neighbour)
+        queue.push(neighbour)
+      }
+    }
+  }
+
+  if (mode === 'replace') {
+    selectedPolygons.clear()
+  }
+
+  for (const polygonIndex of selected) {
+    selectedPolygons.add(polygonIndex)
+  }
+
+  updateHighlightOfSelectedPolygons()
+
+  logger.log(`selected ${selected.size} polygons of the same texture (radius: ${radius})`)
+}
+
+/** drops the whole selection (the "clear selection" button and the alt+a hotkey) */
+function clearSelection(): void {
+  if (selectedPolygons.size === 0) {
+    return
+  }
+
+  selectedPolygons.clear()
+  updateHighlightOfSelectedPolygons()
+}
+
+registerClearSelection(clearSelection)
+
 /** the bounding volume hierarchy of the mesh, or undefined when three-mesh-bvh did not build one */
 function getBoundsTreeOf(mesh: Mesh): MeshBVH | undefined {
   const boundsTree = mesh.geometry.boundsTree
@@ -1592,7 +1757,24 @@ function isConnectedToSelection(vertices: SelectionPoint[]): boolean {
   return false
 }
 
-let isAddingToSelection: boolean | undefined
+/**
+ * What the current drag does with the selection: `replace` starts a new one (clearing the previous),
+ * `add` (shift) and `remove` (ctrl / cmd) extend it. `undefined` while no drag is in progress.
+ */
+let selectionDragMode: 'replace' | 'add' | 'remove' | undefined
+
+/** the mode a fresh click or drag starts with, from the modifier keys */
+function getSelectionMode(): 'replace' | 'add' | 'remove' {
+  if (pressedKeys.ControlLeft || pressedKeys.ControlRight || pressedKeys.MetaLeft || pressedKeys.MetaRight) {
+    return 'remove'
+  }
+
+  if (pressedKeys.ShiftLeft || pressedKeys.ShiftRight) {
+    return 'add'
+  }
+
+  return 'replace'
+}
 
 function render(): void {
   if (resizeRendererToDisplaySize(renderer)) {
@@ -1733,18 +1915,27 @@ document.addEventListener(
 
     selectionDragVertices = undefined
 
-    if (isAddingToSelection === undefined) {
-      if (alreadySelected) {
+    if (selectionDragMode === undefined) {
+      // a plain click: no drag happened, the modifiers decide what it means
+      const mode = getSelectionMode()
+
+      if (mode === 'remove') {
         selectedPolygons.delete(polygonBeingLookedAt)
-        cursorTriangleMaterial.color.set(Color.green.getHex())
       } else {
+        if (mode === 'replace') {
+          selectedPolygons.clear()
+        }
+
         selectedPolygons.add(polygonBeingLookedAt)
-        cursorTriangleMaterial.color.set(Color.red.getHex())
       }
+
+      cursorTriangleMaterial.color.set(
+        mode === 'remove' || (mode === 'add' && alreadySelected) ? Color.red.getHex() : Color.green.getHex(),
+      )
 
       updateHighlightOfSelectedPolygons()
     } else {
-      isAddingToSelection = undefined
+      selectionDragMode = undefined
 
       cursorTriangleMaterial.color.set(alreadySelected ? Color.red.getHex() : Color.green.getHex())
     }
@@ -1754,6 +1945,14 @@ document.addEventListener(
 
 canvas.addEventListener('click', () => {
   controls.lock()
+})
+
+document.addEventListener('dblclick', () => {
+  if (!controls.isLocked || polygonBeingLookedAt === undefined) {
+    return
+  }
+
+  selectSameTextureArea(polygonBeingLookedAt, getSelectionMode() === 'add' ? 'add' : 'replace')
 })
 
 window.addEventListener('blur', () => {
@@ -1872,7 +2071,7 @@ function updatePolygonUnderCursor(): void {
   const [nearestHit] = hits
   let polygonIndex = nearestHit.polygonIndex
 
-  if (isAddingToSelection === true && polygonIndex !== undefined) {
+  if (selectionDragMode !== undefined && selectionDragMode !== 'remove' && polygonIndex !== undefined) {
     // only the nearest hits are worth checking (the ray can cross the whole level)
     const connectedHit = hits.slice(0, SELECTION_CANDIDATE_LIMIT).find((hit) => {
       const candidate = fts.polygons[hit.polygonIndex]
@@ -1913,15 +2112,22 @@ function updatePolygonUnderCursor(): void {
   if (mousePressed[LeftMouseButton].currentValue) {
     if (!mousePressed[LeftMouseButton].oldValue) {
       // left mouse button was pressed
-      isAddingToSelection = !alreadySelected
-      selectionDragVertices = isAddingToSelection ? new Map() : undefined
+      selectionDragMode = getSelectionMode()
 
-      if (isAddingToSelection && polygon !== undefined) {
+      if (selectionDragMode === 'replace') {
+        // a new selection starts here: the previous one is dropped
+        selectedPolygons.clear()
+        updateHighlightOfSelectedPolygons()
+      }
+
+      selectionDragVertices = selectionDragMode === 'remove' ? undefined : new Map()
+
+      if (selectionDragMode !== 'remove' && polygon !== undefined) {
         addVerticesToSelectionGrid(getUsedVerticesOf(polygon))
       }
     }
 
-    if (isAddingToSelection) {
+    if (selectionDragMode === 'replace' || selectionDragMode === 'add') {
       cursorTriangleMaterial.color.set(Color.green.getHex())
       if (polygon !== undefined && polygonIndex !== undefined && !alreadySelected) {
         const vertices = getUsedVerticesOf(polygon)
@@ -1938,7 +2144,7 @@ function updatePolygonUnderCursor(): void {
       }
     } else {
       cursorTriangleMaterial.color.set(Color.red.getHex())
-      if (polygonIndex !== undefined && alreadySelected) {
+      if (selectionDragMode === 'remove' && polygonIndex !== undefined && alreadySelected) {
         selectedPolygons.delete(polygonIndex)
         updateHighlightOfSelectedPolygons()
       }
@@ -1948,7 +2154,7 @@ function updatePolygonUnderCursor(): void {
   } else {
     if (mousePressed[LeftMouseButton].oldValue) {
       // left mouse button was released
-      isAddingToSelection = undefined
+      selectionDragMode = undefined
       selectionDragVertices = undefined
     }
 
@@ -1972,7 +2178,7 @@ controls.addEventListener('change', updatePolygonUnderCursor)
 // TODO: create some sort of lookup for quads
 
 // TODO: make selection semi-transparent
-// TODO: override isAddingToSelection to be false by holding down the right mouse button instead of left
+// TODO: override the drag mode to "remove" by holding down the right mouse button instead of ctrl
 
 // TODO: add gizmo to the center of the selection
 // TODO: allow moving the selected faces with gizmo

@@ -38,6 +38,7 @@ import './style.scss'
 import flatColorsByFilename from './assets/flat-colors.json'
 import { downloadBinaryAs, zipBuffers } from './download.js'
 import {
+  ambientFloor,
   anchorsVisible,
   cameraInfo,
   cameraInfoVisible,
@@ -659,9 +660,12 @@ function applyRealisticBakedColors(): void {
         const color = colorIndex === undefined ? undefined : palette[colorIndex]
 
         if (color !== undefined) {
-          array[index * 3] = srgbToLinear((color.r / 255) * (flat[0] / 255))
-          array[index * 3 + 1] = srgbToLinear((color.g / 255) * (flat[1] / 255))
-          array[index * 3 + 2] = srgbToLinear((color.b / 255) * (flat[2] / 255))
+          // the display only ambient floor (see `ambientFloor` in the ui) keeps the unlit surfaces
+          // visible; the exported palette is not affected
+          const floor = ambientFloor.value
+          array[index * 3] = srgbToLinear((Math.max(color.r, floor) / 255) * (flat[0] / 255))
+          array[index * 3 + 1] = srgbToLinear((Math.max(color.g, floor) / 255) * (flat[1] / 255))
+          array[index * 3 + 2] = srgbToLinear((Math.max(color.b, floor) / 255) * (flat[2] / 255))
         }
 
         index++
@@ -949,7 +953,7 @@ function setDynamicLightsVisible(visible: boolean): void {
   }
 }
 
-setDynamicLightsVisible(getDisplayLightingMode() === 'dynamic')
+setDynamicLightsVisible(usesDynamicLightPool())
 
 const cameraLight = new PointLight(Color.white.getHex(), 10_000)
 
@@ -1134,14 +1138,31 @@ const dynamicLightsUpdateInterval = 250
 let lastDynamicLightsUpdateAt = Number.NEGATIVE_INFINITY
 
 /**
+ * The `Realistic` palette is baked from **every** light of the level (the static ones and the
+ * `SemiDynamic` ones, with occlusion), so the point light pool would count the `SemiDynamic`
+ * lights twice. The pool is only used by the `Arx` display, where the palette is the game's
+ * original (static only) background lighting - exactly like the game, which adds the
+ * `SemiDynamic` lights at runtime.
+ */
+function usesDynamicLightPool(): boolean {
+  return getDisplayLightingMode() === 'dynamic' && lightingCalculatorMode.value !== 'Realistic'
+}
+
+/**
  * Refills the fixed point light pool with the `maxDynamicLights` **semi-dynamic** lights closest
  * to the camera, in the Arx falloff of the level (see `ARX_GLOBAL_LIGHT_FACTOR`). The static
  * lights are already baked into the palette, so adding them here would light the level twice -
  * only the `SemiDynamic` lights (the fire of the torches, the extinguishable sources) are added,
- * exactly like the game does at runtime.
+ * exactly like the game does at runtime. The `Realistic` display does not use the pool, see
+ * `usesDynamicLightPool()`.
+ *
+ * NOTE: the lights are the plain objects of the LLF, so an editing UI can move one
+ * (`light.position = ...`) or change its falloff (`light.fallStart`/`light.fallEnd`) and then call
+ * `applyLightingCalculatorMode()` to re-bake the palette. The editing UI itself is not implemented
+ * yet.
  */
 function updateDynamicLights(): void {
-  if (getDisplayLightingMode() !== 'dynamic') {
+  if (!usesDynamicLightPool()) {
     return
   }
 
@@ -1207,9 +1228,9 @@ function applyLightingCalculatorMode(): void {
     }
   }
 
-  setDynamicLightsVisible(displayMode === 'dynamic')
+  setDynamicLightsVisible(usesDynamicLightPool())
 
-  if (displayMode === 'dynamic') {
+  if (usesDynamicLightPool()) {
     lastDynamicLightsUpdateAt = Number.NEGATIVE_INFINITY
     updateDynamicLights()
   }

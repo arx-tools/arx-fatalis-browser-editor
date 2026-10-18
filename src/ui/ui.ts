@@ -136,6 +136,23 @@ function getLightingCalculatorModeFromUrl(): LightingCalculatorMode {
 
 export const lightingCalculatorMode = ref<LightingCalculatorMode>(getLightingCalculatorModeFromUrl())
 
+/**
+ * A **display only** ambient floor (0..64) for the `Realistic` palette: the baked palette has no
+ * ambient (`ambient = 0` in `bakeLlfColors`, like Fred's `DistanceAngleShadowNoTransparency`), so
+ * every surface that no light reaches is pitch black. The game's original (Danae) palette has an
+ * ambient floor of 23 there, which is why the level never looks fully black in the game - this
+ * value makes the editor look the same without changing the exported LLF.
+ *
+ * `?ambientFloor=12` in the URL; 0 (the default) keeps the exported palette untouched.
+ */
+function getAmbientFloorFromUrl(): number {
+  const raw = Number.parseInt(new URLSearchParams(globalThis.location.search).get('ambientFloor') ?? '0', 10)
+
+  return Number.isNaN(raw) ? 0 : Math.min(64, Math.max(0, raw))
+}
+
+export const ambientFloor = ref<number>(getAmbientFloorFromUrl())
+
 const lightingCalculatorModeSelect = document.querySelector<HTMLSelectElement>(
   '#lighting-calculator-mode',
 ) as HTMLSelectElement

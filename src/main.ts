@@ -9,7 +9,6 @@ import {
   Color as ThreeColor,
   DoubleSide,
   Euler,
-  type Face,
   Group,
   InstancedMesh,
   LineBasicMaterial,
@@ -22,7 +21,7 @@ import {
   OctahedronGeometry,
   PerspectiveCamera,
   PointLight,
-  Raycaster,
+  Ray,
   Scene,
   type Side,
   Timer,
@@ -32,7 +31,7 @@ import {
 } from 'three'
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js'
 import { ViewHelper } from 'three/examples/jsm/helpers/ViewHelper.js'
-import { acceleratedRaycast } from 'three-mesh-bvh'
+import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh'
 import { createApp, watch } from 'vue'
 import './style.scss'
 import flatColorsByFilename from './assets/flat-colors.json'
@@ -78,7 +77,6 @@ import { createPolygonWireframe } from './geometry/createWireframe.js'
 import { bakeLlfColors } from './lighting/bake.js'
 import { removeTriangles } from './geometry/removeTriangles.js'
 import { createTriangle as renderTriangle } from './geometry/renderTriangle.js'
-import { getVerticesByFace } from './geometry/getVerticesByFace.js'
 import App from './App.vue'
 
 Mesh.prototype.raycast = acceleratedRaycast
@@ -441,7 +439,6 @@ const timer = new Timer()
 
 timer.connect(document)
 
-const raycaster = new Raycaster()
 
 // --------------------
 
@@ -1399,6 +1396,12 @@ function createPolygonFillGeometry(polygon: ArxPolygon): BufferGeometry {
   return geometry
 }
 
+/** how far the cursor and the selection raycast look (game units) */
+const SELECTION_RAY_FAR = 100_000
+
+/** how many of the nearest hits are checked for a connected polygon while dragging */
+const SELECTION_CANDIDATE_LIMIT = 32
+
 /** the selection is polygon based: a quad is one unit, both of its triangles are highlighted */
 function updateHighlightOfSelectedPolygons(): void {
   if (highlightOfSelectedPolygons.length > 0) {
@@ -1489,8 +1492,6 @@ function deletePolygons(polygonsToDelete: ReadonlySet<number>): void {
  *
  * until the first polygon is clicked the state is undefined
  */
-/** the selection is polygon based: a quad is one unit, both of its triangles are highlighted */
-
 /**
  * The vertices of the polygons that were selected **during the current drag**, in a grid so a
  * candidate can be tested quickly. A new polygon is only added when one of its vertices is closer
@@ -1505,7 +1506,9 @@ function deletePolygons(polygonsToDelete: ReadonlySet<number>): void {
  *
  * A simple click (no drag) is not restricted, so a separate selection can still be started elsewhere.
  */
-let selectionDragVertices: Map<string, { x: number; y: number; z: number }[]> | undefined
+let selectionDragVertices: Map<string, SelectionPoint[]> | undefined
+
+type SelectionPoint = { x: number; y: number; z: number }
 
 /** the grid cell of the selection lookup (game units) */
 const SELECTION_GRID_CELL = 4
@@ -1515,7 +1518,7 @@ function getSelectionGridKey(x: number, y: number, z: number): string {
 }
 
 /** the vertices the polygon actually renders (the 4th vertex of a triangle is unused) */
-function getUsedVerticesOf(polygon: ArxPolygon): { x: number; y: number; z: number }[] {
+function getUsedVerticesOf(polygon: ArxPolygon): SelectionPoint[] {
   const count = isQuad(polygon) ? 4 : 3
 
   return polygon.vertices.slice(0, count).map(({ x, y, z }) => {
@@ -1523,7 +1526,7 @@ function getUsedVerticesOf(polygon: ArxPolygon): { x: number; y: number; z: numb
   })
 }
 
-function addVerticesToSelectionGrid(vertices: { x: number; y: number; z: number }[]): void {
+function addVerticesToSelectionGrid(vertices: SelectionPoint[]): void {
   if (selectionDragVertices === undefined) {
     return
   }
@@ -1541,8 +1544,15 @@ function addVerticesToSelectionGrid(vertices: { x: number; y: number; z: number 
   }
 }
 
+/** the bounding volume hierarchy of the mesh, or undefined when three-mesh-bvh did not build one */
+function getBoundsTreeOf(mesh: Mesh): MeshBVH | undefined {
+  const boundsTree = mesh.geometry.boundsTree
+
+  return boundsTree instanceof MeshBVH ? boundsTree : undefined
+}
+
 /** is any of the vertices closer than `selectionConnectDistance` to a vertex selected in this drag? */
-function isConnectedToSelection(vertices: { x: number; y: number; z: number }[]): boolean {
+function isConnectedToSelection(vertices: SelectionPoint[]): boolean {
   if (selectionDragVertices === undefined || selectionDragVertices.size === 0) {
     return true
   }
@@ -1760,35 +1770,90 @@ scene.add(cursorTriangleMesh)
 
 cursorTriangleMesh.renderOrder = 10
 
+/**
+ * The polygons under the camera ray, nearest first, **including the back faces**: a single sided
+ * polygon that faces away from the camera is not rendered, but the cursor has to be able to catch it
+ * (otherwise the selection cannot be continued on it from that angle - the polygon "is not there").
+ *
+ * All hits are returned instead of only the nearest one: while dragging, the nearest hit can be a
+ * polygon that is not connected to the selection, while the next one is. The caller picks.
+ */
+function getPolygonsUnderCameraRay(): Array<{ polygonIndex: number; distance: number }> {
+  const direction = new Vector3()
+  controls.getDirection(direction)
+
+  const ray = new Ray(camera.position, direction)
+  const hits: Array<{ polygonIndex: number; distance: number }> = []
+
+  for (const group of meshGroups) {
+    const boundsTree = getBoundsTreeOf(group.mesh)
+
+    if (boundsTree === undefined) {
+      continue
+    }
+
+    const triangleToPolygon = triangleToPolygonByMesh.get(group.mesh)
+
+    if (triangleToPolygon === undefined) {
+      continue
+    }
+
+    for (const intersection of boundsTree.raycast(ray, DoubleSide, 0, SELECTION_RAY_FAR)) {
+      const polygonIndex = triangleToPolygon[intersection.faceIndex ?? 0]
+
+      if (polygonIndex !== undefined) {
+        hits.push({ polygonIndex, distance: intersection.distance })
+      }
+    }
+  }
+
+  hits.sort((a, b) => {
+    return a.distance - b.distance
+  })
+
+  return hits
+}
+
 controls.addEventListener('change', () => {
-  const lookingAt = new Vector3()
-  controls.getDirection(lookingAt)
+  const hits = getPolygonsUnderCameraRay()
 
-  raycaster.set(camera.position, lookingAt)
-
-  const intersects = raycaster.intersectObjects(meshes, false)
-  const intersectedMeshes = intersects.filter(({ object }) => object instanceof Mesh)
-
-  if (intersectedMeshes.length === 0) {
+  if (hits.length === 0) {
     scene.remove(cursorTriangleMesh)
     polygonBeingLookedAt = undefined
     return
   }
 
-  const mesh = intersectedMeshes[0].object as Mesh
-  const face = intersectedMeshes[0].face as Face
-  const polygonIndex = triangleToPolygonByMesh.get(mesh)?.[face.a / 3]
+  // while adding to the selection prefer the nearest polygon that is connected to the ones selected
+  // in this drag, so a polygon that was skipped (not connected) does not hide the connectable one
+  const [nearestHit] = hits
+  let polygonIndex = nearestHit.polygonIndex
+
+  if (isAddingToSelection === true && polygonIndex !== undefined) {
+    // only the nearest hits are worth checking (the ray can cross the whole level)
+    const connectedHit = hits.slice(0, SELECTION_CANDIDATE_LIMIT).find((hit) => {
+      return (
+        !selectedPolygons.has(hit.polygonIndex) &&
+        isConnectedToSelection(getUsedVerticesOf(fts.polygons[hit.polygonIndex]))
+      )
+    })
+
+    if (connectedHit !== undefined) {
+      polygonIndex = connectedHit.polygonIndex
+    }
+  }
+
   const polygon = polygonIndex === undefined ? undefined : fts.polygons[polygonIndex]
 
   cursorTriangleMesh.geometry.dispose()
 
   if (polygon === undefined) {
-    // should not happen (the map covers every triangle), but keep the triangle as a fallback
-    const [a, b, c] = getVerticesByFace(face, mesh.geometry)
-    cursorTriangleMesh.geometry = renderTriangle(new Triangle(a, b, c))
-  } else {
-    cursorTriangleMesh.geometry = createPolygonOutlineGeometry(polygon)
+    // should not happen (the map covers every triangle)
+    scene.remove(cursorTriangleMesh)
+    polygonBeingLookedAt = undefined
+    return
   }
+
+  cursorTriangleMesh.geometry = createPolygonOutlineGeometry(polygon)
 
   scene.add(cursorTriangleMesh)
 

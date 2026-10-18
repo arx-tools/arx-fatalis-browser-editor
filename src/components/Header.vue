@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { originalArxLevelIds } from '../constants'
-import { currentLevelId, isDirty, isLoading } from '../ui/ui'
+import { currentLevelId, downloadProgress, isDirty, isDownloading, isLoading } from '../ui/ui'
 
 defineEmits<{
   (event: 'download'): void
@@ -76,10 +76,17 @@ function openLevel(levelId: number): void {
       </nav>
     </div>
 
-    <button class="download-button" :disabled="isLoading !== 'fulfilled'" @click="$emit('download')">
-      <i class="fa-solid fa-download"></i>
-      Download
-    </button>
+    <div class="download-area">
+      <button class="download-button" :disabled="isLoading !== 'fulfilled' || isDownloading" @click="$emit('download')">
+        <i class="fa-solid fa-download"></i>
+        Download
+      </button>
+
+      <span v-if="isDownloading" class="download-progress">
+        <i class="fa-solid fa-spinner fa-spin"></i>
+        {{ downloadProgress }}%
+      </span>
+    </div>
   </header>
 </template>
 
@@ -111,8 +118,19 @@ header {
     white-space: nowrap;
   }
 
-  .download-button {
+  .download-area {
+    display: flex;
+    align-items: center;
     justify-self: end;
+    gap: 8px;
+  }
+
+  .download-progress {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+    font-size: 12px;
   }
 
   .levels {
@@ -176,7 +194,7 @@ header {
       flex: 1;
     }
 
-    .download-button {
+    .download-area {
       order: 2;
     }
 

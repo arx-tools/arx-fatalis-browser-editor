@@ -57,17 +57,16 @@ import {
   updateMouseButtonStates,
   wireframeVisible,
 } from './ui/ui.js'
-import { areFacesEqual, isDoubleSided, isNoDraw, isTransparent, wait } from './functions.js'
+import { isDoubleSided, isNoDraw, isTransparent, wait } from './functions.js'
 import { Color } from './Color.js'
 import { isValidOriginalArxLevelId } from './constants.js'
 import { Logger } from './ui/Logger.js'
 import { Exception } from './ui/Exception.js'
 import { arxPolygonsToMesh, arxVector3toVector3 } from './arx-threejs-format-converters.js'
 import { buildExportFts, buildExportLlf, buildTriangleToPolygonMap, type SourcePolygon } from './fts-export.js'
-import { createWireframe } from './geometry/createWireframe.js'
+import { createPolygonWireframe } from './geometry/createWireframe.js'
 import { createTriangle as renderTriangle } from './geometry/renderTriangle.js'
 import { getVerticesByFace } from './geometry/getVerticesByFace.js'
-import { getNormalsByFace } from './geometry/getNormalByFace.js'
 import App from './App.vue'
 
 Mesh.prototype.raycast = acceleratedRaycast
@@ -613,8 +612,11 @@ function rebuildMeshes(): void {
 
 scene.add(...meshes)
 
-let wireframeLines: LineSegments[] = meshes.map(({ geometry }) => {
-  const wireframe = createWireframe(geometry)
+let wireframeLines: LineSegments[] = meshGroups.map((group) => {
+  const wireframe = createPolygonWireframe(
+    survivingEntries(group).map(({ polygon }) => polygon),
+    offset,
+  )
   wireframe.renderOrder = 5
   return wireframe
 })
@@ -1063,18 +1065,30 @@ const viewHelper = new ViewHelper(camera, document.body)
 
 const pressedKeys: Record<string, boolean> = {}
 
-type FaceOfMesh = { mesh: Mesh; face: Face }
+const selectedPolygons = new Set<number>()
+let polygonBeingLookedAt: number | undefined
 
-const selectedFaces: FaceOfMesh[] = []
-let faceBeingLookedAt: FaceOfMesh | undefined
 const cursorTriangleMaterial = new MeshBasicMaterial({ color: Color.green.getHex() })
 const cursorTriangleMesh = new LineSegments(renderTriangle(new Triangle()), cursorTriangleMaterial)
 
-let highlightOfSelectedFaces: Mesh[] = []
+const highlightMaterial = new MeshBasicMaterial({
+  color: Color.yellow.getHex(),
+  side: DoubleSide,
+  transparent: true,
+  opacity: 0.35,
+})
+
+let highlightOfSelectedPolygons: Mesh[] = []
 
 /** the stored vertex order is a "Z" (0, 1, 2, 3), the perimeter is 0-1-3-2 for a quad */
 function getPolygonPerimeter(polygon: ArxPolygon): number[] {
   return isQuad(polygon) ? [0, 1, 3, 2] : [0, 1, 2]
+}
+
+function getPolygonVertices(polygon: ArxPolygon): Vector3[] {
+  return polygon.vertices.map((vertex) => {
+    return arxVector3toVector3(vertex).sub(offset)
+  })
 }
 
 /**
@@ -1082,9 +1096,7 @@ function getPolygonPerimeter(polygon: ArxPolygon): number[] {
  * triangles), not just the triangle the raycast hit.
  */
 function createPolygonOutlineGeometry(polygon: ArxPolygon): BufferGeometry {
-  const vertices = polygon.vertices.map((vertex) => {
-    return arxVector3toVector3(vertex).sub(offset)
-  })
+  const vertices = getPolygonVertices(polygon)
   const perimeter = getPolygonPerimeter(polygon)
   const positions: number[] = []
 
@@ -1099,58 +1111,47 @@ function createPolygonOutlineGeometry(polygon: ArxPolygon): BufferGeometry {
   return geometry
 }
 
-function updateHighlightOfSelectedFaces(): void {
-  if (highlightOfSelectedFaces.length > 0) {
-    scene.remove(...highlightOfSelectedFaces)
+function createPolygonFillGeometry(polygon: ArxPolygon): BufferGeometry {
+  const vertices = getPolygonVertices(polygon)
+  const triangles = isQuad(polygon)
+    ? [
+        [0, 1, 2],
+        [2, 1, 3],
+      ]
+    : [[0, 1, 2]]
+  const positions: number[] = []
+
+  for (const [a, b, c] of triangles) {
+    // prettier-ignore
+    positions.push(
+      vertices[a].x, vertices[a].y, vertices[a].z,
+      vertices[b].x, vertices[b].y, vertices[b].z,
+      vertices[c].x, vertices[c].y, vertices[c].z,
+    )
   }
 
-  highlightOfSelectedFaces = selectedFaces.map(({ face, mesh }) => {
-    const vertices = getVerticesByFace(face, mesh.geometry)
-    const normals = getNormalsByFace(face, mesh.geometry)
+  const geometry = new BufferGeometry()
+  geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3))
+  return geometry
+}
 
-    const geometry = new BufferGeometry()
-
-    geometry.setAttribute(
-      'position',
-      new BufferAttribute(
-        // prettier-ignore
-        new Float32Array([
-          ...vertices[0].toArray(),
-          ...vertices[1].toArray(),
-          ...vertices[2].toArray()
-        ]),
-        3,
-      ),
-    )
-
-    geometry.setAttribute(
-      'normal',
-      new BufferAttribute(
-        // prettier-ignore
-        new Float32Array([
-          ...normals[0].toArray(),
-          ...normals[1].toArray(),
-          ...normals[2].toArray()
-        ]),
-        3,
-      ),
-    )
-
-    const material = new MeshBasicMaterial({
-      color: Color.yellow.getHex(),
-      side: DoubleSide,
-      transparent: true,
-      opacity: 0.35,
+/** the selection is polygon based: a quad is one unit, both of its triangles are highlighted */
+function updateHighlightOfSelectedPolygons(): void {
+  if (highlightOfSelectedPolygons.length > 0) {
+    scene.remove(...highlightOfSelectedPolygons)
+    highlightOfSelectedPolygons.forEach((mesh) => {
+      mesh.geometry.dispose()
     })
+  }
 
-    const triangleMesh = new Mesh(geometry, material)
-    triangleMesh.renderOrder = 7 // TODO, ez legyen 5 és 10 között
-
-    return triangleMesh
+  highlightOfSelectedPolygons = [...selectedPolygons].map((polygonIndex) => {
+    const mesh = new Mesh(createPolygonFillGeometry(fts.polygons[polygonIndex]), highlightMaterial)
+    mesh.renderOrder = 7
+    return mesh
   })
 
-  if (highlightOfSelectedFaces.length > 0) {
-    scene.add(...highlightOfSelectedFaces)
+  if (highlightOfSelectedPolygons.length > 0) {
+    scene.add(...highlightOfSelectedPolygons)
   }
 }
 
@@ -1176,17 +1177,20 @@ function deletePolygons(polygonsToDelete: ReadonlySet<number>): void {
     scene.remove(...wireframeLines)
   }
 
-  wireframeLines = meshes.map(({ geometry }) => {
-    return createWireframe(geometry)
+  wireframeLines = meshGroups.map((group) => {
+    return createPolygonWireframe(
+      survivingEntries(group).map(({ polygon }) => polygon),
+      offset,
+    )
   })
 
   if (wireframeVisible.value) {
     scene.add(...wireframeLines)
   }
 
-  selectedFaces.length = 0
-  updateHighlightOfSelectedFaces()
-  faceBeingLookedAt = undefined
+  selectedPolygons.clear()
+  updateHighlightOfSelectedPolygons()
+  polygonBeingLookedAt = undefined
 
   cursorTriangleMaterial.color.set(Color.green.getHex())
   scene.remove(cursorTriangleMesh)
@@ -1194,13 +1198,13 @@ function deletePolygons(polygonsToDelete: ReadonlySet<number>): void {
 
 
 /**
- * being relevant when new faces are to be added to or removed from the selectedFaces
+ * being relevant when new polygons are to be added to or removed from the selectedPolygons
  *
  * if the left mouse button is pressed with a face that is already in the selection,
- * that means the face will be removed and all subsequent faces will get removed from selectedFaces
- * otherwise all subsequent faces will be added
+ * that means the polygon will be removed and all subsequent polygons will get removed from selectedPolygons
+ * otherwise all subsequent polygons will be added
  *
- * until the first face is clicked the state is undefined
+ * until the first polygon is clicked the state is undefined
  */
 let isAddingToSelection: boolean | undefined
 
@@ -1271,24 +1275,8 @@ function animate(): void {
     camera.position.add(direction)
     cameraLight.position.set(camera.position.x, camera.position.y, camera.position.z)
 
-    if (pressedKeys.Delete && selectedFaces.length > 0) {
-      const polygonsToDelete = new Set<number>()
-
-      for (const { mesh, face } of selectedFaces) {
-        const triangleToPolygon = triangleToPolygonByMesh.get(mesh)
-
-        if (triangleToPolygon === undefined) {
-          continue
-        }
-
-        const polygonIndex = triangleToPolygon[face.a / 3]
-
-        if (polygonIndex !== undefined) {
-          polygonsToDelete.add(polygonIndex)
-        }
-      }
-
-      deletePolygons(polygonsToDelete)
+    if (pressedKeys.Delete && selectedPolygons.size > 0) {
+      deletePolygons(selectedPolygons)
     }
   } else {
     mouseLocked.style.display = 'none'
@@ -1322,10 +1310,6 @@ function onKeyUp(event: KeyboardEvent): void {
 document.addEventListener('keydown', onKeyDown, false)
 document.addEventListener('keyup', onKeyUp, false)
 
-function areFaceOfMeshesEqual(a: FaceOfMesh, b: FaceOfMesh): boolean {
-  return a.mesh === b.mesh && areFacesEqual(a.face, b.face)
-}
-
 document.addEventListener(
   'mousedown',
   (event) => {
@@ -1335,17 +1319,9 @@ document.addEventListener(
 
     updateMouseButtonStates(event)
 
-    const positionInSelection = selectedFaces.findIndex((faceOfMesh) => {
-      return areFaceOfMeshesEqual(faceOfMesh, faceBeingLookedAt as FaceOfMesh)
-    })
+    const alreadySelected = polygonBeingLookedAt !== undefined && selectedPolygons.has(polygonBeingLookedAt)
 
-    const alreadySelected = positionInSelection !== -1
-
-    if (alreadySelected) {
-      cursorTriangleMaterial.color.set(Color.red.getHex())
-    } else {
-      cursorTriangleMaterial.color.set(Color.green.getHex())
-    }
+    cursorTriangleMaterial.color.set(alreadySelected ? Color.red.getHex() : Color.green.getHex())
   },
   false,
 )
@@ -1363,34 +1339,26 @@ document.addEventListener(
       return
     }
 
-    if (faceBeingLookedAt === undefined) {
+    if (polygonBeingLookedAt === undefined) {
       return
     }
 
-    const positionInSelection = selectedFaces.findIndex((faceOfMesh) => {
-      return areFaceOfMeshesEqual(faceOfMesh, faceBeingLookedAt as FaceOfMesh)
-    })
-
-    const alreadySelected = positionInSelection !== -1
+    const alreadySelected = selectedPolygons.has(polygonBeingLookedAt)
 
     if (isAddingToSelection === undefined) {
       if (alreadySelected) {
+        selectedPolygons.delete(polygonBeingLookedAt)
         cursorTriangleMaterial.color.set(Color.green.getHex())
-        selectedFaces.splice(positionInSelection, 1)
       } else {
-        selectedFaces.push(faceBeingLookedAt)
+        selectedPolygons.add(polygonBeingLookedAt)
         cursorTriangleMaterial.color.set(Color.red.getHex())
       }
 
-      updateHighlightOfSelectedFaces()
+      updateHighlightOfSelectedPolygons()
     } else {
       isAddingToSelection = undefined
 
-      if (alreadySelected) {
-        cursorTriangleMaterial.color.set(Color.red.getHex())
-      } else {
-        cursorTriangleMaterial.color.set(Color.green.getHex())
-      }
+      cursorTriangleMaterial.color.set(alreadySelected ? Color.red.getHex() : Color.green.getHex())
     }
   },
   false,
@@ -1425,13 +1393,12 @@ controls.addEventListener('change', () => {
 
   if (intersectedMeshes.length === 0) {
     scene.remove(cursorTriangleMesh)
-    faceBeingLookedAt = undefined
+    polygonBeingLookedAt = undefined
     return
   }
 
   const mesh = intersectedMeshes[0].object as Mesh
   const face = intersectedMeshes[0].face as Face
-
   const polygonIndex = triangleToPolygonByMesh.get(mesh)?.[face.a / 3]
   const polygon = polygonIndex === undefined ? undefined : fts.polygons[polygonIndex]
 
@@ -1447,19 +1414,11 @@ controls.addEventListener('change', () => {
 
   scene.add(cursorTriangleMesh)
 
-  faceBeingLookedAt = { mesh, face }
+  polygonBeingLookedAt = polygonIndex
 
-  const positionInSelection = selectedFaces.findIndex((faceOfMesh) => {
-    return areFaceOfMeshesEqual(faceOfMesh, faceBeingLookedAt as FaceOfMesh)
-  })
+  const alreadySelected = polygonIndex !== undefined && selectedPolygons.has(polygonIndex)
 
-  const alreadySelected = positionInSelection !== -1
-
-  if (alreadySelected) {
-    cursorTriangleMaterial.color.set(Color.red.getHex())
-  } else {
-    cursorTriangleMaterial.color.set(Color.green.getHex())
-  }
+  cursorTriangleMaterial.color.set(alreadySelected ? Color.red.getHex() : Color.green.getHex())
 
   if (mousePressed[LeftMouseButton].currentValue) {
     if (!mousePressed[LeftMouseButton].oldValue) {
@@ -1469,15 +1428,15 @@ controls.addEventListener('change', () => {
 
     if (isAddingToSelection) {
       cursorTriangleMaterial.color.set(Color.green.getHex())
-      if (!alreadySelected) {
-        selectedFaces.push(faceBeingLookedAt)
-        updateHighlightOfSelectedFaces()
+      if (polygonIndex !== undefined && !alreadySelected) {
+        selectedPolygons.add(polygonIndex)
+        updateHighlightOfSelectedPolygons()
       }
     } else {
       cursorTriangleMaterial.color.set(Color.red.getHex())
-      if (alreadySelected) {
-        selectedFaces.splice(positionInSelection, 1)
-        updateHighlightOfSelectedFaces()
+      if (polygonIndex !== undefined && alreadySelected) {
+        selectedPolygons.delete(polygonIndex)
+        updateHighlightOfSelectedPolygons()
       }
     }
 

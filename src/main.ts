@@ -793,7 +793,12 @@ async function getRainbowPalette(): Promise<ArxColor[]> {
   }
 }
 
-/** writes the palette into the `baked` attribute - without the albedo, so the colours stay pure */
+/**
+ * Writes the palette into the `baked` attribute. The albedo of the texture is multiplied in, exactly
+ * like the `Realistic` mode does (and like the game multiplies the vertex light with its textures):
+ * with the pure `hsv(h, 1, 1)` colours the editor looked much brighter than the reference
+ * screenshots of the prototype (S≈1.0/V≈1.0 vs S≈0.86/V≈0.5 on the average albedo).
+ */
 async function applyRainbowBakedColors(): Promise<void> {
   const palette = await getRainbowPalette()
 
@@ -808,6 +813,7 @@ async function applyRainbowBakedColors(): Promise<void> {
     let index = 0
 
     for (const { polygon } of survivingEntries(group)) {
+      const flat = flatColors.get(polygon.textureContainerId) ?? [255, 255, 255]
       const vertexOrder = isQuad(polygon) ? [0, 1, 2, 2, 1, 3] : [0, 1, 2]
 
       for (const vertexIndex of vertexOrder) {
@@ -815,9 +821,9 @@ async function applyRainbowBakedColors(): Promise<void> {
         const color = colorIndex === undefined ? undefined : palette[colorIndex]
 
         if (color !== undefined) {
-          array[index * 3] = srgbToLinear(color.r / 255)
-          array[index * 3 + 1] = srgbToLinear(color.g / 255)
-          array[index * 3 + 2] = srgbToLinear(color.b / 255)
+          array[index * 3] = srgbToLinear((color.r / 255) * (flat[0] / 255))
+          array[index * 3 + 1] = srgbToLinear((color.g / 255) * (flat[1] / 255))
+          array[index * 3 + 2] = srgbToLinear((color.b / 255) * (flat[2] / 255))
         }
 
         index++

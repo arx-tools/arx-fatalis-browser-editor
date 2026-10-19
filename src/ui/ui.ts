@@ -1,5 +1,4 @@
 import { ref, watch, type Ref } from 'vue'
-import { clearSelection } from '../selection-actions.js'
 
 type LoadingState = 'idle' | 'loading' | 'fulfilled' | 'rejected'
 
@@ -258,27 +257,6 @@ watch(lightingCalculatorMode, (value) => {
 })
 
 // ------------
-
-// keydown and not keypress: the browsers do not fire `keypress` for every modifier combination, and
-// ctrl+shift+a opens the tab search in chrome without preventDefault
-document.addEventListener('keydown', (event) => {
-  if (event.code !== 'KeyA') {
-    return
-  }
-
-  if (event.altKey || (event.ctrlKey && event.shiftKey) || (event.metaKey && event.shiftKey)) {
-    event.preventDefault()
-    clearSelection()
-  }
-})
-
-const clearSelectionButton = document.querySelector<HTMLButtonElement>('#clear-selection')
-
-if (clearSelectionButton !== null) {
-  clearSelectionButton.addEventListener('click', () => {
-    clearSelection()
-  })
-}
 
 document.addEventListener(
   'keypress',

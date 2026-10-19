@@ -37,7 +37,6 @@ import './style.scss'
 import flatColorsByFilename from './assets/flat-colors.json'
 import { downloadBinaryAs, zipBuffers } from './download.js'
 import { registerDownloadHandler } from './download-handler.js'
-import { registerClearSelection } from './selection-actions.js'
 import {
   ambientFloor,
   anchorsVisible,
@@ -1630,7 +1629,7 @@ function getSquaredDistanceToPolygon(polygon: ArxPolygon, position: Vector3): nu
  * The flood fill is limited to `selectionFillRadius` game units around the camera: a texture that is
  * used across the whole level would otherwise select thousands of polygons.
  */
-function selectSameTextureArea(startPolygonIndex: number, mode: 'replace' | 'add'): void {
+function selectSameTextureArea(startPolygonIndex: number, mode: SelectionMode): void {
   const start = fts.polygons[startPolygonIndex]
 
   if (start === undefined) {
@@ -1684,17 +1683,24 @@ function selectSameTextureArea(startPolygonIndex: number, mode: 'replace' | 'add
     }
   }
 
-  if (mode === 'replace') {
-    selectedPolygons.clear()
-  }
+  if (mode === 'remove') {
+    for (const polygonIndex of selected) {
+      selectedPolygons.delete(polygonIndex)
+    }
+  } else {
+    if (mode === 'replace') {
+      selectedPolygons.clear()
+    }
 
-  for (const polygonIndex of selected) {
-    selectedPolygons.add(polygonIndex)
+    for (const polygonIndex of selected) {
+      selectedPolygons.add(polygonIndex)
+    }
   }
 
   updateHighlightOfSelectedPolygons()
 
-  logger.log(`selected ${selected.size} polygons of the same texture (radius: ${radius})`)
+  const verb = mode === 'remove' ? 'removed' : 'selected'
+  logger.log(`${verb} ${selected.size} polygons of the same texture (radius: ${radius})`)
 }
 
 /** drops the whole selection (the "clear selection" button and the alt+a hotkey) */
@@ -1706,8 +1712,6 @@ function clearSelection(): void {
   selectedPolygons.clear()
   updateHighlightOfSelectedPolygons()
 }
-
-registerClearSelection(clearSelection)
 
 /** the bounding volume hierarchy of the mesh, or undefined when three-mesh-bvh did not build one */
 function getBoundsTreeOf(mesh: Mesh): MeshBVH | undefined {
@@ -1763,8 +1767,23 @@ function isConnectedToSelection(vertices: SelectionPoint[]): boolean {
  */
 let selectionDragMode: 'replace' | 'add' | 'remove' | undefined
 
-/** the mode a fresh click or drag starts with, from the modifier keys */
-function getSelectionMode(): 'replace' | 'add' | 'remove' {
+type SelectionMode = 'replace' | 'add' | 'remove'
+
+/** the mode of the gesture, from the modifiers of the mouse event itself (always up to date) */
+function getSelectionModeFromEvent(event: MouseEvent): SelectionMode {
+  if (event.ctrlKey || event.metaKey) {
+    return 'remove'
+  }
+
+  if (event.shiftKey) {
+    return 'add'
+  }
+
+  return 'replace'
+}
+
+/** the mode of the gesture, from the tracked keys (for the camera changes inside a drag) */
+function getSelectionMode(): SelectionMode {
   if (pressedKeys.ControlLeft || pressedKeys.ControlRight || pressedKeys.MetaLeft || pressedKeys.MetaRight) {
     return 'remove'
   }
@@ -1775,6 +1794,9 @@ function getSelectionMode(): 'replace' | 'add' | 'remove' {
 
   return 'replace'
 }
+
+/** the mode of the gesture that is currently pressed down (set on mousedown) */
+let pendingSelectionMode: SelectionMode | undefined
 
 function render(): void {
   if (resizeRendererToDisplaySize(renderer)) {
@@ -1857,8 +1879,24 @@ function animate(): void {
 renderer.setAnimationLoop(animate)
 cameraLight.position.set(camera.position.x, camera.position.y, camera.position.z)
 
+/**
+ * Escape clears the selection first and leaves the pointer lock only on the next press. The browser
+ * itself exits the pointer lock when escape is pressed (it cannot be prevented), so after clearing a
+ * selection the lock is grabbed back right away.
+ */
+let lockAgainAfterEscape = false
+
 function onKeyDown(event: KeyboardEvent): void {
   if (event.code === 'KeyEsc') {
+    if (selectedPolygons.size > 0) {
+      clearSelection()
+      lockAgainAfterEscape = true
+
+      return
+    }
+
+    lockAgainAfterEscape = false
+
     controls.unlock()
 
     updateMouseButtonState(LeftMouseButton, false)
@@ -1887,9 +1925,11 @@ document.addEventListener(
 
     updateMouseButtonStates(event)
 
-    const alreadySelected = polygonBeingLookedAt !== undefined && selectedPolygons.has(polygonBeingLookedAt)
+    pendingSelectionMode = getSelectionModeFromEvent(event)
 
-    cursorTriangleMaterial.color.set(alreadySelected ? Color.red.getHex() : Color.green.getHex())
+    cursorTriangleMaterial.color.set(
+      pendingSelectionMode === 'remove' ? Color.red.getHex() : Color.green.getHex(),
+    )
   },
   false,
 )
@@ -1911,13 +1951,11 @@ document.addEventListener(
       return
     }
 
-    const alreadySelected = selectedPolygons.has(polygonBeingLookedAt)
-
     selectionDragVertices = undefined
 
     if (selectionDragMode === undefined) {
       // a plain click: no drag happened, the modifiers decide what it means
-      const mode = getSelectionMode()
+      const mode = getSelectionModeFromEvent(event)
 
       if (mode === 'remove') {
         selectedPolygons.delete(polygonBeingLookedAt)
@@ -1929,15 +1967,13 @@ document.addEventListener(
         selectedPolygons.add(polygonBeingLookedAt)
       }
 
-      cursorTriangleMaterial.color.set(
-        mode === 'remove' || (mode === 'add' && alreadySelected) ? Color.red.getHex() : Color.green.getHex(),
-      )
+      cursorTriangleMaterial.color.set(mode === 'remove' ? Color.red.getHex() : Color.green.getHex())
 
       updateHighlightOfSelectedPolygons()
     } else {
       selectionDragMode = undefined
 
-      cursorTriangleMaterial.color.set(alreadySelected ? Color.red.getHex() : Color.green.getHex())
+      cursorTriangleMaterial.color.set(getSelectionMode() === 'remove' ? Color.red.getHex() : Color.green.getHex())
     }
   },
   false,
@@ -1947,12 +1983,21 @@ canvas.addEventListener('click', () => {
   controls.lock()
 })
 
-document.addEventListener('dblclick', () => {
+controls.addEventListener('unlock', () => {
+  if (!lockAgainAfterEscape) {
+    return
+  }
+
+  lockAgainAfterEscape = false
+  controls.lock()
+})
+
+document.addEventListener('dblclick', (event) => {
   if (!controls.isLocked || polygonBeingLookedAt === undefined) {
     return
   }
 
-  selectSameTextureArea(polygonBeingLookedAt, getSelectionMode() === 'add' ? 'add' : 'replace')
+  selectSameTextureArea(polygonBeingLookedAt, getSelectionModeFromEvent(event))
 })
 
 window.addEventListener('blur', () => {
@@ -2106,13 +2151,16 @@ function updatePolygonUnderCursor(): void {
   polygonBeingLookedAt = polygonIndex
 
   const alreadySelected = polygonIndex !== undefined && selectedPolygons.has(polygonIndex)
+  const mode = selectionDragMode ?? getSelectionMode()
 
-  cursorTriangleMaterial.color.set(alreadySelected ? Color.red.getHex() : Color.green.getHex())
+  // red only in the "remove" mode: it is the only case where a click takes something away
+  cursorTriangleMaterial.color.set(mode === 'remove' ? Color.red.getHex() : Color.green.getHex())
 
   if (mousePressed[LeftMouseButton].currentValue) {
     if (!mousePressed[LeftMouseButton].oldValue) {
       // left mouse button was pressed
-      selectionDragMode = getSelectionMode()
+      selectionDragMode = pendingSelectionMode ?? getSelectionMode()
+      pendingSelectionMode = undefined
 
       if (selectionDragMode === 'replace') {
         // a new selection starts here: the previous one is dropped

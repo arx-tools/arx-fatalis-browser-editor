@@ -17,8 +17,14 @@ of the formats is done by [arx-convert](https://github.com/arx-tools/arx-convert
 | `npm run preview` | serves the build of `dist/`                         |
 
 `?levelIdx=N` in the url loads another level; `?lightingCalculatorMode=` (the same key the
-generator's `.env` uses, default `Arx`; `Realistic`, `MaxBrightness`, `CompleteDarkness` are the
-other values) changes how the level is lit. The legacy `?level=` and `?lighting=` are still read. `?positionAt=x,y,z` and `?angle=pitch,yaw,roll` open a level at a given game position
+generator's `.env` uses, default `Arx`; `Realistic`, `TextureRainbow`, `MaxBrightness`,
+`CompleteDarkness` are the other values) changes how the level is lit. `TextureRainbow` gives every
+polygon a hue from its texture (`hue = 240 * i / (n - 1)` over the FTS texture containers), which
+makes the parts added to a level later show up in blue (lost media research).
+
+The export button (the floppy icon of the game) starts the download right away with the lighting
+settings the settings panel shows. The controls under the canvas are Vue components
+(`src/components/ui/`): the visibility toggles, the shared lighting settings and the key help. The legacy `?level=` and `?lighting=` are still read. `?positionAt=x,y,z` and `?angle=pitch,yaw,roll` open a level at a given game position
 and orientation (the roll is ignored); the url follows the camera (with `history.replaceState`, so
 no history entries are created), which makes a view shareable.
 

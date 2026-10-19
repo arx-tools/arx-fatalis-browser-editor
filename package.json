@@ -1,6 +1,6 @@
 {
   "name": "arx-fatalis-browser-editor",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "A browser based editor for Arx Fatalis levels",
   "engines": {
     "npm": ">=10.1.0",

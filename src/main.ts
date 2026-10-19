@@ -67,6 +67,7 @@ import {
   updateMouseButtonStates,
   wireframeVisible,
 } from './ui/ui.js'
+import type { LightingCalculatorMode } from './ui/ui.js'
 import { isDoubleSided, isNoDraw, isTransparent, wait } from './functions.js'
 import { Color } from './Color.js'
 import { isValidOriginalArxLevelId } from './constants.js'
@@ -367,7 +368,119 @@ logger.log('done', line1)
 
 isLoading.value = 'fulfilled'
 
+/** what the download dialog decided - independent of what the screen shows right now */
+type DownloadSettings = {
+  mode: LightingCalculatorMode
+  ambientFloor: number
+  shadows: boolean
+}
+
+const downloadDialog = document.querySelector<HTMLDialogElement>('#download-dialog')
+const downloadModeSelect = document.querySelector<HTMLSelectElement>('#download-mode')
+const downloadAmbientFloorInput = document.querySelector<HTMLInputElement>('#download-ambient-floor')
+const downloadShadowsInput = document.querySelector<HTMLInputElement>('#download-shadows')
+const downloadSummary = document.querySelector<HTMLDivElement>('#download-summary')
+const downloadConfirmButton = document.querySelector<HTMLButtonElement>('#download-confirm')
+const downloadCancelButton = document.querySelector<HTMLButtonElement>('#download-cancel')
+
+/** the number of palette colours that the deleted polygons take out of the LLF */
+function getDeletedColorCount(): number {
+  let count = 0
+
+  for (const polygonIndex of deletedPolygons) {
+    const polygon = fts.polygons[polygonIndex]
+
+    if (polygon !== undefined) {
+      count += isQuad(polygon) ? 4 : 3
+    }
+  }
+
+  return count
+}
+
+/** the ambient floor and the shadows switch only make sense for the Realistic bake */
+function updateDownloadDialogState(): void {
+  const isRealistic = downloadModeSelect?.value === 'Realistic'
+
+  if (downloadAmbientFloorInput !== null) {
+    downloadAmbientFloorInput.disabled = !isRealistic
+  }
+
+  if (downloadShadowsInput !== null) {
+    downloadShadowsInput.disabled = !isRealistic
+  }
+}
+
+/** fills the dialog with the current settings and shows it */
+export function openDownloadDialog(): void {
+  if (
+    isLoading.value !== 'fulfilled' ||
+    isDownloading.value ||
+    downloadDialog === null ||
+    downloadModeSelect === null ||
+    downloadAmbientFloorInput === null ||
+    downloadShadowsInput === null ||
+    downloadSummary === null
+  ) {
+    return
+  }
+
+  downloadModeSelect.value = lightingCalculatorMode.value
+  downloadAmbientFloorInput.value = String(ambientFloor.value)
+  downloadShadowsInput.checked = shadows.value
+
+  const deletedColorCount = getDeletedColorCount()
+
+  downloadSummary.textContent =
+    `Level ${levelId}: ${deletedPolygons.size} polygon(s) deleted, ` +
+    `${deletedColorCount} palette colour(s) removed -> ` +
+    `${llf.colors.length - deletedColorCount} colours in the exported LLF. ` +
+    `The entities (DLF) are written back unchanged.`
+
+  updateDownloadDialogState()
+  downloadDialog.showModal()
+}
+
+/** reads the dialog fields */
+function getDownloadSettings(): DownloadSettings {
+  const mode = (downloadModeSelect?.value ?? 'Arx') as LightingCalculatorMode
+  const parsedAmbientFloor = Number.parseInt(downloadAmbientFloorInput?.value ?? '0', 10)
+  const ambientFloorValue = Number.isNaN(parsedAmbientFloor) ? 0 : Math.min(64, Math.max(0, parsedAmbientFloor))
+
+  return {
+    mode,
+    ambientFloor: ambientFloorValue,
+    shadows: downloadShadowsInput?.checked ?? true,
+  }
+}
+
+if (downloadModeSelect !== null) {
+  downloadModeSelect.addEventListener('change', () => {
+    updateDownloadDialogState()
+  })
+}
+
+if (downloadConfirmButton !== null && downloadDialog !== null) {
+  downloadConfirmButton.addEventListener('click', () => {
+    const settings = getDownloadSettings()
+
+    downloadDialog.close()
+    void startDownload(settings)
+  })
+}
+
+if (downloadCancelButton !== null && downloadDialog !== null) {
+  downloadCancelButton.addEventListener('click', () => {
+    downloadDialog.close()
+  })
+}
+
+/** the Download button of the header opens the dialog - the export runs from the dialog */
 export async function handleDownloadButtonClick(): Promise<void> {
+  openDownloadDialog()
+}
+
+export async function startDownload(settings: DownloadSettings): Promise<void> {
   if (isLoading.value !== 'fulfilled' || isDownloading.value) {
     return
   }
@@ -380,17 +493,19 @@ export async function handleDownloadButtonClick(): Promise<void> {
     // M1: the surviving polygons and the LLF palette filtered to them; the DLF is saved as it was
     // opened (the editor does not handle entities yet)
     const exportFts = buildExportFts(fts, deletedPolygons)
-    // the Realistic palette is already computed for the display - reuse it instead of baking twice
+    // the palette cache is keyed by the settings, so the dialog reuses the display's bake when they match
     const exportPalette =
-      lightingCalculatorMode.value === 'Realistic' ? await getRealisticPalette() : undefined
+      settings.mode === 'Realistic'
+        ? await getRealisticPalette(settings.ambientFloor, settings.shadows)
+        : undefined
     const exportLlf = buildExportLlf(
       fts,
       llf,
       deletedPolygons,
-      lightingCalculatorMode.value,
+      settings.mode,
       meshes,
-      ambientFloor.value,
-      shadows.value,
+      settings.ambientFloor,
+      settings.shadows,
       exportPalette,
     )
 
@@ -666,8 +781,8 @@ export function invalidateRealisticPalette(): void {
   realisticPaletteCache = undefined
 }
 
-async function getRealisticPalette(): Promise<ArxColor[]> {
-  const key = `${ambientFloor.value}|${shadows.value}`
+async function getRealisticPalette(ambientFloorValue: number, shadowsValue: boolean): Promise<ArxColor[]> {
+  const key = `${ambientFloorValue}|${shadowsValue}`
 
   if (realisticPaletteCache?.key === key) {
     return realisticPaletteCache.palette
@@ -680,7 +795,7 @@ async function getRealisticPalette(): Promise<ArxColor[]> {
 
   try {
     const line = logger.log('computing lighting...')
-    const palette = bakeLlfColors(fts, llf, 'Realistic', meshes, ambientFloor.value, shadows.value)
+    const palette = bakeLlfColors(fts, llf, 'Realistic', meshes, ambientFloorValue, shadowsValue)
     logger.log('done', line)
 
     realisticPaletteCache = { key, palette }
@@ -692,7 +807,7 @@ async function getRealisticPalette(): Promise<ArxColor[]> {
 }
 
 async function applyRealisticBakedColors(): Promise<void> {
-  const palette = await getRealisticPalette()
+  const palette = await getRealisticPalette(ambientFloor.value, shadows.value)
 
   for (const group of meshGroups) {
     const attribute = group.mesh.geometry.getAttribute('baked')

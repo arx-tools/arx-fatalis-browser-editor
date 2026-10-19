@@ -23,7 +23,7 @@
       <div id="camera-info"></div>
     </div>
 
-    <div id="info-and-controls">
+    <footer id="info-and-controls">
       <p id="mouse-locked">
         Press <code>[W]</code> <code>[A]</code> <code>[S]</code> <code>[D]</code> keys to move around, move the
         <code>[Mouse]</code> to look around, hold <code>[Shift]</code> to move slower, press <code>[ESC]</code> to get
@@ -106,7 +106,36 @@
           <a href="/">back to arx-tools.github.io</a>
         </small>
       </p>
-    </div>
+    </footer>
+
+    <dialog id="download-dialog">
+      <h2>Download level</h2>
+
+      <p class="dialog-row">
+        <label for="download-mode">Lighting</label>
+        <select id="download-mode">
+          <option value="Arx">Arx — the game's palette and lights</option>
+          <option value="Realistic">Realistic — computed palette with shadows</option>
+          <option value="MaxBrightness">MaxBrightness — unlit white (advanced)</option>
+          <option value="CompleteDarkness">CompleteDarkness — unlit black (advanced)</option>
+        </select>
+      </p>
+
+      <p class="dialog-row">
+        <label for="download-ambient-floor">Ambient floor</label>
+        <input type="number" id="download-ambient-floor" min="0" max="64" step="1" />
+        <label class="dialog-toggle">
+          <input type="checkbox" id="download-shadows" /> Shadows
+        </label>
+      </p>
+
+      <p id="download-summary"></p>
+
+      <div class="dialog-buttons">
+        <button type="button" id="download-cancel">Cancel</button>
+        <button type="button" id="download-confirm">Download</button>
+      </div>
+    </dialog>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

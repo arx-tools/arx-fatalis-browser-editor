@@ -5,6 +5,11 @@ body {
   height: 100%;
 }
 
+body {
+  /* a shade darker than white so the dark header and the canvas sit in a frame */
+  background: #e4e1dc;
+}
+
 h1,
 h2,
 h3 {
@@ -59,7 +64,58 @@ button {
 }
 
 #info-and-controls {
-  padding: 0 10px;
+  padding: 10px 10px 16px;
+  background: #f8f6f2;
+  border-top: 1px solid #cfcac3;
+  border-bottom: 1px solid #cfcac3;
+}
+
+#download-dialog {
+  min-width: 440px;
+  padding: 16px 20px 12px;
+  border: 1px solid #000;
+  border-radius: 6px;
+  background: #2c2828;
+  color: #e8e4df;
+
+  &::backdrop {
+    background: rgb(0 0 0 / 55%);
+  }
+
+  h2 {
+    margin: 0 0 14px;
+    font-size: 16px;
+  }
+
+  .dialog-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 10px 0;
+  }
+
+  .dialog-toggle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 12px;
+  }
+
+  #download-summary {
+    margin: 16px 0 12px;
+    font-size: 12px;
+    color: #b9b2aa;
+  }
+
+  .dialog-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  button {
+    padding: 4px 12px;
+  }
 }
 
 .settings-row {

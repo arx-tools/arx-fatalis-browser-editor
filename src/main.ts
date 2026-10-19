@@ -1304,6 +1304,12 @@ let lastDynamicLightsUpdateAt = Number.NEGATIVE_INFINITY
  * `SemiDynamic` lights at runtime.
  */
 function usesDynamicLightPool(): boolean {
+  // the rainbow mode gets the pool too: the game's UW view still has the semi-dynamic lights (the
+  // torches), so without them the editor looks darker than the game at the same spot
+  if (lightingCalculatorMode.value === 'TextureRainbow') {
+    return true
+  }
+
   return getDisplayLightingMode() === 'dynamic' && lightingCalculatorMode.value !== 'Realistic'
 }
 

@@ -127,6 +127,11 @@ button {
   p {
     margin: 0 0 10px;
   }
+
+  /* the selection keys are a separate block, with a bit more air above */
+  .selection-help {
+    margin-top: 10px;
+  }
 }
 
 #logs {

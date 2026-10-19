@@ -2,7 +2,6 @@
 import {
   anchorsVisible,
   ambientFloor,
-  cameraLightVisible,
   isComputingLighting,
   lightingCalculatorMode,
   lightsVisible,
@@ -17,7 +16,6 @@ import ToggleSwitch from './ToggleSwitch.vue'
 <template>
   <div class="controls">
     <div class="toggles">
-      <ToggleSwitch v-model="cameraLightVisible" label="Flashlight" hotkey="F" />
       <ToggleSwitch v-model="wireframeVisible" label="Wireframe" hotkey="X" />
       <ToggleSwitch v-model="anchorsVisible" label="Anchors" hotkey="J" />
       <ToggleSwitch v-model="portalsVisible" label="Portals" hotkey="K" />

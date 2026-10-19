@@ -79,15 +79,18 @@ function openLevel(levelId: number): void {
     </div>
 
     <div class="download-area">
-      <button
-        class="download-button"
-        :disabled="isLoading !== 'fulfilled' || isDownloading"
-        title="Download the level"
-        aria-label="Download the level"
-        @click="$emit('download')"
-      >
-        <img class="download-icon" :src="downloadIcon" alt="" />
-      </button>
+      <VTooltip placement="left" :delay="0" :distance="10" :triggers="['hover']">
+        <template #popper>Export level</template>
+
+        <button
+          class="download-button"
+          :disabled="isLoading !== 'fulfilled' || isDownloading"
+          aria-label="Export level"
+          @click="$emit('download')"
+        >
+          <img class="download-icon" :src="downloadIcon" alt="" />
+        </button>
+      </VTooltip>
 
       <span v-if="isDownloading" class="download-progress">
         <i class="fa-solid fa-spinner fa-spin"></i>

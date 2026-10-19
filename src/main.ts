@@ -32,11 +32,15 @@ import {
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js'
 import { ViewHelper } from 'three/examples/jsm/helpers/ViewHelper.js'
 import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh'
+import FloatingVue from 'floating-vue'
+import 'floating-vue/dist/style.css'
 import { createApp, watch } from 'vue'
 import './style.scss'
 import flatColorsByFilename from './assets/flat-colors.json'
 import { downloadBinaryAs, zipBuffers } from './download.js'
-import { registerDownloadHandler } from './download-handler.js'
+import { registerDownloadHandler, registerExportLevel } from './download-handler.js'
+import { type DownloadSettings, downloadSettings, downloadSummary } from './ui/download-state.js'
+import { mountUi } from './ui/ui-app.js'
 import {
   ambientFloor,
   anchorsVisible,
@@ -67,7 +71,6 @@ import {
   updateMouseButtonStates,
   wireframeVisible,
 } from './ui/ui.js'
-import type { LightingCalculatorMode } from './ui/ui.js'
 import { isDoubleSided, isNoDraw, isTransparent, wait } from './functions.js'
 import { Color } from './Color.js'
 import { isValidOriginalArxLevelId } from './constants.js'
@@ -85,7 +88,11 @@ Mesh.prototype.raycast = acceleratedRaycast
 
 const logger = new Logger(document.querySelector('#logs') as HTMLDivElement)
 
-createApp(App).mount('#app')
+const headerApp = createApp(App)
+headerApp.use(FloatingVue)
+headerApp.mount('#app')
+
+mountUi()
 
 // --------------------
 
@@ -368,20 +375,7 @@ logger.log('done', line1)
 
 isLoading.value = 'fulfilled'
 
-/** what the download dialog decided - independent of what the screen shows right now */
-type DownloadSettings = {
-  mode: LightingCalculatorMode
-  ambientFloor: number
-  shadows: boolean
-}
-
 const downloadDialog = document.querySelector<HTMLDialogElement>('#download-dialog')
-const downloadModeSelect = document.querySelector<HTMLSelectElement>('#download-mode')
-const downloadAmbientFloorInput = document.querySelector<HTMLInputElement>('#download-ambient-floor')
-const downloadShadowsInput = document.querySelector<HTMLInputElement>('#download-shadows')
-const downloadSummary = document.querySelector<HTMLDivElement>('#download-summary')
-const downloadConfirmButton = document.querySelector<HTMLButtonElement>('#download-confirm')
-const downloadCancelButton = document.querySelector<HTMLButtonElement>('#download-cancel')
 
 /** the number of palette colours that the deleted polygons take out of the LLF */
 function getDeletedColorCount(): number {
@@ -398,84 +392,28 @@ function getDeletedColorCount(): number {
   return count
 }
 
-/** the ambient floor and the shadows switch only make sense for the Realistic bake */
-function updateDownloadDialogState(): void {
-  const isRealistic = downloadModeSelect?.value === 'Realistic'
-
-  if (downloadAmbientFloorInput !== null) {
-    downloadAmbientFloorInput.disabled = !isRealistic
-  }
-
-  if (downloadShadowsInput !== null) {
-    downloadShadowsInput.disabled = !isRealistic
-  }
-}
-
-/** fills the dialog with the current settings and shows it */
+/** fills the dialog with the current display settings and shows it (the dialog is a Vue component) */
 export function openDownloadDialog(): void {
-  if (
-    isLoading.value !== 'fulfilled' ||
-    isDownloading.value ||
-    downloadDialog === null ||
-    downloadModeSelect === null ||
-    downloadAmbientFloorInput === null ||
-    downloadShadowsInput === null ||
-    downloadSummary === null
-  ) {
+  if (isLoading.value !== 'fulfilled' || isDownloading.value || downloadDialog === null) {
     return
   }
 
-  downloadModeSelect.value = lightingCalculatorMode.value
-  downloadAmbientFloorInput.value = String(ambientFloor.value)
-  downloadShadowsInput.checked = shadows.value
+  downloadSettings.mode = lightingCalculatorMode.value
+  downloadSettings.ambientFloor = ambientFloor.value
+  downloadSettings.shadows = shadows.value
 
   const deletedColorCount = getDeletedColorCount()
 
-  downloadSummary.textContent =
+  downloadSummary.value =
     `Level ${levelId}: ${deletedPolygons.size} polygon(s) deleted, ` +
     `${deletedColorCount} palette colour(s) removed -> ` +
     `${llf.colors.length - deletedColorCount} colours in the exported LLF. ` +
     `The entities (DLF) are written back unchanged.`
 
-  updateDownloadDialogState()
   downloadDialog.showModal()
 }
 
-/** reads the dialog fields */
-function getDownloadSettings(): DownloadSettings {
-  const mode = (downloadModeSelect?.value ?? 'Arx') as LightingCalculatorMode
-  const parsedAmbientFloor = Number.parseInt(downloadAmbientFloorInput?.value ?? '0', 10)
-  const ambientFloorValue = Number.isNaN(parsedAmbientFloor) ? 0 : Math.min(64, Math.max(0, parsedAmbientFloor))
-
-  return {
-    mode,
-    ambientFloor: ambientFloorValue,
-    shadows: downloadShadowsInput?.checked ?? true,
-  }
-}
-
-if (downloadModeSelect !== null) {
-  downloadModeSelect.addEventListener('change', () => {
-    updateDownloadDialogState()
-  })
-}
-
-if (downloadConfirmButton !== null && downloadDialog !== null) {
-  downloadConfirmButton.addEventListener('click', () => {
-    const settings = getDownloadSettings()
-
-    downloadDialog.close()
-    void startDownload(settings)
-  })
-}
-
-if (downloadCancelButton !== null && downloadDialog !== null) {
-  downloadCancelButton.addEventListener('click', () => {
-    downloadDialog.close()
-  })
-}
-
-/** the Download button of the header opens the dialog - the export runs from the dialog */
+/** the Download button of the header opens the export dialog - the export runs from the dialog */
 export async function handleDownloadButtonClick(): Promise<void> {
   openDownloadDialog()
 }
@@ -547,6 +485,9 @@ export async function startDownload(settings: DownloadSettings): Promise<void> {
 }
 
 registerDownloadHandler(handleDownloadButtonClick)
+registerExportLevel((settings) => {
+  void startDownload(settings)
+})
 
 // --------------------
 

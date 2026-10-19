@@ -30,6 +30,7 @@
     "arx-convert": "^14.0.1",
     "arx-header-size": "^3.2.1",
     "color-rgba": "^3.0.0",
+    "floating-vue": "^5.4.0",
     "jszip": "^3.10.1",
     "node-pkware": "^5.9.2",
     "sass-embedded": "^1.100.0",

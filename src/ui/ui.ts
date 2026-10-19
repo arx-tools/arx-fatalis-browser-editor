@@ -1,4 +1,4 @@
-import { ref, watch, type Ref } from 'vue'
+import { ref, watch } from 'vue'
 
 type LoadingState = 'idle' | 'loading' | 'fulfilled' | 'rejected'
 
@@ -35,33 +35,12 @@ mouseUnlocked.style.display = 'none'
 
 // ------------
 
+// the visibility switches are rendered by the `ToggleSwitch` components (ControlsPanel), driven by
+// these refs - the hotkeys below toggle the same refs
+
 export const wireframeVisible = ref(false)
 
-const wireframeVisibleCheckbox = document.querySelector<HTMLInputElement>('#wireframe-visible') as HTMLInputElement
-wireframeVisibleCheckbox.addEventListener('input', () => {
-  wireframeVisible.value = wireframeVisibleCheckbox.checked
-})
-
-watch(wireframeVisible, (value) => {
-  wireframeVisibleCheckbox.checked = value
-})
-
-wireframeVisibleCheckbox.checked = wireframeVisible.value
-
-// ------------
-
 export const cameraLightVisible = ref(false)
-
-const cameraLightVisibleCheckbox = document.querySelector<HTMLInputElement>('#camera-light-visible') as HTMLInputElement
-cameraLightVisibleCheckbox.addEventListener('input', () => {
-  cameraLightVisible.value = cameraLightVisibleCheckbox.checked
-})
-
-watch(cameraLightVisible, (value) => {
-  cameraLightVisibleCheckbox.checked = value
-})
-
-cameraLightVisibleCheckbox.checked = cameraLightVisible.value
 
 // ------------
 
@@ -79,27 +58,9 @@ cameraInfo.style.display = cameraInfoVisible.value ? 'block' : 'none'
 
 // ------------
 
-/** binds a plain visibility checkbox to a ref (the component reads the ref) */
-function bindCheckbox(id: string): Ref<boolean> {
-  const checkbox = document.querySelector<HTMLInputElement>(`#${id}`) as HTMLInputElement
-  const visible = ref(false)
-
-  checkbox.addEventListener('input', () => {
-    visible.value = checkbox.checked
-  })
-
-  watch(visible, (value) => {
-    checkbox.checked = value
-  })
-
-  checkbox.checked = visible.value
-
-  return visible
-}
-
-export const anchorsVisible = bindCheckbox('anchors-visible')
-export const portalsVisible = bindCheckbox('portals-visible')
-export const lightsVisible = bindCheckbox('lights-visible')
+export const anchorsVisible = ref(false)
+export const portalsVisible = ref(false)
+export const lightsVisible = ref(false)
 
 // ------------
 
@@ -141,8 +102,14 @@ export const lightingCalculatorMode = ref<LightingCalculatorMode>(getLightingCal
 function getAmbientFloorFromUrl(): number {
   const raw = Number.parseInt(new URLSearchParams(globalThis.location.search).get('ambientFloor') ?? '0', 10)
 
-  return Number.isNaN(raw) ? 0 : Math.min(64, Math.max(0, raw))
+  return Number.isNaN(raw) ? 0 : Math.min(127, Math.max(0, raw))
 }
+
+/**
+ * The discrete steps of the "Minimum light level" slider (the ambient floor of the `Realistic`
+ * bake). 0 = no ambient, 23 = the ambient floor of the game's original palette, 127 = the brightest.
+ */
+export const minimumLightLevels = [0, 11, 23, 34, 50, 67, 83, 100, 127]
 
 export const ambientFloor = ref<number>(getAmbientFloorFromUrl())
 
@@ -178,15 +145,9 @@ export const isComputingLighting = ref<boolean>(false)
  */
 export const shadows = ref<boolean>(new URLSearchParams(globalThis.location.search).get('shadows') !== '0')
 
-const shadowsInput = document.querySelector<HTMLInputElement>('#shadows') as HTMLInputElement
-
-shadowsInput.checked = shadows.value
-shadowsInput.addEventListener('change', () => {
-  shadows.value = shadowsInput.checked
-})
-
+// the switches, the lighting select and the slider live in the Vue components (ControlsPanel /
+// LightingSettings / DownloadDialog); only the url sync stays here
 watch(shadows, (value) => {
-  shadowsInput.checked = value
   const url = new URL(globalThis.location.href)
   if (value) {
     url.searchParams.delete('shadows')
@@ -196,16 +157,7 @@ watch(shadows, (value) => {
   globalThis.history.replaceState(null, '', url)
 })
 
-const ambientFloorInput = document.querySelector<HTMLInputElement>('#ambient-floor') as HTMLInputElement
-
-ambientFloorInput.value = String(ambientFloor.value)
-ambientFloorInput.addEventListener('change', () => {
-  const parsed = Number.parseInt(ambientFloorInput.value, 10)
-  ambientFloor.value = Number.isNaN(parsed) ? 0 : Math.min(64, Math.max(0, parsed))
-})
-
 watch(ambientFloor, (value) => {
-  ambientFloorInput.value = String(value)
   const url = new URL(globalThis.location.href)
   if (value === 0) {
     url.searchParams.delete('ambientFloor')
@@ -215,41 +167,7 @@ watch(ambientFloor, (value) => {
   globalThis.history.replaceState(null, '', url)
 })
 
-const lightingSpinner = document.querySelector<HTMLElement>('#lighting-spinner') as HTMLElement
-
-watch(isComputingLighting, (value) => {
-  lightingSpinner.hidden = !value
-  shadowsInput.disabled = value
-})
-
-const lightingCalculatorModeSelect = document.querySelector<HTMLSelectElement>(
-  '#lighting-calculator-mode',
-) as HTMLSelectElement
-
-/** the select only contains a subset of the modes (the rest are URL-only for now) */
-function syncLightingCalculatorModeSelect(value: LightingCalculatorMode): void {
-  if ([...lightingCalculatorModeSelect.options].some((option) => option.value === value)) {
-    lightingCalculatorModeSelect.value = value
-  }
-}
-
-syncLightingCalculatorModeSelect(lightingCalculatorMode.value)
-lightingCalculatorModeSelect.addEventListener('change', () => {
-  lightingCalculatorMode.value = lightingCalculatorModeSelect.value as LightingCalculatorMode
-})
-
-/** the shadows switch is only meaningful for the Realistic mode */
-const shadowsRow = document.querySelector<HTMLElement>('#shadows-row') as HTMLElement
-
-function updateShadowsRowVisibility(): void {
-  shadowsRow.hidden = lightingCalculatorMode.value !== 'Realistic'
-}
-
-updateShadowsRowVisibility()
-
 watch(lightingCalculatorMode, (value) => {
-  syncLightingCalculatorModeSelect(value)
-  updateShadowsRowVisibility()
   const url = new URL(globalThis.location.href)
   url.searchParams.set('lightingCalculatorMode', value)
   url.searchParams.delete('lighting')

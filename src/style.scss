@@ -96,8 +96,9 @@ button {
 }
 
 #download-dialog {
-  min-width: 440px;
-  padding: 16px 20px 12px;
+  /* the shell only: the content is the DownloadDialog component */
+  min-width: 520px;
+  padding: 16px 20px;
   border: 1px solid #000;
   border-radius: 6px;
   background: #2c2828;
@@ -106,80 +107,6 @@ button {
   &::backdrop {
     background: rgb(0 0 0 / 55%);
   }
-
-  h2 {
-    margin: 0 0 14px;
-    font-size: 16px;
-  }
-
-  .dialog-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 10px 0;
-  }
-
-  .dialog-toggle {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    margin-left: 12px;
-  }
-
-  #download-summary {
-    margin: 16px 0 12px;
-    font-size: 12px;
-    color: #b9b2aa;
-  }
-
-  .dialog-buttons {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-  }
-
-  button {
-    padding: 4px 12px;
-  }
-}
-
-.settings-row {
-  margin-top: 10px;
-}
-
-.settings-indent {
-  margin-left: 30px;
-}
-
-.lighting-spinner {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  margin-left: 8px;
-  vertical-align: middle;
-  border: 2px solid rgba(255, 255, 255, 0.25);
-  border-top-color: #ffd23f;
-  border-radius: 50%;
-  animation: lighting-spinner-spin 0.7s linear infinite;
-}
-
-.lighting-spinner[hidden] {
-  display: none;
-}
-
-@keyframes lighting-spinner-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* advanced settings are reachable from the URL only for now */
-.settings-row .advanced {
-  display: none;
-}
-
-.settings-row #shadows-row[hidden] {
-  display: none;
 }
 
 #logs {

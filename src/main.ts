@@ -1798,6 +1798,29 @@ function getSelectionMode(): SelectionMode {
 /** the mode of the gesture that is currently pressed down (set on mousedown) */
 let pendingSelectionMode: SelectionMode | undefined
 
+/** the modifier keys: their state changes the colour of the cursor outline, no mouse move needed */
+function isModifierKey(code: string): boolean {
+  return (
+    code === 'ShiftLeft' ||
+    code === 'ShiftRight' ||
+    code === 'ControlLeft' ||
+    code === 'ControlRight' ||
+    code === 'MetaLeft' ||
+    code === 'MetaRight'
+  )
+}
+
+/** repaints the cursor outline for the current mode (red only when the gesture would remove) */
+function updateCursorColor(): void {
+  if (polygonBeingLookedAt === undefined) {
+    return
+  }
+
+  const mode = selectionDragMode ?? getSelectionMode()
+
+  cursorTriangleMaterial.color.set(mode === 'remove' ? Color.red.getHex() : Color.green.getHex())
+}
+
 function render(): void {
   if (resizeRendererToDisplaySize(renderer)) {
     const canvas = renderer.domElement
@@ -1907,10 +1930,18 @@ function onKeyDown(event: KeyboardEvent): void {
   }
 
   pressedKeys[event.code] = true
+
+  if (isModifierKey(event.code)) {
+    updateCursorColor()
+  }
 }
 
 function onKeyUp(event: KeyboardEvent): void {
   pressedKeys[event.code] = false
+
+  if (isModifierKey(event.code)) {
+    updateCursorColor()
+  }
 }
 
 document.addEventListener('keydown', onKeyDown, false)

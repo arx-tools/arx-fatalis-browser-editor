@@ -25,15 +25,30 @@
     </div>
 
       <div id="info-and-controls">
-        <p id="mouse-locked">
-          Press <code>W</code> <code>A</code> <code>S</code> <code>D</code> keys to move around, move the
-          <code>Mouse</code> to look around, hold <code>Shift</code> to move slower, press <code>Esc</code> to get
-          mouse cursor back.
-        </p>
-        <p id="mouse-unlocked">Click anywhere on the 3D scene to enter it and be able to move around within the world!</p>
+        <div class="controls-grid">
+          <!-- the toggles and the lighting settings (Vue, see src/components/ui/) -->
+          <div id="controls-slot"></div>
 
-        <!-- the toggles, the lighting settings and the selection help (Vue, see src/components/ui/) -->
-        <div id="controls-slot"></div>
+          <!-- the key help: only while the pointer is locked, otherwise the "click anywhere" hint -->
+          <div class="help">
+            <div id="mouse-unlocked">Click anywhere on the 3D scene to enter it and be able to move around within the world!</div>
+
+            <div id="mouse-locked">
+              <p>
+                Press <code>W</code> <code>A</code> <code>S</code> <code>D</code> keys to move around, move the
+                <code>Mouse</code> to look around, hold <code>Shift</code> to move slower, press <code>Esc</code> to
+                get mouse cursor back.
+              </p>
+              <p>
+                Double click: select the connected polygons of the same texture.<br />
+                <code>C</code> to clear selection<br />
+                <code>Del</code> to delete selected polygons<br />
+                Hold <code>Shift</code> while selecting to add to existing selection<br />
+                Hold <code>Ctrl</code> while selecting to remove from existing selection
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- temporarily hidden (the logger keeps writing into #logs, the dom stays) -->

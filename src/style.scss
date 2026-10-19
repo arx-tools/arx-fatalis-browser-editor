@@ -103,6 +103,24 @@ button {
 
 #info-and-controls {
   padding: 0 10px 16px;
+  /* every control description and label reads the same size */
+  font-size: 13px;
+}
+
+/* the settings on the left, the key help on the right, equal halves */
+.controls-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 40px;
+  align-items: start;
+}
+
+.help {
+  line-height: 1.6;
+
+  p {
+    margin: 0 0 10px;
+  }
 }
 
 #logs {

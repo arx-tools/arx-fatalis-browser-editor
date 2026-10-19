@@ -90,6 +90,10 @@ function onShadowsChange(event: Event): void {
     white-space: nowrap;
   }
 
+  select {
+    font: inherit;
+  }
+
   input[type='range'] {
     width: 140px;
     vertical-align: middle;

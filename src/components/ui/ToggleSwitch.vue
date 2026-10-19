@@ -38,7 +38,6 @@ const emit = defineEmits<{
   background: #4a4444;
   color: #e2d8d8;
   font: inherit;
-  font-size: 12px;
   line-height: 1;
   white-space: nowrap;
   cursor: pointer;

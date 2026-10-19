@@ -16,14 +16,15 @@
   <body>
     <div id="app"></div>
 
-    <div id="screen-wrapper">
+    <main>
+      <div id="screen-wrapper">
       <div id="loading-indicator">Loading, please wait...</div>
       <canvas id="screen"></canvas>
       <div id="crosshair" class="hidden">+</div>
       <div id="camera-info"></div>
     </div>
 
-    <footer id="info-and-controls">
+      <div id="info-and-controls">
       <p id="mouse-locked">
         Press <code>[W]</code> <code>[A]</code> <code>[S]</code> <code>[D]</code> keys to move around, move the
         <code>[Mouse]</code> to look around, hold <code>[Shift]</code> to move slower, press <code>[ESC]</code> to get
@@ -99,13 +100,13 @@
       <h3>Logs</h3>
       <div id="logs"></div>
 
-      <p>
-        <small>
-          Arx Fatalis Browser Editor <span id="build-info"><!-- build info --></span>
-          &middot;
-          <a href="/">back to arx-tools.github.io</a>
-        </small>
-      </p>
+      </div>
+    </main>
+
+    <footer>
+      Arx Fatalis Browser Editor <span id="build-info"><!-- build info --></span>
+      &middot;
+      <a href="/">back to arx-tools.github.io</a>
     </footer>
 
     <dialog id="download-dialog">

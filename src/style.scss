@@ -8,6 +8,34 @@ body {
 body {
   /* a shade darker than white so the dark header and the canvas sit in a frame */
   background: #e4e1dc;
+  /* the footer sits at the bottom of the page even when the content is short */
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+main {
+  flex: 1;
+}
+
+/* the same idea as the site: a dark strip with the build info and a way back */
+footer {
+  padding: 10px 30px;
+  border-top: 1px solid #fcf0cf;
+  background: #623f22;
+  color: #fcf0cf;
+  font-size: 0.8rem;
+  text-align: center;
+
+  a {
+    color: #fcf0cf;
+    font-weight: 700;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
 }
 
 h1,
@@ -64,10 +92,7 @@ button {
 }
 
 #info-and-controls {
-  padding: 10px 10px 16px;
-  background: #f8f6f2;
-  border-top: 1px solid #cfcac3;
-  border-bottom: 1px solid #cfcac3;
+  padding: 0 10px 16px;
 }
 
 #download-dialog {

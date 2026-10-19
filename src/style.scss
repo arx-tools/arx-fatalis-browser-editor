@@ -44,6 +44,16 @@ h3 {
   user-select: none;
 }
 
+/* an inline key cap: a dark pill with light text (the brackets are not needed next to it) */
+code {
+  padding: 0 4px;
+  border-radius: 3px;
+  background: #2c2828;
+  color: #f1ece5;
+  font-family: monospace;
+  font-size: 0.95em;
+}
+
 label {
   user-select: none;
   cursor: pointer;
@@ -95,20 +105,6 @@ button {
   padding: 0 10px 16px;
 }
 
-#download-dialog {
-  /* the shell only: the content is the DownloadDialog component */
-  min-width: 520px;
-  padding: 16px 20px;
-  border: 1px solid #000;
-  border-radius: 6px;
-  background: #2c2828;
-  color: #e8e4df;
-
-  &::backdrop {
-    background: rgb(0 0 0 / 55%);
-  }
-}
-
 #logs {
   font-family: monospace;
   height: 200px;
@@ -126,11 +122,6 @@ button {
   color: red !important;
 }
 
-code {
-  background: #e3e3e3;
-  padding: 1px 1px;
-  border-radius: 3px;
-}
 
 #camera-info {
   position: absolute;

@@ -26,10 +26,10 @@ import ToggleSwitch from './ToggleSwitch.vue'
 
     <p class="hint">
       Double click: select the connected polygons of the same texture.<br />
-      <code>[C]</code> to clear selection<br />
-      <code>[Del]</code> to delete selected polygons<br />
-      Hold <code>[Shift]</code> while selecting to add to existing selection<br />
-      Hold <code>[Ctrl]</code> while selecting to remove from existing selection
+      <code>C</code> to clear selection<br />
+      <code>Del</code> to delete selected polygons<br />
+      Hold <code>Shift</code> while selecting to add to existing selection<br />
+      Hold <code>Ctrl</code> while selecting to remove from existing selection
     </p>
 
     <div class="settings">

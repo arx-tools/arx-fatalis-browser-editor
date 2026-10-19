@@ -73,6 +73,15 @@ const emit = defineEmits<{
     .hotkey {
       color: #4a3a10;
     }
+
+    /* the grey hover of the dark button would wash the gold away */
+    &:hover:not(:disabled) {
+      background: linear-gradient(#e9c95f, #bb9326);
+    }
+
+    &:active:not(:disabled) {
+      background: linear-gradient(#c9a63f, #9a7718);
+    }
   }
 
   &:disabled {

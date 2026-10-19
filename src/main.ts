@@ -38,8 +38,8 @@ import { createApp, watch } from 'vue'
 import './style.scss'
 import flatColorsByFilename from './assets/flat-colors.json'
 import { downloadBinaryAs, zipBuffers } from './download.js'
-import { registerDownloadHandler, registerExportLevel } from './download-handler.js'
-import { type DownloadSettings, downloadSettings, downloadSummary } from './ui/download-state.js'
+import { registerDownloadHandler } from './download-handler.js'
+import type { LightingCalculatorMode } from './ui/ui.js'
 import { mountUi } from './ui/ui-app.js'
 import {
   ambientFloor,
@@ -375,47 +375,21 @@ logger.log('done', line1)
 
 isLoading.value = 'fulfilled'
 
-const downloadDialog = document.querySelector<HTMLDialogElement>('#download-dialog')
-
-/** the number of palette colours that the deleted polygons take out of the LLF */
-function getDeletedColorCount(): number {
-  let count = 0
-
-  for (const polygonIndex of deletedPolygons) {
-    const polygon = fts.polygons[polygonIndex]
-
-    if (polygon !== undefined) {
-      count += isQuad(polygon) ? 4 : 3
-    }
-  }
-
-  return count
-}
-
-/** fills the dialog with the current display settings and shows it (the dialog is a Vue component) */
-export function openDownloadDialog(): void {
-  if (isLoading.value !== 'fulfilled' || isDownloading.value || downloadDialog === null) {
-    return
-  }
-
-  downloadSettings.mode = lightingCalculatorMode.value
-  downloadSettings.ambientFloor = ambientFloor.value
-  downloadSettings.shadows = shadows.value
-
-  const deletedColorCount = getDeletedColorCount()
-
-  downloadSummary.value =
-    `Level ${levelId}: ${deletedPolygons.size} polygon(s) deleted, ` +
-    `${deletedColorCount} palette colour(s) removed -> ` +
-    `${llf.colors.length - deletedColorCount} colours in the exported LLF. ` +
-    `The entities (DLF) are written back unchanged.`
-
-  downloadDialog.showModal()
-}
-
-/** the Download button of the header opens the export dialog - the export runs from the dialog */
+/**
+ * The Download button of the header starts the export right away, with the settings the screen shows
+ * (the lighting mode, the minimum light level and the shadows switch of the settings panel).
+ */
 export async function handleDownloadButtonClick(): Promise<void> {
-  openDownloadDialog()
+  await startDownload({
+    mode: lightingCalculatorMode.value,
+    ambientFloor: ambientFloor.value,
+    shadows: shadows.value,
+  })
+}
+type DownloadSettings = {
+  mode: LightingCalculatorMode
+  ambientFloor: number
+  shadows: boolean
 }
 
 export async function startDownload(settings: DownloadSettings): Promise<void> {
@@ -484,9 +458,8 @@ export async function startDownload(settings: DownloadSettings): Promise<void> {
   }
 }
 
-registerDownloadHandler(handleDownloadButtonClick)
-registerExportLevel((settings) => {
-  void startDownload(settings)
+registerDownloadHandler(() => {
+  void handleDownloadButtonClick()
 })
 
 // --------------------

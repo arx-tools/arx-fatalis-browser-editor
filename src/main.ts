@@ -1902,29 +1902,22 @@ function animate(): void {
 renderer.setAnimationLoop(animate)
 cameraLight.position.set(camera.position.x, camera.position.y, camera.position.z)
 
-/**
- * Escape clears the selection first and leaves the pointer lock only on the next press. The browser
- * itself exits the pointer lock when escape is pressed (it cannot be prevented), so after clearing a
- * selection the lock is grabbed back right away.
- */
-let lockAgainAfterEscape = false
-
 function onKeyDown(event: KeyboardEvent): void {
   if (event.code === 'Escape') {
-    if (selectedPolygons.size > 0) {
-      clearSelection()
-      lockAgainAfterEscape = true
-
-      return
-    }
-
-    lockAgainAfterEscape = false
-
     controls.unlock()
 
     updateMouseButtonState(LeftMouseButton, false)
     updateMouseButtonState(RightMouseButton, false)
     updateMouseButtonState(MiddleMouseButton, false)
+
+    return
+  }
+
+  // the escape key belongs to the browser while the pointer is locked (it leaves the lock and the
+  // page does not even get the keydown in firefox), so a plain letter key clears the selection
+  // without leaving: [c]
+  if (event.code === 'KeyC' && selectedPolygons.size > 0) {
+    clearSelection()
 
     return
   }
@@ -2014,13 +2007,24 @@ canvas.addEventListener('click', () => {
   controls.lock()
 })
 
+/** true while the window lost the focus (alt-tab): an unlock is not an escape then */
+let isWindowBlurred = false
+
+/**
+ * Firefox swallows the escape keydown while the pointer is locked (leaving the lock on escape is the
+ * job of the user agent, the page does not get the event), so "escape clears the selection first" is
+ * implemented on the unlock event: when the window still has the focus the escape was pressed, so
+ * the selection is dropped and the lock is taken back. A blur (alt-tab) keeps the selection.
+ */
 controls.addEventListener('unlock', () => {
-  if (!lockAgainAfterEscape) {
+  // firefox (and chrome) only grant the pointer lock from a short user generated event handler, so
+  // the lock cannot be taken back here - escape always leaves the view, the selection is just
+  // dropped on the way out (an alt-tab keeps it)
+  if (isWindowBlurred) {
     return
   }
 
-  lockAgainAfterEscape = false
-  controls.lock()
+  clearSelection()
 })
 
 document.addEventListener('dblclick', (event) => {
@@ -2031,7 +2035,13 @@ document.addEventListener('dblclick', (event) => {
   selectSameTextureArea(polygonBeingLookedAt, getSelectionModeFromEvent(event))
 })
 
+window.addEventListener('focus', () => {
+  isWindowBlurred = false
+})
+
 window.addEventListener('blur', () => {
+  isWindowBlurred = true
+
   controls.unlock()
 
   updateMouseButtonState(LeftMouseButton, false)

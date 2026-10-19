@@ -409,7 +409,9 @@ export async function startDownload(settings: DownloadSettings): Promise<void> {
     const exportPalette =
       settings.mode === 'Realistic'
         ? await getRealisticPalette(settings.ambientFloor, settings.shadows)
-        : undefined
+        : settings.mode === 'TextureRainbow'
+          ? await getRainbowPalette()
+          : undefined
     const exportLlf = buildExportLlf(
       fts,
       llf,
@@ -491,7 +493,7 @@ const offset = arxVector3toVector3(fts.header.mScenePosition)
  * does not load the textures yet - this is what makes the level look like the game's untextured
  * (flat color) mode instead of a white clay render.
  */
-type DisplayLightingMode = 'dynamic' | 'maxBrightness' | 'completeDarkness'
+type DisplayLightingMode = 'dynamic' | 'maxBrightness' | 'completeDarkness' | 'rainbow'
 
 /** the `lightingCalculatorMode` (.env) mapped to how the level is displayed */
 function getDisplayLightingMode(): DisplayLightingMode {
@@ -504,9 +506,10 @@ function getDisplayLightingMode(): DisplayLightingMode {
       return 'maxBrightness'
     case 'CompleteDarkness':
       return 'completeDarkness'
+    case 'TextureRainbow':
+      return 'rainbow'
     case 'Arx':
     case 'Realistic':
-      // TODO(M3a): the Realistic will show the computed (shadowed) palette once the bake exists
       return 'dynamic'
   }
 }
@@ -603,6 +606,14 @@ function createMaterial(
     return new MeshBasicMaterial({ ...options, color: Color.white.getHex() })
   }
 
+  if (displayMode === 'rainbow') {
+    // unlit: the baked attribute *is* the colour (one hue per texture container)
+    const material = new MeshBasicMaterial({ ...options, color: Color.white.getHex() })
+    addBakedColorToShader(material, 'diffuse')
+
+    return material
+  }
+
   // CompleteDarkness: the baked attribute is zeroed by `applyLightingCalculatorMode`, so the only
   // light on the lambert surface is the camera light ([F]) - the darkest the editor can show
   const material = new MeshLambertMaterial({ ...options, color: Color.white.getHex(), vertexColors: vertexColors !== undefined })
@@ -690,6 +701,7 @@ for (const { mesh } of meshGroups) {
  * `invalidateRealisticPalette()`.
  */
 let realisticPaletteCache: { key: string; palette: ArxColor[] } | undefined
+let rainbowPaletteCache: ArxColor[] | undefined
 
 export function invalidateRealisticPalette(): void {
   realisticPaletteCache = undefined
@@ -750,6 +762,62 @@ async function applyRealisticBakedColors(): Promise<void> {
           array[index * 3] = srgbToLinear((color.r / 255) * (flat[0] / 255))
           array[index * 3 + 1] = srgbToLinear((color.g / 255) * (flat[1] / 255))
           array[index * 3 + 2] = srgbToLinear((color.b / 255) * (flat[2] / 255))
+        }
+
+        index++
+      }
+    }
+
+    attribute.needsUpdate = true
+  }
+}
+
+async function getRainbowPalette(): Promise<ArxColor[]> {
+  if (rainbowPaletteCache !== undefined) {
+    return rainbowPaletteCache
+  }
+
+  isComputingLighting.value = true
+  await wait(50)
+
+  try {
+    const line = logger.log('computing the texture colours...')
+    const palette = bakeLlfColors(fts, llf, 'TextureRainbow', meshes, ambientFloor.value, shadows.value)
+    logger.log('done', line)
+
+    rainbowPaletteCache = palette
+
+    return palette
+  } finally {
+    isComputingLighting.value = false
+  }
+}
+
+/** writes the palette into the `baked` attribute - without the albedo, so the colours stay pure */
+async function applyRainbowBakedColors(): Promise<void> {
+  const palette = await getRainbowPalette()
+
+  for (const group of meshGroups) {
+    const attribute = group.mesh.geometry.getAttribute('baked')
+
+    if (attribute === undefined) {
+      continue
+    }
+
+    const array = attribute.array as Float32Array
+    let index = 0
+
+    for (const { polygon } of survivingEntries(group)) {
+      const vertexOrder = isQuad(polygon) ? [0, 1, 2, 2, 1, 3] : [0, 1, 2]
+
+      for (const vertexIndex of vertexOrder) {
+        const colorIndex = polygon.vertices[vertexIndex].llfColorIdx
+        const color = colorIndex === undefined ? undefined : palette[colorIndex]
+
+        if (color !== undefined) {
+          array[index * 3] = srgbToLinear(color.r / 255)
+          array[index * 3 + 1] = srgbToLinear(color.g / 255)
+          array[index * 3 + 2] = srgbToLinear(color.b / 255)
         }
 
         index++
@@ -1306,6 +1374,8 @@ async function applyLightingCalculatorMode(): Promise<void> {
 
   if (displayMode === 'dynamic' && lightingCalculatorMode.value === 'Realistic') {
     await applyRealisticBakedColors()
+  } else if (displayMode === 'rainbow') {
+    await applyRainbowBakedColors()
   } else {
     for (const { mesh } of meshGroups) {
       setBakedColors(mesh, displayMode === 'completeDarkness' ? 0 : originalBakedColors.get(mesh))

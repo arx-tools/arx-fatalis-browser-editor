@@ -68,9 +68,20 @@ export const lightsVisible = ref(false)
  * The `lightingCalculatorMode` of the generator (the `.env` key). The URL uses the same key and the
  * select above the canvas is bound to it - the display mode is derived from this on the fly.
  */
-export type LightingCalculatorMode = 'MaxBrightness' | 'CompleteDarkness' | 'Arx' | 'Realistic'
+export type LightingCalculatorMode =
+  | 'MaxBrightness'
+  | 'CompleteDarkness'
+  | 'Arx'
+  | 'Realistic'
+  | 'TextureRainbow'
 
-const lightingCalculatorModes: LightingCalculatorMode[] = ['Arx', 'Realistic', 'MaxBrightness', 'CompleteDarkness']
+const lightingCalculatorModes: LightingCalculatorMode[] = [
+  'Arx',
+  'Realistic',
+  'TextureRainbow',
+  'MaxBrightness',
+  'CompleteDarkness',
+]
 
 function getLightingCalculatorModeFromUrl(): LightingCalculatorMode {
   const params = new URLSearchParams(globalThis.location.search)

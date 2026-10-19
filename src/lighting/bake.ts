@@ -17,8 +17,94 @@ import { arxVector3toVector3 } from '../arx-threejs-format-converters.js'
  *   self-intersection guard of the lighting generators).
  * - `MaxBrightness`: every vertex at 255 (useful for checking edits to a mesh).
  * - `CompleteDarkness`: every vertex at 0 (the darkest state).
+ * - `TextureRainbow`: no lighting at all - every vertex gets a **hue from its texture**: the
+ *   texture containers of the FTS are ordered, so the earliest ones are red, then yellow, green and
+ *   the latest ones blue (`hue = 240 * index / (count - 1)`). Areas that use a late texture (blue)
+ *   were added to the level later, which makes the late edits visible (lost media research).
  */
-export type LightingCalculatorMode = 'MaxBrightness' | 'CompleteDarkness' | 'Arx' | 'Realistic'
+export type LightingCalculatorMode =
+  | 'MaxBrightness'
+  | 'CompleteDarkness'
+  | 'Arx'
+  | 'Realistic'
+  | 'TextureRainbow'
+
+/** hsv -> rgb, hue in degrees (0..360), saturation and value in 0..1 */
+function hsvToRgb(hue: number, saturation: number, value: number): { r: number; g: number; b: number } {
+  const chroma = value * saturation
+  const h = hue / 60
+  const second = chroma * (1 - Math.abs((h % 2) - 1))
+  const offset = value - chroma
+
+  let red = 0
+  let green = 0
+  let blue = 0
+
+  if (h < 1) {
+    red = chroma
+    green = second
+  } else if (h < 2) {
+    red = second
+    green = chroma
+  } else if (h < 3) {
+    green = chroma
+    blue = second
+  } else if (h < 4) {
+    green = second
+    blue = chroma
+  } else if (h < 5) {
+    red = second
+    blue = chroma
+  } else {
+    red = chroma
+    blue = second
+  }
+
+  return {
+    r: Math.round((red + offset) * 255),
+    g: Math.round((green + offset) * 255),
+    b: Math.round((blue + offset) * 255),
+  }
+}
+
+/**
+ * The `TextureRainbow` palette: every vertex takes the colour of its polygon's texture container.
+ * The order of `fts.textureContainers` is the order the textures were added to the level, so the
+ * palette runs from red (the first texture) through yellow and green to blue (the last one).
+ */
+function bakeTextureRainbowColors(fts: ArxFTS, llf: ArxLLF): ArxColor[] {
+  const containers = fts.textureContainers
+  const count = containers.length
+  const colorByContainerId = new Map<number, ArxColor>()
+
+  containers.forEach((container, index) => {
+    const hue = count <= 1 ? 0 : (240 * index) / (count - 1)
+    const { r, g, b } = hsvToRgb(hue, 1, 1)
+
+    colorByContainerId.set(container.id, { r, g, b, a: 255 })
+  })
+
+  // a texture that is not in the list (should not happen) stays white
+  const fallback: ArxColor = { r: 255, g: 255, b: 255, a: 255 }
+  const colors: ArxColor[] = llf.colors.map(() => {
+    return { ...fallback }
+  })
+
+  for (const polygon of fts.polygons) {
+    const color = colorByContainerId.get(polygon.textureContainerId) ?? fallback
+    const used = isQuad(polygon) ? 4 : 3
+
+    for (let vertexIndex = 0; vertexIndex < used; vertexIndex++) {
+      const colorIndex = polygon.vertices[vertexIndex].llfColorIdx
+
+      if (colorIndex !== undefined && colorIndex < colors.length) {
+        colors[colorIndex] = { ...color }
+      }
+    }
+  }
+
+  return colors
+}
 
 const AMBIENT = Math.round(0.09 * 255) // 23
 const GLOBAL_LIGHT_FACTOR = 0.85 // the Arx (Danae) global factor; the Realistic (Fred shadow profiles) uses 1
@@ -48,6 +134,10 @@ export function bakeLlfColors(
 
   if (mode === 'CompleteDarkness') {
     return llf.colors.map(() => ({ r: 0, g: 0, b: 0, a: 255 }))
+  }
+
+  if (mode === 'TextureRainbow') {
+    return bakeTextureRainbowColors(fts, llf)
   }
 
   // the *raw* scene position: the vertex of the mesh is `M(v) - M(s)` = `-v.x + s.x`, so the bake

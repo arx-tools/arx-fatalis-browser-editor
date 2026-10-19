@@ -45,6 +45,7 @@ function onShadowsChange(event: Event): void {
         <select :value="mode" @change="onModeChange">
           <option value="Arx">Arx — the game's palette and lights</option>
           <option value="Realistic">Realistic — computed palette with shadows</option>
+          <option value="TextureRainbow">TextureRainbow — a colour per texture (late edits are blue)</option>
           <option value="MaxBrightness">MaxBrightness — unlit white</option>
           <option value="CompleteDarkness">CompleteDarkness — unlit black</option>
         </select>

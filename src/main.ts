@@ -795,11 +795,17 @@ async function getRainbowPalette(): Promise<ArxColor[]> {
 }
 
 /**
- * Writes the palette into the `baked` attribute. The albedo of the texture is multiplied in, exactly
- * like the `Realistic` mode does (and like the game multiplies the vertex light with its textures):
- * with the pure `hsv(h, 1, 1)` colours the editor looked much brighter than the reference
- * screenshots of the prototype (S≈1.0/V≈1.0 vs S≈0.86/V≈0.5 on the average albedo).
+ * The brightness of the textures in the game's UW (untextured) view: the textures there are
+ * normalised to the same average, so every surface shows `palette * RAINBOW_UW_ALBEDO`.
+ *
+ * Measured from the owner's in-game/editor comparison (level 11, metal dwarf wall area):
+ * in-game `#203e7b` / `#1f216c` / `#5e741c` against the palette of hue 200° / 240° / 78° gives
+ * 0.489 / 0.484 / 0.458 - the per texture average albedo (`flatColors`) is *not* used by the UW view
+ * (the metal dwarf wall is (63,57,56), which would give `#101138` instead of `#1f216c`).
  */
+const RAINBOW_UW_ALBEDO = 0.47
+
+/** writes the (already normalised) palette into the `baked` attribute */
 async function applyRainbowBakedColors(): Promise<void> {
   const palette = await getRainbowPalette()
 
@@ -814,7 +820,6 @@ async function applyRainbowBakedColors(): Promise<void> {
     let index = 0
 
     for (const { polygon } of survivingEntries(group)) {
-      const flat = flatColors.get(polygon.textureContainerId) ?? [255, 255, 255]
       const vertexOrder = isQuad(polygon) ? [0, 1, 2, 2, 1, 3] : [0, 1, 2]
 
       for (const vertexIndex of vertexOrder) {
@@ -822,9 +827,9 @@ async function applyRainbowBakedColors(): Promise<void> {
         const color = colorIndex === undefined ? undefined : palette[colorIndex]
 
         if (color !== undefined) {
-          array[index * 3] = srgbToLinear((color.r / 255) * (flat[0] / 255))
-          array[index * 3 + 1] = srgbToLinear((color.g / 255) * (flat[1] / 255))
-          array[index * 3 + 2] = srgbToLinear((color.b / 255) * (flat[2] / 255))
+          array[index * 3] = srgbToLinear((color.r / 255) * RAINBOW_UW_ALBEDO)
+          array[index * 3 + 1] = srgbToLinear((color.g / 255) * RAINBOW_UW_ALBEDO)
+          array[index * 3 + 2] = srgbToLinear((color.b / 255) * RAINBOW_UW_ALBEDO)
         }
 
         index++

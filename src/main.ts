@@ -1910,7 +1910,7 @@ cameraLight.position.set(camera.position.x, camera.position.y, camera.position.z
 let lockAgainAfterEscape = false
 
 function onKeyDown(event: KeyboardEvent): void {
-  if (event.code === 'KeyEsc') {
+  if (event.code === 'Escape') {
     if (selectedPolygons.size > 0) {
       clearSelection()
       lockAgainAfterEscape = true

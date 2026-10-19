@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import downloadIcon from '../assets/download-floppy.png'
 import { originalArxLevelIds } from '../constants'
 import { currentLevelId, downloadCompleted, downloadProgress, isDirty, isDownloading, isLoading } from '../ui/ui'
 
@@ -78,9 +79,14 @@ function openLevel(levelId: number): void {
     </div>
 
     <div class="download-area">
-      <button class="download-button" :disabled="isLoading !== 'fulfilled' || isDownloading" @click="$emit('download')">
-        <i class="fa-solid fa-download"></i>
-        Download
+      <button
+        class="download-button"
+        :disabled="isLoading !== 'fulfilled' || isDownloading"
+        title="Download the level"
+        aria-label="Download the level"
+        @click="$emit('download')"
+      >
+        <img class="download-icon" :src="downloadIcon" alt="" />
       </button>
 
       <span v-if="isDownloading" class="download-progress">
@@ -102,6 +108,7 @@ header {
   align-items: center;
   gap: 10px;
   padding: 10px;
+  border-bottom: 1px solid #fcf0cf;
   background: #2c2828;
   color: #d3c0c0;
 
@@ -128,6 +135,37 @@ header {
     align-items: center;
     justify-self: end;
     gap: 8px;
+  }
+
+  .download-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    background: none;
+    line-height: 0;
+    cursor: pointer;
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+  }
+
+  .download-icon {
+    width: 30px;
+    height: auto;
+    /* the icon is pixel art from the game, keep it crisp */
+    image-rendering: pixelated;
+  }
+
+  .download-button:hover:not(:disabled) .download-icon {
+    filter: brightness(1.15);
+  }
+
+  .download-button:active:not(:disabled) .download-icon {
+    transform: translateY(1px);
   }
 
   .download-progress {

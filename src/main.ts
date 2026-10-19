@@ -2007,26 +2007,6 @@ canvas.addEventListener('click', () => {
   controls.lock()
 })
 
-/** true while the window lost the focus (alt-tab): an unlock is not an escape then */
-let isWindowBlurred = false
-
-/**
- * Firefox swallows the escape keydown while the pointer is locked (leaving the lock on escape is the
- * job of the user agent, the page does not get the event), so "escape clears the selection first" is
- * implemented on the unlock event: when the window still has the focus the escape was pressed, so
- * the selection is dropped and the lock is taken back. A blur (alt-tab) keeps the selection.
- */
-controls.addEventListener('unlock', () => {
-  // firefox (and chrome) only grant the pointer lock from a short user generated event handler, so
-  // the lock cannot be taken back here - escape always leaves the view, the selection is just
-  // dropped on the way out (an alt-tab keeps it)
-  if (isWindowBlurred) {
-    return
-  }
-
-  clearSelection()
-})
-
 document.addEventListener('dblclick', (event) => {
   if (!controls.isLocked || polygonBeingLookedAt === undefined) {
     return
@@ -2035,13 +2015,7 @@ document.addEventListener('dblclick', (event) => {
   selectSameTextureArea(polygonBeingLookedAt, getSelectionModeFromEvent(event))
 })
 
-window.addEventListener('focus', () => {
-  isWindowBlurred = false
-})
-
 window.addEventListener('blur', () => {
-  isWindowBlurred = true
-
   controls.unlock()
 
   updateMouseButtonState(LeftMouseButton, false)

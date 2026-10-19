@@ -44,6 +44,16 @@ export const cameraLightVisible = ref(false)
 
 // ------------
 
+/** the little dot next to the flashlight hint: grey when the camera light is off, yellow when on */
+const flashlightIndicator = document.querySelector<HTMLElement>('#flashlight-indicator')
+
+function updateFlashlightIndicator(value: boolean): void {
+  flashlightIndicator?.classList.toggle('on', value)
+}
+
+updateFlashlightIndicator(cameraLightVisible.value)
+watch(cameraLightVisible, updateFlashlightIndicator)
+
 export const cameraInfoVisible = ref(true)
 
 export const cameraInfo = document.querySelector<HTMLDivElement>('#camera-info') as HTMLDivElement

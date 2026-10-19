@@ -79,7 +79,7 @@ function bakeTextureRainbowColors(fts: ArxFTS, llf: ArxLLF): ArxColor[] {
 
   containers.forEach((container, index) => {
     const hue = count <= 1 ? 0 : (240 * index) / (count - 1)
-    const { r, g, b } = hsvToRgb(hue, 1, 1)
+    const { r, g, b } = hsvToRgb(hue, RAINBOW_SATURATION, 1)
 
     colorByContainerId.set(container.id, { r, g, b, a: 255 })
   })
@@ -105,6 +105,9 @@ function bakeTextureRainbowColors(fts: ArxFTS, llf: ArxLLF): ArxColor[] {
 
   return colors
 }
+
+/** the saturation of the `TextureRainbow` palette (100% looked too harsh on the screen) */
+const RAINBOW_SATURATION = 0.75
 
 const AMBIENT = Math.round(0.09 * 255) // 23
 const GLOBAL_LIGHT_FACTOR = 0.85 // the Arx (Danae) global factor; the Realistic (Fred shadow profiles) uses 1

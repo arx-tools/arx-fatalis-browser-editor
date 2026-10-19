@@ -607,9 +607,10 @@ function createMaterial(
   }
 
   if (displayMode === 'rainbow') {
-    // unlit: the baked attribute *is* the colour (one hue per texture container)
-    const material = new MeshBasicMaterial({ ...options, color: Color.white.getHex() })
-    addBakedColorToShader(material, 'diffuse')
+    // the baked attribute is the colour (one hue per texture), and it is the *emissive* base so the
+    // camera light ([F]) still adds to it - a Lambert surface without the semi-dynamic light pool
+    const material = new MeshLambertMaterial({ ...options, color: Color.white.getHex() })
+    addBakedColorToShader(material, 'emissive')
 
     return material
   }

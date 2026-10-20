@@ -1,6 +1,7 @@
 import { getCellCoords, isQuad, MAP_WIDTH_IN_CELLS } from 'arx-convert/utils'
 import type { Mesh } from 'three'
 import { bakeLlfColors, type LightingCalculatorMode } from './lighting/bake.js'
+import { ANCHOR_DEFAULTS, generateAnchors, validateAnchors, type AnchorGeneratorOptions } from './generator/anchor-generator.js'
 import type { ArxColor, ArxEPData, ArxFTS, ArxLLF, ArxPolygon } from 'arx-convert/types'
 
 export type SourcePolygon = {
@@ -171,3 +172,45 @@ export function buildExportLlf(
 
   return { ...llf, colors }
 }
+
+
+/**
+ * Regenerates the pathfinding anchor graph of the exported level.
+ *
+ * The editor can delete (and later add) polygons, so the anchors of the opened FTS are not valid
+ * anymore - exactly like the light palette, they are recomputed at export time from the surviving
+ * geometry. The generator is the dependency free module of `src/generator` (it will move to
+ * `arx-level-generator2`), the same one the anchor experiment validated on the generated levels.
+ *
+ * The anchors are written in both places the FTS format keeps them: the `anchors` list and the
+ * `anchors` array of every cell (the game walks the cells, the list is the index space the links
+ * point into).
+ */
+export function buildExportAnchors(fts: ArxFTS, options: AnchorGeneratorOptions = {}): ArxFTS {
+  if (fts.polygons.length === 0) {
+    return fts
+  }
+
+  const result = generateAnchors(fts.polygons, options)
+  const problems = validateAnchors(result)
+
+  if (problems.length > 0) {
+    throw new Error(`the generated anchor graph is invalid: ${problems.slice(0, 3).join(', ')}`)
+  }
+
+  const anchors: ArxFTS['anchors'] = result.anchors.map((anchor) => {
+    return { data: { position: anchor.position }, linkedAnchors: anchor.linkedAnchors }
+  })
+
+  // the cells are in the `cellY * MAP_WIDTH_IN_CELLS + cellX` order, the generator indexes them the
+  // same way - so the array index is the cell index
+  const cells = fts.cells.map((cell, cellIndex) => {
+    const anchorIndices = result.cellAnchors.get(cellIndex)
+
+    return anchorIndices === undefined ? { ...cell, anchors: undefined } : { ...cell, anchors: anchorIndices }
+  })
+
+  return { ...fts, anchors, cells }
+}
+
+export { ANCHOR_DEFAULTS }

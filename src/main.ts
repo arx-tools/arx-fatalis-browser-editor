@@ -77,7 +77,7 @@ import { isValidOriginalArxLevelId } from './constants.js'
 import { Logger } from './ui/Logger.js'
 import { Exception } from './ui/Exception.js'
 import { arxPolygonsToMesh, arxVector3toVector3, srgbToLinear } from './arx-threejs-format-converters.js'
-import { buildExportFts, buildExportLlf, buildTriangleToPolygonMap, type SourcePolygon } from './fts-export.js'
+import { buildExportAnchors, buildExportFts, buildExportLlf, buildTriangleToPolygonMap, type SourcePolygon } from './fts-export.js'
 import { createPolygonWireframe } from './geometry/createWireframe.js'
 import { bakeLlfColors } from './lighting/bake.js'
 import { removeTriangles } from './geometry/removeTriangles.js'
@@ -405,6 +405,16 @@ export async function startDownload(settings: DownloadSettings): Promise<void> {
     // M1: the surviving polygons and the LLF palette filtered to them; the DLF is saved as it was
     // opened (the editor does not handle entities yet)
     const exportFts = buildExportFts(fts, deletedPolygons)
+
+    // the anchors are recomputed from the surviving geometry (like the palette): the deleted
+    // polygons took their anchors with them, and the links between the remaining ones change too
+    const anchorLine = logger.log('generating anchors...')
+    const anchorStart = performance.now()
+    const exportFtsWithAnchors = buildExportAnchors(exportFts)
+    const anchorCount = exportFtsWithAnchors.anchors.length
+    const linkCount = exportFtsWithAnchors.anchors.reduce((sum, anchor) => sum + anchor.linkedAnchors.length, 0) / 2
+    logger.log(`done (${anchorCount} anchors, ${linkCount} links, ${Math.round(performance.now() - anchorStart)} ms)`, anchorLine)
+    downloadProgress.value = 10
     // the palette cache is keyed by the settings, so the dialog reuses the display's bake when they match
     const exportPalette =
       settings.mode === 'Realistic'
@@ -427,7 +437,7 @@ export async function startDownload(settings: DownloadSettings): Promise<void> {
     const line1 = logger.log('packing level data...')
     downloadProgress.value = 20
 
-    const packedFts = await saveFTS(exportFts, levelId)
+    const packedFts = await saveFTS(exportFtsWithAnchors, levelId)
     downloadProgress.value = 40
 
     const packedLlf = await saveLLF(exportLlf, levelId)

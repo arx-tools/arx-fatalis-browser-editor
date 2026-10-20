@@ -2506,7 +2506,7 @@ function getMaterialSide(mesh: Mesh): Side {
   return material.side
 }
 
-function collectRayHits(ray: Ray, side: Side | undefined): Array<{ polygonIndex: number; distance: number }> {
+function collectRayHits(ray: Ray): Array<{ polygonIndex: number; distance: number }> {
   const hits: Array<{ polygonIndex: number; distance: number }> = []
 
   for (const group of meshGroups) {
@@ -2522,9 +2522,7 @@ function collectRayHits(ray: Ray, side: Side | undefined): Array<{ polygonIndex:
       continue
     }
 
-    const materialSide = side ?? getMaterialSide(group.mesh)
-
-    for (const intersection of boundsTree.raycast(ray, materialSide, 0, SELECTION_RAY_FAR)) {
+    for (const intersection of boundsTree.raycast(ray, getMaterialSide(group.mesh), 0, SELECTION_RAY_FAR)) {
       // `intersection.faceIndex` is an internal index of the BVH (it reorders the triangles), the
       // vertex index of the hit triangle is in `face.a` - the same value the raycaster used to give.
       const face = intersection.face
@@ -2565,14 +2563,12 @@ function getPolygonsUnderCameraRay(): Array<{ polygonIndex: number; distance: nu
   const direction = new Vector3()
   controls.getDirection(direction)
 
-  const ray = new Ray(camera.position, direction)
-  const visibleHits = collectRayHits(ray, undefined)
-
-  if (visibleHits.length > 0) {
-    return visibleHits
-  }
-
-  return collectRayHits(ray, DoubleSide)
+  // only the polygons that face the camera are candidates: the raycast uses the material side of
+  // every group, which is what the renderer culls with, so the picker sees exactly what the picture
+  // shows. There used to be a `DoubleSide` fallback for the "nothing visible" case, but it picked
+  // geometry that is not on the screen: after deleting a floor, hovering over the hole selected the
+  // ceiling above it (reported by the owner, 2026-10-20).
+  return collectRayHits(new Ray(camera.position, direction))
 }
 
 function updatePolygonUnderCursor(): void {

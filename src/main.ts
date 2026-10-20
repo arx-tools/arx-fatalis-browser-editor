@@ -2217,6 +2217,13 @@ function getSelectionMode(): SelectionMode {
 /** the mode of the gesture that is currently pressed down (set on mousedown) */
 let pendingSelectionMode: SelectionMode | undefined
 
+/**
+ * True when the drag started on empty space (no polygon under the cursor at the press): the gesture
+ * must not select anything then, even if it flies over selectable polygons later on. Set on
+ * mousedown, cleared on mouseup.
+ */
+let dragStartedWithoutPolygon = false
+
 /** the modifier keys: their state changes the colour of the cursor outline, no mouse move needed */
 function isModifierKey(code: string): boolean {
   return (
@@ -2408,6 +2415,7 @@ document.addEventListener(
     updateMouseButtonStates(event)
 
     pendingSelectionMode = getSelectionModeFromEvent(event)
+    dragStartedWithoutPolygon = polygonBeingLookedAt === undefined
 
     cursorTriangleMaterial.color.set(
       pendingSelectionMode === 'remove' ? Color.red.getHex() : Color.green.getHex(),
@@ -2422,6 +2430,8 @@ document.addEventListener(
     if (!controls.isLocked) {
       return
     }
+
+    dragStartedWithoutPolygon = false
 
     updateMouseButtonStates(event)
 
@@ -2663,18 +2673,42 @@ function updatePolygonUnderCursor(): void {
 
     if (selectionDragMode === 'replace' || selectionDragMode === 'add') {
       cursorTriangleMaterial.color.set(Color.green.getHex())
-      if (polygon !== undefined && polygonIndex !== undefined && !alreadySelected) {
-        const vertices = getUsedVerticesOf(polygon)
+
+      // every polygon under the cursor that is connected to what the drag has selected so far gets
+      // added, not only the nearest one: a part of the mesh can be hidden behind another part in
+      // screen space (a Z shape seen from below), and the drag should still pick it up. A drag that
+      // started on empty space selects nothing at all.
+      const candidates = dragStartedWithoutPolygon
+        ? []
+        : [polygonIndex, ...hits.slice(0, SELECTION_CANDIDATE_LIMIT).map((hit) => hit.polygonIndex)]
+
+      let addedSomething = false
+
+      for (const candidateIndex of candidates) {
+        if (candidateIndex === undefined || selectedPolygons.has(candidateIndex)) {
+          continue
+        }
+
+        const candidate = fts.polygons[candidateIndex]
+
+        if (candidate === undefined) {
+          continue
+        }
+
+        const vertices = getUsedVerticesOf(candidate)
 
         if (isConnectedToSelection(vertices)) {
-          selectedPolygons.add(polygonIndex)
+          selectedPolygons.add(candidateIndex)
           addVerticesToSelectionGrid(vertices)
-
-          updateHighlightOfSelectedPolygons()
-        } else {
-          // no islands: this polygon is not connected to anything selected in this drag
-          cursorTriangleMaterial.color.set(Color.yellow.getHex())
+          addedSomething = true
         }
+      }
+
+      if (addedSomething) {
+        updateHighlightOfSelectedPolygons()
+      } else if (polygonIndex !== undefined && !alreadySelected) {
+        // no islands: this polygon is not connected to anything selected in this drag
+        cursorTriangleMaterial.color.set(Color.yellow.getHex())
       }
     } else {
       cursorTriangleMaterial.color.set(Color.red.getHex())

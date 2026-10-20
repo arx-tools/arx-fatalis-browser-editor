@@ -1858,9 +1858,15 @@ const SURFACE_LINE_TEST_TOLERANCE = 8
  * The surface walk (the second path test): how far the walk may drift **sideways** from the straight
  * line between the two surface points, measured in the plane of the start polygon. The walk may
  * climb and drop freely (a step or a staircase is a continuous surface), but going around a hole
- * means moving sideways, so the hole stays out.
+ * means moving sideways.
+ *
+ * The corridor is proportional to the length of the jump: a long drag may follow the curve of a
+ * vault or go around a doorway, while a short jump across a hole stays blocked. A short jump uses
+ * the base corridor, and the maximum keeps a very long jump from wandering far.
  */
 const SURFACE_WALK_CORRIDOR = 16
+const SURFACE_WALK_CORRIDOR_RATIO = 0.12
+const SURFACE_WALK_CORRIDOR_MAX = 64
 
 /** the safety cap of the surface walk (visited polygons) - a path this long is not a drag gesture */
 const SURFACE_WALK_MAX_VISITED = 3000
@@ -2318,8 +2324,9 @@ function getPolygonsAlongSurfaceLine(from: SurfacePoint, to: Vector3): number[] 
  *
  * The corridor is measured **in the plane of the start polygon**, sideways from the straight line:
  * the walk may climb or drop as much as the surface does (that is the normal direction), but going
- * around a hole would mean moving sideways, and that is capped by `SURFACE_WALK_CORRIDOR`. A hole
- * has no polygon to cross, so the walk there simply finds nowhere to go.
+ * around a hole would mean moving sideways, and that is capped by `SURFACE_WALK_CORRIDOR` (scaled
+ * with the length of the jump, up to `SURFACE_WALK_CORRIDOR_MAX`). A hole has no polygon to cross,
+ * so the walk there simply finds nowhere to go.
  */
 function getPolygonsAlongSurfaceWalk(from: SurfacePoint, to: Vector3, targetPolygonIndex: number): number[] | undefined {
   if (from.polygonIndex === undefined || from.polygonIndex === targetPolygonIndex) {
@@ -2334,6 +2341,10 @@ function getPolygonsAlongSurfaceWalk(from: SurfacePoint, to: Vector3, targetPoly
   }
 
   const forward = chord.clone().normalize()
+  const corridor = Math.min(
+    SURFACE_WALK_CORRIDOR_MAX,
+    Math.max(SURFACE_WALK_CORRIDOR, length * SURFACE_WALK_CORRIDOR_RATIO),
+  )
   const side = new Vector3().crossVectors(forward, from.normal)
 
   if (side.lengthSq() < 1e-8) {
@@ -2447,7 +2458,7 @@ function getPolygonsAlongSurfaceWalk(from: SurfacePoint, to: Vector3, targetPoly
       const lateral = offsetFromStart.dot(side)
       const progress = offsetFromStart.dot(forward)
 
-      if (Math.abs(lateral) > SURFACE_WALK_CORRIDOR || progress < current.progress - 2) {
+      if (Math.abs(lateral) > corridor || progress < current.progress - 2) {
         continue
       }
 

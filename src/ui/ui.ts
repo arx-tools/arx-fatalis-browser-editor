@@ -155,6 +155,12 @@ export const selectionConnectDistance = ref<number>(0.25)
 export const isComputingLighting = ref<boolean>(false)
 
 /**
+ * True while the anchor graph is generated in the worker. The `Anchors` overlay shows the graph of
+ * the opened file until the generated one arrives.
+ */
+export const isComputingAnchors = ref<boolean>(false)
+
+/**
  * Whether the `Realistic` bake casts shadows (the Fred `DistanceAngleShadowNoTransparency`
  * occlusion). Off = every light reaches every vertex it faces (the Danae-like look, the game's
  * original palette has no occlusion). `?shadows=0` in the URL; on by default.

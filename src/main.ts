@@ -51,6 +51,7 @@ import {
   currentLevelId,
   downloadCompleted,
   downloadProgress,
+  isComputingAnchors,
   isComputingLighting,
   isDirty,
   isDownloading,
@@ -77,7 +78,16 @@ import { isValidOriginalArxLevelId } from './constants.js'
 import { Logger } from './ui/Logger.js'
 import { Exception } from './ui/Exception.js'
 import { arxPolygonsToMesh, arxVector3toVector3, srgbToLinear } from './arx-threejs-format-converters.js'
-import { buildExportAnchors, buildExportFts, buildExportLlf, buildTriangleToPolygonMap, type SourcePolygon } from './fts-export.js'
+import {
+  buildExportAnchors,
+  buildExportFts,
+  buildExportLlf,
+  buildTriangleToPolygonMap,
+  type AnchorGraph,
+  type SourcePolygon,
+} from './fts-export.js'
+import { validateAnchors } from './generator/anchor-generator.js'
+import type { AnchorWorkerResponse } from './generator/anchor-worker.js'
 import { createPolygonWireframe } from './geometry/createWireframe.js'
 import { bakeLlfColors } from './lighting/bake.js'
 import { removeTriangles } from './geometry/removeTriangles.js'
@@ -408,12 +418,10 @@ export async function startDownload(settings: DownloadSettings): Promise<void> {
 
     // the anchors are recomputed from the surviving geometry (like the palette): the deleted
     // polygons took their anchors with them, and the links between the remaining ones change too
-    const anchorLine = logger.log('generating anchors...')
-    const anchorStart = performance.now()
-    const exportFtsWithAnchors = buildExportAnchors(exportFts)
-    const anchorCount = exportFtsWithAnchors.anchors.length
-    const linkCount = exportFtsWithAnchors.anchors.reduce((sum, anchor) => sum + anchor.linkedAnchors.length, 0) / 2
-    logger.log(`done (${anchorCount} anchors, ${linkCount} links, ${Math.round(performance.now() - anchorStart)} ms)`, anchorLine)
+    // the anchors are recomputed from the surviving geometry (like the palette). The editor may
+    // already show them (the Anchors overlay), then the cached graph is reused instead of running
+    // the generator twice
+    const exportFtsWithAnchors = buildExportAnchors(exportFts, {}, await ensureAnchorGraph())
     downloadProgress.value = 10
     // the palette cache is keyed by the settings, so the dialog reuses the display's bake when they match
     const exportPalette =
@@ -971,25 +979,39 @@ function ftsPositionToThree(position: ArxVector3): Vector3 {
 }
 
 const anchorsGroup = new Group()
+scene.add(anchorsGroup)
 
-if (fts.anchors.length > 0) {
+/**
+ * Rebuilds the anchors' overlay from a graph. `requestFrame` is false for the initial call: this
+ * module runs before the render loop exists, and `requestRender()` would touch its state too early.
+ */
+function renderAnchorGraph(
+  anchors: ReadonlyArray<{ position: { x: number; y: number; z: number }; linkedAnchors: number[] }>,
+  requestFrame = true,
+): void {
+  for (const child of [...anchorsGroup.children]) {
+    anchorsGroup.remove(child)
+    const withGeometry = child as unknown as { geometry?: BufferGeometry }
+    withGeometry.geometry?.dispose()
+  }
+
   const anchorLinkPositions: number[] = []
   const anchorTickPositions: number[] = []
 
-  fts.anchors.forEach((anchor, index) => {
-    const from = ftsPositionToThree(anchor.data.position)
+  anchors.forEach((anchor, index) => {
+    const from = ftsPositionToThree(anchor.position)
 
-    // the FTS anchor has a `height` (always -165 in the original levels, arx-convert does not
-    // expose it because it is uniform) - the game's Pathfinding debug view draws the anchor as a
+    // the anchor of the format has a `height` (always -165 in the original levels, arx-convert does
+    // not expose it because it is uniform) - the game's Pathfinding debug view draws the anchor as a
     // vertical line of this height, which is about the eye height of the player
     anchorTickPositions.push(from.x, from.y, from.z, from.x, from.y + 165, from.z)
 
     for (const linkedIndex of anchor.linkedAnchors) {
-      if (linkedIndex <= index || linkedIndex >= fts.anchors.length) {
+      if (linkedIndex <= index || linkedIndex >= anchors.length) {
         continue
       }
 
-      const to = ftsPositionToThree(fts.anchors[linkedIndex].data.position)
+      const to = ftsPositionToThree(anchors[linkedIndex].position)
       anchorLinkPositions.push(from.x, from.y, from.z, to.x, to.y, to.z)
     }
   })
@@ -1011,10 +1033,157 @@ if (fts.anchors.length > 0) {
   anchorTicks.renderOrder = 8
 
   anchorsGroup.add(anchorLinks, anchorTicks)
+  anchorsGroup.visible = anchorsVisible.value
+
+  if (requestFrame) {
+    requestRender()
+  }
 }
 
-anchorsGroup.visible = anchorsVisible.value
-scene.add(anchorsGroup)
+// until the generator runs, the anchors of the opened file are shown (they are stale, but they are
+// something to start from)
+renderAnchorGraph(
+  fts.anchors.map((anchor) => {
+    return { position: anchor.data.position, linkedAnchors: anchor.linkedAnchors }
+  }),
+  false,
+)
+
+/**
+ * The generated anchor graph of the **surviving** polygons and the `geometryVersion` it belongs to.
+ * Every polygon change bumps the version, so `ensureAnchorGraph()` knows when the cached graph is
+ * stale.
+ */
+let anchorGraph: AnchorGraph | undefined
+let anchorGraphVersion = -1
+let geometryVersion = 0
+let anchorGeneration: Promise<AnchorGraph> | undefined
+
+/** the debounce of the regeneration after a polygon change (ms) */
+const ANCHOR_REGENERATION_DELAY = 700
+
+let anchorRegenerationTimer: ReturnType<typeof setTimeout> | undefined
+
+const anchorWorker = new Worker(new URL('./generator/anchor-worker.ts', import.meta.url), { type: 'module' })
+
+/** the polygons the export would write: everything except the deleted ones */
+function survivingPolygons(): ArxPolygon[] {
+  return fts.polygons.filter((_polygon, sourceIndex) => {
+    return !deletedPolygons.has(sourceIndex)
+  })
+}
+
+/**
+ * Generates the anchor graph of the current geometry in a **worker** (it takes seconds on a real
+ * level, so it cannot block the editor) and caches it for the current `geometryVersion`. Concurrent
+ * calls share the same promise.
+ */
+async function generateAnchorGraph(): Promise<AnchorGraph> {
+  if (anchorGeneration !== undefined) {
+    return anchorGeneration
+  }
+
+  const version = geometryVersion
+
+  anchorGeneration = (async () => {
+    const polygons = survivingPolygons()
+    const positions = new Float32Array(polygons.length * 12)
+    const normals = new Float32Array(polygons.length * 3)
+    const flags = new Uint32Array(polygons.length)
+    const areas = new Float32Array(polygons.length)
+
+    polygons.forEach((polygon, index) => {
+      const usedVertices = isQuad(polygon) ? 4 : 3
+      const vertexOffset = index * 12
+
+      for (let vertex = 0; vertex < 4; vertex++) {
+        // a triangle repeats its last vertex in the 4th slot, the generator ignores it
+        const source = polygon.vertices[Math.min(vertex, usedVertices - 1)]
+        positions[vertexOffset + vertex * 3] = source.x
+        positions[vertexOffset + vertex * 3 + 1] = source.y
+        positions[vertexOffset + vertex * 3 + 2] = source.z
+      }
+
+      normals[index * 3] = polygon.norm.x
+      normals[index * 3 + 1] = polygon.norm.y
+      normals[index * 3 + 2] = polygon.norm.z
+      flags[index] = polygon.flags
+      areas[index] = polygon.area
+    })
+
+    const line = logger.log('generating anchors...')
+    isComputingAnchors.value = true
+
+    try {
+      const response = await new Promise<AnchorWorkerResponse>((resolve, reject) => {
+        anchorWorker.onmessage = (event: MessageEvent<AnchorWorkerResponse>) => {
+          resolve(event.data)
+        }
+
+        anchorWorker.onerror = (event) => {
+          reject(new Error(event.message))
+        }
+
+        anchorWorker.postMessage({ positions, normals, flags, areas, options: {} })
+      })
+
+      if (!response.ok) {
+        throw new Error(response.message)
+      }
+
+      const graph: AnchorGraph = { anchors: response.anchors, cellAnchors: new Map(response.cellAnchors) }
+      const problems = validateAnchors(graph)
+
+      if (problems.length > 0) {
+        throw new Error(`the generated anchor graph is invalid: ${problems.slice(0, 3).join(', ')}`)
+      }
+
+      anchorGraph = graph
+      anchorGraphVersion = version
+
+      const links = graph.anchors.reduce((sum, anchor) => sum + anchor.linkedAnchors.length, 0) / 2
+      logger.log(`done (${graph.anchors.length} anchors, ${links} links)`, line)
+
+      if (anchorsVisible.value) {
+        renderAnchorGraph(graph.anchors)
+      }
+
+      return graph
+    } finally {
+      isComputingAnchors.value = false
+      anchorGeneration = undefined
+      requestRender()
+    }
+  })()
+
+  return anchorGeneration
+}
+
+/**
+ * The anchor graph of the current geometry: the cached one when it is fresh, a new one otherwise.
+ * The export uses this too, so a graph that is already shown in the editor is not generated twice.
+ */
+async function ensureAnchorGraph(): Promise<AnchorGraph> {
+  if (anchorGraph !== undefined && anchorGraphVersion === geometryVersion) {
+    return anchorGraph
+  }
+
+  return generateAnchorGraph()
+}
+
+/** bumps the geometry version and regenerates the graph when the overlay is on (debounced) */
+function onGeometryChanged(): void {
+  geometryVersion++
+
+  if (!anchorsVisible.value) {
+    return
+  }
+
+  clearTimeout(anchorRegenerationTimer)
+  anchorRegenerationTimer = setTimeout(() => {
+    void ensureAnchorGraph()
+  }, ANCHOR_REGENERATION_DELAY)
+}
 
 const portalsGroup = new Group()
 
@@ -1082,6 +1251,12 @@ if (llf.lights.length > 0) {
 
 watch(anchorsVisible, (value) => {
   anchorsGroup.visible = value
+
+  // the overlay shows the **generated** graph, so the first time it is switched on the worker has
+  // to run (and the export can reuse the result)
+  if (value) {
+    void ensureAnchorGraph()
+  }
 })
 
 // the `Mesh` switch: the geometry (all mesh groups) can be hidden, then the wireframe and the
@@ -1660,6 +1835,8 @@ function deletePolygons(polygonsToDelete: ReadonlySet<number>): void {
   }
 
   updateTriangleToPolygonMap()
+
+  onGeometryChanged()
 
   isDirty.value = true
 

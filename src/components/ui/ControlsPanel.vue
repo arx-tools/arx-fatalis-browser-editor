@@ -2,6 +2,7 @@
 import {
   anchorsVisible,
   ambientFloor,
+  isComputingAnchors,
   isComputingLighting,
   lightingCalculatorMode,
   lightsVisible,
@@ -19,7 +20,7 @@ import ToggleSwitch from './ToggleSwitch.vue'
     <div class="toggles">
       <ToggleSwitch v-model="meshVisible" label="Mesh" hotkey="M" />
       <ToggleSwitch v-model="wireframeVisible" label="Wireframe" hotkey="X" />
-      <ToggleSwitch v-model="anchorsVisible" label="Anchors" hotkey="J" />
+      <ToggleSwitch v-model="anchorsVisible" :label="isComputingAnchors ? 'Anchors…' : 'Anchors'" hotkey="J" />
       <ToggleSwitch v-model="portalsVisible" label="Portals" hotkey="K" />
       <ToggleSwitch v-model="lightsVisible" label="Lights" hotkey="L" />
     </div>

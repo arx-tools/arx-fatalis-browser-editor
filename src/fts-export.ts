@@ -4,6 +4,12 @@ import { bakeLlfColors, type LightingCalculatorMode } from './lighting/bake.js'
 import { ANCHOR_DEFAULTS, generateAnchors, validateAnchors, type AnchorGeneratorOptions } from './generator/anchor-generator.js'
 import type { ArxColor, ArxEPData, ArxFTS, ArxLLF, ArxPolygon } from 'arx-convert/types'
 
+/** a generated anchor graph (the worker's result, see `src/generator/anchor-worker.ts`) */
+export type AnchorGraph = {
+  anchors: Array<{ position: { x: number; y: number; z: number }; linkedAnchors: number[] }>
+  cellAnchors: Map<number, number[]>
+}
+
 export type SourcePolygon = {
   polygon: ArxPolygon
   /** the index of the polygon in the original `fts.polygons` array */
@@ -186,12 +192,16 @@ export function buildExportLlf(
  * `anchors` array of every cell (the game walks the cells, the list is the index space the links
  * point into).
  */
-export function buildExportAnchors(fts: ArxFTS, options: AnchorGeneratorOptions = {}): ArxFTS {
+export function buildExportAnchors(
+  fts: ArxFTS,
+  options: AnchorGeneratorOptions = {},
+  precomputed?: AnchorGraph,
+): ArxFTS {
   if (fts.polygons.length === 0) {
     return fts
   }
 
-  const result = generateAnchors(fts.polygons, options)
+  const result = precomputed ?? generateAnchors(fts.polygons, options)
   const problems = validateAnchors(result)
 
   if (problems.length > 0) {

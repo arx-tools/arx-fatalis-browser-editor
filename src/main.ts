@@ -69,7 +69,6 @@ import {
   mouseUnlocked,
   portalsVisible,
   RightMouseButton,
-  selectionConnectDistance,
   setupCanvasResizer,
   shadows,
   updateMouseButtonState,
@@ -1919,40 +1918,20 @@ function createPolygonFillGeometry(polygon: ArxPolygon): BufferGeometry {
 /** how far the cursor and the selection raycast look (game units) */
 const SELECTION_RAY_FAR = 100_000
 
-/** how many of the nearest hits are checked for a connected polygon while dragging */
-const SELECTION_CANDIDATE_LIMIT = 32
-
 /**
- * The surface line test: beside the shared vertices, two polygons are also connected when
- * a straight line between them can be drawn **on the surface**. The line is sampled at this interval
- * (game units) and every sample has to find a polygon around it - a hole or the edge of the mesh
- * breaks the line, so the drag stops there instead of jumping over the gap.
+ * The drag is a **projected stroke**: the screen line between the pen-down point and the current
+ * point. Its samples are cast as camera rays; every ray collects all polygons it hits (both sides),
+ * and the polygons whose depth is between the two endpoints are selected. The line itself is sampled
+ * every few pixels, so a fast drag does not skip a polygon; the depth window keeps the culled back
+ * faces in front of the visible start out, while the back faces between the two visible ends are in.
  */
-const SURFACE_LINE_TEST_STEP = 10
+const SELECTION_LINE_SAMPLE_SPACING = 2
 
-/**
- * How far the surface line test looks above and below a sample point, along the surface normal. The
- * two surfaces are not exactly coplanar (the whole point of the test: their seams are apart), so the
- * sample can be a few units off the polygons - but a missing floor is much further than this.
- */
-const SURFACE_LINE_TEST_TOLERANCE = 8
+/** the extra depth at both ends of the stroke, so the start and the target polygons are included */
+const SELECTION_LINE_DEPTH_EPSILON = 2
 
-/**
- * The surface walk (the second path test): how far the walk may drift **sideways** from the straight
- * line between the two surface points, measured in the plane of the start polygon. The walk may
- * climb and drop freely (a step or a staircase is a continuous surface), but going around a hole
- * means moving sideways.
- *
- * The corridor is proportional to the length of the jump: a long drag may follow the curve of a
- * vault or go around a doorway, while a short jump across a hole stays blocked. A short jump uses
- * the base corridor, and the maximum keeps a very long jump from wandering far.
- */
-const SURFACE_WALK_CORRIDOR = 16
-const SURFACE_WALK_CORRIDOR_RATIO = 0.15
-const SURFACE_WALK_CORRIDOR_MAX = 96
-
-/** the safety cap of the surface walk (visited polygons) - a path this long is not a drag gesture */
-const SURFACE_WALK_MAX_VISITED = 3000
+/** the hard cap of the samples of one stroke (a very long screen line) */
+const SELECTION_LINE_MAX_SAMPLES = 512
 
 /** the selection is polygon based: a quad is one unit, both of its triangles are highlighted */
 /**
@@ -2065,40 +2044,7 @@ function deletePolygons(polygonsToDelete: ReadonlySet<number>): void {
   scene.remove(cursorTriangleMesh)
 }
 
-
-/**
- * being relevant when new polygons are to be added to or removed from the selectedPolygons
- *
- * if the left mouse button is pressed with a face that is already in the selection,
- * that means the polygon will be removed and all subsequent polygons will get removed from selectedPolygons
- * otherwise all subsequent polygons will be added
- *
- * until the first polygon is clicked the state is undefined
- */
-/**
- * The vertices of the polygons that were selected **during the current drag**, in a grid so a
- * candidate can be tested quickly. A new polygon is only added when one of its vertices is closer
- * than `selectionConnectDistance` to one of them: without this, a fast drag jumps over the gaps of
- * the geometry and selects disconnected "islands" on the other side of the level.
- *
- * The distance is a tolerance instead of an exact match because the level meshes are not welded:
- * their seams are off by less than 0.1 units, and an exact match stops the drag there (the polygons
- * look adjacent). Only the **used** vertices are stored (3 for a triangle, 4 for a quad): the fourth
- * vertex of a triangle is a degenerate placeholder, and about 9 500 polygons of level 0 share the
- * same (0, 0, 0) position - including it would connect the whole level.
- *
- * A simple click (no drag) is not restricted, so a separate selection can still be started elsewhere.
- */
-let selectionDragVertices: Map<string, SelectionPoint[]> | undefined
-
 type SelectionPoint = { x: number; y: number; z: number }
-
-/** the grid cell of the selection lookup (game units) */
-const SELECTION_GRID_CELL = 4
-
-function getSelectionGridKey(x: number, y: number, z: number): string {
-  return `${Math.floor(x / SELECTION_GRID_CELL)}:${Math.floor(y / SELECTION_GRID_CELL)}:${Math.floor(z / SELECTION_GRID_CELL)}`
-}
 
 /** the vertices the polygon actually renders (the 4th vertex of a triangle is unused) */
 function getUsedVerticesOf(polygon: ArxPolygon): SelectionPoint[] {
@@ -2107,45 +2053,6 @@ function getUsedVerticesOf(polygon: ArxPolygon): SelectionPoint[] {
   return polygon.vertices.slice(0, count).map(({ x, y, z }) => {
     return { x, y, z }
   })
-}
-
-function addVerticesToSelectionGrid(vertices: SelectionPoint[]): void {
-  if (selectionDragVertices === undefined) {
-    return
-  }
-
-  for (const vertex of vertices) {
-    const key = getSelectionGridKey(vertex.x, vertex.y, vertex.z)
-    let cell = selectionDragVertices.get(key)
-
-    if (cell === undefined) {
-      cell = []
-      selectionDragVertices.set(key, cell)
-    }
-
-    cell.push(vertex)
-  }
-}
-
-/**
- * Adds one polygon to the selection of the current drag and puts its vertices into the grid, so the
- * next move can connect to it. Returns false when it was already selected (or does not exist).
- */
-function addPolygonToSelection(polygonIndex: number): boolean {
-  if (selectedPolygons.has(polygonIndex) || deletedPolygons.has(polygonIndex)) {
-    return false
-  }
-
-  const polygon = fts.polygons[polygonIndex]
-
-  if (polygon === undefined) {
-    return false
-  }
-
-  selectedPolygons.add(polygonIndex)
-  addVerticesToSelectionGrid(getUsedVerticesOf(polygon))
-
-  return true
 }
 
 /** the rounded position of a vertex, the key of the neighbour lookup of the flood fill */
@@ -2275,68 +2182,13 @@ function getBoundsTreeOf(mesh: Mesh): MeshBVH | undefined {
   return boundsTree instanceof MeshBVH ? boundsTree : undefined
 }
 
-/** is any of the vertices closer than `selectionConnectDistance` to a vertex selected in this drag? */
-function isConnectedToSelection(vertices: SelectionPoint[]): boolean {
-  if (selectionDragVertices === undefined || selectionDragVertices.size === 0) {
-    return true
-  }
-
-  const distance = Math.min(10, Math.max(0, selectionConnectDistance.value))
-  const distanceSquared = distance * distance
-  const reach = Math.max(1, Math.ceil(distance / SELECTION_GRID_CELL))
-
-  for (const vertex of vertices) {
-    const cellX = Math.floor(vertex.x / SELECTION_GRID_CELL)
-    const cellY = Math.floor(vertex.y / SELECTION_GRID_CELL)
-    const cellZ = Math.floor(vertex.z / SELECTION_GRID_CELL)
-
-    for (let dx = -reach; dx <= reach; dx++) {
-      for (let dy = -reach; dy <= reach; dy++) {
-        for (let dz = -reach; dz <= reach; dz++) {
-          const cell = selectionDragVertices.get(`${cellX + dx}:${cellY + dy}:${cellZ + dz}`)
-
-          if (cell === undefined) {
-            continue
-          }
-
-          for (const other of cell) {
-            const x = other.x - vertex.x
-            const y = other.y - vertex.y
-            const z = other.z - vertex.z
-
-            if (x * x + y * y + z * z <= distanceSquared) {
-              return true
-            }
-          }
-        }
-      }
-    }
-  }
-
-  return false
-}
-
-/** a point on the mesh surface, the plane normal and the polygon it belongs to */
-type SurfacePoint = { point: Vector3; normal: Vector3; polygonIndex: number }
-
-/**
- * The last point of the surface that the current drag accepted: it starts at the polygon under the
- * cursor on the press, then follows the polygon under the cursor on every move. The surface line
- * test measures from here, so the drag only has to bridge one gap at a time - exactly like the
- * shared vertex rule, which also connects to what the drag has selected so far, not to its start.
- */
-let lastSelectionSurfacePoint: SurfacePoint | undefined
-
 /** one drag attempt, kept for the selection debug payload (see the panel at F2) */
 type SelectionAttempt = {
   startPoint: Vector3
   startPolygonIndex: number
   targetPoint: Vector3
   targetPolygonIndex: number
-  line: number[] | undefined
-  walk: number[] | undefined
-  pathTest: 'line' | 'walk' | undefined
-  reached: boolean
+  cells: number[]
 }
 
 let lastSelectionAttempt: SelectionAttempt | undefined
@@ -2416,12 +2268,7 @@ function buildSelectionDebugPayload(): void {
     },
     start: describePolygonForDebug(attempt.startPolygonIndex, attempt.startPoint),
     target: describePolygonForDebug(attempt.targetPolygonIndex, attempt.targetPoint),
-    path: {
-      line: attempt.pathTest === undefined || attempt.line === undefined ? 'blocked' : attempt.line,
-      walk: attempt.pathTest !== 'walk' || attempt.walk === undefined ? 'blocked' : attempt.walk,
-      used: attempt.pathTest ?? 'none',
-    },
-    result: attempt.reached ? 'connected' : 'not connected',
+    cells: attempt.cells,
     selected: [...selectedPolygons],
   }
 
@@ -2438,248 +2285,130 @@ function finishSelectionDebugAttempt(): void {
   selectionDragStartCamera = undefined
 }
 
-/** the plane normal of an arx polygon in three.js coordinates */
-function getPolygonNormal(polygon: ArxPolygon): Vector3 {
-  const normal = arxVector3toVector3(polygon.norm)
-
-  if (normal.lengthSq() > 1e-8) {
-    return normal.normalize()
-  }
-
-  // the original data contains zero normals: derive the plane from the triangle itself
-  const [a, b, c] = polygon.vertices.slice(0, 3).map((vertex) => arxVector3toVector3(vertex))
-  const derived = new Vector3().subVectors(b, a).cross(new Vector3().subVectors(c, a))
-
-  return derived.lengthSq() > 1e-8 ? derived.normalize() : new Vector3(0, 1, 0)
-}
+type SelectionMode = 'replace' | 'add' | 'remove'
 
 /**
- * The polygons that a straight line between two surface points crosses - or `undefined` when the
- * line is broken, i.e. a sample finds no polygon around itself (a hole or the edge of the mesh).
+ * The polygons under the straight **screen line** between two points - the drag is a projected
+ * stroke, not a path on the surface.
  *
- * The line is a straight 3D line, not a walk on the surface: two separate but coplanar (or nearly
- * coplanar) surfaces have a straight line between them even when their vertices are not shared,
- * which is exactly the case the shared vertex rule rejects. Every sample looks along the
- * surface normal of the start point, so it finds the polygon whether the line is a little above or
- * below it - and it fails on a hole, because there the line has nothing within the tolerance.
+ * The line is sampled in the current camera view (every `SELECTION_LINE_SAMPLE_SPACING` pixels from
+ * the projections of the two points). Every sample is a camera ray that collects **all** its hits
+ * (both sides, no culling): the selection is what the line covers in the projection, not what is
+ * visible. The depth window is what keeps the culled back faces **in front of** the visible start
+ * out: only the hits between the depths of the two endpoints are kept. A polygon between the two
+ * front faces (a step, the inside of an arch, a U turn) is selected even when it faces away from the
+ * camera, because it is not in front of the start.
  *
- * The raycast is `DoubleSide` on purpose: the line runs between two front facing polygons, but it
- * can cross a fold or a stroke that faces away from the camera. Those path polygons are the **only**
- * place where a back facing polygon may enter the selection - the direct picks (the polygon under
- * the cursor) stay front facing.
- *
- * A minimum of two steps keeps one sample in the middle even for a very short line, so a small hole
- * cannot be skipped by sampling.
+ * A hole simply produces no hit at its samples; the line continues on the other side, so the
+ * selection can be disconnected - that is the "pen" behaviour.
  */
-function getPolygonsAlongSurfaceLine(from: SurfacePoint, to: Vector3): number[] | undefined {
-  const distance = from.point.distanceTo(to)
-
-  if (distance === 0) {
-    return []
+function getPolygonsAlongScreenLine(start: Vector3, end: Vector3): number[] {
+  const forward = new Vector3()
+  camera.getWorldDirection(forward)
+  function depthOf(point: Vector3): number {
+    return new Vector3().subVectors(point, camera.position).dot(forward)
   }
 
-  // at least two steps keeps one sample in the middle even for a very short line, so a small hole
-  // cannot be skipped by the sampling
-  const steps = Math.max(2, Math.ceil(distance / SURFACE_LINE_TEST_STEP))
-  const sample = new Vector3()
-  const ray = new Ray()
+  const startDepth = depthOf(start)
+  const endDepth = depthOf(end)
+  const near = Math.min(startDepth, endDepth) - SELECTION_LINE_DEPTH_EPSILON
+  const far = Math.max(startDepth, endDepth) + SELECTION_LINE_DEPTH_EPSILON
+
+  const startNdc = start.clone().project(camera)
+  const endNdc = end.clone().project(camera)
+  const pixelLength = Math.hypot(
+    ((endNdc.x - startNdc.x) * canvas.clientWidth) / 2,
+    ((endNdc.y - startNdc.y) * canvas.clientHeight) / 2,
+  )
+  const steps = Math.max(
+    1,
+    Math.min(SELECTION_LINE_MAX_SAMPLES, Math.ceil(pixelLength / SELECTION_LINE_SAMPLE_SPACING)),
+  )
+
   const polygonIndices = new Set<number>()
+  const sample = new Vector3()
+  const direction = new Vector3()
+  const ray = new Ray()
 
-  for (let step = 1; step < steps; step++) {
-    sample.lerpVectors(from.point, to, step / steps)
+  for (let step = 0; step <= steps; step++) {
+    const t = step / steps
+    sample.set(startNdc.x + (endNdc.x - startNdc.x) * t, startNdc.y + (endNdc.y - startNdc.y) * t, 0.5)
 
-    // start the ray above the sample and look back through it: this catches the surface both when
-    // the sample is a little above and when it is a little below it
-    ray.origin.copy(sample).addScaledVector(from.normal, SURFACE_LINE_TEST_TOLERANCE)
-    ray.direction.copy(from.normal).negate()
+    const target = sample.clone().unproject(camera)
+    direction.subVectors(target, camera.position).normalize()
+    ray.origin.copy(camera.position)
+    ray.direction.copy(direction)
 
-    const [hit] = collectRayHits(ray, DoubleSide, SURFACE_LINE_TEST_TOLERANCE * 2)
+    for (const hit of collectRayHits(ray, DoubleSide)) {
+      const depth = depthOf(hit.point)
 
-    if (hit === undefined) {
-      return undefined
+      if (depth >= near && depth <= far) {
+        polygonIndices.add(hit.polygonIndex)
+      }
     }
-
-    polygonIndices.add(hit.polygonIndex)
   }
 
   return [...polygonIndices]
 }
 
 /**
- * The polygons of a continuous **surface path** between two points - or `undefined` when the walk
- * cannot reach the target polygon, i.e. there is a hole (a missing polygon) in the way.
- *
- * The straight surface line only accepts a path that stays close to the start plane. A staircase, a
- * step or a fold between the two front faces is a continuous surface, but its step is far from the
- * straight chord, so the line test rejects it. The walk follows the **actual mesh**: from the last
- * accepted polygon it visits the polygons that share a vertex with the current one (the same
- * `getPolygonsByVertexKey` index the flood fill uses), and it adds every crossed polygon - so a back
- * facing step between the two front faces is selected exactly as the owner asked.
- *
- * The corridor is measured **in the plane of the start polygon**, sideways from the straight line:
- * the walk may climb or drop as much as the surface does (that is the normal direction), but going
- * around a hole would mean moving sideways, and that is capped by `SURFACE_WALK_CORRIDOR` (scaled
- * with the length of the jump, up to `SURFACE_WALK_CORRIDOR_MAX`). A hole has no polygon to cross,
- * so the walk there simply finds nowhere to go.
+ * The state of the current stroke: the pen is down from the first polygon under the cursor until
+ * the mouse is released. The selection is recomputed on every move as **base + the line's cells**
+ * (`add`/`replace`) or **base - the line's cells** (`remove`) - the line itself is the current
+ * straight line between the pen-down point and the cursor, not the chain of the intermediate lines.
  */
-function getPolygonsAlongSurfaceWalk(from: SurfacePoint, to: Vector3, targetPolygonIndex: number): number[] | undefined {
-  if (from.polygonIndex === undefined || from.polygonIndex === targetPolygonIndex) {
-    return undefined
-  }
-
-  const chord = new Vector3().subVectors(to, from.point)
-  const length = chord.length()
-
-  if (length < 1e-6) {
-    return []
-  }
-
-  const forward = chord.clone().normalize()
-  const corridor = Math.min(
-    SURFACE_WALK_CORRIDOR_MAX,
-    Math.max(SURFACE_WALK_CORRIDOR, length * SURFACE_WALK_CORRIDOR_RATIO),
-  )
-  const side = new Vector3().crossVectors(forward, from.normal)
-
-  if (side.lengthSq() < 1e-8) {
-    // the chord is parallel to the normal (a vertical drop): any direction is sideways
-    side.set(1, 0, 0)
-  }
-
-  side.normalize()
-
-  const vertexIndex = getPolygonsByVertexKey()
-  const verticesOfCache = new Map<number, Array<{ key: string; point: Vector3 }>>()
-
-  const verticesOf = (polygonIndex: number): Array<{ key: string; point: Vector3 }> => {
-    const cached = verticesOfCache.get(polygonIndex)
-
-    if (cached !== undefined) {
-      return cached
-    }
-
-    const polygon = fts.polygons[polygonIndex]
-    const vertices =
-      polygon === undefined
-        ? []
-        : getUsedVerticesOf(polygon).map((vertex) => {
-            return { key: getVertexKey(vertex), point: arxVector3toVector3(vertex).sub(offset) }
-          })
-
-    verticesOfCache.set(polygonIndex, vertices)
-
-    return vertices
-  }
-
-  /** the point where the walk enters the neighbour: on the shared edge, as close to the chord as possible */
-  const getCrossingPoint = (currentIndex: number, neighbourIndex: number): Vector3 | undefined => {
-    const current = verticesOf(currentIndex)
-    const neighbour = verticesOf(neighbourIndex)
-    const currentKeys = new Set(current.map((vertex) => vertex.key))
-    const shared = neighbour.filter((vertex) => currentKeys.has(vertex.key))
-
-    if (shared.length === 0) {
-      return undefined
-    }
-
-    if (shared.length === 1) {
-      return shared[0].point
-    }
-
-    // two shared vertices: the shared edge; take the point of it closest to the straight line
-    const [a, b] = shared
-    const edge = new Vector3().subVectors(b.point, a.point)
-    const edgeLengthSq = edge.lengthSq()
-
-    if (edgeLengthSq < 1e-8) {
-      return a.point
-    }
-
-    const lateralA = new Vector3().subVectors(a.point, from.point).dot(side)
-    const lateralB = new Vector3().subVectors(b.point, from.point).dot(side)
-    const denominator = lateralB - lateralA
-    const t = Math.abs(denominator) < 1e-8 ? 0 : Math.min(1, Math.max(0, -lateralA / denominator))
-
-    return a.point.clone().addScaledVector(edge, t)
-  }
-
-  type WalkEntry = { polygonIndex: number; path: number[] }
-
-  const visited = new Set<number>([from.polygonIndex])
-  const open: Array<WalkEntry & { cost: number }> = [
-    {
-      polygonIndex: from.polygonIndex,
-      path: [],
-      cost: 0,
-    },
-  ]
-
-  while (open.length > 0 && visited.size <= SURFACE_WALK_MAX_VISITED) {
-    open.sort((first, second) => first.cost - second.cost)
-
-    const current = open.shift()
-
-    if (current === undefined) {
-      break
-    }
-
-    const currentVertices = verticesOf(current.polygonIndex)
-    const neighbourIndices = new Set<number>()
-
-    for (const vertex of currentVertices) {
-      for (const neighbourIndex of vertexIndex.get(vertex.key) ?? []) {
-        if (neighbourIndex !== current.polygonIndex) {
-          neighbourIndices.add(neighbourIndex)
-        }
-      }
-    }
-
-    for (const neighbourIndex of neighbourIndices) {
-      // a deleted polygon is not part of the mesh: the surface path cannot cross it
-      if (visited.has(neighbourIndex) || deletedPolygons.has(neighbourIndex)) {
-        continue
-      }
-
-      const crossing = getCrossingPoint(current.polygonIndex, neighbourIndex)
-
-      if (crossing === undefined) {
-        continue
-      }
-
-      const lateral = new Vector3().subVectors(crossing, from.point).dot(side)
-
-      // the walk may move forward and backward along the jump (a U shaped surface around a corner
-      // goes back up), but it may not drift away from the straight line sideways: that is what
-      // going around a hole looks like
-      if (Math.abs(lateral) > corridor) {
-        continue
-      }
-
-      const path = [...current.path, neighbourIndex]
-
-      if (neighbourIndex === targetPolygonIndex) {
-        return path
-      }
-
-      visited.add(neighbourIndex)
-      open.push({
-        polygonIndex: neighbourIndex,
-        path,
-        cost: crossing.distanceTo(to) + path.length * 0.01,
-      })
-    }
-  }
-
-  return undefined
+type SelectionStroke = {
+  mode: SelectionMode
+  startPoint: Vector3
+  startPolygonIndex: number
+  base: Set<number>
 }
 
-/**
- * What the current drag does with the selection: `replace` starts a new one (clearing the previous),
- * `add` (shift) and `remove` (ctrl / cmd) extend it. `undefined` while no drag is in progress.
- */
-let selectionDragMode: 'replace' | 'add' | 'remove' | undefined
+let selectionStroke: SelectionStroke | undefined
 
-type SelectionMode = 'replace' | 'add' | 'remove'
+/** applies the current line's cells to the base selection of the stroke (the line tool preview) */
+function applySelectionStroke(cells: ReadonlySet<number>): void {
+  const stroke = selectionStroke
+
+  if (stroke === undefined) {
+    return
+  }
+
+  const next = new Set(stroke.base)
+
+  if (stroke.mode === 'remove') {
+    for (const polygonIndex of cells) {
+      next.delete(polygonIndex)
+    }
+  } else {
+    for (const polygonIndex of cells) {
+      next.add(polygonIndex)
+    }
+  }
+
+  if (next.size === selectedPolygons.size) {
+    let same = true
+
+    for (const polygonIndex of next) {
+      if (!selectedPolygons.has(polygonIndex)) {
+        same = false
+        break
+      }
+    }
+
+    if (same) {
+      return
+    }
+  }
+
+  selectedPolygons.clear()
+
+  for (const polygonIndex of next) {
+    selectedPolygons.add(polygonIndex)
+  }
+
+  updateHighlightOfSelectedPolygons()
+}
 
 /** the mode of the gesture, from the modifiers of the mouse event itself (always up to date) */
 function getSelectionModeFromEvent(event: MouseEvent): SelectionMode {
@@ -2710,13 +2439,6 @@ function getSelectionMode(): SelectionMode {
 /** the mode of the gesture that is currently pressed down (set on mousedown) */
 let pendingSelectionMode: SelectionMode | undefined
 
-/**
- * True when the drag started on empty space (no polygon under the cursor at the press): the gesture
- * must not select anything then, even if it flies over selectable polygons later on. Set on
- * mousedown, cleared on mouseup.
- */
-let dragStartedWithoutPolygon = false
-
 /** the modifier keys: their state changes the colour of the cursor outline, no mouse move needed */
 function isModifierKey(code: string): boolean {
   return (
@@ -2735,7 +2457,7 @@ function updateCursorColor(): void {
     return
   }
 
-  const mode = selectionDragMode ?? getSelectionMode()
+  const mode = selectionStroke?.mode ?? pendingSelectionMode ?? getSelectionMode()
 
   cursorTriangleMaterial.color.set(mode === 'remove' ? Color.red.getHex() : Color.green.getHex())
 }
@@ -2915,7 +2637,6 @@ document.addEventListener(
     updateMouseButtonStates(event)
 
     pendingSelectionMode = getSelectionModeFromEvent(event)
-    dragStartedWithoutPolygon = polygonBeingLookedAt === undefined
 
     cursorTriangleMaterial.color.set(
       pendingSelectionMode === 'remove' ? Color.red.getHex() : Color.green.getHex(),
@@ -2931,45 +2652,41 @@ document.addEventListener(
       return
     }
 
-    dragStartedWithoutPolygon = false
-
     updateMouseButtonStates(event)
 
     if (!(mousePressed[LeftMouseButton].oldValue && !mousePressed[LeftMouseButton].currentValue)) {
       return
     }
 
-    // the gesture is over, even if it ended on empty space: the next press starts a new surface line
-    selectionDragVertices = undefined
-    lastSelectionSurfacePoint = undefined
+    pendingSelectionMode = undefined
+
+    // the pen is up: the stroke is over (its selection stays)
+    const strokeWasActive = selectionStroke !== undefined
+    selectionStroke = undefined
     finishSelectionDebugAttempt()
 
-    if (polygonBeingLookedAt === undefined) {
+    if (strokeWasActive || polygonBeingLookedAt === undefined) {
+      cursorTriangleMaterial.color.set(getSelectionMode() === 'remove' ? Color.red.getHex() : Color.green.getHex())
+
       return
     }
 
-    if (selectionDragMode === undefined) {
-      // a plain click: no drag happened, the modifiers decide what it means
-      const mode = getSelectionModeFromEvent(event)
+    // a plain click: no stroke was started, the modifiers decide what it means
+    const mode = getSelectionModeFromEvent(event)
 
-      if (mode === 'remove') {
-        selectedPolygons.delete(polygonBeingLookedAt)
-      } else {
-        if (mode === 'replace') {
-          selectedPolygons.clear()
-        }
-
-        selectedPolygons.add(polygonBeingLookedAt)
+    if (mode === 'remove') {
+      selectedPolygons.delete(polygonBeingLookedAt)
+    } else {
+      if (mode === 'replace') {
+        selectedPolygons.clear()
       }
 
-      cursorTriangleMaterial.color.set(mode === 'remove' ? Color.red.getHex() : Color.green.getHex())
-
-      updateHighlightOfSelectedPolygons()
-    } else {
-      selectionDragMode = undefined
-
-      cursorTriangleMaterial.color.set(getSelectionMode() === 'remove' ? Color.red.getHex() : Color.green.getHex())
+      selectedPolygons.add(polygonBeingLookedAt)
     }
+
+    cursorTriangleMaterial.color.set(mode === 'remove' ? Color.red.getHex() : Color.green.getHex())
+
+    updateHighlightOfSelectedPolygons()
   },
   false,
 )
@@ -3051,7 +2768,7 @@ function collectRayHits(
       const polygonIndex = triangleToPolygon[face.a / 3]
 
       if (polygonIndex !== undefined) {
-        // the point on the surface: the surface line test compares the hit points of the drag
+        // the point on the surface: the stroke compares the depths of its hits with the endpoints
         hits.push({
           polygonIndex,
           distance: intersection.distance,
@@ -3078,13 +2795,12 @@ function collectRayHits(
  * wall of culled back faces; an older version switched to `DoubleSide` while a mouse button was
  * held, and the drag selected those invisible polygons).
  *
- * A back facing polygon can still end up in the selection, but **only through the surface line**:
- * the straight line between the two visible (front facing) polygons may cross a fold or a stroke
- * that faces away from the camera, and those path polygons are added by
- * `getPolygonsAlongSurfaceLine()`, not by this picker.
+ * A back facing polygon can still end up in the selection, but **only through the projected stroke**:
+ * the screen line between the two visible polygons may cross a fold or a stroke that faces away
+ * from the camera, and those cells are added by `getPolygonsAlongScreenLine()`, not by this picker.
  *
- * All hits are returned instead of only the nearest one: while dragging, the nearest hit can be a
- * polygon that is not connected to the selection, while the next one is. The caller picks.
+ * All hits are returned instead of only the nearest one: the debug tests need the whole stack, and
+ * the stroke uses the nearest one for its two endpoints. The caller picks.
  */
 function getPolygonsUnderCameraRay(): Array<{ polygonIndex: number; distance: number; point: Vector3 }> {
   const direction = new Vector3()
@@ -3104,29 +2820,9 @@ function updatePolygonUnderCursor(): void {
     return
   }
 
-  // while adding to the selection prefer the nearest polygon that is connected to the ones selected
-  // in this drag, so a polygon that was skipped (not connected) does not hide the connectable one
   const [nearestHit] = hits
-  let polygonIndex = nearestHit.polygonIndex
-
-  if (selectionDragMode !== undefined && selectionDragMode !== 'remove' && polygonIndex !== undefined) {
-    // only the nearest hits are worth checking (the ray can cross the whole level)
-    const connectedHit = hits.slice(0, SELECTION_CANDIDATE_LIMIT).find((hit) => {
-      const candidate = fts.polygons[hit.polygonIndex]
-
-      if (candidate === undefined || selectedPolygons.has(hit.polygonIndex)) {
-        return false
-      }
-
-      return isConnectedToSelection(getUsedVerticesOf(candidate))
-    })
-
-    if (connectedHit !== undefined) {
-      polygonIndex = connectedHit.polygonIndex
-    }
-  }
-
-  const polygon = polygonIndex === undefined ? undefined : fts.polygons[polygonIndex]
+  const polygonIndex = nearestHit.polygonIndex
+  const polygon = fts.polygons[polygonIndex]
 
   cursorTriangleMesh.geometry.dispose()
 
@@ -3143,154 +2839,58 @@ function updatePolygonUnderCursor(): void {
 
   polygonBeingLookedAt = polygonIndex
 
-  const alreadySelected = polygonIndex !== undefined && selectedPolygons.has(polygonIndex)
-  const mode = selectionDragMode ?? getSelectionMode()
+  const mode = selectionStroke?.mode ?? pendingSelectionMode ?? getSelectionMode()
 
   // red only in the "remove" mode: it is the only case where a click takes something away
   cursorTriangleMaterial.color.set(mode === 'remove' ? Color.red.getHex() : Color.green.getHex())
 
   if (mousePressed[LeftMouseButton].currentValue) {
     if (!mousePressed[LeftMouseButton].oldValue) {
-      // left mouse button was pressed
-      selectionDragMode = pendingSelectionMode ?? getSelectionMode()
-      pendingSelectionMode = undefined
+      // pen down: remember the camera for the debug payload. The stroke itself starts on the first
+      // polygon the pen touches (a press on empty space is like drawing in the air).
       selectionDragStartCamera = getCameraDebugState()
       lastSelectionAttempt = undefined
+    }
 
-      if (selectionDragMode === 'replace') {
-        // a new selection starts here: the previous one is dropped
+    if (selectionStroke === undefined) {
+      const strokeMode = pendingSelectionMode ?? getSelectionMode()
+
+      if (strokeMode === 'replace') {
+        // a new stroke starts here: the previous selection is dropped
         selectedPolygons.clear()
         updateHighlightOfSelectedPolygons()
       }
 
-      selectionDragVertices = selectionDragMode === 'remove' ? undefined : new Map()
-
-      if (selectionDragMode !== 'remove' && polygon !== undefined) {
-        addVerticesToSelectionGrid(getUsedVerticesOf(polygon))
-
-        // the surface line test starts here: the point of the polygon under the cursor and its plane
-        const startHit = hits.find((hit) => hit.polygonIndex === polygonIndex) ?? nearestHit
-        lastSelectionSurfacePoint = {
-          point: startHit.point.clone(),
-          normal: getPolygonNormal(polygon),
-          polygonIndex: startHit.polygonIndex,
-        }
-      } else {
-        lastSelectionSurfacePoint = undefined
+      selectionStroke = {
+        mode: strokeMode,
+        startPoint: nearestHit.point.clone(),
+        startPolygonIndex: polygonIndex,
+        base: strokeMode === 'replace' ? new Set() : new Set(selectedPolygons),
       }
+      pendingSelectionMode = undefined
     }
 
-    if (selectionDragMode === 'replace' || selectionDragMode === 'add') {
-      cursorTriangleMaterial.color.set(Color.green.getHex())
+    const cells = new Set(getPolygonsAlongScreenLine(selectionStroke.startPoint, nearestHit.point))
+    cells.add(selectionStroke.startPolygonIndex)
+    cells.add(polygonIndex)
 
-      // every **front facing** polygon under the cursor that is connected to what the drag has
-      // selected so far gets added, not only the nearest one: a part of the mesh can be hidden
-      // behind another part in screen space (a Z shape seen from below), and the drag should still
-      // pick it up. A drag that started on empty space selects nothing at all. Back facing polygons
-      // are not in this list - they can only come from the surface line below.
-      const candidates = dragStartedWithoutPolygon ? [] : hits.slice(0, SELECTION_CANDIDATE_LIMIT)
+    applySelectionStroke(cells)
 
-      let addedSomething = false
-
-      for (const candidateHit of candidates) {
-        const candidate = fts.polygons[candidateHit.polygonIndex]
-
-        if (candidate === undefined || selectedPolygons.has(candidateHit.polygonIndex)) {
-          continue
-        }
-
-        if (isConnectedToSelection(getUsedVerticesOf(candidate))) {
-          addPolygonToSelection(candidateHit.polygonIndex)
-          addedSomething = true
-        }
-      }
-
-      // Shared vertices are only one kind of connection. Two separate surfaces that line up
-      // (an unwelded seam, two slabs of a ceiling) do not share a vertex, but a straight line can be
-      // drawn between them **on the surface** - as long as it does not cross a hole or the edge of
-      // the mesh. That line also covers every polygon it crosses, which is what makes the drag
-      // follow the surface instead of jumping over a gap.
-      //
-      // It runs even when a farther polygon was accepted by the shared vertex rule: the polygon
-      // **under the cursor** is the one the drag has to reach, and a farther one must not mask it.
-      if (
-        !dragStartedWithoutPolygon &&
-        lastSelectionSurfacePoint !== undefined &&
-        !selectedPolygons.has(nearestHit.polygonIndex)
-      ) {
-        const attemptStart = lastSelectionSurfacePoint
-
-        // the straight line first: it is cheap and it is the one that bridges an unwelded seam
-        let lineResult = getPolygonsAlongSurfaceLine(attemptStart, nearestHit.point)
-        let walkResult: number[] | undefined
-        let pathTest: 'line' | 'walk' | undefined
-        let polygonsAlongThePath = lineResult
-
-        if (polygonsAlongThePath !== undefined) {
-          pathTest = 'line'
-        } else {
-          // then the walk: a staircase or a step is a continuous surface, but its height change makes
-          // the straight line miss it. The walk follows the mesh and may cross back facing polygons.
-          walkResult = getPolygonsAlongSurfaceWalk(attemptStart, nearestHit.point, nearestHit.polygonIndex)
-          polygonsAlongThePath = walkResult
-          pathTest = walkResult === undefined ? undefined : 'walk'
-        }
-
-        if (polygonsAlongThePath !== undefined) {
-          for (const polygonIndexAlongThePath of polygonsAlongThePath) {
-            addPolygonToSelection(polygonIndexAlongThePath)
-          }
-
-          addPolygonToSelection(nearestHit.polygonIndex)
-          addedSomething = true
-        }
-
-        lastSelectionAttempt = {
-          startPoint: attemptStart.point.clone(),
-          startPolygonIndex: attemptStart.polygonIndex,
-          targetPoint: nearestHit.point.clone(),
-          targetPolygonIndex: nearestHit.polygonIndex,
-          line: lineResult,
-          walk: walkResult,
-          pathTest,
-          reached: addedSomething,
-        }
-      }
-
-      if (addedSomething) {
-        updateHighlightOfSelectedPolygons()
-      } else if (polygonIndex !== undefined && !alreadySelected) {
-        // no islands: this polygon is not connected to anything selected in this drag
-        cursorTriangleMaterial.color.set(Color.yellow.getHex())
-      }
-
-      // the drag follows the cursor on the surface: the next surface line is measured from here. Only
-      // an accepted (or already selected) polygon counts - over a hole the nearest hit can be a floor
-      // of another room, and measuring from there would cut through the level.
-      const nearestPolygon = fts.polygons[nearestHit.polygonIndex]
-
-      if (nearestPolygon !== undefined && selectedPolygons.has(nearestHit.polygonIndex)) {
-        lastSelectionSurfacePoint = {
-          point: nearestHit.point.clone(),
-          normal: getPolygonNormal(nearestPolygon),
-          polygonIndex: nearestHit.polygonIndex,
-        }
-      }
-    } else {
-      cursorTriangleMaterial.color.set(Color.red.getHex())
-      if (selectionDragMode === 'remove' && polygonIndex !== undefined && alreadySelected) {
-        selectedPolygons.delete(polygonIndex)
-        updateHighlightOfSelectedPolygons()
-      }
+    lastSelectionAttempt = {
+      startPoint: selectionStroke.startPoint.clone(),
+      startPolygonIndex: selectionStroke.startPolygonIndex,
+      targetPoint: nearestHit.point.clone(),
+      targetPolygonIndex: polygonIndex,
+      cells: [...cells],
     }
+
+    cursorTriangleMaterial.color.set(selectionStroke.mode === 'remove' ? Color.red.getHex() : Color.green.getHex())
 
     updateMouseButtonState(LeftMouseButton, true)
   } else {
     if (mousePressed[LeftMouseButton].oldValue) {
-      // left mouse button was released
-      selectionDragMode = undefined
-      selectionDragVertices = undefined
-      lastSelectionSurfacePoint = undefined
+      // pen up: the stroke is over, the selection it produced stays
+      selectionStroke = undefined
       finishSelectionDebugAttempt()
     }
 

@@ -923,9 +923,10 @@ if (wireframeVisible.value === true) {
  * Debug overlays: the anchors of the pathfinding graph (links in green, the anchors as little blue
  * vertical ticks), the portal quads between the rooms (cyan) and a small colored gizmo at every LLF
  * light. They are built once from the FTS/LLF data and only toggled by the checkboxes, so there is
- * no per-frame work. The anchors and the light gizmos are depth tested (the mesh hides them, as
- * usual), the portals are not (their outlines stay visible through the geometry - that is how the
- * room graph is meant to be read).
+ * no per-frame work. All three overlays draw **without the depth test** (renderOrder 8/9), so they
+ * stay visible through the geometry - the game's pathfinding/pathfinding debug views do the same,
+ * and a semi transparent surface (the water of level 12) used to hide the anchors completely
+ * (reported by the owner, 2026-10-19).
  */
 function ftsPositionToThree(position: ArxVector3): Vector3 {
   return arxVector3toVector3(position).sub(offset)
@@ -957,9 +958,11 @@ if (fts.anchors.length > 0) {
 
   const anchorLinksGeometry = new BufferGeometry()
   anchorLinksGeometry.setAttribute('position', new BufferAttribute(new Float32Array(anchorLinkPositions), 3))
+  // no depth test: the game's pathfinding debug view draws the anchors over everything, and in the
+  // editor a semi transparent surface (the water of level 12) used to hide them completely
   const anchorLinks = new LineSegments(
     anchorLinksGeometry,
-    new LineBasicMaterial({ color: 0x35d84a, transparent: true, opacity: 0.9 }),
+    new LineBasicMaterial({ color: 0x35d84a, depthTest: false, transparent: true, opacity: 0.9 }),
   )
   anchorLinks.renderOrder = 8
 
@@ -967,7 +970,7 @@ if (fts.anchors.length > 0) {
   anchorTicksGeometry.setAttribute('position', new BufferAttribute(new Float32Array(anchorTickPositions), 3))
   const anchorTicks = new LineSegments(
     anchorTicksGeometry,
-    new LineBasicMaterial({ color: 0x4b7cff, transparent: true, opacity: 0.9 }),
+    new LineBasicMaterial({ color: 0x4b7cff, depthTest: false, transparent: true, opacity: 0.9 }),
   )
   anchorTicks.renderOrder = 8
 
@@ -1035,6 +1038,13 @@ if (llf.lights.length > 0) {
   }
 
   gizmos.renderOrder = 9
+  gizmos.traverse((object) => {
+    const withMaterial = object as unknown as { material?: { depthTest: boolean } }
+
+    if (withMaterial.material !== undefined) {
+      withMaterial.material.depthTest = false
+    }
+  })
   gizmos.visible = lightsVisible.value
   scene.add(gizmos)
 

@@ -15,16 +15,30 @@ const levelNineUrl = 'https://www.youtube.com/watch?v=E4WlUXrJgy4'
 const levelButtons = [...originalArxLevelIds.slice(0, 9), levelNineId, ...originalArxLevelIds.slice(9)]
 
 /**
- * Loads another level. The level data is fetched and parsed when the module is evaluated, so the
- * switch is a reload: it navigates to `?levelIdx=N` and leaves the camera state (`positionAt`,
- * `angle`) behind, because a coordinate of another level means nothing here. The
+ * The url of another level. The level data is fetched and parsed when the module is evaluated, so
+ * the switch is a reload: it navigates to `?levelIdx=N` and leaves the camera state
+ * (`positionAt`, `angle`) behind, because a coordinate of another level means nothing here. The
  * `?lightingCalculatorMode=` parameter is kept.
- *
- * The download of the edited mesh is still on the TODO list (16), so a "saved" state does not
- * exist yet - if the mesh has been changed, ask before throwing the changes away.
  */
-function openLevel(levelId: number): void {
+function levelHref(levelId: number): string {
+  const params = new URLSearchParams(globalThis.location.search)
+  params.delete('positionAt')
+  params.delete('angle')
+  params.set('levelIdx', String(levelId))
+  params.delete('level')
+
+  return `${globalThis.location.pathname}?${params.toString()}`
+}
+
+/**
+ * The level buttons are real links, so the browser's own behaviour works (middle click, ctrl+click
+ * open another editor in a new tab). A plain click is intercepted only when the mesh has unsaved
+ * changes: a "saved" state does not exist yet (TODO 16), so ask before throwing the changes away.
+ */
+function onLevelClick(event: MouseEvent, levelId: number): void {
   if (levelId === currentLevelId.value) {
+    event.preventDefault()
+
     return
   }
 
@@ -32,16 +46,8 @@ function openLevel(levelId: number): void {
     isDirty.value &&
     !globalThis.confirm('Nem mentett módosítások vannak a pályán. Ha másik pályát töltesz be, elvesznek. Folytatod?')
   ) {
-    return
+    event.preventDefault()
   }
-
-  const params = new URLSearchParams(globalThis.location.search)
-  params.delete('positionAt')
-  params.delete('angle')
-  params.set('levelIdx', String(levelId))
-  params.delete('level')
-
-  globalThis.location.assign(`${globalThis.location.pathname}?${params.toString()}`)
 }
 </script>
 
@@ -59,21 +65,18 @@ function openLevel(levelId: number): void {
             :href="levelNineUrl"
             target="_blank"
             rel="noopener noreferrer"
-            title="Level 9"
             >9</a
           >
-          <button
+          <a
             v-else
-            type="button"
             class="level-button"
             :class="{ active: id === currentLevelId }"
-            :disabled="id === currentLevelId"
+            :href="levelHref(id)"
             :aria-current="id === currentLevelId ? 'true' : undefined"
-            :title="`Load level ${id}`"
-            @click="openLevel(id)"
+            @click="onLevelClick($event, id)"
           >
             {{ id }}
-          </button>
+          </a>
         </template>
       </nav>
     </div>

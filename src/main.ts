@@ -66,7 +66,6 @@ import {
   portalsVisible,
   RightMouseButton,
   selectionConnectDistance,
-  selectionFillRadius,
   shadows,
   updateMouseButtonState,
   updateMouseButtonStates,
@@ -644,7 +643,7 @@ type MeshGroup = {
 
 function createMeshGroup(
   options: MaterialOptions,
-  predicate: (flags: ArxPolygon['flags']) => boolean,
+  predicate: (polygon: ArxPolygon) => boolean,
 ): MeshGroup {
   const material = createMaterial(options, getDisplayLightingMode())
   const entries: SourcePolygon[] = fts.polygons
@@ -652,7 +651,7 @@ function createMeshGroup(
       return { polygon, sourceIndex }
     })
     .filter(({ polygon }) => {
-      return predicate(polygon.flags)
+      return predicate(polygon)
     })
 
   const mesh = arxPolygonsToMesh(
@@ -666,21 +665,43 @@ function createMeshGroup(
   return { options, material, entries, mesh }
 }
 
+/**
+ * The textures that are **invisible** in the game: `alpha.bmp` is a black image used as a colour
+ * key (the black pixels are transparent, `ArxLibertatis` hardcodes `#000`), so the polygons with it
+ * are invisible surfaces. They still have to be selectable (the cursor outline and the selection
+ * highlight are separate objects), so they get their own group with `opacity: 0`.
+ */
+const invisibleContainerIds = new Set(
+  fts.textureContainers.filter((container) => /alpha/i.test(container.filename)).map((container) => container.id),
+)
+
 /** the polygons that have been deleted in the editor - the export drops them */
 const deletedPolygons = new Set<number>()
 
+const isVisiblePolygon = (polygon: ArxPolygon): boolean => {
+  return !invisibleContainerIds.has(polygon.textureContainerId)
+}
+
 const meshGroups: MeshGroup[] = [
-  createMeshGroup({ color: Color.white.getHex() }, (flags) => {
-    return !isTransparent(flags) && !isDoubleSided(flags) && !isNoDraw(flags)
+  createMeshGroup({ color: Color.white.getHex() }, (polygon) => {
+    return isVisiblePolygon(polygon) && !isTransparent(polygon.flags) && !isDoubleSided(polygon.flags) && !isNoDraw(polygon.flags)
   }),
-  createMeshGroup({ color: Color.white.getHex(), side: DoubleSide }, (flags) => {
-    return !isTransparent(flags) && isDoubleSided(flags) && !isNoDraw(flags)
+  createMeshGroup({ color: Color.white.getHex(), side: DoubleSide }, (polygon) => {
+    return isVisiblePolygon(polygon) && !isTransparent(polygon.flags) && isDoubleSided(polygon.flags) && !isNoDraw(polygon.flags)
   }),
   // the water: it must not write depth, otherwise it hides the overlays that are drawn after it
   createMeshGroup(
     { color: Color.white.getHex(), transparent: true, opacity: 0.5, side: DoubleSide, depthWrite: false },
-    (flags) => {
-      return isTransparent(flags) && !isNoDraw(flags)
+    (polygon) => {
+      return isVisiblePolygon(polygon) && isTransparent(polygon.flags) && !isNoDraw(polygon.flags)
+    },
+  ),
+  // the invisible (alpha.bmp) surfaces: opacity 0, but they stay raycastable (DoubleSide, so the
+  // cursor finds them from both directions) - the selection highlight shows where they are
+  createMeshGroup(
+    { color: Color.white.getHex(), transparent: true, opacity: 0, side: DoubleSide, depthWrite: false },
+    (polygon) => {
+      return !isVisiblePolygon(polygon) && !isNoDraw(polygon.flags)
     },
   ),
 ]
@@ -1536,6 +1557,11 @@ const SELECTION_RAY_FAR = 100_000
 const SELECTION_CANDIDATE_LIMIT = 32
 
 /** the selection is polygon based: a quad is one unit, both of its triangles are highlighted */
+/**
+ * Draws the selection as **one** mesh: a flood fill can select a few thousand polygons (the biggest
+ * connected same texture area of the original levels is ~1800), and one draw call per polygon would
+ * make that unusable. The geometries of the polygons are concatenated into a single position buffer.
+ */
 function updateHighlightOfSelectedPolygons(): void {
   if (highlightOfSelectedPolygons.length > 0) {
     scene.remove(...highlightOfSelectedPolygons)
@@ -1544,15 +1570,36 @@ function updateHighlightOfSelectedPolygons(): void {
     })
   }
 
-  highlightOfSelectedPolygons = [...selectedPolygons].map((polygonIndex) => {
-    const mesh = new Mesh(createPolygonFillGeometry(fts.polygons[polygonIndex]), highlightMaterial)
-    mesh.renderOrder = 7
-    return mesh
-  })
+  const positions: number[] = []
 
-  if (highlightOfSelectedPolygons.length > 0) {
-    scene.add(...highlightOfSelectedPolygons)
+  for (const polygonIndex of selectedPolygons) {
+    const polygon = fts.polygons[polygonIndex]
+
+    if (polygon === undefined) {
+      continue
+    }
+
+    const attribute = createPolygonFillGeometry(polygon).getAttribute('position')
+    const array = attribute.array as Float32Array
+
+    for (const value of array) {
+      positions.push(value)
+    }
   }
+
+  if (positions.length === 0) {
+    highlightOfSelectedPolygons = []
+
+    return
+  }
+
+  const geometry = new BufferGeometry()
+  geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3))
+
+  const mesh = new Mesh(geometry, highlightMaterial)
+  mesh.renderOrder = 7
+  highlightOfSelectedPolygons = [mesh]
+  scene.add(mesh)
 }
 
 /**
@@ -1715,51 +1762,12 @@ function getPolygonsByVertexKey(): Map<string, number[]> {
   return index
 }
 
-const selectionDistanceTriangle = new Triangle()
-const selectionDistancePoint = new Vector3()
-
 /**
- * The squared distance from the position (three.js space) to the **surface** of the polygon. Not to
- * its vertices: a floor that spans a room lies under the camera while all of its vertices can be
- * hundreds of units away, so a vertex based distance would stop the fill at the first polygon.
- */
-function getSquaredDistanceToPolygon(polygon: ArxPolygon, position: Vector3): number {
-  const vertices = getUsedVerticesOf(polygon)
-
-  // a quad is built from the triangles (a, b, c) and (c, b, d) - see `arxPolygonsToMesh()`
-  const corners = isQuad(polygon)
-    ? [
-        [0, 1, 2],
-        [2, 1, 3],
-      ]
-    : [[0, 1, 2]]
-  let best = Number.POSITIVE_INFINITY
-
-  for (const [a, b, c] of corners) {
-    const first = vertices[a]
-    const second = vertices[b]
-    const third = vertices[c]
-
-    if (first === undefined || second === undefined || third === undefined) {
-      continue
-    }
-
-    selectionDistanceTriangle.set(
-      gamePositionToThreePosition(first.x, first.y, first.z),
-      gamePositionToThreePosition(second.x, second.y, second.z),
-      gamePositionToThreePosition(third.x, third.y, third.z),
-    )
-    selectionDistanceTriangle.closestPointToPoint(position, selectionDistancePoint)
-    best = Math.min(best, selectionDistancePoint.distanceToSquared(position))
-  }
-
-  return best
-}
-
-/**
- * Selects the connected polygons that use the **same texture** as the start polygon (a double click).
- * The flood fill is limited to `selectionFillRadius` game units around the camera: a texture that is
- * used across the whole level would otherwise select thousands of polygons.
+ * Selects the connected polygons that use the **same texture** as the start polygon (a double
+ * click). There is no radius limit: the whole connected area is selected (the owner asked for it -
+ * a limited fill looked like a broken selection on the castle wall of level 12). The biggest
+ * connected same texture area of the original levels is ~1800 polygons, and the highlight is a
+ * single merged mesh, so the size is not a problem.
  */
 function selectSameTextureArea(startPolygonIndex: number, mode: SelectionMode): void {
   const start = fts.polygons[startPolygonIndex]
@@ -1769,9 +1777,6 @@ function selectSameTextureArea(startPolygonIndex: number, mode: SelectionMode): 
   }
 
   const index = getPolygonsByVertexKey()
-  const cameraPosition = camera.position
-  const radius = Math.min(100_000, Math.max(1, selectionFillRadius.value))
-  const radiusSquared = radius * radius
   const selected = new Set<number>()
   const visited = new Set<number>([startPolygonIndex])
   const queue = [startPolygonIndex]
@@ -1786,12 +1791,6 @@ function selectSameTextureArea(startPolygonIndex: number, mode: SelectionMode): 
     const polygon = fts.polygons[polygonIndex]
 
     if (polygon === undefined) {
-      continue
-    }
-
-    // the polygon under the cursor is always accepted: it is where the double click happened
-    if (polygonIndex !== startPolygonIndex && getSquaredDistanceToPolygon(polygon, cameraPosition) > radiusSquared) {
-      // out of the radius: neither selected nor used to reach further polygons
       continue
     }
 
@@ -1832,7 +1831,7 @@ function selectSameTextureArea(startPolygonIndex: number, mode: SelectionMode): 
   updateHighlightOfSelectedPolygons()
 
   const verb = mode === 'remove' ? 'removed' : 'selected'
-  logger.log(`${verb} ${selected.size} polygons of the same texture (radius: ${radius})`)
+  logger.log(`${verb} ${selected.size} polygons of the same texture`)
 }
 
 /** drops the whole selection (the "clear selection" button and the alt+a hotkey) */

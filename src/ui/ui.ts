@@ -150,13 +150,6 @@ export const ambientFloor = ref<number>(getAmbientFloorFromUrl())
 export const selectionConnectDistance = ref<number>(0.25)
 
 /**
- * How far (in game units) the double click flood fill may go from the camera when it collects the
- * connected polygons of the same texture. A plain ref on purpose: a settings input can change it at
- * runtime, and the fill reads it on every run. Not exposed in the URL.
- */
-export const selectionFillRadius = ref<number>(1000)
-
-/**
  * True while the `Realistic` lighting calculator runs. The throbber next to the lighting mode select
  * is shown and the shadows switch is disabled, so a second bake cannot be started in the meantime.
  */

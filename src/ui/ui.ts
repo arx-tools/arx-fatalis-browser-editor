@@ -62,12 +62,11 @@ export const cameraInfoVisible = ref(true)
 export const cameraInfo = document.querySelector<HTMLDivElement>('#camera-info') as HTMLDivElement
 
 // there is no checkbox for this one: it is a "settings" item that stays on all the time (the ref is
-// kept so the overlay can be moved under the settings later)
+// kept so the overlay can be moved under the settings later). The element is hidden by the css while
+// it has no text (`:empty`), which keeps the grey box out of the loading screen.
 watch(cameraInfoVisible, (value) => {
-  cameraInfo.style.display = value ? 'block' : 'none'
+  cameraInfo.style.display = value ? '' : 'none'
 })
-
-cameraInfo.style.display = cameraInfoVisible.value ? 'block' : 'none'
 
 // ------------
 

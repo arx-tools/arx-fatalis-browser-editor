@@ -169,6 +169,11 @@ button {
 }
 
 
+/* the overlay has a background, so the empty box would show as a grey dot while the level loads */
+#camera-info:empty {
+  display: none;
+}
+
 #camera-info {
   position: absolute;
   top: 8px;

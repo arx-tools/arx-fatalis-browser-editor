@@ -2580,20 +2580,19 @@ function getPolygonsUnderCameraRay(): Array<{ polygonIndex: number; distance: nu
 
   const ray = new Ray(camera.position, direction)
 
-  // hovering (no button pressed): only the polygons that face the camera, using the material side of
-  // every group - the same side the renderer culls with, so what you see is what you pick. The old
-  // `DoubleSide` fallback picked geometry that is not on the screen (after deleting a floor, hovering
-  // over the hole selected the ceiling above it).
-  const visibleHits = collectRayHits(ray)
-
-  // while a mouse button is held (a drag selection is running) the ray may also hit back faces: at
-  // the gaps of the geometry there is not always a front facing polygon, and the drag has to be able
-  // to cross them (owner, 2026-10-20)
-  if (visibleHits.length > 0 || !isMouseButtonPressed()) {
-    return visibleHits
+  // while a mouse button is held (a drag selection is running) the ray hits **both sides**: a stroke
+  // of the mesh can face away from the camera while being in the middle of the drag path (a Z shape
+  // or a fold), and the drag has to reach it - `DoubleSide` also contains the front facing hits, so
+  // one pass is enough
+  if (isMouseButtonPressed()) {
+    return collectRayHits(ray, DoubleSide)
   }
 
-  return collectRayHits(ray, DoubleSide)
+  // hovering: only the polygons that face the camera, using the material side of every group - the
+  // same side the renderer culls with, so what you see is what you pick. The old `DoubleSide`
+  // fallback picked geometry that is not on the screen (after deleting a floor, hovering over the
+  // hole selected the ceiling above it).
+  return collectRayHits(ray)
 }
 
 function updatePolygonUnderCursor(): void {

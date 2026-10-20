@@ -30,6 +30,79 @@ loadingIndicator.classList.toggle('hidden', isLoading.value !== 'loading')
 
 export const canvas = document.querySelector<HTMLCanvasElement>('#screen') as HTMLCanvasElement
 
+/** the drag handle under the 3d view (it changes `--screen-height`, see `setupCanvasResizer`) */
+export const canvasResizer = document.querySelector<HTMLDivElement>('#canvas-resizer') as HTMLDivElement
+
+/** the wrapper of the canvas: its height is what the drag handle changes */
+export const screenWrapper = document.querySelector<HTMLDivElement>('#screen-wrapper') as HTMLDivElement
+
+/** the height of the 3d view (px), the layout reads it through `--screen-height` */
+export const screenHeight = ref<number>(600)
+
+export const SCREEN_HEIGHT_MIN = 200
+export const SCREEN_HEIGHT_MAX = 1000
+
+/**
+ * Drag (or arrow key) resizing of the 3d view: the handle under the canvas moves the wrapper's
+ * height between `SCREEN_HEIGHT_MIN` and `SCREEN_HEIGHT_MAX`. The renderer picks the new size up in
+ * the next frame (`resizeRendererToDisplaySize`), and `onResize` asks for that frame.
+ */
+export function setupCanvasResizer(onResize: () => void): void {
+  const apply = (height: number): void => {
+    screenHeight.value = Math.min(SCREEN_HEIGHT_MAX, Math.max(SCREEN_HEIGHT_MIN, Math.round(height)))
+    screenWrapper.style.setProperty('--screen-height', `${screenHeight.value}px`)
+    onResize()
+  }
+
+  apply(screenHeight.value)
+
+  let startY = 0
+  let startHeight = 0
+
+  canvasResizer.addEventListener('pointerdown', (event) => {
+    event.preventDefault()
+    canvasResizer.setPointerCapture(event.pointerId)
+    canvasResizer.classList.add('dragging')
+    startY = event.clientY
+    startHeight = screenWrapper.clientHeight
+  })
+
+  canvasResizer.addEventListener('pointermove', (event) => {
+    if (!canvasResizer.classList.contains('dragging')) {
+      return
+    }
+
+    apply(startHeight + event.clientY - startY)
+  })
+
+  const stopDragging = (event: PointerEvent): void => {
+    if (canvasResizer.hasPointerCapture(event.pointerId)) {
+      canvasResizer.releasePointerCapture(event.pointerId)
+    }
+
+    canvasResizer.classList.remove('dragging')
+  }
+
+  canvasResizer.addEventListener('pointerup', stopDragging)
+  canvasResizer.addEventListener('pointercancel', stopDragging)
+
+  // accessibility: the handle is focusable, the arrows resize too
+  canvasResizer.addEventListener('keydown', (event) => {
+    const steps: Record<string, number> = { ArrowUp: -20, ArrowDown: 20, PageUp: -100, PageDown: 100 }
+
+    if (event.key === 'Home') {
+      event.preventDefault()
+      apply(SCREEN_HEIGHT_MIN)
+    } else if (event.key === 'End') {
+      event.preventDefault()
+      apply(SCREEN_HEIGHT_MAX)
+    } else if (steps[event.key] !== undefined) {
+      event.preventDefault()
+      apply(screenHeight.value + steps[event.key])
+    }
+  })
+}
+
 mouseLocked.style.display = 'none'
 mouseUnlocked.style.display = 'none'
 

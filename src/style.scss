@@ -73,7 +73,8 @@ button {
 
 #screen-wrapper {
   width: 100%;
-  height: 600px;
+  /* the drag handle under the canvas writes this (200..1000 px, see setupCanvasResizer) */
+  height: var(--screen-height, 600px);
   border-top: 1px solid black;
   border-bottom: 1px solid black;
   background: #191919;
@@ -84,6 +85,45 @@ button {
 #screen {
   width: 100%;
   height: 100%;
+}
+
+/* the drag handle of the 3d view's height (200..1000 px, the height lives in a css variable) */
+#canvas-resizer {
+  position: relative;
+  z-index: 6;
+  height: 8px;
+  /* sits in the 10px bottom margin of the wrapper, so it does not cover the canvas itself */
+  margin: -10px 0 4px 0;
+  cursor: row-resize;
+  background: linear-gradient(#2c2828, #4a443c);
+  border-bottom: 1px solid #0d0d0d;
+  border-radius: 0 0 3px 3px;
+
+  &::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 2px;
+    width: 46px;
+    height: 3px;
+    margin-left: -23px;
+    border-radius: 2px;
+    background: #a39a8d;
+  }
+
+  &:hover,
+  &.dragging {
+    background: linear-gradient(#3a352f, #5a534a);
+
+    &::after {
+      background: #d8b44a;
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid #d8b44a;
+    outline-offset: -2px;
+  }
 }
 
 #loading-indicator {

@@ -67,6 +67,7 @@ import {
   portalsVisible,
   RightMouseButton,
   selectionConnectDistance,
+  setupCanvasResizer,
   shadows,
   updateMouseButtonState,
   updateMouseButtonStates,
@@ -2296,6 +2297,8 @@ function onKeyUp(event: KeyboardEvent): void {
     updateCursorColor()
   }
 }
+
+setupCanvasResizer(requestRender)
 
 document.addEventListener('keydown', onKeyDown, false)
 document.addEventListener('keyup', onKeyUp, false)

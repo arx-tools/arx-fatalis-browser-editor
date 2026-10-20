@@ -36,11 +36,14 @@ export const canvasResizer = document.querySelector<HTMLDivElement>('#canvas-res
 /** the wrapper of the canvas: its height is what the drag handle changes */
 export const screenWrapper = document.querySelector<HTMLDivElement>('#screen-wrapper') as HTMLDivElement
 
-/** the height of the 3d view (px), the layout reads it through `--screen-height` */
-export const screenHeight = ref<number>(600)
-
 export const SCREEN_HEIGHT_MIN = 200
 export const SCREEN_HEIGHT_MAX = 1000
+
+/** the height the view starts with, and what a double click on the handle restores */
+export const SCREEN_HEIGHT_DEFAULT = 600
+
+/** the height of the 3d view (px), the layout reads it through `--screen-height` */
+export const screenHeight = ref<number>(SCREEN_HEIGHT_DEFAULT)
 
 /**
  * Drag (or arrow key) resizing of the 3d view: the handle under the canvas moves the wrapper's
@@ -85,6 +88,11 @@ export function setupCanvasResizer(onResize: () => void): void {
 
   canvasResizer.addEventListener('pointerup', stopDragging)
   canvasResizer.addEventListener('pointercancel', stopDragging)
+
+  // a double click puts the view back to its default height
+  canvasResizer.addEventListener('dblclick', () => {
+    apply(SCREEN_HEIGHT_DEFAULT)
+  })
 
   // accessibility: the handle is focusable, the arrows resize too
   canvasResizer.addEventListener('keydown', (event) => {

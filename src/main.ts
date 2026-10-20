@@ -1356,7 +1356,12 @@ if (cameraLightVisible.value === true) {
 
 // --------------------
 
-const renderer = new WebGLRenderer({ antialias: true, canvas })
+// `preserveDrawingBuffer` keeps the last frame readable: without it the browser clears the drawing
+// buffer after compositing, so the browser's own "Save image as" (a right click on the canvas, which
+// reads the canvas instead of re-rendering) saved a blank white png - the first complaint came from
+// firefox. The frame is still only drawn on demand, so the cost of keeping the buffer is paid per
+// rendered frame, not per second.
+const renderer = new WebGLRenderer({ antialias: true, canvas, preserveDrawingBuffer: true })
 renderer.setClearColor(Color.white.darken(90).getHex())
 renderer.setSize(canvas.clientWidth, canvas.clientHeight, false)
 

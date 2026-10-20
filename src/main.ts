@@ -110,6 +110,89 @@ mountUi()
 
 // --------------------
 
+/**
+ * The copyable selection debug payload. F2 (or `?selectionDebug=1`) shows the JSON of the last drag
+ * attempt: the start and target polygons, the camera poses and what the path tests did. It is meant
+ * for the edge case reports - the owner can reproduce a case and paste the payload back, without
+ * opening the developer console (the headless test hook is not part of the build).
+ */
+const selectionDebugPanel = document.querySelector<HTMLDivElement>('#selection-debug')
+const selectionDebugOutput = document.querySelector<HTMLTextAreaElement>('#selection-debug-output')
+const selectionDebugCopy = document.querySelector<HTMLButtonElement>('#selection-debug-copy')
+const selectionDebugClose = document.querySelector<HTMLButtonElement>('#selection-debug-close')
+
+let selectionDebugPayload = ''
+let selectionDebugVisible = false
+
+function setSelectionDebugPayload(payload: string): void {
+  selectionDebugPayload = payload
+
+  if (selectionDebugOutput !== null && selectionDebugVisible) {
+    selectionDebugOutput.value = payload
+  }
+}
+
+function setSelectionDebugVisible(visible: boolean): void {
+  selectionDebugVisible = visible
+  selectionDebugPanel?.classList.toggle('hidden', !visible)
+
+  if (visible && selectionDebugOutput !== null) {
+    selectionDebugOutput.value = selectionDebugPayload
+  }
+}
+
+function toggleSelectionDebug(): void {
+  setSelectionDebugVisible(!selectionDebugVisible)
+}
+
+selectionDebugCopy?.addEventListener('click', () => {
+  if (selectionDebugOutput === null) {
+    return
+  }
+
+  const text = selectionDebugOutput.value || selectionDebugPayload
+  const markCopied = (): void => {
+    if (selectionDebugCopy === null) {
+      return
+    }
+
+    const original = selectionDebugCopy.textContent
+    selectionDebugCopy.textContent = 'Copied'
+    setTimeout(() => {
+      if (selectionDebugCopy !== null) {
+        selectionDebugCopy.textContent = original ?? 'Copy'
+      }
+    }, 1200)
+  }
+
+  if (navigator.clipboard?.writeText === undefined) {
+    selectionDebugOutput.select()
+    document.execCommand('copy')
+    markCopied()
+
+    return
+  }
+
+  navigator.clipboard
+    .writeText(text)
+    .then(markCopied)
+    .catch(() => {
+      selectionDebugOutput.select()
+      document.execCommand('copy')
+      markCopied()
+    })
+})
+
+selectionDebugClose?.addEventListener('click', () => {
+  setSelectionDebugVisible(false)
+})
+
+if (new URLSearchParams(globalThis.location.search).get('selectionDebug') === '1') {
+  setSelectionDebugVisible(true)
+}
+
+// --------------------
+
 async function getFTS(level: number): Promise<ArxFTS> {
   const line1 = logger.log(`- [fts]: loading level ${level} fts...`)
 
@@ -2244,6 +2327,117 @@ type SurfacePoint = { point: Vector3; normal: Vector3; polygonIndex: number }
  */
 let lastSelectionSurfacePoint: SurfacePoint | undefined
 
+/** one drag attempt, kept for the selection debug payload (see the panel at F2) */
+type SelectionAttempt = {
+  startPoint: Vector3
+  startPolygonIndex: number
+  targetPoint: Vector3
+  targetPolygonIndex: number
+  line: number[] | undefined
+  walk: number[] | undefined
+  pathTest: 'line' | 'walk' | undefined
+  reached: boolean
+}
+
+let lastSelectionAttempt: SelectionAttempt | undefined
+
+/** the camera state at the press, in the same format as the URL parameters */
+let selectionDragStartCamera: { positionAt: string; angle: string } | undefined
+
+/** the camera state in the format of the `positionAt`/`angle` url parameters */
+function getCameraDebugState(): { positionAt: string; angle: string } {
+  const position = threePositionToGamePosition(camera.position)
+  const { yaw, pitch } = getGameAngleOfCamera()
+
+  return {
+    positionAt: `${position.x.toFixed(2)},${position.y.toFixed(2)},${position.z.toFixed(2)}`,
+    angle: `${pitch.toFixed(2)},${yaw.toFixed(2)},0.00`,
+  }
+}
+
+/** the center of a polygon in the game coordinate system */
+function getPolygonDebugCenter(polygonIndex: number): { x: number; y: number; z: number } | undefined {
+  const polygon = fts.polygons[polygonIndex]
+
+  if (polygon === undefined) {
+    return undefined
+  }
+
+  const vertices = getUsedVerticesOf(polygon)
+
+  return {
+    x: vertices.reduce((sum, vertex) => sum + vertex.x, 0) / vertices.length,
+    y: vertices.reduce((sum, vertex) => sum + vertex.y, 0) / vertices.length,
+    z: vertices.reduce((sum, vertex) => sum + vertex.z, 0) / vertices.length,
+  }
+}
+
+/** a polygon in the debug payload: the index, the game center, the hit point, the normal and the texture */
+function describePolygonForDebug(polygonIndex: number, point: Vector3): Record<string, unknown> {
+  const polygon = fts.polygons[polygonIndex]
+  const gamePoint = threePositionToGamePosition(point)
+
+  return {
+    polygon: polygonIndex,
+    center: getPolygonDebugCenter(polygonIndex),
+    point: {
+      x: Number(gamePoint.x.toFixed(2)),
+      y: Number(gamePoint.y.toFixed(2)),
+      z: Number(gamePoint.z.toFixed(2)),
+    },
+    normal:
+      polygon === undefined
+        ? undefined
+        : {
+            x: Number(polygon.norm.x.toFixed(3)),
+            y: Number(polygon.norm.y.toFixed(3)),
+            z: Number(polygon.norm.z.toFixed(3)),
+          },
+    texture:
+      polygon === undefined
+        ? undefined
+        : fts.textureContainers.find((container) => container.id === polygon.textureContainerId)?.filename,
+  }
+}
+
+/** writes the last drag attempt into the debug panel (JSON, copyable) */
+function buildSelectionDebugPayload(): void {
+  const attempt = lastSelectionAttempt
+
+  if (attempt === undefined) {
+    return
+  }
+
+  const payload = {
+    level: levelId,
+    camera: {
+      start: selectionDragStartCamera ?? null,
+      end: getCameraDebugState(),
+    },
+    start: describePolygonForDebug(attempt.startPolygonIndex, attempt.startPoint),
+    target: describePolygonForDebug(attempt.targetPolygonIndex, attempt.targetPoint),
+    path: {
+      line: attempt.pathTest === undefined || attempt.line === undefined ? 'blocked' : attempt.line,
+      walk: attempt.pathTest !== 'walk' || attempt.walk === undefined ? 'blocked' : attempt.walk,
+      used: attempt.pathTest ?? 'none',
+    },
+    result: attempt.reached ? 'connected' : 'not connected',
+    selected: [...selectedPolygons],
+  }
+
+  setSelectionDebugPayload(JSON.stringify(payload, null, 2))
+}
+
+/** the drag is over: build the payload from the last attempt and forget the attempt */
+function finishSelectionDebugAttempt(): void {
+  if (lastSelectionAttempt !== undefined) {
+    buildSelectionDebugPayload()
+  }
+
+  lastSelectionAttempt = undefined
+  selectionDragStartCamera = undefined
+}
+
 /** the plane normal of an arx polygon in three.js coordinates */
 function getPolygonNormal(polygon: ArxPolygon): Vector3 {
   const normal = arxVector3toVector3(polygon.norm)
@@ -2409,14 +2603,12 @@ function getPolygonsAlongSurfaceWalk(from: SurfacePoint, to: Vector3, targetPoly
     return a.point.clone().addScaledVector(edge, t)
   }
 
-  type WalkEntry = { polygonIndex: number; point: Vector3; progress: number; path: number[] }
+  type WalkEntry = { polygonIndex: number; path: number[] }
 
   const visited = new Set<number>([from.polygonIndex])
   const open: Array<WalkEntry & { cost: number }> = [
     {
       polygonIndex: from.polygonIndex,
-      point: from.point.clone(),
-      progress: 0,
       path: [],
       cost: 0,
     },
@@ -2454,11 +2646,12 @@ function getPolygonsAlongSurfaceWalk(from: SurfacePoint, to: Vector3, targetPoly
         continue
       }
 
-      const offsetFromStart = new Vector3().subVectors(crossing, from.point)
-      const lateral = offsetFromStart.dot(side)
-      const progress = offsetFromStart.dot(forward)
+      const lateral = new Vector3().subVectors(crossing, from.point).dot(side)
 
-      if (Math.abs(lateral) > corridor || progress < current.progress - 2) {
+      // the walk may move forward and backward along the jump (a U shaped surface around a corner
+      // goes back up), but it may not drift away from the straight line sideways: that is what
+      // going around a hole looks like
+      if (Math.abs(lateral) > corridor) {
         continue
       }
 
@@ -2471,8 +2664,6 @@ function getPolygonsAlongSurfaceWalk(from: SurfacePoint, to: Vector3, targetPoly
       visited.add(neighbourIndex)
       open.push({
         polygonIndex: neighbourIndex,
-        point: crossing,
-        progress,
         path,
         cost: crossing.distanceTo(to) + path.length * 0.01,
       })
@@ -2660,6 +2851,13 @@ requestRender()
 cameraLight.position.set(camera.position.x, camera.position.y, camera.position.z)
 
 function onKeyDown(event: KeyboardEvent): void {
+  if (event.code === 'F2') {
+    event.preventDefault()
+    toggleSelectionDebug()
+
+    return
+  }
+
   if (event.code === 'Escape') {
     controls.unlock()
 
@@ -2744,6 +2942,7 @@ document.addEventListener(
     // the gesture is over, even if it ended on empty space: the next press starts a new surface line
     selectionDragVertices = undefined
     lastSelectionSurfacePoint = undefined
+    finishSelectionDebugAttempt()
 
     if (polygonBeingLookedAt === undefined) {
       return
@@ -2955,6 +3154,8 @@ function updatePolygonUnderCursor(): void {
       // left mouse button was pressed
       selectionDragMode = pendingSelectionMode ?? getSelectionMode()
       pendingSelectionMode = undefined
+      selectionDragStartCamera = getCameraDebugState()
+      lastSelectionAttempt = undefined
 
       if (selectionDragMode === 'replace') {
         // a new selection starts here: the previous one is dropped
@@ -3017,13 +3218,22 @@ function updatePolygonUnderCursor(): void {
         lastSelectionSurfacePoint !== undefined &&
         !selectedPolygons.has(nearestHit.polygonIndex)
       ) {
-        // the straight line first: it is cheap and it is the one that bridges an unwelded seam
-        let polygonsAlongThePath = getPolygonsAlongSurfaceLine(lastSelectionSurfacePoint, nearestHit.point)
+        const attemptStart = lastSelectionSurfacePoint
 
-        if (polygonsAlongThePath === undefined) {
+        // the straight line first: it is cheap and it is the one that bridges an unwelded seam
+        let lineResult = getPolygonsAlongSurfaceLine(attemptStart, nearestHit.point)
+        let walkResult: number[] | undefined
+        let pathTest: 'line' | 'walk' | undefined
+        let polygonsAlongThePath = lineResult
+
+        if (polygonsAlongThePath !== undefined) {
+          pathTest = 'line'
+        } else {
           // then the walk: a staircase or a step is a continuous surface, but its height change makes
           // the straight line miss it. The walk follows the mesh and may cross back facing polygons.
-          polygonsAlongThePath = getPolygonsAlongSurfaceWalk(lastSelectionSurfacePoint, nearestHit.point, nearestHit.polygonIndex)
+          walkResult = getPolygonsAlongSurfaceWalk(attemptStart, nearestHit.point, nearestHit.polygonIndex)
+          polygonsAlongThePath = walkResult
+          pathTest = walkResult === undefined ? undefined : 'walk'
         }
 
         if (polygonsAlongThePath !== undefined) {
@@ -3033,6 +3243,17 @@ function updatePolygonUnderCursor(): void {
 
           addPolygonToSelection(nearestHit.polygonIndex)
           addedSomething = true
+        }
+
+        lastSelectionAttempt = {
+          startPoint: attemptStart.point.clone(),
+          startPolygonIndex: attemptStart.polygonIndex,
+          targetPoint: nearestHit.point.clone(),
+          targetPolygonIndex: nearestHit.polygonIndex,
+          line: lineResult,
+          walk: walkResult,
+          pathTest,
+          reached: addedSomething,
         }
       }
 
@@ -3070,6 +3291,7 @@ function updatePolygonUnderCursor(): void {
       selectionDragMode = undefined
       selectionDragVertices = undefined
       lastSelectionSurfacePoint = undefined
+      finishSelectionDebugAttempt()
     }
 
     updateMouseButtonState(LeftMouseButton, false)

@@ -21,6 +21,16 @@
       <div id="loading-indicator">Loading, please wait...</div>
       <canvas id="screen"></canvas>
       <div id="crosshair" class="hidden">+</div>
+
+      <!-- the copyable selection debug payload (F2 or ?selectionDebug=1, see main.ts) -->
+      <div id="selection-debug" class="hidden">
+        <div class="selection-debug-bar">
+          <span>Selection debug &mdash; F2 to toggle, Esc then Copy</span>
+          <button id="selection-debug-copy" type="button">Copy</button>
+          <button id="selection-debug-close" type="button" title="Close (F2)">&times;</button>
+        </div>
+        <textarea id="selection-debug-output" readonly spellcheck="false" placeholder="Drag on the mesh to record a selection attempt..."></textarea>
+      </div>
     </div>
 
     <!-- drag it up/down to change the height of the 3d view (200..1000 px, see ui.ts) -->
@@ -58,7 +68,8 @@
                 <code>C</code> to clear selection<br />
                 <code>Del</code> to delete selected polygons<br />
                 Hold <code>Shift</code> while selecting to add to existing selection<br />
-                Hold <code>Ctrl</code> while selecting to remove from existing selection
+                Hold <code>Ctrl</code> while selecting to remove from existing selection<br />
+                Press <code>F2</code> for the copyable selection debug payload
               </p>
             </div>
           </div>

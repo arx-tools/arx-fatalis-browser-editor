@@ -223,3 +223,62 @@ button {
   mix-blend-mode: difference;
   user-select: none;
 }
+
+/* the copyable selection debug payload (F2 or ?selectionDebug=1, see main.ts) */
+#selection-debug {
+  position: absolute;
+  z-index: 30;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  max-height: 50%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  background: rgba(20, 18, 16, 0.94);
+  border: 1px solid #6b604c;
+  border-radius: 4px;
+  color: #e8e0d0;
+  font-family: monospace;
+  font-size: 11px;
+
+  .selection-debug-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .selection-debug-bar span {
+    flex: 1;
+    color: #b9ad97;
+  }
+
+  button {
+    padding: 2px 8px;
+    background: #3a3329;
+    color: #e8e0d0;
+    border: 1px solid #6b604c;
+    border-radius: 3px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: inherit;
+  }
+
+  button:hover {
+    background: #4a4234;
+  }
+
+  textarea {
+    min-height: 140px;
+    flex: 1;
+    resize: vertical;
+    padding: 4px;
+    background: #0f0e0c;
+    color: #e8e0d0;
+    border: 1px solid #3a3329;
+    font-family: inherit;
+    font-size: inherit;
+    white-space: pre;
+  }
+}

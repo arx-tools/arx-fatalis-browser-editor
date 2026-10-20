@@ -38,6 +38,9 @@ mouseUnlocked.style.display = 'none'
 // the visibility switches are rendered by the `ToggleSwitch` components (ControlsPanel), driven by
 // these refs - the hotkeys below toggle the same refs
 
+/** the geometry itself (the `Mesh` switch): turning it off leaves only the overlays visible */
+export const meshVisible = ref(true)
+
 export const wireframeVisible = ref(false)
 
 export const cameraLightVisible = ref(false)
@@ -204,6 +207,11 @@ document.addEventListener(
     switch (event.code) {
       case 'KeyF': {
         cameraLightVisible.value = !cameraLightVisible.value
+        break
+      }
+
+      case 'KeyM': {
+        meshVisible.value = !meshVisible.value
         break
       }
 

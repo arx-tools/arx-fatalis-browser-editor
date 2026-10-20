@@ -5,6 +5,7 @@ import {
   isComputingLighting,
   lightingCalculatorMode,
   lightsVisible,
+  meshVisible,
   portalsVisible,
   shadows,
   wireframeVisible,
@@ -16,6 +17,7 @@ import ToggleSwitch from './ToggleSwitch.vue'
 <template>
   <div class="controls">
     <div class="toggles">
+      <ToggleSwitch v-model="meshVisible" label="Mesh" hotkey="M" />
       <ToggleSwitch v-model="wireframeVisible" label="Wireframe" hotkey="X" />
       <ToggleSwitch v-model="anchorsVisible" label="Anchors" hotkey="J" />
       <ToggleSwitch v-model="portalsVisible" label="Portals" hotkey="K" />

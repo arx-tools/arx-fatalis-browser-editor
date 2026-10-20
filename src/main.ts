@@ -58,6 +58,7 @@ import {
   lightingCalculatorMode,
   lightsVisible,
   LeftMouseButton,
+  meshVisible,
   MiddleMouseButton,
   mouseLocked,
   mousePressed,
@@ -631,6 +632,7 @@ type MaterialOptions = {
   side?: Side
   transparent?: boolean
   opacity?: number
+  depthWrite?: boolean
 }
 
 type MeshGroup = {
@@ -674,9 +676,13 @@ const meshGroups: MeshGroup[] = [
   createMeshGroup({ color: Color.white.getHex(), side: DoubleSide }, (flags) => {
     return !isTransparent(flags) && isDoubleSided(flags) && !isNoDraw(flags)
   }),
-  createMeshGroup({ color: Color.white.getHex(), transparent: true, opacity: 0.5, side: DoubleSide }, (flags) => {
-    return isTransparent(flags) && !isNoDraw(flags)
-  }),
+  // the water: it must not write depth, otherwise it hides the overlays that are drawn after it
+  createMeshGroup(
+    { color: Color.white.getHex(), transparent: true, opacity: 0.5, side: DoubleSide, depthWrite: false },
+    (flags) => {
+      return isTransparent(flags) && !isNoDraw(flags)
+    },
+  ),
 ]
 
 const meshes: Mesh[] = meshGroups.map(({ mesh }) => mesh)
@@ -923,10 +929,11 @@ if (wireframeVisible.value === true) {
  * Debug overlays: the anchors of the pathfinding graph (links in green, the anchors as little blue
  * vertical ticks), the portal quads between the rooms (cyan) and a small colored gizmo at every LLF
  * light. They are built once from the FTS/LLF data and only toggled by the checkboxes, so there is
- * no per-frame work. All three overlays draw **without the depth test** (renderOrder 8/9), so they
- * stay visible through the geometry - the game's pathfinding/pathfinding debug views do the same,
- * and a semi transparent surface (the water of level 12) used to hide the anchors completely
- * (reported by the owner, 2026-10-19).
+ * no per-frame work. The overlays are **depth tested** (they do not show through opaque geometry),
+ * but they have a high `renderOrder` (8/9) and the transparent materials do not write depth, so a
+ * semi transparent surface (the water of level 12) is drawn *before* them and does not hide them -
+ * the graph still stops at the opaque walls. The `Mesh` switch turns the geometry off entirely, then
+ * the overlays are visible everywhere (no `depthTest: false` anywhere).
  */
 function ftsPositionToThree(position: ArxVector3): Vector3 {
   return arxVector3toVector3(position).sub(offset)
@@ -958,11 +965,9 @@ if (fts.anchors.length > 0) {
 
   const anchorLinksGeometry = new BufferGeometry()
   anchorLinksGeometry.setAttribute('position', new BufferAttribute(new Float32Array(anchorLinkPositions), 3))
-  // no depth test: the game's pathfinding debug view draws the anchors over everything, and in the
-  // editor a semi transparent surface (the water of level 12) used to hide them completely
   const anchorLinks = new LineSegments(
     anchorLinksGeometry,
-    new LineBasicMaterial({ color: 0x35d84a, depthTest: false, transparent: true, opacity: 0.9 }),
+    new LineBasicMaterial({ color: 0x35d84a, transparent: true, opacity: 0.9 }),
   )
   anchorLinks.renderOrder = 8
 
@@ -970,7 +975,7 @@ if (fts.anchors.length > 0) {
   anchorTicksGeometry.setAttribute('position', new BufferAttribute(new Float32Array(anchorTickPositions), 3))
   const anchorTicks = new LineSegments(
     anchorTicksGeometry,
-    new LineBasicMaterial({ color: 0x4b7cff, depthTest: false, transparent: true, opacity: 0.9 }),
+    new LineBasicMaterial({ color: 0x4b7cff, transparent: true, opacity: 0.9 }),
   )
   anchorTicks.renderOrder = 8
 
@@ -1001,7 +1006,7 @@ if (fts.portals.length > 0) {
   portalGeometry.setAttribute('position', new BufferAttribute(new Float32Array(portalPositions), 3))
   const portalLines = new LineSegments(
     portalGeometry,
-    new LineBasicMaterial({ color: 0x00ffcc, depthTest: false, transparent: true, opacity: 0.9 }),
+    new LineBasicMaterial({ color: 0x00ffcc, transparent: true, opacity: 0.9 }),
   )
   portalLines.renderOrder = 8
   portalsGroup.add(portalLines)
@@ -1038,13 +1043,6 @@ if (llf.lights.length > 0) {
   }
 
   gizmos.renderOrder = 9
-  gizmos.traverse((object) => {
-    const withMaterial = object as unknown as { material?: { depthTest: boolean } }
-
-    if (withMaterial.material !== undefined) {
-      withMaterial.material.depthTest = false
-    }
-  })
   gizmos.visible = lightsVisible.value
   scene.add(gizmos)
 
@@ -1054,6 +1052,18 @@ if (llf.lights.length > 0) {
 watch(anchorsVisible, (value) => {
   anchorsGroup.visible = value
 })
+
+// the `Mesh` switch: the geometry (all mesh groups) can be hidden, then the wireframe and the
+// overlays are visible everywhere without any `depthTest: false`
+function updateMeshVisibility(): void {
+  for (const { mesh } of meshGroups) {
+    mesh.visible = meshVisible.value
+  }
+}
+
+updateMeshVisibility()
+
+watch(meshVisible, updateMeshVisibility)
 
 watch(portalsVisible, (value) => {
   portalsGroup.visible = value

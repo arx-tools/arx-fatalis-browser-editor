@@ -1444,6 +1444,13 @@ async function applyLightingCalculatorMode(): Promise<void> {
   }
 }
 
+// the visibility toggles and the lighting settings change the scene from the ui, not from an input
+// event on this element, so they request a frame too
+watch(
+  [wireframeVisible, meshVisible, anchorsVisible, portalsVisible, lightsVisible, cameraLightVisible, lightingCalculatorMode, ambientFloor, shadows],
+  requestRender,
+)
+
 watch(lightingCalculatorMode, () => {
   void applyLightingCalculatorMode()
 })
@@ -1563,6 +1570,8 @@ const SELECTION_CANDIDATE_LIMIT = 32
  * make that unusable. The geometries of the polygons are concatenated into a single position buffer.
  */
 function updateHighlightOfSelectedPolygons(): void {
+  requestRender()
+
   if (highlightOfSelectedPolygons.length > 0) {
     scene.remove(...highlightOfSelectedPolygons)
     highlightOfSelectedPolygons.forEach((mesh) => {
@@ -1656,6 +1665,7 @@ function deletePolygons(polygonsToDelete: ReadonlySet<number>): void {
 
   selectedPolygons.clear()
   updateHighlightOfSelectedPolygons()
+  requestRender()
   polygonBeingLookedAt = undefined
 
   cursorTriangleMaterial.color.set(Color.green.getHex())
@@ -1970,6 +1980,28 @@ function render(): void {
   viewHelper.render(renderer)
 }
 
+/**
+ * three.js does **not** decide when to draw: whatever the loop asks for is rendered. Until now
+ * `setAnimationLoop(animate)` rendered the whole scene ~60 times a second even when nothing moved,
+ * which is a lot of GPU time on a 150 000 polygon level (and a warm laptop). The loop now stops
+ * after `RENDER_IDLE_TIMEOUT` ms without a request - the tail covers the throttled work (the camera
+ * url/info update, the dynamically loaded palettes, the light pool) - and every input or state
+ * change starts it again through `requestRender()`.
+ */
+const RENDER_IDLE_TIMEOUT = 800
+let lastRenderRequestAt = performance.now()
+let animationLoopRunning = false
+
+/** asks for a frame (the next few frames, see `RENDER_IDLE_TIMEOUT`) - safe to call often */
+function requestRender(): void {
+  lastRenderRequestAt = performance.now()
+
+  if (!animationLoopRunning) {
+    animationLoopRunning = true
+    renderer.setAnimationLoop(animate)
+  }
+}
+
 function animate(): void {
   timer.update()
   updateDynamicLights()
@@ -2028,9 +2060,14 @@ function animate(): void {
   }
 
   render()
+
+  if (!controls.isLocked && performance.now() - lastRenderRequestAt > RENDER_IDLE_TIMEOUT) {
+    animationLoopRunning = false
+    renderer.setAnimationLoop(null)
+  }
 }
 
-renderer.setAnimationLoop(animate)
+requestRender()
 cameraLight.position.set(camera.position.x, camera.position.y, camera.position.z)
 
 function onKeyDown(event: KeyboardEvent): void {
@@ -2070,6 +2107,14 @@ function onKeyUp(event: KeyboardEvent): void {
 
 document.addEventListener('keydown', onKeyDown, false)
 document.addEventListener('keyup', onKeyUp, false)
+
+// every user input may change the picture (the movement, the cursor, the selection, a hotkey), so
+// they all keep the render loop alive
+for (const type of ['keydown', 'keyup', 'pointerdown', 'pointerup', 'pointermove', 'wheel']) {
+  document.addEventListener(type, requestRender, { capture: true, passive: true })
+}
+
+globalThis.addEventListener('resize', requestRender)
 
 document.addEventListener(
   'mousedown',
@@ -2249,6 +2294,8 @@ function getPolygonsUnderCameraRay(): Array<{ polygonIndex: number; distance: nu
 }
 
 function updatePolygonUnderCursor(): void {
+  requestRender()
+
   const hits = getPolygonsUnderCameraRay()
 
   if (hits.length === 0) {

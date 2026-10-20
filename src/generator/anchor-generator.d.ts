@@ -30,6 +30,7 @@ export type AnchorGeneratorOptions = {
   linkRayHeight?: number
   coverage?: boolean
   anchorMinDistance?: number
+  anchorClearanceRadius?: number
   coverageMinAbsNormalY?: number
   coverageRadius?: number
   coverageHeightRadius?: number

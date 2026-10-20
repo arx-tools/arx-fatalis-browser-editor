@@ -5,6 +5,10 @@ import { isQuad } from 'arx-convert/utils'
 import { ArxLightFlags, type ArxColor, type ArxDLF, type ArxFTS, type ArxLLF, type ArxPolygon, type ArxVector3 } from 'arx-convert/types'
 import {
   BufferAttribute,
+  CanvasTexture,
+  OrthographicCamera,
+  Sprite,
+  SpriteMaterial,
   BufferGeometry,
   Color as ThreeColor,
   DoubleSide,
@@ -44,7 +48,6 @@ import { mountUi } from './ui/ui-app.js'
 import {
   ambientFloor,
   anchorsVisible,
-  cameraInfo,
   cameraInfoVisible,
   cameraLightVisible,
   canvas,
@@ -1368,6 +1371,75 @@ renderer.setSize(canvas.clientWidth, canvas.clientHeight, false)
 
 renderer.autoClear = false
 
+/**
+ * The position/rotation overlay is **drawn into the canvas** (a sprite with a 2d canvas texture in an
+ * own orthographic scene), not a DOM element: the browser's "Save image as" reads the canvas only,
+ * so a DOM overlay was missing from the saved picture. The text is rendered by a 2d context, which
+ * gives the same look as the old `#camera-info` div.
+ */
+const hudCanvas = document.createElement('canvas')
+const hudContext = hudCanvas.getContext('2d') as CanvasRenderingContext2D
+const hudTexture = new CanvasTexture(hudCanvas)
+const hudSprite = new Sprite(
+  new SpriteMaterial({ map: hudTexture, depthTest: false, depthWrite: false, transparent: true }),
+)
+const hudScene = new Scene()
+hudScene.add(hudSprite)
+/** pixel space, y up (the renderer's drawing buffer is in css pixels here) */
+const hudCamera = new OrthographicCamera(0, 1, 1, 0, -10, 10)
+
+const HUD_PADDING = 4
+const HUD_MARGIN = 8
+const HUD_LINE_HEIGHT = 17
+const HUD_FONT = '12px monospace'
+const HUD_BACKGROUND = 'rgba(0, 0, 0, 0.55)'
+
+/** the last text of the overlay, so the texture is only redrawn when something changed */
+let hudText = ''
+
+function updateHudLayout(): void {
+  const width = hudCanvas.width
+  const height = hudCanvas.height
+  const bufferWidth = renderer.domElement.width
+  const bufferHeight = renderer.domElement.height
+
+  hudCamera.left = 0
+  hudCamera.right = bufferWidth
+  hudCamera.top = bufferHeight
+  hudCamera.bottom = 0
+  hudCamera.updateProjectionMatrix()
+
+  hudSprite.scale.set(width, height, 1)
+  hudSprite.position.set(HUD_MARGIN + width / 2, bufferHeight - HUD_MARGIN - height / 2, 0)
+}
+
+/** draws the two lines of the overlay into the hud canvas (the sprite shows it) */
+function drawHud(lines: string[]): void {
+  hudContext.font = HUD_FONT
+
+  const textWidth = Math.max(...lines.map((line) => hudContext.measureText(line).width))
+  hudCanvas.width = Math.ceil(textWidth + HUD_PADDING * 2)
+  hudCanvas.height = lines.length * HUD_LINE_HEIGHT + HUD_PADDING * 2
+
+  // the context resets when the canvas is resized
+  hudContext.font = HUD_FONT
+  hudContext.textBaseline = 'middle'
+
+  hudContext.fillStyle = HUD_BACKGROUND
+  hudContext.beginPath()
+  hudContext.roundRect(0, 0, hudCanvas.width, hudCanvas.height, 3)
+  hudContext.fill()
+
+  hudContext.fillStyle = 'white'
+
+  lines.forEach((line, index) => {
+    hudContext.fillText(line, HUD_PADDING, HUD_PADDING + HUD_LINE_HEIGHT * (index + 0.5))
+  })
+
+  hudTexture.needsUpdate = true
+  updateHudLayout()
+}
+
 const fov = 75
 const aspect = canvas.clientWidth / canvas.clientHeight
 const near = 0.1
@@ -1471,11 +1543,17 @@ function updateCameraInfo(): void {
 
   const position = threePositionToGamePosition(camera.position)
   const { yaw, pitch } = getGameAngleOfCamera()
-
-  cameraInfo.textContent = [
+  const text = [
     `position ${position.x.toFixed(2)} ${position.y.toFixed(2)} ${position.z.toFixed(2)}`,
     `rotation ${pitch.toFixed(2)} ${yaw.toFixed(2)} 0.00`,
   ].join('\n')
+
+  if (text === hudText) {
+    return
+  }
+
+  hudText = text
+  drawHud(text.split('\n'))
 }
 
 /** how often the camera state is written into the url (ms) */
@@ -1517,8 +1595,15 @@ function updateCameraUrl(): void {
   lastCameraUrl = url
 }
 
-watch(cameraInfoVisible, () => {
-  updateCameraInfo()
+watch(cameraInfoVisible, (value) => {
+  // the sprite keeps its last texture, so it has to be hidden separately
+  hudSprite.visible = value
+  requestRender()
+
+  if (value) {
+    hudText = ''
+    updateCameraInfo()
+  }
 })
 
 applyCameraStateFromUrl()
@@ -2160,6 +2245,7 @@ function render(): void {
     const canvas = renderer.domElement
     camera.aspect = canvas.clientWidth / canvas.clientHeight
     camera.updateProjectionMatrix()
+    updateHudLayout()
   }
 
   const delta = timer.getDelta()
@@ -2170,6 +2256,7 @@ function render(): void {
 
   renderer.clear()
   renderer.render(scene, camera)
+  renderer.render(hudScene, hudCamera)
   viewHelper.render(renderer)
 }
 

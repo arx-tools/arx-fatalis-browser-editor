@@ -105,7 +105,7 @@ export const ANCHOR_DEFAULTS = {
    * 50 costs a few links/anchors near the walls (277 anchors / 590 links instead of 323 / 832) but
    * it means every NPC has a route.
    */
-  linkBodyRadius: 50,
+  linkBodyRadius: 30,
   linkBodyHeight: 160,
   /** the cylinder starts this much above the floor (the feet are not an obstacle) */
   linkBodyBottomOffset: 5,
@@ -134,8 +134,15 @@ export const ANCHOR_DEFAULTS = {
    * shows up as a line of anchors hugging the wall.
    */
   anchorClearance: true,
+  /**
+   * The radius of the free space an anchor needs. It is deliberately smaller than `linkBodyRadius`:
+   * the NPC's centre does not have to be a full body away from the wall to *stand* there (the
+   * collision pushes it), but the link between two anchors has to fit the body. A smaller value
+   * keeps the grid closer to the walls, which matches the density of the original levels.
+   */
+  anchorClearanceRadius: 20,
   /** the minimum distance between two anchors (the coverage pass used to create dense clusters) */
-  anchorMinDistance: 65,
+  anchorMinDistance: 50,
   /** the coverage pass only samples surfaces this flat (the bevels of the pillars are steeper) */
   coverageMinAbsNormalY: 0.9,
   /** a polygon is "covered" when an anchor is closer than this in XZ */
@@ -779,7 +786,11 @@ export function generateAnchors(polygons, options = {}) {
 
       if (settings.anchorClearance) {
         // a zero length body sweep at the anchor: does the NPC fit here at all?
-        const clearanceSettings = { ...settings, linkBodyMargin: 0 }
+        const clearanceSettings = {
+          ...settings,
+          linkBodyMargin: 0,
+          linkBodyRadius: settings.anchorClearanceRadius ?? settings.linkBodyRadius,
+        }
         if (findBodyBlocker(position, position, polygons, index, clearanceSettings, upSign) !== null) {
           if (collectStats) {
             stats.rejectedClearance++

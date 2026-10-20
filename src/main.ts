@@ -1948,8 +1948,8 @@ const SURFACE_LINE_TEST_TOLERANCE = 8
  * the base corridor, and the maximum keeps a very long jump from wandering far.
  */
 const SURFACE_WALK_CORRIDOR = 16
-const SURFACE_WALK_CORRIDOR_RATIO = 0.12
-const SURFACE_WALK_CORRIDOR_MAX = 64
+const SURFACE_WALK_CORRIDOR_RATIO = 0.15
+const SURFACE_WALK_CORRIDOR_MAX = 96
 
 /** the safety cap of the surface walk (visited polygons) - a path this long is not a drag gesture */
 const SURFACE_WALK_MAX_VISITED = 3000

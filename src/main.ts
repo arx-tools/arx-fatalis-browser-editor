@@ -1933,6 +1933,9 @@ const SELECTION_LINE_DEPTH_EPSILON = 2
 /** the hard cap of the samples of one stroke (a very long screen line) */
 const SELECTION_LINE_MAX_SAMPLES = 512
 
+/** the safety cap of the surface walk (visited polygons) - a path this long is not a drag gesture */
+const SURFACE_WALK_MAX_VISITED = 3000
+
 /** the selection is polygon based: a quad is one unit, both of its triangles are highlighted */
 /**
  * Draws the selection as **one** mesh: a flood fill can select a few thousand polygons (the biggest
@@ -2294,10 +2297,12 @@ type SelectionMode = 'replace' | 'add' | 'remove'
  * The line is sampled in the current camera view (every `SELECTION_LINE_SAMPLE_SPACING` pixels from
  * the projections of the two points). Every sample is a camera ray that collects **all** its hits
  * (both sides, no culling): the selection is what the line covers in the projection, not what is
- * visible. The depth window is what keeps the culled back faces **in front of** the visible start
- * out: only the hits between the depths of the two endpoints are kept. A polygon between the two
- * front faces (a step, the inside of an arch, a U turn) is selected even when it faces away from the
- * camera, because it is not in front of the start.
+ * visible. The depth cut is applied **only on the start sample**: hits in front of the visible start
+ * are kept out there, so the culled back faces in front of the start do not enter (the out-of-bounds
+ * guard). Every other sample is a pure projection: the cells nearer than the start but elsewhere on
+ * the line (the "up-going" branch of an arch) and the cells beyond the farther endpoint (the far
+ * side) are in. The line's length is bounded by the **screen segment**. A polygon between the two
+ * front faces is selected even when it faces away from the camera.
  *
  * A hole simply produces no hit at its samples; the line continues on the other side, so the
  * selection can be disconnected - that is the "pen" behaviour.
@@ -2310,9 +2315,6 @@ function getPolygonsAlongScreenLine(start: Vector3, end: Vector3): number[] {
   }
 
   const startDepth = depthOf(start)
-  const endDepth = depthOf(end)
-  const near = Math.min(startDepth, endDepth) - SELECTION_LINE_DEPTH_EPSILON
-  const far = Math.max(startDepth, endDepth) + SELECTION_LINE_DEPTH_EPSILON
 
   const startNdc = start.clone().project(camera)
   const endNdc = end.clone().project(camera)
@@ -2340,15 +2342,148 @@ function getPolygonsAlongScreenLine(start: Vector3, end: Vector3): number[] {
     ray.direction.copy(direction)
 
     for (const hit of collectRayHits(ray, DoubleSide)) {
-      const depth = depthOf(hit.point)
-
-      if (depth >= near && depth <= far) {
-        polygonIndices.add(hit.polygonIndex)
+      // the out-of-bounds guard is only about the start: at the start sample the culled back faces
+      // in front of the visible start stay out. Every other sample is the projection, so the cells
+      // nearer than the start but elsewhere on the line (`vissza fel`, the "up-going" branch) and
+      // the cells beyond the farther endpoint are in.
+      if (step === 0 && depthOf(hit.point) < startDepth - SELECTION_LINE_DEPTH_EPSILON) {
+        continue
       }
+
+      polygonIndices.add(hit.polygonIndex)
     }
   }
 
   return [...polygonIndices]
+}
+
+/**
+ * The shortest path on the 3D surface between the last accepted polygon and the target, following
+ * the shared vertex graph (the same `getPolygonsByVertexKey` the flood fill uses). This is the part
+ * that the screen line cannot see: an arch's "vissza fel" branch is not on the straight chord, but
+ * it is on the surface between the two ends.
+ *
+ * There is **no lateral corridor**: the walk is a plain Dijkstra on the graph, so it takes the
+ * shortest surface route (the corridor was the thing that blocked legitimate paths earlier). The
+ * deleted polygons are not part of the mesh. The result is the list of the crossed polygon indices
+ * (the target included), or `undefined` when the graph has no route.
+ */
+function getPolygonsAlongSurfaceWalk(
+  fromPoint: Vector3,
+  fromPolygonIndex: number,
+  toPoint: Vector3,
+  targetPolygonIndex: number,
+): number[] | undefined {
+  if (fromPolygonIndex === targetPolygonIndex) {
+    return undefined
+  }
+
+  if (fromPoint.distanceTo(toPoint) < 1e-6) {
+    return []
+  }
+
+  const vertexIndex = getPolygonsByVertexKey()
+  const verticesOfCache = new Map<number, Array<{ key: string; point: Vector3 }>>()
+
+  const verticesOf = (polygonIndex: number): Array<{ key: string; point: Vector3 }> => {
+    const cached = verticesOfCache.get(polygonIndex)
+
+    if (cached !== undefined) {
+      return cached
+    }
+
+    const polygon = fts.polygons[polygonIndex]
+    const vertices =
+      polygon === undefined
+        ? []
+        : getUsedVerticesOf(polygon).map((vertex) => {
+            return { key: getVertexKey(vertex), point: arxVector3toVector3(vertex).sub(offset) }
+          })
+
+    verticesOfCache.set(polygonIndex, vertices)
+
+    return vertices
+  }
+
+  /** the point where the walk enters the neighbour: the middle of the shared edge (or the vertex) */
+  const getCrossingPoint = (currentIndex: number, neighbourIndex: number): Vector3 | undefined => {
+    const current = verticesOf(currentIndex)
+    const neighbour = verticesOf(neighbourIndex)
+    const currentKeys = new Set(current.map((vertex) => vertex.key))
+    const shared = neighbour.filter((vertex) => currentKeys.has(vertex.key))
+
+    if (shared.length === 0) {
+      return undefined
+    }
+
+    if (shared.length === 1) {
+      return shared[0].point
+    }
+
+    const [a, b] = shared
+
+    return a.point.clone().add(b.point).multiplyScalar(0.5)
+  }
+
+  type WalkEntry = { polygonIndex: number; path: number[] }
+
+  const visited = new Set<number>([fromPolygonIndex])
+  const open: Array<WalkEntry & { cost: number }> = [
+    {
+      polygonIndex: fromPolygonIndex,
+      path: [],
+      cost: 0,
+    },
+  ]
+
+  while (open.length > 0 && visited.size <= SURFACE_WALK_MAX_VISITED) {
+    open.sort((first, second) => first.cost - second.cost)
+
+    const current = open.shift()
+
+    if (current === undefined) {
+      break
+    }
+
+    const currentVertices = verticesOf(current.polygonIndex)
+    const neighbourIndices = new Set<number>()
+
+    for (const vertex of currentVertices) {
+      for (const neighbourIndex of vertexIndex.get(vertex.key) ?? []) {
+        if (neighbourIndex !== current.polygonIndex) {
+          neighbourIndices.add(neighbourIndex)
+        }
+      }
+    }
+
+    for (const neighbourIndex of neighbourIndices) {
+      // a deleted polygon is not part of the mesh: the surface path cannot cross it
+      if (visited.has(neighbourIndex) || deletedPolygons.has(neighbourIndex)) {
+        continue
+      }
+
+      const crossing = getCrossingPoint(current.polygonIndex, neighbourIndex)
+
+      if (crossing === undefined) {
+        continue
+      }
+
+      const path = [...current.path, neighbourIndex]
+
+      if (neighbourIndex === targetPolygonIndex) {
+        return path
+      }
+
+      visited.add(neighbourIndex)
+      open.push({
+        polygonIndex: neighbourIndex,
+        path,
+        cost: crossing.distanceTo(toPoint) + path.length * 0.01,
+      })
+    }
+  }
+
+  return undefined
 }
 
 /**
@@ -2887,6 +3022,20 @@ function updatePolygonUnderCursor(): void {
       // or a fold is just a long segment). The screen line is what the user sees, not the 3D
       // connectivity of the two polygons.
       const cells = getPolygonsAlongScreenLine(stroke.lastPoint, nearestHit.point)
+      const surfacePath = getPolygonsAlongSurfaceWalk(
+        stroke.lastPoint,
+        stroke.lastPolygonIndex,
+        nearestHit.point,
+        polygonIndex,
+      )
+
+      // the screen line sees the projection, the walk sees the surface: the union covers both the
+      // straight chord and the "vissza fel" branch that is not on the chord
+      for (const surfacePolygonIndex of surfacePath ?? []) {
+        if (!cells.includes(surfacePolygonIndex)) {
+          cells.push(surfacePolygonIndex)
+        }
+      }
 
       if (!cells.includes(polygonIndex)) {
         cells.push(polygonIndex)

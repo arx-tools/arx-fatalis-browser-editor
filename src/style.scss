@@ -256,7 +256,7 @@ button {
   .debug-panel-tabs {
     /* the tabs sit on the textarea's top border; the header's min-height is their height */
     position: absolute;
-    top: 0;
+    top: 1px;
     left: 0;
     display: flex;
     gap: 2px;

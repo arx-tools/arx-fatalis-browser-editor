@@ -224,13 +224,13 @@ button {
   user-select: none;
 }
 
-#selection-debug {
+#debug-panel {
   position: absolute;
   z-index: 30;
   left: 8px;
   right: 8px;
   bottom: 8px;
-  max-height: 50%;
+  height: 240px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -241,16 +241,51 @@ button {
   color: #e8e0d0;
   font-family: monospace;
   font-size: 11px;
+  overflow: visible;
 
-  .selection-debug-bar {
+  .debug-panel-header {
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     gap: 8px;
   }
 
-  .selection-debug-bar span {
+  .debug-panel-tabs {
+    display: flex;
+    gap: 2px;
     flex: 1;
+    min-width: 0;
+  }
+
+  .debug-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    background: #2a251e;
     color: #b9ad97;
+    border: 1px solid #4a4234;
+    border-bottom: none;
+    border-radius: 4px 4px 0 0;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: inherit;
+    white-space: nowrap;
+
+    .flashlight-indicator {
+      margin: 0;
+    }
+
+    &.active {
+      background: #3a3329;
+      color: #f0e8d8;
+      border-color: #6b604c;
+    }
+  }
+
+  .debug-panel-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
   }
 
   button {
@@ -269,9 +304,9 @@ button {
   }
 
   textarea {
-    min-height: 140px;
+    min-height: 0;
     flex: 1;
-    resize: vertical;
+    resize: none;
     padding: 4px;
     background: #0f0e0c;
     color: #e8e0d0;
@@ -279,5 +314,50 @@ button {
     font-family: inherit;
     font-size: inherit;
     white-space: pre;
+    overflow: auto;
+  }
+
+  #debug-panel-confirm {
+    position: absolute;
+    right: 8px;
+    bottom: calc(100% + 8px);
+    z-index: 31;
+    min-width: 140px;
+    padding: 6px 8px;
+    background: #333;
+    color: #f0f0f0;
+    border: 1px solid #555;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 55%);
+
+    .debug-panel-confirm-text {
+      margin-bottom: 6px;
+      white-space: nowrap;
+    }
+
+    .debug-panel-confirm-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 4px;
+    }
+
+    button {
+      background: #4a4a4a;
+      color: #f0f0f0;
+      border-color: #666;
+    }
+
+    button:hover {
+      background: #5a5a5a;
+    }
+
+    #debug-panel-confirm-delete {
+      background: #8a3b3b;
+      border-color: #a34a4a;
+    }
+
+    #debug-panel-confirm-delete:hover {
+      background: #a34a4a;
+    }
   }
 }

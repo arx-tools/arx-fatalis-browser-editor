@@ -21,13 +21,31 @@
       <div id="loading-indicator">Loading, please wait...</div>
       <canvas id="screen"></canvas>
       <div id="crosshair" class="hidden">+</div>
-      <div id="selection-debug" class="hidden">
-        <div class="selection-debug-bar">
-          <span>Selection debug &mdash; F2 to toggle, Esc then Copy</span>
-          <button id="selection-debug-copy" type="button">Copy</button>
-          <button id="selection-debug-close" type="button" title="Close (F2)">&times;</button>
+      <div id="debug-panel" class="hidden">
+        <div class="debug-panel-header">
+          <div class="debug-panel-tabs">
+            <button class="debug-tab active" type="button" data-debug-tab="selection">
+              <span class="flashlight-indicator"></span>Selection debug
+            </button>
+            <button class="debug-tab" type="button" data-debug-tab="anchor">
+              <span class="flashlight-indicator"></span>Anchor debug
+            </button>
+          </div>
+          <div class="debug-panel-actions">
+            <button id="debug-panel-minify" type="button" class="hidden">Minify</button>
+            <button id="debug-panel-copy" type="button">Copy</button>
+            <button id="debug-panel-clear" type="button">Clear</button>
+            <button id="debug-panel-close" type="button" title="Close (F2)">&times;</button>
+          </div>
         </div>
-        <textarea id="selection-debug-output" readonly spellcheck="false" placeholder="Drag on the mesh to record a selection attempt..."></textarea>
+        <textarea id="debug-panel-output" readonly spellcheck="false"></textarea>
+        <div id="debug-panel-confirm" class="hidden">
+          <div class="debug-panel-confirm-text">Are you sure?</div>
+          <div class="debug-panel-confirm-actions">
+            <button id="debug-panel-confirm-cancel" type="button">Cancel</button>
+            <button id="debug-panel-confirm-delete" type="button">Yes, delete</button>
+          </div>
+        </div>
       </div>
     </div>
 

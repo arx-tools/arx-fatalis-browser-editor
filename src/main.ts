@@ -111,62 +111,318 @@ mountUi()
 // --------------------
 
 /**
- * The copyable selection debug payload. F2 (or `?selectionDebug=1`) shows the JSON of the last drag:
- * the start and target polygons, the camera poses and the selected polygons. It is meant for the
- * edge case reports - the owner can reproduce a case and paste the payload back, without opening
- * the developer console (the headless test hook is not part of the build).
+ * The copyable debug panel. F2 (or `?selectionDebug=1` / `?anchorDebug=1`) shows the JSON of the
+ * active tab: the selection tab is the last drag (the start/target polygons, the camera poses and
+ * the selected set), the anchor tab is for the other feature (the same panel, no data collision).
+ * It is meant for the edge case reports - the owner can reproduce a case and paste the payload back,
+ * without opening the developer console (the headless test hook is not part of the build).
+ *
+ * The tabs carry a small status dot: grey = no unread info, yellow = unread (the tab was not in
+ * front when the payload changed). If the panel is open and the tab is active, a payload change
+ * flashes the dot for 1 second and then it goes grey.
  */
-const selectionDebugPanel = document.querySelector<HTMLDivElement>('#selection-debug')
-const selectionDebugOutput = document.querySelector<HTMLTextAreaElement>('#selection-debug-output')
-const selectionDebugCopy = document.querySelector<HTMLButtonElement>('#selection-debug-copy')
-const selectionDebugClose = document.querySelector<HTMLButtonElement>('#selection-debug-close')
+const debugPanel = document.querySelector<HTMLDivElement>('#debug-panel')
+const debugPanelOutput = document.querySelector<HTMLTextAreaElement>('#debug-panel-output')
+const debugPanelCopy = document.querySelector<HTMLButtonElement>('#debug-panel-copy')
+const debugPanelClear = document.querySelector<HTMLButtonElement>('#debug-panel-clear')
+const debugPanelMinify = document.querySelector<HTMLButtonElement>('#debug-panel-minify')
+const debugPanelClose = document.querySelector<HTMLButtonElement>('#debug-panel-close')
+const debugPanelConfirm = document.querySelector<HTMLDivElement>('#debug-panel-confirm')
+const debugPanelConfirmCancel = document.querySelector<HTMLButtonElement>('#debug-panel-confirm-cancel')
+const debugPanelConfirmDelete = document.querySelector<HTMLButtonElement>('#debug-panel-confirm-delete')
+const debugPanelTabs = [...document.querySelectorAll<HTMLButtonElement>('[data-debug-tab]')]
 
-let selectionDebugPayload = ''
-let selectionDebugVisible = false
+const DEBUG_PANEL_MINIFIED_KEY = 'debugPanelMinified'
+const DEBUG_PANEL_ACTIVE_TAB_KEY = 'debugPanelActiveTab'
 
-function setSelectionDebugPayload(payload: string): void {
-  selectionDebugPayload = payload
+type DebugTabId = 'selection' | 'anchor'
 
-  if (selectionDebugOutput !== null && selectionDebugVisible) {
-    selectionDebugOutput.value = payload
+type DebugTab = {
+  id: DebugTabId
+  payload: string
+  unread: boolean
+  flash: boolean
+  flashTimer: ReturnType<typeof setTimeout> | undefined
+}
+
+const debugTabs: Record<DebugTabId, DebugTab> = {
+  selection: { id: 'selection', payload: '', unread: false, flash: false, flashTimer: undefined },
+  anchor: { id: 'anchor', payload: '', unread: false, flash: false, flashTimer: undefined },
+}
+
+function readLocalStorage(key: string): string | undefined {
+  try {
+    return localStorage.getItem(key) ?? undefined
+  } catch {
+    return undefined
   }
 }
 
-function setSelectionDebugVisible(visible: boolean): void {
-  selectionDebugVisible = visible
-  selectionDebugPanel?.classList.toggle('hidden', !visible)
-
-  if (visible && selectionDebugOutput !== null) {
-    selectionDebugOutput.value = selectionDebugPayload
+function writeLocalStorage(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    // the storage can be blocked (private mode); the panel still works without persistence
   }
 }
 
-function toggleSelectionDebug(): void {
-  setSelectionDebugVisible(!selectionDebugVisible)
+function readActiveTab(): DebugTabId {
+  return readLocalStorage(DEBUG_PANEL_ACTIVE_TAB_KEY) === 'anchor' ? 'anchor' : 'selection'
 }
 
-selectionDebugCopy?.addEventListener('click', () => {
-  if (selectionDebugOutput === null) {
+let debugPanelVisible = false
+let debugPanelActiveTab: DebugTabId = readActiveTab()
+let debugPanelMinified = readLocalStorage(DEBUG_PANEL_MINIFIED_KEY) === '1'
+
+function getActiveDebugTab(): DebugTab {
+  return debugTabs[debugPanelActiveTab]
+}
+
+function formatDebugPayload(): string {
+  const payload = getActiveDebugTab().payload
+
+  if (payload === '') {
+    return ''
+  }
+
+  try {
+    const parsed = JSON.parse(payload) as unknown
+
+    return debugPanelMinified ? JSON.stringify(parsed) : JSON.stringify(parsed, null, 2)
+  } catch {
+    return payload
+  }
+}
+
+function renderDebugPanel(): void {
+  const active = getActiveDebugTab()
+
+  for (const button of debugPanelTabs) {
+    const tabId = button.dataset.debugTab as DebugTabId | undefined
+
+    if (tabId === undefined || !(tabId in debugTabs)) {
+      continue
+    }
+
+    const tab = debugTabs[tabId]
+    const dot = button.querySelector<HTMLElement>('.flashlight-indicator')
+
+    button.classList.toggle('active', tabId === debugPanelActiveTab)
+    dot?.classList.toggle('on', tab.unread || tab.flash)
+  }
+
+  if (debugPanelOutput !== null) {
+    debugPanelOutput.value = formatDebugPayload()
+  }
+
+  const hasPayload = active.payload !== ''
+  debugPanelMinify?.classList.toggle('hidden', !hasPayload)
+
+  if (debugPanelMinify !== null) {
+    debugPanelMinify.textContent = debugPanelMinified ? 'Format' : 'Minify'
+  }
+}
+
+function hideDebugConfirm(): void {
+  debugPanelConfirm?.classList.add('hidden')
+}
+
+function showDebugConfirm(): void {
+  if (getActiveDebugTab().payload !== '') {
+    debugPanelConfirm?.classList.remove('hidden')
+  }
+}
+
+function clearActiveDebugPayload(): void {
+  const active = getActiveDebugTab()
+
+  active.payload = ''
+  active.unread = false
+  active.flash = false
+
+  if (active.flashTimer !== undefined) {
+    clearTimeout(active.flashTimer)
+    active.flashTimer = undefined
+  }
+
+  hideDebugConfirm()
+  renderDebugPanel()
+}
+
+/** a new payload for a tab: updates the textarea if it is the active one and drives the status dot */
+function setDebugPayload(tabId: DebugTabId, payload: string): void {
+  const tab = debugTabs[tabId]
+
+  if (tab.payload === payload) {
     return
   }
 
-  const text = selectionDebugOutput.value || selectionDebugPayload
-  const markCopied = (): void => {
-    if (selectionDebugCopy === null) {
+  tab.payload = payload
+  hideDebugConfirm()
+
+  if (debugPanelVisible && debugPanelActiveTab === tabId) {
+    // the user is looking at it: flash the dot for a second, then grey
+    tab.unread = false
+    tab.flash = true
+
+    if (tab.flashTimer !== undefined) {
+      clearTimeout(tab.flashTimer)
+    }
+
+    tab.flashTimer = globalThis.setTimeout(() => {
+      tab.flash = false
+      tab.flashTimer = undefined
+      renderDebugPanel()
+    }, 1000)
+  } else {
+    // the tab is not in front: keep it yellow until the tab is focused
+    tab.unread = true
+  }
+
+  renderDebugPanel()
+}
+
+function setDebugActiveTab(tabId: DebugTabId): void {
+  debugPanelActiveTab = tabId
+  writeLocalStorage(DEBUG_PANEL_ACTIVE_TAB_KEY, tabId)
+
+  const tab = debugTabs[tabId]
+
+  tab.unread = false
+  tab.flash = false
+
+  if (tab.flashTimer !== undefined) {
+    clearTimeout(tab.flashTimer)
+    tab.flashTimer = undefined
+  }
+
+  hideDebugConfirm()
+  renderDebugPanel()
+}
+
+function setDebugPanelVisible(visible: boolean): void {
+  debugPanelVisible = visible
+  debugPanel?.classList.toggle('hidden', !visible)
+
+  if (!visible) {
+    hideDebugConfirm()
+
+    return
+  }
+
+  const tab = getActiveDebugTab()
+
+  tab.unread = false
+  tab.flash = false
+
+  if (tab.flashTimer !== undefined) {
+    clearTimeout(tab.flashTimer)
+    tab.flashTimer = undefined
+  }
+
+  renderDebugPanel()
+}
+
+function toggleDebugPanel(): void {
+  setDebugPanelVisible(!debugPanelVisible)
+}
+
+/** the selection debug payload (the drag attempt) */
+function setSelectionDebugPayload(payload: string): void {
+  setDebugPayload('selection', payload)
+}
+
+/** the anchor debug payload (the other feature; the same panel, a separate tab) */
+function setAnchorDebugPayload(payload: string): void {
+  setDebugPayload('anchor', payload)
+}
+
+// the other feature (the anchor debug) can fill its own tab without touching the selection payload
+Object.assign(globalThis, { __debugPanel: { setAnchorDebugPayload } })
+
+for (const button of debugPanelTabs) {
+  button.addEventListener('click', () => {
+    const tabId = button.dataset.debugTab as DebugTabId | undefined
+
+    if (tabId !== undefined && tabId in debugTabs) {
+      setDebugActiveTab(tabId)
+    }
+  })
+}
+
+debugPanelClose?.addEventListener('click', () => {
+  setDebugPanelVisible(false)
+})
+
+debugPanelMinify?.addEventListener('click', () => {
+  debugPanelMinified = !debugPanelMinified
+  writeLocalStorage(DEBUG_PANEL_MINIFIED_KEY, debugPanelMinified ? '1' : '0')
+  renderDebugPanel()
+})
+
+debugPanelClear?.addEventListener('click', (event) => {
+  event.stopPropagation()
+
+  if (getActiveDebugTab().payload === '') {
+    clearActiveDebugPayload()
+
+    return
+  }
+
+  showDebugConfirm()
+})
+
+debugPanelConfirmCancel?.addEventListener('click', (event) => {
+  event.stopPropagation()
+  hideDebugConfirm()
+})
+
+debugPanelConfirmDelete?.addEventListener('click', (event) => {
+  event.stopPropagation()
+  clearActiveDebugPayload()
+})
+
+// a click anywhere else is the same as cancel
+document.addEventListener(
+  'pointerdown',
+  (event) => {
+    if (debugPanelConfirm === null || debugPanelConfirm.classList.contains('hidden')) {
       return
     }
 
-    const original = selectionDebugCopy.textContent
-    selectionDebugCopy.textContent = 'Copied'
+    const target = event.target
+
+    if (target instanceof Node && (debugPanelConfirm.contains(target) || debugPanelClear?.contains(target) === true)) {
+      return
+    }
+
+    hideDebugConfirm()
+  },
+  true,
+)
+
+debugPanelCopy?.addEventListener('click', () => {
+  if (debugPanelOutput === null) {
+    return
+  }
+
+  const text = debugPanelOutput.value || getActiveDebugTab().payload
+  const markCopied = (): void => {
+    if (debugPanelCopy === null) {
+      return
+    }
+
+    const original = debugPanelCopy.textContent
+    debugPanelCopy.textContent = 'Copied'
     setTimeout(() => {
-      if (selectionDebugCopy !== null) {
-        selectionDebugCopy.textContent = original ?? 'Copy'
+      if (debugPanelCopy !== null) {
+        debugPanelCopy.textContent = original ?? 'Copy'
       }
     }, 1200)
   }
 
   if (navigator.clipboard?.writeText === undefined) {
-    selectionDebugOutput.select()
+    debugPanelOutput.select()
     document.execCommand('copy')
     markCopied()
 
@@ -177,18 +433,22 @@ selectionDebugCopy?.addEventListener('click', () => {
     .writeText(text)
     .then(markCopied)
     .catch(() => {
-      selectionDebugOutput.select()
+      debugPanelOutput.select()
       document.execCommand('copy')
       markCopied()
     })
 })
 
-selectionDebugClose?.addEventListener('click', () => {
-  setSelectionDebugVisible(false)
-})
+renderDebugPanel()
 
-if (new URLSearchParams(globalThis.location.search).get('selectionDebug') === '1') {
-  setSelectionDebugVisible(true)
+const debugPanelSearchParams = new URLSearchParams(globalThis.location.search)
+
+if (debugPanelSearchParams.get('selectionDebug') === '1') {
+  setDebugActiveTab('selection')
+  setDebugPanelVisible(true)
+} else if (debugPanelSearchParams.get('anchorDebug') === '1') {
+  setDebugActiveTab('anchor')
+  setDebugPanelVisible(true)
 }
 
 // --------------------
@@ -2537,7 +2797,7 @@ cameraLight.position.set(camera.position.x, camera.position.y, camera.position.z
 function onKeyDown(event: KeyboardEvent): void {
   if (event.code === 'F2') {
     event.preventDefault()
-    toggleSelectionDebug()
+    toggleDebugPanel()
 
     return
   }

@@ -244,17 +244,22 @@ button {
   overflow: visible;
 
   .debug-panel-header {
+    position: relative;
     display: flex;
-    /* the actions stay at the top: the taller tabs leave a gap under the buttons */
+    justify-content: flex-end;
+    /* the actions stay at the top: the tabs' min-height leaves a gap under the buttons */
     align-items: flex-start;
+    min-height: 25px;
     gap: 8px;
   }
 
   .debug-panel-tabs {
+    /* the tabs sit on the textarea's top border; the header's min-height is their height */
+    position: absolute;
+    top: 0;
+    left: 0;
     display: flex;
     gap: 2px;
-    flex: 1;
-    min-width: 0;
   }
 
   .debug-tab {
@@ -262,8 +267,6 @@ button {
     align-items: center;
     gap: 5px;
     padding: 5px 9px;
-    /* the 3px gap between the tab and the textarea's top border */
-    margin-bottom: 3px;
     background: transparent;
     color: #b9ad97;
     border: 1px solid #4a4234;

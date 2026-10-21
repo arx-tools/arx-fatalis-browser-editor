@@ -245,7 +245,8 @@ button {
 
   .debug-panel-header {
     display: flex;
-    align-items: flex-end;
+    /* the actions stay at the top: the taller tabs leave a gap under the buttons */
+    align-items: flex-start;
     gap: 8px;
   }
 
@@ -260,7 +261,9 @@ button {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    padding: 3px 9px;
+    padding: 5px 9px;
+    /* the 3px gap between the tab and the textarea's top border */
+    margin-bottom: 3px;
     background: transparent;
     color: #b9ad97;
     border: 1px solid #4a4234;

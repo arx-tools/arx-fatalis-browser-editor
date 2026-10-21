@@ -55,6 +55,7 @@ import {
   downloadCompleted,
   downloadProgress,
   isComputingAnchors,
+  showGeneratedAnchors,
   isComputingLighting,
   isDirty,
   isDownloading,
@@ -90,6 +91,7 @@ import {
   type AnchorGraph,
   type SourcePolygon,
 } from './fts-export.js'
+import { publishAnchorDebugPayload } from './generator/anchor-debug.js'
 import { validateAnchors } from './generator/anchor-generator.js'
 import type { AnchorWorkerResponse } from './generator/anchor-worker.js'
 import { createPolygonWireframe } from './geometry/createWireframe.js'
@@ -213,6 +215,7 @@ function renderDebugPanel(): void {
 
   if (debugPanelOutput !== null) {
     debugPanelOutput.value = formatDebugPayload()
+    debugPanelOutput.classList.toggle('minified', debugPanelMinified)
   }
 
   const hasPayload = active.payload !== ''
@@ -1389,12 +1392,11 @@ function renderAnchorGraph(
 
 // until the generator runs, the anchors of the opened file are shown (they are stale, but they are
 // something to start from)
-renderAnchorGraph(
-  fts.anchors.map((anchor) => {
-    return { position: anchor.data.position, linkedAnchors: anchor.linkedAnchors }
-  }),
-  false,
-)
+const originalAnchorGraph = fts.anchors.map((anchor) => {
+  return { position: anchor.data.position, linkedAnchors: anchor.linkedAnchors }
+})
+
+renderAnchorGraph(originalAnchorGraph, false)
 
 /**
  * The generated anchor graph of the **surviving** polygons and the `geometryVersion` it belongs to.
@@ -1488,10 +1490,15 @@ async function generateAnchorGraph(): Promise<AnchorGraph> {
       anchorGraph = graph
       anchorGraphVersion = version
 
+      // the F2 panel shows the filter counters and the island analysis of this graph
+      publishAnchorDebugPayload(polygons, { ...graph, stats: { generatorVersion: response.version } })
+
       const links = graph.anchors.reduce((sum, anchor) => sum + anchor.linkedAnchors.length, 0) / 2
       logger.log(`done (${graph.anchors.length} anchors, ${links} links)`, line)
 
-      if (anchorsVisible.value) {
+      // the graph is generated in the background (so the switch has something to show right away),
+      // but the overlay keeps showing the file's graph until the user turns `generated anchors` on
+      if (anchorsVisible.value && showGeneratedAnchors.value) {
         renderAnchorGraph(graph.anchors)
       }
 
@@ -1518,6 +1525,30 @@ async function ensureAnchorGraph(): Promise<AnchorGraph> {
   return generateAnchorGraph()
 }
 
+/**
+ * The overlay shows either the graph that came with the file or the generated one, depending on the
+ * `generated anchors` switch. Switching is cheap: the generated graph is cached per
+ * `geometryVersion`, so it is only computed again when the geometry changed while it was shown.
+ */
+async function applyAnchorGraphVisibility(): Promise<void> {
+  if (!showGeneratedAnchors.value) {
+    renderAnchorGraph(originalAnchorGraph)
+    return
+  }
+
+  const graph = await ensureAnchorGraph()
+
+  // the switch may have been turned off while the worker was running
+  if (showGeneratedAnchors.value) {
+    renderAnchorGraph(graph.anchors)
+  }
+}
+
+watch(showGeneratedAnchors, () => {
+  void applyAnchorGraphVisibility()
+})
+
+
 /** bumps the geometry version and regenerates the graph when the overlay is on (debounced) */
 function onGeometryChanged(): void {
   geometryVersion++
@@ -1528,7 +1559,7 @@ function onGeometryChanged(): void {
 
   clearTimeout(anchorRegenerationTimer)
   anchorRegenerationTimer = setTimeout(() => {
-    void ensureAnchorGraph()
+    void applyAnchorGraphVisibility()
   }, ANCHOR_REGENERATION_DELAY)
 }
 

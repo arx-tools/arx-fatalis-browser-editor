@@ -332,6 +332,12 @@ button {
     overflow: auto;
   }
 
+  /* the minified JSON is one long line: wrap it so the block's height shows its size */
+  textarea.minified {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
   #debug-panel-confirm {
     position: absolute;
     right: 8px;

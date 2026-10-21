@@ -1933,6 +1933,9 @@ const SELECTION_LINE_DEPTH_EPSILON = 2
 /** the hard cap of the samples of one stroke (a very long screen line) */
 const SELECTION_LINE_MAX_SAMPLES = 512
 
+/** how close two polygon vertices have to be to count as the same point (the freehand part) */
+const SELECTION_CONNECT_DISTANCE = 0.25
+
 /** the selection is polygon based: a quad is one unit, both of its triangles are highlighted */
 /**
  * Draws the selection as **one** mesh: a flood fill can select a few thousand polygons (the biggest
@@ -2352,62 +2355,87 @@ function getPolygonsAlongScreenLine(start: Vector3, end: Vector3): number[] {
 }
 
 /**
- * The state of the current stroke: the pen is down from the first polygon under the cursor until
- * the mouse is released. The selection is recomputed on every move as **base + the line's cells**
- * (`add`/`replace`) or **base - the line's cells** (`remove`) - the line itself is the current
- * straight line between the pen-down point and the cursor, not the chain of the intermediate lines.
+ * The state of the current pen: the pen is down from the first polygon under the cursor until the
+ * mouse is released.
+ *
+ * The default is a **freehand** paint: every front facing polygon under the cursor is added to the
+ * selection permanently, and `lastPolygonIndex` / `lastPoint` follow it. When the cursor **jumps**
+ * - there was an update with no polygon under it, or the new polygon is not connected to the last
+ * one - the projected screen line between the last point and the new one fills the gap (the cells
+ * between the two endpoint depths), and the landing polygon becomes the new last one. There is no
+ * line-tool preview: the freehand polygons and the bridges accumulate.
  */
 type SelectionStroke = {
   mode: SelectionMode
-  startPoint: Vector3
-  startPolygonIndex: number
-  base: Set<number>
+  lastPoint: Vector3
+  lastPolygonIndex: number
+  lastUpdateHadHit: boolean
 }
 
 let selectionStroke: SelectionStroke | undefined
 
-/** applies the current line's cells to the base selection of the stroke (the line tool preview) */
-function applySelectionStroke(cells: ReadonlySet<number>): void {
-  const stroke = selectionStroke
+/** do the two polygons share a vertex (within the seam tolerance)? */
+function arePolygonsConnected(firstIndex: number, secondIndex: number): boolean {
+  const first = fts.polygons[firstIndex]
+  const second = fts.polygons[secondIndex]
 
-  if (stroke === undefined) {
-    return
+  if (first === undefined || second === undefined) {
+    return false
   }
 
-  const next = new Set(stroke.base)
+  const distanceSquared = SELECTION_CONNECT_DISTANCE * SELECTION_CONNECT_DISTANCE
 
-  if (stroke.mode === 'remove') {
-    for (const polygonIndex of cells) {
-      next.delete(polygonIndex)
-    }
-  } else {
-    for (const polygonIndex of cells) {
-      next.add(polygonIndex)
-    }
-  }
+  for (const firstVertex of getUsedVerticesOf(first)) {
+    for (const secondVertex of getUsedVerticesOf(second)) {
+      const x = firstVertex.x - secondVertex.x
+      const y = firstVertex.y - secondVertex.y
+      const z = firstVertex.z - secondVertex.z
 
-  if (next.size === selectedPolygons.size) {
-    let same = true
-
-    for (const polygonIndex of next) {
-      if (!selectedPolygons.has(polygonIndex)) {
-        same = false
-        break
+      if (x * x + y * y + z * z <= distanceSquared) {
+        return true
       }
     }
+  }
 
-    if (same) {
-      return
+  return false
+}
+
+/** adds the cells to the selection (the freehand polygons and the jump bridges) */
+function addCellsToSelection(cells: Iterable<number>): boolean {
+  let changed = false
+
+  for (const polygonIndex of cells) {
+    if (
+      selectedPolygons.has(polygonIndex) ||
+      deletedPolygons.has(polygonIndex) ||
+      fts.polygons[polygonIndex] === undefined
+    ) {
+      continue
+    }
+
+    selectedPolygons.add(polygonIndex)
+    changed = true
+  }
+
+  return changed
+}
+
+/** removes the cells from the selection (the `remove` mode) */
+function removeCellsFromSelection(cells: Iterable<number>): boolean {
+  let changed = false
+
+  for (const polygonIndex of cells) {
+    if (selectedPolygons.delete(polygonIndex)) {
+      changed = true
     }
   }
 
-  selectedPolygons.clear()
+  return changed
+}
 
-  for (const polygonIndex of next) {
-    selectedPolygons.add(polygonIndex)
-  }
-
-  updateHighlightOfSelectedPolygons()
+/** applies the cells with the current gesture mode */
+function applyCellsToSelection(cells: Iterable<number>, mode: SelectionMode): boolean {
+  return mode === 'remove' ? removeCellsFromSelection(cells) : addCellsToSelection(cells)
 }
 
 /** the mode of the gesture, from the modifiers of the mouse event itself (always up to date) */
@@ -2815,6 +2843,11 @@ function updatePolygonUnderCursor(): void {
   const hits = getPolygonsUnderCameraRay()
 
   if (hits.length === 0) {
+    // the cursor is over a region with no visible polygon: the pen waits, the next hit is a jump
+    if (selectionStroke !== undefined) {
+      selectionStroke.lastUpdateHadHit = false
+    }
+
     scene.remove(cursorTriangleMesh)
     polygonBeingLookedAt = undefined
     return
@@ -2846,8 +2879,8 @@ function updatePolygonUnderCursor(): void {
 
   if (mousePressed[LeftMouseButton].currentValue) {
     if (!mousePressed[LeftMouseButton].oldValue) {
-      // pen down: remember the camera for the debug payload. The stroke itself starts on the first
-      // polygon the pen touches (a press on empty space is like drawing in the air).
+      // pen down: remember the camera for the debug payload. The pen itself touches down on the
+      // first polygon under the cursor.
       selectionDragStartCamera = getCameraDebugState()
       lastSelectionAttempt = undefined
     }
@@ -2856,32 +2889,57 @@ function updatePolygonUnderCursor(): void {
       const strokeMode = pendingSelectionMode ?? getSelectionMode()
 
       if (strokeMode === 'replace') {
-        // a new stroke starts here: the previous selection is dropped
+        // a new pen stroke starts here: the previous selection is dropped
         selectedPolygons.clear()
         updateHighlightOfSelectedPolygons()
       }
 
       selectionStroke = {
         mode: strokeMode,
-        startPoint: nearestHit.point.clone(),
-        startPolygonIndex: polygonIndex,
-        base: strokeMode === 'replace' ? new Set() : new Set(selectedPolygons),
+        lastPoint: nearestHit.point.clone(),
+        lastPolygonIndex: polygonIndex,
+        lastUpdateHadHit: true,
       }
       pendingSelectionMode = undefined
-    }
 
-    const cells = new Set(getPolygonsAlongScreenLine(selectionStroke.startPoint, nearestHit.point))
-    cells.add(selectionStroke.startPolygonIndex)
-    cells.add(polygonIndex)
+      if (applyCellsToSelection([polygonIndex], strokeMode)) {
+        updateHighlightOfSelectedPolygons()
+      }
 
-    applySelectionStroke(cells)
+      lastSelectionAttempt = {
+        startPoint: selectionStroke.lastPoint.clone(),
+        startPolygonIndex: polygonIndex,
+        targetPoint: nearestHit.point.clone(),
+        targetPolygonIndex: polygonIndex,
+        cells: [polygonIndex],
+      }
+    } else {
+      const stroke = selectionStroke
+      const isJump = !stroke.lastUpdateHadHit || !arePolygonsConnected(stroke.lastPolygonIndex, polygonIndex)
 
-    lastSelectionAttempt = {
-      startPoint: selectionStroke.startPoint.clone(),
-      startPolygonIndex: selectionStroke.startPolygonIndex,
-      targetPoint: nearestHit.point.clone(),
-      targetPolygonIndex: polygonIndex,
-      cells: [...cells],
+      // the freehand paints the polygon under the cursor; a jump bridges the last accepted polygon
+      // and the landing one with the projected screen line
+      const cells = isJump ? getPolygonsAlongScreenLine(stroke.lastPoint, nearestHit.point) : [polygonIndex]
+
+      if (!cells.includes(polygonIndex)) {
+        cells.push(polygonIndex)
+      }
+
+      if (applyCellsToSelection(cells, stroke.mode)) {
+        updateHighlightOfSelectedPolygons()
+      }
+
+      lastSelectionAttempt = {
+        startPoint: stroke.lastPoint.clone(),
+        startPolygonIndex: stroke.lastPolygonIndex,
+        targetPoint: nearestHit.point.clone(),
+        targetPolygonIndex: polygonIndex,
+        cells,
+      }
+
+      stroke.lastPoint.copy(nearestHit.point)
+      stroke.lastPolygonIndex = polygonIndex
+      stroke.lastUpdateHadHit = true
     }
 
     cursorTriangleMaterial.color.set(selectionStroke.mode === 'remove' ? Color.red.getHex() : Color.green.getHex())

@@ -1,6 +1,7 @@
 import { getCellCoords, isQuad, MAP_WIDTH_IN_CELLS } from 'arx-convert/utils'
 import type { Mesh } from 'three'
 import { bakeLlfColors, type LightingCalculatorMode } from './lighting/bake.js'
+import { publishAnchorDebugPayload } from './generator/anchor-debug.js'
 import { ANCHOR_DEFAULTS, generateAnchors, validateAnchors, type AnchorGeneratorOptions } from './generator/anchor-generator.js'
 import type { ArxColor, ArxEPData, ArxFTS, ArxLLF, ArxPolygon } from 'arx-convert/types'
 
@@ -202,6 +203,8 @@ export function buildExportAnchors(
   }
 
   const result = precomputed ?? generateAnchors(fts.polygons, options)
+
+  publishAnchorDebugPayload(fts.polygons, result)
   const problems = validateAnchors(result)
 
   if (problems.length > 0) {

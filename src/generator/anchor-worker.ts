@@ -21,7 +21,7 @@ export type AnchorWorkerRequest = {
 }
 
 export type AnchorWorkerResponse =
-  | { ok: true; anchors: GeneratedAnchor[]; cellAnchors: Array<[number, number[]]> }
+  | { ok: true; anchors: GeneratedAnchor[]; cellAnchors: Array<[number, number[]]>; version?: number; stats?: Record<string, unknown> }
   | { ok: false; message: string }
 
 self.onmessage = (event: MessageEvent<AnchorWorkerRequest>) => {
@@ -50,6 +50,8 @@ self.onmessage = (event: MessageEvent<AnchorWorkerRequest>) => {
 
     self.postMessage({
       ok: true,
+      version: result.stats?.generatorVersion as number | undefined,
+      stats: result.stats as Record<string, unknown>,
       anchors: result.anchors,
       cellAnchors: [...result.cellAnchors],
     } satisfies AnchorWorkerResponse)

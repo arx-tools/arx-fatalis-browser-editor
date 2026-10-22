@@ -32,6 +32,12 @@
 /** a point `distance` above `y` (up is -Y) */
 const above = (y, distance) => y - distance
 
+/**
+ * Bumped on every change of this file. It is written into the debug payload, so we can tell
+ * whether the editor is really running the fresh worker bundle.
+ */
+export const ANCHOR_GENERATOR_VERSION = 11
+
 /** @see https://github.com/arx/ArxLibertatis/blob/1.2.1/src/graphics/GraphicsTypes.h#L88 */
 const FLAG = {
   NoShadow: 1 << 0,
@@ -76,7 +82,9 @@ export const ANCHOR_DEFAULTS = {
   /** two anchors are linked within this distance (measured: max 200 on the original levels) */
   linkDistance: 200,
   /** links are only created when the floor height difference is at most this (stairs, steps) */
-  maxStepHeight: 60,
+  maxStepHeight: 70,
+  /** how deep a link may descend (the NPC can drop, it cannot climb this much) */
+  maxDropHeight: 150,
   /** below this much free space above a surface there is no anchor (the player is ~160 tall) */
   minHeadroom: 150,
   /**
@@ -161,6 +169,25 @@ export const ANCHOR_DEFAULTS = {
    * sides of the low blocks): the NPC can climb them. 0 = every hit counts.
    */
   rayStepAllowance: 60,
+  /**
+   * Reconnect the pockets that the strict body test cut off from the main graph, through the widest
+   * available passage (the body radius is reduced for that link only).
+   */
+  repairConnectivity: true,
+  /** how many components may be repaired */
+  repairConnectivityLimit: 50,
+  /** the narrowest body radius the repair accepts */
+  repairMinRadius: 5,
+  repairRadiusStep: 5,
+  /**
+   * Retry the unlinked grid neighbours with a reduced body radius (the local holes of the strict
+   * body test). `gapFillDistance` should stay around the grid diagonal so it does not create long
+   * shortcuts.
+   */
+  gapFill: true,
+  gapFillDistance: 200,
+  dropUnreachableComponents: true,
+  gapFillMinRadius: 5,
   /** the audit reports how many of the final links cross geometry at these heights above the floor */
   auditRayHeights: [20, 40, 60, 120],
   /** an anchor is reported when a surface is this close above it (should never happen) */
@@ -173,7 +200,13 @@ export const ANCHOR_DEFAULTS = {
   minZ: null,
   maxZ: null,
   /** `1` = the polygon normal points up, `-1` = down (mirrored geometry), `'auto'` = guess */
-  upSign: 'auto',
+  /**
+   * The FTS format's Y axis is inverted: **up is -Y**, on every level (the floor normals of the
+   * original levels are ~-0.98, and the anchor height of the format is negative). It is a format
+   * constant, so it is not detected: a room's ceiling balances its floor, which makes any
+   * area-based vote a coin flip (measured 49-59% across levels 0, 1, 4, 12, 16).
+   */
+  upSign: -1,
   /** polygons that are never walkable (ignored unless the caller overrides it) */
   unwalkableFlags: UNWALKABLE_FLAGS,
   /** drop the anchors that ended up without any link (the game ignores them anyway) */
@@ -360,6 +393,9 @@ export function isBlocked(a, b, polygons, index, options = {}) {
 
   for (const polygonIndex of index.queryBox(minX, minZ, maxX, maxZ)) {
     const polygon = polygons[polygonIndex]
+    if (isWaterPolygon(polygon)) {
+      continue
+    }
     if (!segmentHitsPolygon(a, b, polygon)) {
       continue
     }
@@ -441,6 +477,10 @@ function closestPointOnTriangle2D(x, z, a, b, c) {
  * their height range.
  */
 function cylinderHitsPolygon(x, z, radius, yMin, yMax, polygon, floorY, stepUp) {
+  if (isWaterPolygon(polygon)) {
+    return false
+  }
+
   let hit = false
 
   for (const [ia, ib, ic] of triangleVertexIndices(polygon)) {
@@ -490,10 +530,13 @@ function footFloorHeight(x, z, referenceY, radius, polygons, index, settings, up
 
   for (const polygonIndex of candidates) {
     const polygon = polygons[polygonIndex]
+    if (isWaterPolygon(polygon)) {
+      continue
+    }
     if (Math.abs(polygon.norm.y) < settings.minAbsNormalY) {
       continue
     }
-    if ((polygon.flags & settings.unwalkableFlags) !== 0) {
+    if (isUnwalkableByFlags(polygon, settings.unwalkableFlags)) {
       continue
     }
     if (polygon.norm.y * upSign < settings.minAbsNormalY) {
@@ -583,8 +626,26 @@ export function isHorizontal(polygon, minAbsNormalY) {
   return Math.abs(polygon.norm.y) >= minAbsNormalY
 }
 
+/**
+ * The "do not use this polygon" flag test. The water surface of the original levels is usually
+ * flagged `Transparent | Water`, so the transparency must not exclude it: water is walkable (the
+ * player swims, the anchors of the original levels are there too). Lava stays excluded.
+ */
+/**
+ * Water (and other "not solid" surfaces) is *ignored* by the generator: no anchor on it, and it does
+ * not block anything either. The walkable surface is the solid mesh *under* the water (the riverbed),
+ * which is what the original levels' anchors follow.
+ */
+export function isWaterPolygon(polygon) {
+  return (polygon.flags & FLAG.Water) !== 0
+}
+
+export function isUnwalkableByFlags(polygon, unwalkableFlags) {
+  return (polygon.flags & unwalkableFlags) !== 0
+}
+
 export function isWalkableSurface(polygon, { upSign, unwalkableFlags, minAbsNormalY }) {
-  if ((polygon.flags & unwalkableFlags) !== 0) {
+  if (isUnwalkableByFlags(polygon, unwalkableFlags)) {
     return false
   }
 
@@ -598,6 +659,16 @@ export function isWalkableSurface(polygon, { upSign, unwalkableFlags, minAbsNorm
  * but we need to know which side of the polygons is up. When the number of downward normals is
  * much larger than the upward ones, the level is mirrored.
  */
+/**
+ * A step is only climbable *upward*: the NPC walks off a ledge of any height (gravity does the
+ * work) but it cannot climb more than `maxStepHeight`. In the FTS the up direction is -Y, so the
+ * rise from `fromY` to `toY` is `(fromY - toY) * -upSign`.
+ */
+function isStepAllowed(fromY, toY, upSign, settings) {
+  const rise = (fromY - toY) * -upSign
+  return rise <= settings.maxStepHeight && -rise <= settings.maxDropHeight
+}
+
 export function detectUpSign(polygons, minAbsNormalY = 0.6) {
   let up = 0
   let down = 0
@@ -717,6 +788,9 @@ export function generateAnchors(polygons, options = {}) {
     const surfaces = []
     for (const polygonIndex of index.queryPoint(x, z)) {
       const polygon = polygons[polygonIndex]
+      if (isWaterPolygon(polygon)) {
+        continue
+      }
       if (!isHorizontal(polygon, settings.minAbsNormalY)) {
         continue
       }
@@ -775,7 +849,7 @@ export function generateAnchors(polygons, options = {}) {
         continue
       }
 
-      if ((surface.polygon.flags & settings.unwalkableFlags) !== 0) {
+      if (isUnwalkableByFlags(surface.polygon, settings.unwalkableFlags)) {
         if (collectStats) {
           stats.rejectedFlags++
         }
@@ -854,7 +928,7 @@ export function generateAnchors(polygons, options = {}) {
       if (!isWalkableSurface(polygon, classificationOptions)) {
         continue
       }
-      if ((polygon.flags & settings.unwalkableFlags) !== 0) {
+      if (isUnwalkableByFlags(polygon, settings.unwalkableFlags)) {
         continue
       }
       if (!isHorizontal(polygon, settings.coverageMinAbsNormalY)) {
@@ -946,7 +1020,7 @@ export function generateAnchors(polygons, options = {}) {
         continue
       }
 
-      if (Math.abs(dy) > settings.maxStepHeight) {
+      if (!isStepAllowed(anchor.position.y, other.position.y, upSign, settings)) {
         stepLinks++
         continue
       }
@@ -1020,9 +1094,263 @@ export function generateAnchors(polygons, options = {}) {
     })
   }
 
+  // -------------------------------------------------------------------------------------------
+  // 4a. connectivity repair
+  //
+  // The strict body test can cut a pocket off from the main graph (a doorway narrower than the
+  // body, a ledge in the air). The original levels' graph connects those pockets, so the generator
+  // reconnects every component to the main one through the *widest available passage*: the body
+  // radius is reduced only for the added link, and the link is recorded (radius + positions) so the
+  // debug payload can show where and how narrow the passage is.
+  const repairedLinks = []
+  const gapFilledLinks = []
+  const unreachableComponents = []
+
+  if (settings.repairConnectivity && result.length > 1) {
+    const radiusSteps = []
+    for (let radius = settings.linkBodyRadius; radius >= settings.repairMinRadius; radius -= settings.repairRadiusStep) {
+      radiusSteps.push(radius)
+    }
+
+    const spatialCell = settings.linkDistance
+    const spatialKey = (x, z) => `${Math.floor(x / spatialCell)},${Math.floor(z / spatialCell)}`
+    const spatial = new Map()
+    result.forEach((anchor, anchorIndex) => {
+      const cellKey = spatialKey(anchor.position.x, anchor.position.z)
+      let bucket = spatial.get(cellKey)
+      if (bucket === undefined) {
+        bucket = []
+        spatial.set(cellKey, bucket)
+      }
+      bucket.push(anchorIndex)
+    })
+
+    const candidatePairs = []
+    for (const [i, a] of result.entries()) {
+      const ix = Math.floor(a.position.x / spatialCell)
+      const iz = Math.floor(a.position.z / spatialCell)
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dz = -1; dz <= 1; dz++) {
+          for (const j of spatial.get(`${ix + dx},${iz + dz}`) ?? []) {
+            if (j <= i) {
+              continue
+            }
+            const b = result[j]
+            const distance = Math.hypot(b.position.x - a.position.x, b.position.y - a.position.y, b.position.z - a.position.z)
+            if (distance > settings.linkDistance) {
+              continue
+            }
+            if (!isStepAllowed(a.position.y, b.position.y, upSign, settings)) {
+              continue
+            }
+            candidatePairs.push({ i, j, distance })
+          }
+        }
+      }
+    }
+
+    candidatePairs.sort((a, b) => a.distance - b.distance)
+
+    for (let round = 0; round < settings.repairConnectivityLimit; round++) {
+      const parent = result.map((_, i) => i)
+      const find = (i) => {
+        while (parent[i] !== i) {
+          parent[i] = parent[parent[i]]
+          i = parent[i]
+        }
+        return i
+      }
+      for (const [i, a] of result.entries()) {
+        for (const j of a.linkedAnchors) {
+          const rootA = find(i)
+          const rootB = find(j)
+          if (rootA !== rootB) {
+            parent[rootA] = rootB
+          }
+        }
+      }
+      const sizes = new Map()
+      result.forEach((_, i) => {
+        const root = find(i)
+        sizes.set(root, (sizes.get(root) ?? 0) + 1)
+      })
+      if (sizes.size <= 1) {
+        break
+      }
+      let mainRoot = null
+      let mainSize = 0
+      for (const [root, size] of sizes) {
+        if (size > mainSize) {
+          mainSize = size
+          mainRoot = root
+        }
+      }
+
+      let repaired = false
+      for (const radius of radiusSteps) {
+        const pair = candidatePairs.find(({ i, j }) => {
+          if (find(i) === find(j)) {
+            return false
+          }
+          // always attach to the main component, so the repair does not merge two small pockets
+          if (find(i) !== mainRoot && find(j) !== mainRoot) {
+            return false
+          }
+          return !isBodyBlocked(result[i].position, result[j].position, polygons, index, { ...settings, linkBodyRadius: radius }, upSign)
+        })
+        if (pair === undefined) {
+          continue
+        }
+        result[pair.i].linkedAnchors.push(pair.j)
+        result[pair.j].linkedAnchors.push(pair.i)
+        result[pair.i].linkedAnchors.sort((a, b) => a - b)
+        result[pair.j].linkedAnchors.sort((a, b) => a - b)
+        repairedLinks.push({
+          a: result[pair.i].position,
+          b: result[pair.j].position,
+          distance: pair.distance,
+          radius,
+        })
+        repaired = true
+        break
+      }
+      if (!repaired) {
+        break
+      }
+    }
+  }
+
+    // diagnostics: why did a component stay separate? The nearest pair to the main component and its
+    // height difference tell whether the link distance, the step limit or the body test was the
+    // blocker.
+    {
+      const parent = result.map((_, i) => i)
+      const find = (i) => {
+        while (parent[i] !== i) {
+          parent[i] = parent[parent[i]]
+          i = parent[i]
+        }
+        return i
+      }
+      for (const [i, a] of result.entries()) {
+        for (const j of a.linkedAnchors) {
+          const rootA = find(i)
+          const rootB = find(j)
+          if (rootA !== rootB) {
+            parent[rootA] = rootB
+          }
+        }
+      }
+      const sizes = new Map()
+      result.forEach((_, i) => {
+        const root = find(i)
+        sizes.set(root, (sizes.get(root) ?? 0) + 1)
+      })
+      let mainRoot = null
+      let mainSize = 0
+      for (const [root, size] of sizes) {
+        if (size > mainSize) {
+          mainSize = size
+          mainRoot = root
+        }
+      }
+      for (const [root, size] of sizes) {
+        if (root === mainRoot) {
+          continue
+        }
+        let best = null
+        for (const [i, a] of result.entries()) {
+          if (find(i) !== root) {
+            continue
+          }
+          for (const [j, b] of result.entries()) {
+            if (find(j) !== mainRoot) {
+              continue
+            }
+            const distance = Math.hypot(b.position.x - a.position.x, b.position.y - a.position.y, b.position.z - a.position.z)
+            if (best === null || distance < best.distance) {
+              best = {
+                componentAnchors: size,
+                a: a.position,
+                b: b.position,
+                distance,
+                dy: Math.abs(b.position.y - a.position.y),
+              }
+            }
+          }
+        }
+        if (best !== null) {
+          unreachableComponents.push(best)
+        }
+      }
+    }
+
+  // -------------------------------------------------------------------------------------------
+  // 4a2. local gap fill
+  //
+  // The global repair only attaches whole components. A *single* missing connection inside the main
+  // component (a grid neighbour that the strict body test rejected, e.g. a doorway narrower than the
+  // body) is not covered by it. Every unlinked grid neighbour pair is retried with a reduced body
+  // radius, so the local holes close up like in the original levels' graph.
+  if (settings.gapFill) {
+    const spatialCell = settings.linkDistance
+    const spatial = new Map()
+    const spatialKey = (x, z) => `${Math.floor(x / spatialCell)},${Math.floor(z / spatialCell)}`
+    result.forEach((anchor, anchorIndex) => {
+      const cellKey = spatialKey(anchor.position.x, anchor.position.z)
+      let bucket = spatial.get(cellKey)
+      if (bucket === undefined) {
+        bucket = []
+        spatial.set(cellKey, bucket)
+      }
+      bucket.push(anchorIndex)
+    })
+
+    const gapPairs = []
+    for (const [i, a] of result.entries()) {
+      const ix = Math.floor(a.position.x / spatialCell)
+      const iz = Math.floor(a.position.z / spatialCell)
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dz = -1; dz <= 1; dz++) {
+          for (const j of spatial.get(`${ix + dx},${iz + dz}`) ?? []) {
+            if (j <= i || a.linkedAnchors.includes(j)) {
+              continue
+            }
+            const b = result[j]
+            const distance = Math.hypot(b.position.x - a.position.x, b.position.y - a.position.y, b.position.z - a.position.z)
+            if (distance > settings.gapFillDistance) {
+              continue
+            }
+            if (!isStepAllowed(a.position.y, b.position.y, upSign, settings)) {
+              continue
+            }
+            gapPairs.push({ i, j, distance })
+          }
+        }
+      }
+    }
+
+    gapPairs.sort((a, b) => a.distance - b.distance)
+
+    for (const { i, j, distance } of gapPairs) {
+      for (let radius = settings.linkBodyRadius - settings.repairRadiusStep; radius >= settings.gapFillMinRadius; radius -= settings.repairRadiusStep) {
+        if (isBodyBlocked(result[i].position, result[j].position, polygons, index, { ...settings, linkBodyRadius: radius }, upSign)) {
+          continue
+        }
+        result[i].linkedAnchors.push(j)
+        result[j].linkedAnchors.push(i)
+        result[i].linkedAnchors.sort((a, b) => a - b)
+        result[j].linkedAnchors.sort((a, b) => a - b)
+        gapFilledLinks.push({ a: result[i].position, b: result[j].position, distance, radius })
+        break
+      }
+    }
+  }
+
   // -------------------------------------------------------------------
   // 4b. drop the tiny islands (they are not useful navigation targets)
   let droppedSmallComponent = 0
+  let droppedUnreachable = 0
 
   if (settings.minComponentSize > 1 && result.length > 0) {
     const parent = result.map((_, i) => i)
@@ -1047,12 +1375,27 @@ export function generateAnchors(polygons, options = {}) {
       const root = find(i)
       sizes.set(root, (sizes.get(root) ?? 0) + 1)
     })
-    const bigEnough = (i) => (sizes.get(find(i)) ?? 0) >= settings.minComponentSize
+    let mainRoot = null
+    let mainSize = 0
+    for (const [root, size] of sizes) {
+      if (size > mainSize) {
+        mainSize = size
+        mainRoot = root
+      }
+    }
+    const inMainComponent = (i) => find(i) === mainRoot
+    const bigEnough = (i) =>
+      (sizes.get(find(i)) ?? 0) >= settings.minComponentSize
+      && (!settings.dropUnreachableComponents || inMainComponent(i))
     const kept = []
     const remap = new Map()
     result.forEach((anchor, anchorIndex) => {
       if (!bigEnough(anchorIndex)) {
-        droppedSmallComponent++
+        if (!inMainComponent(anchorIndex)) {
+          droppedUnreachable++
+        } else {
+          droppedSmallComponent++
+        }
         return
       }
       remap.set(anchorIndex, kept.length)
@@ -1142,6 +1485,10 @@ export function generateAnchors(polygons, options = {}) {
   stats.anchors = result.length
   stats.droppedIsolated = droppedIsolated
   stats.droppedSmallComponent = droppedSmallComponent
+  stats.droppedUnreachable = droppedUnreachable
+  stats.repairedLinks = repairedLinks
+  stats.gapFilledLinks = gapFilledLinks
+  stats.unreachableComponents = unreachableComponents
   stats.links = links
   stats.linksBlockedByGeometry = blockedLinks
   stats.linksRejectedByCorridor = narrowLinks
@@ -1179,6 +1526,8 @@ export function generateAnchors(polygons, options = {}) {
   // above the floor. `linkRayHeight` must be 0 there (the link test used the same test) but the
   // *higher* values are the interesting ones: a non-zero number means the NPC has to climb over
   // or squeeze through something during that step, which the game may not be able to do.
+  stats.generatorVersion = ANCHOR_GENERATOR_VERSION
+
   stats.audit = {
     linksBlockedAt: Object.fromEntries(
       settings.auditRayHeights.map((height) => {
@@ -1228,6 +1577,9 @@ export function generateAnchors(polygons, options = {}) {
     const { x, y, z } = anchor.position
     for (const polygonIndex of index.queryPoint(x, z)) {
       const polygon = polygons[polygonIndex]
+      if (isWaterPolygon(polygon)) {
+        continue
+      }
       if (Math.abs(polygon.norm.y) < 0.3) {
         continue
       }

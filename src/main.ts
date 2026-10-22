@@ -25,6 +25,8 @@ import {
   OctahedronGeometry,
   PerspectiveCamera,
   PointLight,
+  Points,
+  PointsMaterial,
   Ray,
   Scene,
   type Side,
@@ -43,11 +45,15 @@ import './style.scss'
 import flatColorsByFilename from './assets/flat-colors.json'
 import { downloadBinaryAs, zipBuffers } from './download.js'
 import { registerDownloadHandler } from './download-handler.js'
+import type { Ref } from 'vue'
 import type { LightingCalculatorMode } from './ui/ui.js'
 import { mountUi } from './ui/ui-app.js'
 import {
   ambientFloor,
   anchorsVisible,
+  anchorDiffVisible,
+  bothAnchorGraphs,
+  rejectedLinksVisible,
   cameraInfoVisible,
   cameraLightVisible,
   canvas,
@@ -72,11 +78,13 @@ import {
   RightMouseButton,
   selectionConnectDistance,
   setupCanvasResizer,
+  showDebugPanel,
   shadows,
   updateMouseButtonState,
   updateMouseButtonStates,
   wireframeVisible,
 } from './ui/ui.js'
+import { alignCameraTo, applyCameraValues, openCameraDialog } from './ui/camera.js'
 import { isDoubleSided, isNoDraw, isTransparent, wait } from './functions.js'
 import { Color } from './Color.js'
 import { isValidOriginalArxLevelId } from './constants.js'
@@ -305,6 +313,7 @@ function setDebugActiveTab(tabId: DebugTabId): void {
 
 function setDebugPanelVisible(visible: boolean): void {
   debugPanelVisible = visible
+  showDebugPanel.value = visible
   debugPanel?.classList.toggle('hidden', !visible)
 
   if (!visible) {
@@ -351,6 +360,53 @@ for (const button of debugPanelTabs) {
       setDebugActiveTab(tabId)
     }
   })
+}
+
+/**
+ * Drags a floating panel by its header. The panel is positioned with `left`/`top` after the first
+ * drag (before that it sits in the bottom left corner).
+ */
+function makePanelDraggable(panel: HTMLElement, handle: HTMLElement): void {
+  let dragStart: { pointerX: number; pointerY: number; left: number; top: number } | undefined
+
+  handle.addEventListener('pointerdown', (event) => {
+    const rect = panel.getBoundingClientRect()
+    const parentRect = panel.offsetParent?.getBoundingClientRect() ?? { left: 0, top: 0 }
+
+    panel.style.left = `${rect.left - parentRect.left}px`
+    panel.style.top = `${rect.top - parentRect.top}px`
+    panel.style.bottom = 'auto'
+
+    dragStart = {
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      left: rect.left - parentRect.left,
+      top: rect.top - parentRect.top,
+    }
+
+    handle.setPointerCapture(event.pointerId)
+    event.preventDefault()
+  })
+
+  handle.addEventListener('pointermove', (event) => {
+    if (dragStart === undefined) {
+      return
+    }
+
+    panel.style.left = `${dragStart.left + event.clientX - dragStart.pointerX}px`
+    panel.style.top = `${dragStart.top + event.clientY - dragStart.pointerY}px`
+  })
+
+  handle.addEventListener('pointerup', (event) => {
+    dragStart = undefined
+    handle.releasePointerCapture(event.pointerId)
+  })
+}
+
+const debugPanelHeader = debugPanel?.querySelector<HTMLElement>('.debug-panel-header')
+
+if (debugPanel !== null && debugPanel !== undefined && debugPanelHeader !== null && debugPanelHeader !== undefined) {
+  makePanelDraggable(debugPanel, debugPanelHeader)
 }
 
 debugPanelClose?.addEventListener('click', () => {
@@ -701,6 +757,50 @@ async function saveDLF(dlf: ArxDLF, level: number): Promise<ArrayBuffer> {
 isLoading.value = 'loading'
 
 const levelSearchParams = new URLSearchParams(globalThis.location.search)
+
+/** `?hideUi=1` hides the editor chrome, so a screenshot shows only the canvas and its overlays */
+if (levelSearchParams.get('hideUi') === '1' || levelSearchParams.get('hideUi') === 'true') {
+  document.body.classList.add('hide-ui')
+}
+
+/**
+ * The visibility switches can be set from the url too (`?meshVisible=false&anchorsVisible=true`), so
+ * a test can open a view with the overlays already in the right state - no clicking needed.
+ */
+function readBooleanSearchParam(name: string): boolean | undefined {
+  const value = levelSearchParams.get(name)
+  if (value === null) {
+    return undefined
+  }
+  if (value === 'true' || value === '1') {
+    return true
+  }
+  if (value === 'false' || value === '0') {
+    return false
+  }
+  return undefined
+}
+
+/** the bool switches of the url, both read at start and written on every change */
+const searchParamSwitches: Array<[string, Ref<boolean>]> = [
+  ['meshVisible', meshVisible],
+  ['wireframeVisible', wireframeVisible],
+  ['anchorsVisible', anchorsVisible],
+  ['portalsVisible', portalsVisible],
+  ['lightsVisible', lightsVisible],
+  ['bothAnchorGraphs', bothAnchorGraphs],
+  ['anchorDiff', anchorDiffVisible],
+  ['rejectedLinks', rejectedLinksVisible],
+  ['debugPanel', showDebugPanel],
+]
+
+for (const [name, reference] of searchParamSwitches) {
+  const value = readBooleanSearchParam(name)
+  if (value !== undefined) {
+    reference.value = value
+  }
+}
+
 const levelId = Number.parseInt(levelSearchParams.get('levelIdx') ?? levelSearchParams.get('level') ?? '11', 10)
 if (!isValidOriginalArxLevelId(levelId)) {
   isLoading.value = 'rejected'
@@ -1328,8 +1428,19 @@ function ftsPositionToThree(position: ArxVector3): Vector3 {
   return arxVector3toVector3(position).sub(offset)
 }
 
+/** the vertical blue ticks of the anchors (the game's debug view draws them, our comparison does not need them) */
+const SHOW_ANCHOR_TICKS = false
+
 const anchorsGroup = new Group()
 scene.add(anchorsGroup)
+
+/** the generated graph when both graphs are shown (cyan, the file's graph stays green) */
+const generatedAnchorsGroup = new Group()
+scene.add(generatedAnchorsGroup)
+
+/** the diagnostic layers: the anchor diff dots and the repaired links */
+const anchorDebugGroup = new Group()
+scene.add(anchorDebugGroup)
 
 /**
  * Rebuilds the anchors' overlay from a graph. `requestFrame` is false for the initial call: this
@@ -1338,9 +1449,11 @@ scene.add(anchorsGroup)
 function renderAnchorGraph(
   anchors: ReadonlyArray<{ position: { x: number; y: number; z: number }; linkedAnchors: number[] }>,
   requestFrame = true,
+  group: Group = anchorsGroup,
+  linkColor = 0x35d84a,
 ): void {
-  for (const child of [...anchorsGroup.children]) {
-    anchorsGroup.remove(child)
+  for (const child of [...group.children]) {
+    group.remove(child)
     const withGeometry = child as unknown as { geometry?: BufferGeometry }
     withGeometry.geometry?.dispose()
   }
@@ -1354,7 +1467,9 @@ function renderAnchorGraph(
     // the anchor of the format has a `height` (always -165 in the original levels, arx-convert does
     // not expose it because it is uniform) - the game's Pathfinding debug view draws the anchor as a
     // vertical line of this height, which is about the eye height of the player
-    anchorTickPositions.push(from.x, from.y, from.z, from.x, from.y + 165, from.z)
+    if (SHOW_ANCHOR_TICKS) {
+      anchorTickPositions.push(from.x, from.y, from.z, from.x, from.y + 165, from.z)
+    }
 
     for (const linkedIndex of anchor.linkedAnchors) {
       if (linkedIndex <= index || linkedIndex >= anchors.length) {
@@ -1370,7 +1485,7 @@ function renderAnchorGraph(
   anchorLinksGeometry.setAttribute('position', new BufferAttribute(new Float32Array(anchorLinkPositions), 3))
   const anchorLinks = new LineSegments(
     anchorLinksGeometry,
-    new LineBasicMaterial({ color: 0x35d84a, transparent: true, opacity: 0.9 }),
+    new LineBasicMaterial({ color: linkColor, transparent: true, opacity: 0.9 }),
   )
   anchorLinks.renderOrder = 8
 
@@ -1382,7 +1497,11 @@ function renderAnchorGraph(
   )
   anchorTicks.renderOrder = 8
 
-  anchorsGroup.add(anchorLinks, anchorTicks)
+  if (SHOW_ANCHOR_TICKS) {
+    anchorsGroup.add(anchorLinks, anchorTicks)
+  } else {
+    anchorsGroup.add(anchorLinks)
+  }
   anchorsGroup.visible = anchorsVisible.value
 
   if (requestFrame) {
@@ -1404,6 +1523,8 @@ renderAnchorGraph(originalAnchorGraph, false)
  * stale.
  */
 let anchorGraph: AnchorGraph | undefined
+/** the stats of the last generation (the repaired/filled links of the debug layer) */
+let anchorGraphStats: Record<string, unknown> | undefined
 let anchorGraphVersion = -1
 let geometryVersion = 0
 let anchorGeneration: Promise<AnchorGraph> | undefined
@@ -1488,10 +1609,11 @@ async function generateAnchorGraph(): Promise<AnchorGraph> {
       }
 
       anchorGraph = graph
+      anchorGraphStats = response.stats
       anchorGraphVersion = version
 
       // the F2 panel shows the filter counters and the island analysis of this graph
-      publishAnchorDebugPayload(polygons, { ...graph, stats: { generatorVersion: response.version } })
+      publishAnchorDebugPayload(polygons, { ...graph, stats: response.stats ?? { generatorVersion: response.version } })
 
       const links = graph.anchors.reduce((sum, anchor) => sum + anchor.linkedAnchors.length, 0) / 2
       logger.log(`done (${graph.anchors.length} anchors, ${links} links)`, line)
@@ -1531,8 +1653,24 @@ async function ensureAnchorGraph(): Promise<AnchorGraph> {
  * `geometryVersion`, so it is only computed again when the geometry changed while it was shown.
  */
 async function applyAnchorGraphVisibility(): Promise<void> {
+  if (bothAnchorGraphs.value) {
+    const graph = await ensureAnchorGraph()
+
+    renderAnchorGraph(originalAnchorGraph, true, anchorsGroup, 0x35d84a)
+    renderAnchorGraph(graph.anchors, true, generatedAnchorsGroup, 0x35c8d8)
+
+    anchorsGroup.visible = anchorsVisible.value
+    generatedAnchorsGroup.visible = anchorsVisible.value
+
+    updateAnchorDebugLayers()
+    return
+  }
+
+  generatedAnchorsGroup.visible = false
+
   if (!showGeneratedAnchors.value) {
     renderAnchorGraph(originalAnchorGraph)
+    updateAnchorDebugLayers()
     return
   }
 
@@ -1542,10 +1680,129 @@ async function applyAnchorGraphVisibility(): Promise<void> {
   if (showGeneratedAnchors.value) {
     renderAnchorGraph(graph.anchors)
   }
+
+  updateAnchorDebugLayers()
+}
+
+/** the nearest anchor of `candidates` within `maxDistance`, using a 100 unit grid hash */
+function hasAnchorNear(
+  anchor: { position: { x: number; y: number; z: number } },
+  candidates: ReadonlyArray<{ position: { x: number; y: number; z: number } }>,
+  maxDistance: number,
+): boolean {
+  const maxDistanceSquared = maxDistance * maxDistance
+
+  for (const candidate of candidates) {
+    const dx = candidate.position.x - anchor.position.x
+    if (dx > maxDistance || dx < -maxDistance) {
+      continue
+    }
+    const dy = candidate.position.y - anchor.position.y
+    if (dy > maxDistance || dy < -maxDistance) {
+      continue
+    }
+    const dz = candidate.position.z - anchor.position.z
+    if (dz > maxDistance || dz < -maxDistance) {
+      continue
+    }
+    if (dx * dx + dy * dy + dz * dz <= maxDistanceSquared) {
+      return true
+    }
+  }
+
+  return false
+}
+
+/** the anchor diff dots and the repaired links of the generator (the Debug block) */
+function updateAnchorDebugLayers(): void {
+  for (const child of [...anchorDebugGroup.children]) {
+    anchorDebugGroup.remove(child)
+    const withGeometry = child as unknown as { geometry?: BufferGeometry }
+    withGeometry.geometry?.dispose()
+  }
+
+  const graph = anchorGraph
+  if (graph === undefined) {
+    anchorDebugGroup.visible = false
+    requestRender()
+    return
+  }
+
+  const positions: number[] = []
+  const colors: number[] = []
+
+  if (anchorDiffVisible.value) {
+    const onlyOriginal = originalAnchorGraph.filter((anchor) => !hasAnchorNear(anchor, graph.anchors, 100))
+    const onlyGenerated = graph.anchors.filter((anchor) => !hasAnchorNear(anchor, originalAnchorGraph, 100))
+
+    for (const anchor of onlyOriginal) {
+      const point = ftsPositionToThree(anchor.position)
+      positions.push(point.x, point.y, point.z)
+      colors.push(0.9, 0.15, 0.15)
+    }
+
+    for (const anchor of onlyGenerated) {
+      const point = ftsPositionToThree(anchor.position)
+      positions.push(point.x, point.y, point.z)
+      colors.push(0.2, 0.45, 1)
+    }
+  }
+
+  if (rejectedLinksVisible.value) {
+    const stats = anchorGraphStats as { gapFilledLinks?: Array<{ a: { x: number; y: number; z: number }; b: { x: number; y: number; z: number } }>; repairedLinks?: Array<{ a: { x: number; y: number; z: number }; b: { x: number; y: number; z: number } }> } | undefined
+    const links = [...(stats?.repairedLinks ?? []), ...(stats?.gapFilledLinks ?? [])]
+
+    const lines = new BufferGeometry()
+    const linePositions: number[] = []
+    for (const link of links) {
+      const from = ftsPositionToThree(link.a)
+      const to = ftsPositionToThree(link.b)
+      linePositions.push(from.x, from.y, from.z, to.x, to.y, to.z)
+    }
+    lines.setAttribute('position', new BufferAttribute(new Float32Array(linePositions), 3))
+    const material = new LineBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0.9 })
+    const segments = new LineSegments(lines, material)
+    segments.renderOrder = 9
+    anchorDebugGroup.add(segments)
+  }
+
+  if (positions.length > 0) {
+    const geometry = new BufferGeometry()
+    geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3))
+    geometry.setAttribute('color', new BufferAttribute(new Float32Array(colors), 3))
+    const points = new Points(geometry, new PointsMaterial({ size: 7, sizeAttenuation: false, vertexColors: true }))
+    points.renderOrder = 10
+    anchorDebugGroup.add(points)
+  }
+
+  anchorDebugGroup.visible = anchorsVisible.value && (anchorDiffVisible.value || rejectedLinksVisible.value)
+  requestRender()
 }
 
 watch(showGeneratedAnchors, () => {
   void applyAnchorGraphVisibility()
+})
+
+watch(showDebugPanel, (value) => {
+  setDebugPanelVisible(value)
+})
+
+for (const reference of [bothAnchorGraphs, anchorDiffVisible, rejectedLinksVisible]) {
+  watch(reference, () => {
+    void applyAnchorGraphVisibility()
+  })
+}
+
+// the url may have enabled the generated graph (or both graphs) before the watchers existed
+if (showGeneratedAnchors.value || bothAnchorGraphs.value) {
+  void applyAnchorGraphVisibility()
+}
+
+watch(anchorsVisible, (value) => {
+  anchorDebugGroup.visible = value && (anchorDiffVisible.value || rejectedLinksVisible.value)
+  if (bothAnchorGraphs.value) {
+    generatedAnchorsGroup.visible = value
+  }
 })
 
 
@@ -1751,7 +2008,29 @@ renderer.autoClear = false
  * so a DOM overlay was missing from the saved picture. The text is rendered by a 2d context, which
  * gives the same look as the old `#camera-info` div.
  */
+const HUD_PADDING = 4
+const HUD_MARGIN = 8
+const HUD_LINE_HEIGHT = 17
+const HUD_FONT = '12px monospace'
+const HUD_PENCIL_FONT = '12px monospace'
+const HUD_PENCIL_COLOR = '#8b8080'
+const HUD_BACKGROUND = 'rgba(0, 0, 0, 0.55)'
+/** the whole block: the two lines and the pencil strip on the right */
+const HUD_CANVAS_WIDTH = 380
+const HUD_CANVAS_HEIGHT = 2 * HUD_LINE_HEIGHT + HUD_PADDING * 2
+const HUD_PENCIL_STRIP_WIDTH = 18
+const HUD_PENCIL_BACKGROUND = 'rgba(255, 255, 255, 0.06)'
+const HUD_PENCIL_HOVER_COLOR = '#595151'
+/** the pencil is only highlighted while the pointer is over the block and the pointer is not locked */
+let hudPencilHighlighted = false
+/** the pencil is only drawn while the pointer is over the canvas (and the pointer is not locked) */
+let hudPencilVisible = false
+/** forces the next `updateCameraInfo` to redraw even when the text did not change */
+let hudForceRedraw = false
+
 const hudCanvas = document.createElement('canvas')
+hudCanvas.width = HUD_CANVAS_WIDTH
+hudCanvas.height = HUD_CANVAS_HEIGHT
 const hudContext = hudCanvas.getContext('2d') as CanvasRenderingContext2D
 const hudTexture = new CanvasTexture(hudCanvas)
 const hudSprite = new Sprite(
@@ -1762,11 +2041,6 @@ hudScene.add(hudSprite)
 /** pixel space, y up (the renderer's drawing buffer is in css pixels here) */
 const hudCamera = new OrthographicCamera(0, 1, 1, 0, -10, 10)
 
-const HUD_PADDING = 4
-const HUD_MARGIN = 8
-const HUD_LINE_HEIGHT = 17
-const HUD_FONT = '12px monospace'
-const HUD_BACKGROUND = 'rgba(0, 0, 0, 0.55)'
 
 /** the last text of the overlay, so the texture is only redrawn when something changed */
 let hudText = ''
@@ -1787,28 +2061,41 @@ function updateHudLayout(): void {
   hudSprite.position.set(HUD_MARGIN + width / 2, bufferHeight - HUD_MARGIN - height / 2, 0)
 }
 
-/** draws the two lines of the overlay into the hud canvas (the sprite shows it) */
+/**
+ * Draws the two lines of the overlay into the hud canvas (the sprite shows it).
+ *
+ * The canvas has a **fixed size**: resizing it re-allocates the texture, and the re-upload of a
+ * resized canvas texture did not always reach the sprite (the numbers stayed stale until the next
+ * resize). A constant size plus `clearRect` is both simpler and reliable.
+ */
 function drawHud(lines: string[]): void {
-  hudContext.font = HUD_FONT
-
-  const textWidth = Math.max(...lines.map((line) => hudContext.measureText(line).width))
-  hudCanvas.width = Math.ceil(textWidth + HUD_PADDING * 2)
-  hudCanvas.height = lines.length * HUD_LINE_HEIGHT + HUD_PADDING * 2
-
-  // the context resets when the canvas is resized
+  hudContext.clearRect(0, 0, HUD_CANVAS_WIDTH, HUD_CANVAS_HEIGHT)
   hudContext.font = HUD_FONT
   hudContext.textBaseline = 'middle'
 
   hudContext.fillStyle = HUD_BACKGROUND
   hudContext.beginPath()
-  hudContext.roundRect(0, 0, hudCanvas.width, hudCanvas.height, 3)
+  hudContext.roundRect(0, 0, HUD_CANVAS_WIDTH, HUD_CANVAS_HEIGHT, 3)
   hudContext.fill()
 
-  hudContext.fillStyle = 'white'
+  // the pencil sits on the right edge of the block and spans it vertically; it shows that the
+  // overlay is clickable (it opens the camera dialog). It appears on hover and lights up over the
+  // strip itself.
+  if (hudPencilVisible) {
+    hudContext.fillStyle = hudPencilHighlighted ? HUD_PENCIL_HOVER_COLOR : HUD_PENCIL_BACKGROUND
+    hudContext.fillRect(HUD_CANVAS_WIDTH - HUD_PENCIL_STRIP_WIDTH, 1, HUD_PENCIL_STRIP_WIDTH - 1, HUD_CANVAS_HEIGHT - 2)
+  }
 
+  hudContext.fillStyle = 'white'
   lines.forEach((line, index) => {
     hudContext.fillText(line, HUD_PADDING, HUD_PADDING + HUD_LINE_HEIGHT * (index + 0.5))
   })
+
+  if (hudPencilVisible) {
+    hudContext.fillStyle = hudPencilHighlighted ? '#ffffff' : HUD_PENCIL_COLOR
+    hudContext.font = HUD_PENCIL_FONT
+    hudContext.fillText('✎', HUD_CANVAS_WIDTH - HUD_PENCIL_STRIP_WIDTH + 4, HUD_CANVAS_HEIGHT / 2 - 4)
+  }
 
   hudTexture.needsUpdate = true
   updateHudLayout()
@@ -1918,15 +2205,16 @@ function updateCameraInfo(): void {
   const position = threePositionToGamePosition(camera.position)
   const { yaw, pitch } = getGameAngleOfCamera()
   const text = [
-    `position ${position.x.toFixed(2)} ${position.y.toFixed(2)} ${position.z.toFixed(2)}`,
-    `rotation ${pitch.toFixed(2)} ${yaw.toFixed(2)} 0.00`,
+    `position  ${position.x.toFixed(2)}  ${position.y.toFixed(2)}  ${position.z.toFixed(2)}`,
+    `rotation  ${pitch.toFixed(2)}  ${yaw.toFixed(2)}  0.00`,
   ].join('\n')
 
-  if (text === hudText) {
+  if (text === hudText && !hudForceRedraw) {
     return
   }
 
   hudText = text
+  hudForceRedraw = false
   drawHud(text.split('\n'))
 }
 
@@ -1967,6 +2255,30 @@ function updateCameraUrl(): void {
 
   globalThis.history.replaceState(globalThis.history.state, '', url)
   lastCameraUrl = url
+}
+
+/**
+ * Writes the visibility switches into the url, so a reload (or a test) opens the same view:
+ * `meshVisible`, `wireframeVisible`, `anchorsVisible`, `portalsVisible`, `lightsVisible`.
+ */
+function setUrlParameter(name: string, value: string): void {
+  const params = new URLSearchParams(globalThis.location.search)
+  params.set(name, value)
+
+  const search = params.toString().replaceAll('%2C', ',')
+  const url = `${globalThis.location.pathname}?${search}${globalThis.location.hash}`
+
+  if (url === globalThis.location.pathname + globalThis.location.search + globalThis.location.hash) {
+    return
+  }
+
+  globalThis.history.replaceState(globalThis.history.state, '', url)
+}
+
+for (const [name, reference] of searchParamSwitches) {
+  watch(reference, (value) => {
+    setUrlParameter(name, String(value))
+  })
 }
 
 watch(cameraInfoVisible, (value) => {
@@ -2727,6 +3039,9 @@ function render(): void {
 
   controls.update(delta)
 
+  // the hud must match the frame being drawn: `updateCameraUrl` is throttled, so the text is updated
+  // here as well (a string compare, so it is cheap)
+  updateCameraInfo()
   updateCameraUrl()
 
   renderer.clear()
@@ -2824,6 +3139,87 @@ function animate(): void {
 
 requestRender()
 cameraLight.position.set(camera.position.x, camera.position.y, camera.position.z)
+
+/**
+ * The automation surface of the editor: a test (playwright) can set the camera, enable the
+ * overlays and read the generated graph as JSON, without clicking the ui.
+ */
+interface EditorAutomation {
+  setCamera: (positionAt: string, angle: string) => boolean
+  getCamera: () => { positionAt: string; angle: string }
+  setSwitch: (name: string, value: boolean) => boolean
+  ensureAnchorGraph: () => Promise<{ anchors: number; links: number; components: number; stats: Record<string, unknown> } | undefined>
+  getAnchorGraph: () => { anchors: Array<{ x: number; y: number; z: number; linked: number[] }> } | undefined
+  hideUi: (hidden: boolean) => void
+}
+
+const switchedRefs: Record<string, Ref<boolean>> = Object.fromEntries(searchParamSwitches)
+
+const automation: EditorAutomation = {
+  setCamera: (positionAt, angle) => {
+    const position = parseNumberTuple(positionAt, 3)
+    const rotation = parseNumberTuple(angle, 3)
+
+    if (position === undefined || rotation === undefined) {
+      return false
+    }
+
+    camera.position.copy(gamePositionToThreePosition(position[0], position[1], position[2]))
+    setCameraAngleFromGameAngle(rotation[0], rotation[1])
+
+    updateCameraInfo()
+    updateCameraUrl()
+    requestRender()
+    return true
+  },
+  getCamera: () => getCameraDebugState(),
+  setSwitch: (name, value) => {
+    const reference = switchedRefs[name]
+    if (reference === undefined) {
+      return false
+    }
+    reference.value = value
+    return true
+  },
+  ensureAnchorGraph: async () => {
+    const graph = await ensureAnchorGraph()
+    const links = graph.anchors.reduce((sum, anchor) => sum + anchor.linkedAnchors.length, 0) / 2
+    const sizes = new Map<number, number>()
+    const parent = graph.anchors.map((_, index) => index)
+    const find = (index: number): number => (parent[index] === index ? index : (parent[index] = find(parent[index])))
+    for (const [index, anchor] of graph.anchors.entries()) {
+      for (const linked of anchor.linkedAnchors) {
+        parent[find(index)] = find(linked)
+      }
+    }
+    graph.anchors.forEach((_, index) => {
+      const root = find(index)
+      sizes.set(root, (sizes.get(root) ?? 0) + 1)
+    })
+    return { anchors: graph.anchors.length, links, components: sizes.size, stats: anchorGraphStats ?? {} }
+  },
+  getAnchorGraph: () => {
+    if (anchorGraph === undefined) {
+      return undefined
+    }
+    return {
+      anchors: anchorGraph.anchors.map((anchor) => {
+        return {
+          x: Number(anchor.position.x.toFixed(2)),
+          y: Number(anchor.position.y.toFixed(2)),
+          z: Number(anchor.position.z.toFixed(2)),
+          linked: anchor.linkedAnchors,
+        }
+      }),
+    }
+  },
+  hideUi: (hidden) => {
+    document.body.classList.toggle('hide-ui', hidden)
+    requestRender()
+  },
+}
+
+;(globalThis as { __arxEditor?: EditorAutomation }).__arxEditor = automation
 
 function onKeyDown(event: KeyboardEvent): void {
   if (event.code === 'F2') {
@@ -2944,6 +3340,125 @@ document.addEventListener(
   },
   false,
 )
+
+/** true when the css coordinates are inside the position/rotation block */
+function isOverHud(x: number, y: number): boolean {
+  return x >= HUD_MARGIN && x <= HUD_MARGIN + HUD_CANVAS_WIDTH && y >= HUD_MARGIN && y <= HUD_MARGIN + HUD_CANVAS_HEIGHT
+}
+
+canvas.addEventListener('pointermove', (event) => {
+  const rect = canvas.getBoundingClientRect()
+  const x = event.clientX - rect.left
+  const y = event.clientY - rect.top
+
+  const visible = !controls.isLocked
+  const highlighted = visible && isOverHud(x, y) && x >= HUD_MARGIN + HUD_CANVAS_WIDTH - HUD_PENCIL_STRIP_WIDTH
+
+  if (visible === hudPencilVisible && highlighted === hudPencilHighlighted) {
+    return
+  }
+
+  hudPencilVisible = visible
+  hudPencilHighlighted = highlighted
+  hudForceRedraw = true
+  updateCameraInfo()
+})
+
+canvas.addEventListener('pointerleave', () => {
+  if (!hudPencilVisible && !hudPencilHighlighted) {
+    return
+  }
+
+  hudPencilVisible = false
+  hudPencilHighlighted = false
+  hudForceRedraw = true
+  updateCameraInfo()
+})
+
+/**
+ * A click on the position/rotation overlay opens the camera dialog instead of locking the pointer:
+ * the overlay is drawn into the canvas, so the hit test uses the hud canvas' size in css pixels
+ * (the renderer works in css pixel units here).
+ */
+canvas.addEventListener(
+  'click',
+  (event) => {
+    const rect = canvas.getBoundingClientRect()
+    const x = event.clientX - rect.left
+    const y = event.clientY - rect.top
+
+    const insideHud =
+      x >= HUD_MARGIN &&
+      x <= HUD_MARGIN + hudCanvas.width &&
+      y >= HUD_MARGIN &&
+      y <= HUD_MARGIN + hudCanvas.height
+
+    if (!insideHud) {
+      return
+    }
+
+    event.preventDefault()
+    event.stopPropagation()
+
+    const position = threePositionToGamePosition(camera.position)
+    const { yaw, pitch } = getGameAngleOfCamera()
+
+    openCameraDialog({ position, angle: { pitch, yaw, roll: 0 } })
+  },
+  true,
+)
+
+/**
+ * Fits the camera to the anchor graph of the level (the one being shown): a plan view from above,
+ * and two horizontal views. The graph is in game coordinates; up is -Y, so "above" is a smaller y.
+ */
+alignCameraTo.value = (mode) => {
+  const anchors = showGeneratedAnchors.value && anchorGraph !== undefined ? anchorGraph.anchors : originalAnchorGraph
+
+  if (anchors.length === 0) {
+    return
+  }
+
+  const xs = anchors.map((anchor) => anchor.position.x)
+  const ys = anchors.map((anchor) => anchor.position.y)
+  const zs = anchors.map((anchor) => anchor.position.z)
+
+  const center = {
+    x: (Math.min(...xs) + Math.max(...xs)) / 2,
+    y: (Math.min(...ys) + Math.max(...ys)) / 2,
+    z: (Math.min(...zs) + Math.max(...zs)) / 2,
+  }
+
+  const size = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs))
+  const distance = Math.max(400, size * 0.7)
+
+  const views: Record<'top' | 'front' | 'left', { position: { x: number; y: number; z: number }; angle: { pitch: number; yaw: number; roll: number } }> = {
+    top: { position: { ...center, y: center.y - distance }, angle: { pitch: 90, yaw: 0, roll: 0 } },
+    front: { position: { ...center, z: center.z - distance }, angle: { pitch: 0, yaw: 0, roll: 0 } },
+    left: { position: { ...center, x: center.x - distance }, angle: { pitch: 0, yaw: 90, roll: 0 } },
+  }
+
+  const view = views[mode]
+
+  camera.position.copy(gamePositionToThreePosition(view.position.x, view.position.y, view.position.z))
+  setCameraAngleFromGameAngle(view.angle.pitch, view.angle.yaw)
+
+  // the dialog shows the new values
+  openCameraDialog({ position: view.position, angle: view.angle })
+
+  updateCameraInfo()
+  updateCameraUrl()
+  requestRender()
+}
+
+applyCameraValues.value = ({ position, angle }) => {
+  camera.position.copy(gamePositionToThreePosition(position.x, position.y, position.z))
+  setCameraAngleFromGameAngle(angle.pitch, angle.yaw)
+
+  updateCameraInfo()
+  updateCameraUrl()
+  requestRender()
+}
 
 canvas.addEventListener('click', () => {
   controls.lock()

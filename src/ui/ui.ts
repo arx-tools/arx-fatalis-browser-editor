@@ -147,6 +147,16 @@ export const cameraInfoVisible = ref(true)
 // ------------
 
 export const anchorsVisible = ref(false)
+/** show the *generated* anchor graph instead of the one that came with the file (cached) */
+export const showGeneratedAnchors = ref(false)
+/** show the file's graph and the generated one at the same time (green + cyan) */
+export const bothAnchorGraphs = ref(false)
+/** the F2 payload panel (the same switch as the F2 hotkey) */
+export const showDebugPanel = ref(false)
+/** dots where the two graphs differ (red: only in the file's graph, blue: only in the generated one) */
+export const anchorDiffVisible = ref(false)
+/** the links the generator repaired / filled in (yellow) */
+export const rejectedLinksVisible = ref(false)
 export const portalsVisible = ref(false)
 export const lightsVisible = ref(false)
 

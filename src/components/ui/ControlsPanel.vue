@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import {
   anchorsVisible,
+  anchorDiffVisible,
+  bothAnchorGraphs,
   ambientFloor,
   isComputingAnchors,
   isComputingLighting,
@@ -8,7 +10,10 @@ import {
   lightsVisible,
   meshVisible,
   portalsVisible,
+  rejectedLinksVisible,
   shadows,
+  showDebugPanel,
+  showGeneratedAnchors,
   wireframeVisible,
 } from '../../ui/ui'
 import LightingSettings from './LightingSettings.vue'
@@ -20,7 +25,7 @@ import ToggleSwitch from './ToggleSwitch.vue'
     <div class="toggles">
       <ToggleSwitch v-model="meshVisible" label="Mesh" hotkey="M" />
       <ToggleSwitch v-model="wireframeVisible" label="Wireframe" hotkey="X" />
-      <ToggleSwitch v-model="anchorsVisible" :label="isComputingAnchors ? 'Anchors…' : 'Anchors'" hotkey="J" />
+      <ToggleSwitch v-model="anchorsVisible" label="Anchors" hotkey="J" :status="true" :busy="isComputingAnchors" />
       <ToggleSwitch v-model="portalsVisible" label="Portals" hotkey="K" />
       <ToggleSwitch v-model="lightsVisible" label="Lights" hotkey="L" />
     </div>
@@ -33,9 +38,58 @@ import ToggleSwitch from './ToggleSwitch.vue'
         v-model:shadows="shadows"
         :computing="isComputingLighting"
       />
+
+      <label class="generated-anchors">
+        <span>Use auto-generated anchors</span>
+        <input v-model="showGeneratedAnchors" type="checkbox" />
+      </label>
+    </div>
+
+    <div class="settings">
+      <h3>Debug</h3>
+      <label class="generated-anchors">
+        <span>Both anchor graphs</span>
+        <input v-model="bothAnchorGraphs" type="checkbox" />
+      </label>
+      <label class="generated-anchors">
+        <span>Anchor diff</span>
+        <input v-model="anchorDiffVisible" type="checkbox" />
+      </label>
+      <label class="generated-anchors">
+        <span>Repaired links</span>
+        <input v-model="rejectedLinksVisible" type="checkbox" />
+      </label>
+      <label class="generated-anchors">
+        <span>Show debug panel</span>
+        <input v-model="showDebugPanel" type="checkbox" />
+        <span class="hint">(hotkey F2)</span>
+      </label>
     </div>
   </div>
 </template>
+
+<style scoped lang="scss">
+.generated-anchors {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.hint {
+  color: #8b8080;
+  font-weight: normal;
+}
+
+.generated-anchors input {
+  margin: 0;
+  cursor: pointer;
+}
+</style>
 
 <style scoped lang="scss">
 .controls {

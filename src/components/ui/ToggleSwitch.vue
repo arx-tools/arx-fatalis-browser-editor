@@ -4,6 +4,10 @@ defineProps<{
   label: string
   hotkey?: string
   disabled?: boolean
+  /** draw the fixed width status slot (green check / spinning throbber) before the label */
+  status?: boolean
+  /** the worker is running: the slot shows a throbber instead of the check */
+  busy?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -20,6 +24,10 @@ const emit = defineEmits<{
     :aria-pressed="modelValue"
     @click="emit('update:modelValue', !modelValue)"
   >
+    <span v-if="status" class="indicator">
+      <span v-if="busy" class="throbber" />
+      <span v-else class="check">✓</span>
+    </span>
     <span class="label">{{ label }}</span>
     <span v-if="hotkey" class="hotkey">[{{ hotkey }}]</span>
   </button>
@@ -27,6 +35,44 @@ const emit = defineEmits<{
 
 <style scoped lang="scss">
 /* the same look as the level buttons of the header: dark, rounded, gold when active */
+.indicator {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 11px;
+  height: 11px;
+  box-sizing: border-box;
+}
+
+.check {
+  color: #35d84a;
+  font-size: 12px;
+  line-height: 1;
+}
+
+/* on the gold (active) button the green would disappear: inherit the button's text colour */
+.toggle-switch.active .check {
+  color: currentColor;
+}
+
+.throbber {
+  box-sizing: border-box;
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: toggle-switch-spin 0.7s linear infinite;
+}
+
+@keyframes toggle-switch-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .toggle-switch {
   display: inline-flex;
   align-items: center;

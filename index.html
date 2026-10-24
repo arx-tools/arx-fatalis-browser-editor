@@ -12,6 +12,15 @@
       crossorigin="anonymous"
       referrerpolicy="no-referrer"
     />
+    <!-- cookieless pageviews: the Noden Gaming GoatCounter site, under the /arx prefix (the same as
+         the arx-tools.github.io pages); localhost is not counted. Kept on one line, the build does
+         not minify the inline scripts of index.html -->
+    <script>window.goatcounter={path:function(p){return'/arx'+p}}</script>
+    <script
+      data-goatcounter="https://noden-gaming.goatcounter.com/count"
+      async
+      src="https://gc.zgo.at/count.js"
+    ></script>
   </head>
   <body>
     <div id="app"></div>

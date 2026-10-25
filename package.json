@@ -14,6 +14,7 @@
     "lint": "rm -f xo.config.mjs && xo --ignore 'xo.config.mjs'",
     "lint:watch": "nodemon --watch src --watch tests --watch xo.config.ts --watch vite.config.ts --exec \"npm run lint\" --ext ts,vue",
     "test": "arx-lib-test",
+    "test:coverage": "node --test --experimental-test-coverage --test-reporter=spec 'tests/**/*.spec.ts'",
     "typecheck": "vue-tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.node.json && tsc -p tsconfig.tests.json && vue-tsc -p tsconfig.json --noEmit"
   },
   "repository": {

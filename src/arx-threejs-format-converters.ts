@@ -3,8 +3,36 @@ import { isQuad } from 'arx-convert/utils'
 import { BufferAttribute, BufferGeometry, type Material, Mesh, Vector2, Vector3 } from 'three'
 import { MeshBVH } from 'three-mesh-bvh'
 
+/**
+ * Converts one sRGB encoded channel value into linear light, the inverse of the sRGB transfer
+ * function of `IEC 61966-2-1`. Up to `0.040_45` the values are encoded linearly (with the `12.92`
+ * slope), above it with a displaced power law (`0.055`, `1.055` and `2.4`) - the slope keeps the two
+ * segments continuous at the breakpoint.
+ *
+ * The editor needs the conversion because the LLF palette and the texture colors are sRGB values,
+ * while three.js multiplies the lights in the linear space and encodes the output back to sRGB.
+ * Without it the level looked about 1.7 times brighter than the game.
+ *
+ * @example
+ * ```ts
+ * srgbToLinear(0) === 0
+ * srgbToLinear(0.040_45) === 0.003_130_804_953_560_371_3 // the breakpoint, where the linear part ends
+ * srgbToLinear(0.5) === 0.214_041_140_482_232_55
+ * srgbToLinear(1) === 1
+ * ```
+ *
+ * @see https://en.wikipedia.org/wiki/SRGB#Transfer_function_(%22gamma%22)
+ * @see https://github.com/mrdoob/three.js/blob/dev/src/math/ColorManagement.js
+ *
+ * @param value The sRGB channel value, normally between `0` and `1`.
+ * @returns The linear channel value.
+ */
 export function srgbToLinear(value: number): number {
-  return value <= 0.04045 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4)
+  if (value <= 0.040_45) {
+    return value / 12.92
+  }
+
+  return ((value + 0.055) / 1.055) ** 2.4
 }
 
 function arxCoordinateToThreejsCoordinate(vector: Vector3): Vector3 {
@@ -18,14 +46,14 @@ export function arxVector3toVector3({ x, y, z }: ArxVector3): Vector3 {
 /**
  * Converts arx polygons into a three.js mesh.
  *
+ * @remarks
  * When `llfColors` is given, the mesh also gets two color attributes:
- *
  * - `color`: the **albedo** of the texture of the polygon (the flat/average color of the game's
- *   texture, from `flatColors`, keyed by the polygon's `textureContainerId`) - this is what the
- *   dynamic point lights multiply in the `dynamic` mode,
+ * texture, from `flatColors`, keyed by the polygon's `textureContainerId`) - this is what the
+ * dynamic point lights multiply in the `dynamic` mode
  * - `baked`: the **final baked color** - the pre-computed LLF vertex lighting multiplied by the
- *   albedo. That is what the game renders for the static geometry, so the `baked`/`dynamic`
- *   materials add this attribute to the output (the light is already in the vertices).
+ * albedo. That is what the game renders for the static geometry, so the `baked`/`dynamic` materials
+ * add this attribute to the output (the light is already in the vertices)
  *
  * Both attributes are in the three.js **linear** color space (the LLF palette and the texture
  * average are sRGB, the renderer encodes the output back to sRGB).
@@ -43,7 +71,7 @@ export function arxPolygonsToMesh(
   const colors: number[] = []
   const albedoColors: number[] = []
 
-  polygons.forEach((polygonData) => {
+  for (const polygonData of polygons) {
     const [a, b, c, d] = polygonData.vertices.map(({ x, y, z }) => {
       return arxVector3toVector3({ x, y, z }).sub(offset).toArray()
     })
@@ -104,7 +132,7 @@ export function arxPolygonsToMesh(
         albedoColors.push(...albedoColors.slice(-9))
       }
     }
-  })
+  }
 
   const geometry = new BufferGeometry()
   geometry.setAttribute('position', new BufferAttribute(new Float32Array(vertices), 3))

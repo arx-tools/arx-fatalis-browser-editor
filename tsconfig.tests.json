@@ -1,0 +1,14 @@
+{
+  "extends": "@vue/tsconfig/tsconfig.json",
+  "compilerOptions": {
+    // the tests run through node's type stripping and the built-in test runner, they need the node
+    // globals (`node:test`, `Buffer`) and they are never emitted
+    "types": ["node"],
+    "noEmit": true,
+    "incremental": false,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.tests.tsbuildinfo",
+    // type stripping only accepts erasable syntax, so the tests can not use enums or namespaces
+    "erasableSyntaxOnly": true
+  },
+  "include": ["tests/**/*"]
+}

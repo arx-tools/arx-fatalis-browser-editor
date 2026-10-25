@@ -11,9 +11,13 @@
 import { generateAnchors, type AnchorGeneratorOptions, type GeneratedAnchor } from './anchor-generator.js'
 
 export type AnchorWorkerRequest = {
-  /** 4 vertices per polygon, 3 floats each (x, y, z) - the 4th is ignored for triangles */
+  /**
+   * 4 vertices per polygon, 3 floats each (x, y, z) - the 4th is ignored for triangles.
+   */
   positions: Float32Array
-  /** 3 floats per polygon */
+  /**
+   * 3 floats per polygon.
+   */
   normals: Float32Array
   flags: Uint32Array
   areas: Float32Array
@@ -21,10 +25,16 @@ export type AnchorWorkerRequest = {
 }
 
 export type AnchorWorkerResponse =
-  | { ok: true; anchors: GeneratedAnchor[]; cellAnchors: Array<[number, number[]]>; version?: number; stats?: Record<string, unknown> }
+  | {
+      ok: true
+      anchors: GeneratedAnchor[]
+      cellAnchors: Array<[number, number[]]>
+      version?: number
+      stats?: Record<string, unknown>
+    }
   | { ok: false; message: string }
 
-self.onmessage = (event: MessageEvent<AnchorWorkerRequest>) => {
+globalThis.addEventListener('message', (event: MessageEvent<AnchorWorkerRequest>): void => {
   try {
     const { positions, normals, flags, areas, options } = event.data
     const polygons = []
@@ -33,7 +43,8 @@ self.onmessage = (event: MessageEvent<AnchorWorkerRequest>) => {
       const vertexOffset = index * 12
       const normalOffset = index * 3
       const vertices = [0, 1, 2, 3].map((vertex) => {
-        const offset = vertexOffset + vertex * 3
+        const vertexStart = vertex * 3
+        const offset = vertexOffset + vertexStart
 
         return { x: positions[offset], y: positions[offset + 1], z: positions[offset + 2] }
       })
@@ -48,14 +59,24 @@ self.onmessage = (event: MessageEvent<AnchorWorkerRequest>) => {
 
     const result = generateAnchors(polygons, options)
 
-    self.postMessage({
+    globalThis.postMessage({
       ok: true,
       version: result.stats?.generatorVersion as number | undefined,
-      stats: result.stats as Record<string, unknown>,
+      stats: result.stats,
       anchors: result.anchors,
       cellAnchors: [...result.cellAnchors],
     } satisfies AnchorWorkerResponse)
   } catch (error) {
-    self.postMessage({ ok: false, message: error instanceof Error ? error.message : String(error) } satisfies AnchorWorkerResponse)
+    let message: string
+    if (error instanceof Error) {
+      message = error.message
+    } else {
+      message = String(error)
+    }
+
+    globalThis.postMessage({
+      ok: false,
+      message,
+    } satisfies AnchorWorkerResponse)
   }
-}
+})

@@ -1,11 +1,13 @@
 import { getCellCoords, isQuad, MAP_WIDTH_IN_CELLS } from 'arx-convert/utils'
 import type { Mesh } from 'three'
+import type { ArxColor, ArxEPData, ArxFTS, ArxLLF, ArxPolygon } from 'arx-convert/types'
 import { bakeLlfColors, type LightingCalculatorMode } from './lighting/bake.js'
 import { publishAnchorDebugPayload } from './generator/anchor-debug.js'
-import { ANCHOR_DEFAULTS, generateAnchors, validateAnchors, type AnchorGeneratorOptions } from './generator/anchor-generator.js'
-import type { ArxColor, ArxEPData, ArxFTS, ArxLLF, ArxPolygon } from 'arx-convert/types'
+import { generateAnchors, validateAnchors, type AnchorGeneratorOptions } from './generator/anchor-generator.js'
 
-/** a generated anchor graph (the worker's result, see `src/generator/anchor-worker.ts`) */
+/**
+ * A generated anchor graph (the worker's result, see `src/generator/anchor-worker.ts`).
+ */
 export type AnchorGraph = {
   anchors: Array<{ position: { x: number; y: number; z: number }; linkedAnchors: number[] }>
   cellAnchors: Map<number, number[]>
@@ -13,8 +15,33 @@ export type AnchorGraph = {
 
 export type SourcePolygon = {
   polygon: ArxPolygon
-  /** the index of the polygon in the original `fts.polygons` array */
+  /**
+   * The index of the polygon in the original `fts.polygons` array.
+   */
   sourceIndex: number
+}
+
+/**
+ * The number of triangles a polygon is exported as: one per polygon, plus a second one for a quad.
+ */
+function getTriangleCount(polygon: ArxPolygon): number {
+  if (isQuad(polygon)) {
+    return 2
+  }
+
+  return 1
+}
+
+/**
+ * The number of vertices a polygon has in the LLF palette: one per polygon vertex, plus the 4th one
+ * for a quad.
+ */
+function getVertexCount(polygon: ArxPolygon): number {
+  if (isQuad(polygon)) {
+    return 4
+  }
+
+  return 3
 }
 
 /**
@@ -22,10 +49,12 @@ export type SourcePolygon = {
  * one triangle per polygon, plus a second one for quads, in the order of the polygons, so the
  * triangle index of a face is `face.a / 3` (the geometry is not indexed).
  */
-export function buildTriangleToPolygonMap(entries: ReadonlyArray<SourcePolygon>): Uint32Array {
-  const triangles = entries.reduce((count, { polygon }) => {
-    return count + (isQuad(polygon) ? 2 : 1)
-  }, 0)
+export function buildTriangleToPolygonMap(entries: readonly SourcePolygon[]): Uint32Array {
+  let triangles = 0
+
+  for (const { polygon } of entries) {
+    triangles = triangles + getTriangleCount(polygon)
+  }
 
   const map = new Uint32Array(triangles)
   let triangleIndex = 0
@@ -47,26 +76,31 @@ export function buildTriangleToPolygonMap(entries: ReadonlyArray<SourcePolygon>)
  * M1 export: keeps the polygons that have not been deleted and rebuilds the data that references
  * them by index.
  *
+ * @remarks
  * - `getCellCoords()` is the same function `FTS.save()` uses, so the `(cellX, cellY, polygonIdx)`
- *   room references below point into the cells the save is going to write;
- * - a portal is kept only when both of its rooms still exist (`room <= max room id`), and the
- *   room portal indices are remapped;
+ * room references below point into the cells the save is going to write
+ * - a portal is kept only when both of its rooms still exist (`room <= max room id`), and the room
+ * portal indices are remapped
  * - `roomDistances` is the sound distance cache: `-1` means "use the true distance", so the export
- *   can simply write `-1` for every room pair;
- * - the anchors, texture containers and unique headers are kept as they are.
+ * can simply write `-1` for every room pair
+ * - the anchors, texture containers and unique headers are kept as they are
+ *
+ * @throws `Error` when the level has no polygon left after the deletion.
  */
 export function buildExportFts(fts: ArxFTS, deletedPolygons: ReadonlySet<number>): ArxFTS {
   const surviving: SourcePolygon[] = []
 
-  fts.polygons.forEach((polygon, sourceIndex) => {
+  for (const [sourceIndex, polygon] of fts.polygons.entries()) {
     if (!deletedPolygons.has(sourceIndex)) {
       surviving.push({ polygon, sourceIndex })
     }
-  })
+  }
 
-  const maxRoomId = surviving.reduce((max, { polygon }) => {
-    return Math.max(max, polygon.room)
-  }, 0)
+  let maxRoomId = 0
+
+  for (const { polygon } of surviving) {
+    maxRoomId = Math.max(maxRoomId, polygon.room)
+  }
 
   if (maxRoomId === 0) {
     throw new Error('cannot export a level without any polygon')
@@ -83,7 +117,8 @@ export function buildExportFts(fts: ArxFTS, deletedPolygons: ReadonlySet<number>
 
   for (const { polygon } of surviving) {
     const [cellX, cellY] = getCellCoords(polygon.vertices)
-    const cellKey = cellY * MAP_WIDTH_IN_CELLS + cellX
+    const cellRowOffset = cellY * MAP_WIDTH_IN_CELLS
+    const cellKey = cellRowOffset + cellX
     const polygonIdx = cellPolygonIndices.get(cellKey) ?? 0
     cellPolygonIndices.set(cellKey, polygonIdx + 1)
 
@@ -124,18 +159,24 @@ export function buildExportFts(fts: ArxFTS, deletedPolygons: ReadonlySet<number>
 
   return {
     ...fts,
-    polygons: surviving.map(({ polygon }) => polygon),
+    polygons: surviving.map(({ polygon }) => {
+      return polygon
+    }),
     portals,
     rooms,
     roomDistances,
   }
 }
 
+/* eslint-disable max-params -- TODO: the parameter list is the subject of the pending export redesign (see the TODO in the doc below) */
 /**
  * The LLF palette is a flat array in the order of the FTS polygons: 3 colors per polygon vertex,
  * plus the 4th one for a quad (`arx-convert` adds the `llfColorIdx` indices this way on load). When
  * polygons are removed, the palette has to be filtered in the same order, otherwise the surviving
  * vertices get the colors of another polygon.
+ *
+ * TODO: the parameters of the export will become a single options object (and the light settings
+ * will be one nested value), the positional arguments are kept until that redesign.
  */
 export function buildExportLlf(
   fts: ArxFTS,
@@ -145,7 +186,9 @@ export function buildExportLlf(
   occluders: readonly Mesh[] = [],
   ambientFloor = 0,
   shadows = true,
-  /** an already computed palette (the caller can cache it between the display and the export) */
+  /**
+   * An already computed palette (the caller can cache it between the display and the export).
+   */
   precomputedColors?: ArxColor[],
 ): ArxLLF {
   if (llf.colors.length === 0) {
@@ -157,15 +200,15 @@ export function buildExportLlf(
   const bakedColors = precomputedColors ?? bakeLlfColors(fts, llf, mode, occluders, ambientFloor, shadows)
   const colors: ArxColor[] = []
 
-  fts.polygons.forEach((polygon, sourceIndex) => {
+  for (const [sourceIndex, polygon] of fts.polygons.entries()) {
     if (deletedPolygons.has(sourceIndex)) {
-      return
+      continue
     }
 
     const base = polygon.vertices[0].llfColorIdx ?? 0
-    const count = isQuad(polygon) ? 4 : 3
+    const numberOfVertices = getVertexCount(polygon)
 
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < numberOfVertices; i++) {
       const color = bakedColors[base + i]
 
       if (color === undefined) {
@@ -175,11 +218,11 @@ export function buildExportLlf(
         colors.push(color)
       }
     }
-  })
+  }
 
   return { ...llf, colors }
 }
-
+/* eslint-enable max-params */
 
 /**
  * Regenerates the pathfinding anchor graph of the exported level.
@@ -192,6 +235,8 @@ export function buildExportLlf(
  * The anchors are written in both places the FTS format keeps them: the `anchors` list and the
  * `anchors` array of every cell (the game walks the cells, the list is the index space the links
  * point into).
+ *
+ * @throws `Error` when the generated anchor graph contains a problem.
  */
 export function buildExportAnchors(
   fts: ArxFTS,
@@ -220,10 +265,14 @@ export function buildExportAnchors(
   const cells = fts.cells.map((cell, cellIndex) => {
     const anchorIndices = result.cellAnchors.get(cellIndex)
 
-    return anchorIndices === undefined ? { ...cell, anchors: undefined } : { ...cell, anchors: anchorIndices }
+    if (anchorIndices === undefined) {
+      return { ...cell, anchors: undefined }
+    }
+
+    return { ...cell, anchors: anchorIndices }
   })
 
   return { ...fts, anchors, cells }
 }
 
-export { ANCHOR_DEFAULTS }
+export { ANCHOR_DEFAULTS } from './generator/anchor-generator.js'

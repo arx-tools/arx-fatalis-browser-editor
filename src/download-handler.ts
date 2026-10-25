@@ -13,7 +13,9 @@ export function registerDownloadHandler(handler: DownloadHandler): void {
   openHandler = handler
 }
 
-/** the Download button of the header starts the export */
+/**
+ * The Download button of the header starts the export.
+ */
 export function handleDownloadButtonClick(): void {
   openHandler?.()
 }

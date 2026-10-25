@@ -8,7 +8,9 @@ import { computed, ref } from 'vue'
 const props = defineProps<{
   title: string
   closable?: boolean
-  /** the initial size, the panel is resizable */
+  /**
+   * The initial size, the panel is resizable.
+   */
   width?: number
   height?: number
 }>()
@@ -48,11 +50,25 @@ function onPointerUp(event: PointerEvent): void {
   ;(event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId)
 }
 
+/**
+ * Formats the optional fixed size of the panel as a css value.
+ *
+ * @param size The size in pixels, when the panel has a fixed one.
+ * @returns The css value, or undefined when the size is not set.
+ */
+function pixelSize(size: number | undefined): string | undefined {
+  if (size === undefined) {
+    return undefined
+  }
+
+  return `${size}px`
+}
+
 const style = computed(() => {
   return {
     transform: `translate(${offset.value.x}px, ${offset.value.y}px)`,
-    width: props.width === undefined ? undefined : `${props.width}px`,
-    height: props.height === undefined ? undefined : `${props.height}px`,
+    width: pixelSize(props.width),
+    height: pixelSize(props.height),
   }
 })
 </script>

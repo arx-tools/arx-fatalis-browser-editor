@@ -7,11 +7,15 @@ defineEmits<{
   (event: 'download'): void
 }>()
 
-/** Arx Fatalis does not have a level 9 - the button is an easter egg, it links to a video */
+/**
+ * Arx Fatalis does not have a level 9: the button is an easter egg that links to a video.
+ */
 const levelNineId = 9
 const levelNineUrl = 'https://www.youtube.com/watch?v=E4WlUXrJgy4'
 
-/** the level buttons in display order (0..8, the easter egg 9, 10..23) */
+/**
+ * The level buttons in display order (0..8, the easter egg 9, 10..23).
+ */
 const levelButtons = [...originalArxLevelIds.slice(0, 9), levelNineId, ...originalArxLevelIds.slice(9)]
 
 /**
@@ -19,6 +23,9 @@ const levelButtons = [...originalArxLevelIds.slice(0, 9), levelNineId, ...origin
  * the switch is a reload: it navigates to `?levelIdx=N` and leaves the camera state
  * (`positionAt`, `angle`) behind, because a coordinate of another level means nothing here. The
  * `?lightingCalculatorMode=` parameter is kept.
+ *
+ * @param levelId The level to link to.
+ * @returns The url of the level.
  */
 function levelHref(levelId: number): string {
   const params = new URLSearchParams(globalThis.location.search)
@@ -34,6 +41,9 @@ function levelHref(levelId: number): string {
  * The level buttons are real links, so the browser's own behaviour works (middle click, ctrl+click
  * open another editor in a new tab). A plain click is intercepted only when the mesh has unsaved
  * changes: a "saved" state does not exist yet (TODO 16), so ask before throwing the changes away.
+ *
+ * @param event The click event of the level link.
+ * @param levelId The level of the clicked link.
  */
 function onLevelClick(event: MouseEvent, levelId: number): void {
   if (levelId === currentLevelId.value) {
@@ -44,6 +54,7 @@ function onLevelClick(event: MouseEvent, levelId: number): void {
 
   if (
     isDirty.value &&
+    // eslint-disable-next-line no-alert -- the browser's confirm is the only confirmation dialog of the editor (TODO: an in-app one)
     !globalThis.confirm('Nem mentett módosítások vannak a pályán. Ha másik pályát töltesz be, elvesznek. Folytatod?')
   ) {
     event.preventDefault()

@@ -13,14 +13,17 @@ import { Color } from '../Color.js'
  * The stored vertex order is a "Z" (0, 1, 2, 3), the perimeter is 0-1-2 for a triangle and
  * 0-1-3-2 for a quad.
  */
-export function createPolygonWireframe(polygons: ReadonlyArray<ArxPolygon>, offset: Vector3): LineSegments {
+export function createPolygonWireframe(polygons: readonly ArxPolygon[], offset: Vector3): LineSegments {
   const positions: number[] = []
 
   for (const polygon of polygons) {
     const vertices = polygon.vertices.map((vertex) => {
       return arxVector3toVector3(vertex).sub(offset)
     })
-    const perimeter = isQuad(polygon) ? [0, 1, 3, 2] : [0, 1, 2]
+    let perimeter = [0, 1, 2]
+    if (isQuad(polygon)) {
+      perimeter = [0, 1, 3, 2]
+    }
 
     for (let i = 0; i < perimeter.length; i++) {
       const from = vertices[perimeter[i]]

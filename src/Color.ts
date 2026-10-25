@@ -17,7 +17,7 @@ export class Color {
    * For starters, everything that is available in CSS is supported.
    *
    * @see https://github.com/colorjs/color-parse
-   * @throws Error when parsing fails
+   * @throws Error when parsing fails.
    */
   static fromCSS(color: string): Color {
     const channels = rgba(color)
@@ -34,17 +34,17 @@ export class Color {
   }
 
   /**
-   * Creates a Color instance from the ArxColor data
+   * Creates a Color instance from the ArxColor data.
    */
   static fromArxColor({ r, g, b, a }: ArxColor): Color {
     return new Color(r, g, b, a)
   }
 
   /**
-   * Creates a Color instance from three.js' Color class
+   * Creates a Color instance from three.js' Color class.
    *
-   * Extra infos of three.js' Color class:
-   *
+   * @remarks
+   * Three.js' Color class has some differences which matter here:
    * - it doesn't support transparency/alpha channel
    * - every channel is a float with values ranging between 0.0 and 1.0
    */
@@ -85,46 +85,48 @@ export class Color {
   // ----------------
 
   /**
-   * red channel, a positive integer between `0` and `255` (inclusive)
+   * Red channel, a positive integer between `0` and `255` (inclusive).
    *
-   * `0` = minimum value, no amount of red in the color
+   * `0` = minimum value, no amount of red in the color.
    *
-   * `255` = maximum value, as much red as possible
+   * `255` = maximum value, as much red as possible.
    */
   r: number
 
   /**
-   * green channel, a positive integer between `0` and `255` (inclusive)
+   * Green channel, a positive integer between `0` and `255` (inclusive).
    *
-   * `0` = minimum value, no amount of green in the color
+   * `0` = minimum value, no amount of green in the color.
    *
-   * `255` = maximum value, as much green as possible
+   * `255` = maximum value, as much green as possible.
    */
   g: number
 
   /**
-   * blue channel, a positive integer between `0` and `255` (inclusive)
+   * Blue channel, a positive integer between `0` and `255` (inclusive).
    *
-   * `0` = minimum value, no amount of blue in the color
+   * `0` = minimum value, no amount of blue in the color.
    *
-   * `255` = maximum value, as much blue as possible
+   * `255` = maximum value, as much blue as possible.
    */
   b: number
 
   /**
-   * alpha channel, a floating point number between `0` and `1`
+   * Alpha channel, a floating point number between `0` and `1`.
    *
-   * `0` = fully transparent (`Alpha.Transparent`)
+   * `0` = fully transparent (`Alpha.Transparent`).
    *
-   * `1` = fully opaque (`Alpha.Opaque`)
+   * `1` = fully opaque (`Alpha.Opaque`).
    */
   a: number
 
   /**
-   * @param r red channel, a positive integer between `0` and `255` (inclusive)
-   * @param g green channel, a positive integer between `0` and `255` (inclusive)
-   * @param b blue channel, a positive integer between `0` and `255` (inclusive)
-   * @param a alpha channel, a floating point number between `0.0` (fully transparent) and `1.0` (fully opaque) - default value is `1.0`
+   * Creates a color from the four channel values.
+   *
+   * @param r Red channel, a positive integer between `0` and `255` (inclusive).
+   * @param g Green channel, a positive integer between `0` and `255` (inclusive).
+   * @param b Blue channel, a positive integer between `0` and `255` (inclusive).
+   * @param a Alpha channel, a floating point number between `0.0` (fully transparent) and `1.0` (fully opaque) - default value is `1.0`.
    */
   constructor(r: number, g: number, b: number, a: number = Alpha.Opaque) {
     this.r = r
@@ -154,9 +156,9 @@ export class Color {
 
   /**
    * Converts the color into a format that can be used by three.js.
-   * Alpha channels are ignored as they are handled separately in three.js
+   * Alpha channels are ignored as they are handled separately in three.js.
    *
-   * `{ r: 255, g: 127, b: 0 }` becomes `0xff7f00`
+   * `{ r: 255, g: 127, b: 0 }` becomes `0xff7f00`.
    *
    * @example
    *
@@ -169,7 +171,7 @@ export class Color {
   }
 
   /**
-   * Adds each channel of a color to the channels in this instance
+   * Adds each channel of a color to the channels in this instance.
    */
   add(color: Color): this {
     this.r = MathUtils.clamp(this.r + color.r, 0, 255)
@@ -180,7 +182,7 @@ export class Color {
   }
 
   /**
-   * Adds a fixed amount to every channel
+   * Adds a fixed amount to every channel.
    */
   addScalar(value: number): this {
     this.r = MathUtils.clamp(this.r + value, 0, 255)
@@ -191,7 +193,7 @@ export class Color {
   }
 
   /**
-   * Subtracts each channel of a color from the channels in this instance
+   * Subtracts each channel of a color from the channels in this instance.
    */
   sub(color: Color): this {
     this.r = MathUtils.clamp(this.r - color.r, 0, 255)
@@ -202,7 +204,7 @@ export class Color {
   }
 
   /**
-   * Subtracts a fixed amount from every channel
+   * Subtracts a fixed amount from every channel.
    */
   subScalar(value: number): this {
     this.r = MathUtils.clamp(this.r - value, 0, 255)
@@ -213,7 +215,7 @@ export class Color {
   }
 
   /**
-   * Multiplies each channel with a fixed amount
+   * Multiplies each channel with a fixed amount.
    */
   multiplyScalar(value: number): this {
     this.r = MathUtils.clamp(this.r * value, 0, 255)
@@ -224,14 +226,14 @@ export class Color {
   }
 
   /**
-   * Brightens the color by adding <percent>% of 256 to every channel
+   * Brightens the color by adding <percent>% of 256 to every channel.
    */
   lighten(percent: number): this {
     return this.addScalar(percentOf(percent, 255))
   }
 
   /**
-   * Darkens the color by subtracting <percent>% of 256 from every channel
+   * Darkens the color by subtracting <percent>% of 256 from every channel.
    */
   darken(percent: number): this {
     return this.subScalar(percentOf(percent, 255))

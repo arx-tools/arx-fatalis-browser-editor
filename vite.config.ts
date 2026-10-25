@@ -11,24 +11,23 @@ import { defineConfig, type Plugin } from 'vite'
  * "local".
  */
 function buildInfo(version: string): Plugin {
-  let commit = 'local'
-  if (process.env.GITHUB_SHA) {
-    commit = process.env.GITHUB_SHA.slice(0, 7)
-  }
-
+  const commit = process.env.GITHUB_SHA?.slice(0, 7) ?? 'local'
   const builtAt = new Date().toISOString().slice(0, 10)
   const text = `v${version} (${commit}, ${builtAt})`
 
   return {
     name: 'arx-build-info',
     transformIndexHtml(html: string): string {
-      return html.replace('<!-- build info -->', text)
+      // a replacer function, so the `$` patterns of the replacement are not expanded
+      return html.replace('<!-- build info -->', () => {
+        return text
+      })
     },
   }
 }
 
 export default defineConfig(async () => {
-  const packageJSON = JSON.parse(await readFile(new URL('package.json', import.meta.url), 'utf8')) as {
+  const packageJson = JSON.parse(await readFile(new URL('package.json', import.meta.url), 'utf8')) as {
     version: string
   }
 
@@ -38,7 +37,7 @@ export default defineConfig(async () => {
     // /editor/, and the hashed file names of the assets make the browser fetch a new one after
     // every build without any ?v= suffix.
     base: '/editor/',
-    plugins: [vue(), buildInfo(packageJSON.version)],
+    plugins: [vue(), buildInfo(packageJson.version)],
     clearScreen: false,
   }
 })

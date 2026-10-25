@@ -4,17 +4,17 @@
   "description": "A browser based editor for Arx Fatalis levels",
   "engines": {
     "npm": ">=10.1.0",
-    "node": ">=20.7.0"
+    "node": ">=22.18.0"
   },
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc -b && vite build",
+    "build": "npm run typecheck && vite build",
     "preview": "vite preview",
-    "lint": "xo",
-    "lint:watch": "nodemon --watch src --exec \"npm run lint\" --ext ts",
-    "test": "ts-mocha --import=@hyperse/ts-node/register src/**/*.spec.ts",
-    "test:watch": "nodemon --watch src --exec \"npm run test\" --ext ts"
+    "lint": "rm -f xo.config.mjs && xo --ignore 'xo.config.mjs'",
+    "lint:watch": "nodemon --watch src --watch tests --watch xo.config.ts --watch vite.config.ts --exec \"npm run lint\" --ext ts,vue",
+    "test": "arx-lib-test",
+    "typecheck": "vue-tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.node.json && tsc -p tsconfig.tests.json && vue-tsc -p tsconfig.json --noEmit"
   },
   "repository": {
     "type": "git",
@@ -37,34 +37,32 @@
     "color-rgba": "^3.0.0",
     "floating-vue": "^5.4.0",
     "jszip": "^3.10.1",
-    "node-pkware": "^5.9.2",
+    "node-pkware": "^6.0.0",
     "sass-embedded": "^1.100.0",
     "three": "^0.183.1",
     "three-mesh-bvh": "^0.9.9",
     "vue": "^3.5.34"
   },
   "devDependencies": {
-    "@hyperse/ts-node": "^1.1.0",
-    "@trivago/prettier-plugin-sort-imports": "^6.0.2",
+    "@arx-tools/config": "^0.1.0",
     "@types/color-rgba": "^2.1.3",
-    "@types/expect": "^24.3.2",
-    "@types/mocha": "^10.0.10",
-    "@types/node": "^24.12.3",
+    "@types/node": "^22.20.5",
     "@types/three": "^0.183.1",
+    "@typescript-eslint/parser": "^8.72.0",
     "@vitejs/plugin-vue": "^6.0.6",
     "@vue/tsconfig": "^0.9.1",
     "eslint-plugin-unused-imports": "^4.4.1",
-    "expect": "^30.3.0",
     "http-server": "^14.1.1",
-    "mocha": "^11.7.5",
-    "ts-mocha": "^11.1.0",
+    "nodemon": "^3.1.14",
     "type-fest": "^5.5.0",
     "typescript": "~6.0.2",
     "vite": "^8.0.12",
+    "vue-eslint-parser": "^10.4.1",
     "vue-tsc": "^3.2.8",
-    "xo": "^2.0.2"
+    "xo": "^5.0.1"
   },
   "keywords": [
     "arx-fatalis"
-  ]
+  ],
+  "prettier": "@arx-tools/config/prettier"
 }

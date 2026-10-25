@@ -6,7 +6,9 @@ const props = defineProps<{
   mode: LightingCalculatorMode
   ambientFloor: number
   shadows: boolean
-  /** shows the "computing lighting..." spinner (the main panel does, the export dialog does not) */
+  /**
+   * Shows the "computing lighting..." spinner (the main panel does, the export dialog does not).
+   */
   computing?: boolean
 }>()
 
@@ -19,7 +21,11 @@ const emit = defineEmits<{
 const minimumLightIndex = computed(() => {
   const index = minimumLightLevels.indexOf(props.ambientFloor)
 
-  return index === -1 ? 0 : index
+  if (index === -1) {
+    return 0
+  }
+
+  return index
 })
 
 function onModeChange(event: Event): void {
@@ -57,7 +63,14 @@ function onShadowsChange(event: Event): void {
     <div v-if="mode === 'Realistic'" class="row realistic">
       <label class="minimum-light">
         Minimum light level
-        <input type="range" min="0" :max="minimumLightLevels.length - 1" step="1" :value="minimumLightIndex" @input="onMinimumLightInput" />
+        <input
+          type="range"
+          min="0"
+          :max="minimumLightLevels.length - 1"
+          step="1"
+          :value="minimumLightIndex"
+          @input="onMinimumLightInput"
+        />
         <output>{{ ambientFloor }}</output>
       </label>
 

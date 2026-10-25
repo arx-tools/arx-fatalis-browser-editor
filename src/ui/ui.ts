@@ -13,7 +13,11 @@ export const loadingIndicator = document.querySelector<HTMLParagraphElement>(
 export const mouseLocked = document.querySelector<HTMLParagraphElement>('#mouse-locked') as HTMLParagraphElement
 export const mouseUnlocked = document.querySelector<HTMLParagraphElement>('#mouse-unlocked') as HTMLParagraphElement
 
-watch(isLoading, (value) => {
+/**
+ * Shows the loading state on the indicator: it is hidden while there is nothing to show (`idle`) and
+ * after a finished load (`fulfilled`), and it turns red on a failure.
+ */
+function updateLoadingIndicator(value: LoadingState): void {
   loadingIndicator.classList.toggle('hidden', value === 'idle' || value === 'fulfilled')
   loadingIndicator.classList.toggle('error', value === 'rejected')
 
@@ -22,27 +26,38 @@ watch(isLoading, (value) => {
   } else if (value === 'rejected') {
     loadingIndicator.textContent = 'An error occurred, see logs for details!'
   }
+}
 
+/**
+ * The crosshair is hidden unless a level is loading.
+ */
+function updateCrosshair(value: LoadingState): void {
   crosshair.classList.toggle('hidden', value === 'loading')
-})
-
-loadingIndicator.classList.toggle('hidden', isLoading.value !== 'loading')
+}
 
 export const canvas = document.querySelector<HTMLCanvasElement>('#screen') as HTMLCanvasElement
 
-/** the drag handle under the 3d view (it changes `--screen-height`, see `setupCanvasResizer`) */
+/**
+ * The drag handle under the 3d view (it changes `--screen-height`, see `setupCanvasResizer`).
+ */
 export const canvasResizer = document.querySelector<HTMLDivElement>('#canvas-resizer') as HTMLDivElement
 
-/** the wrapper of the canvas: its height is what the drag handle changes */
+/**
+ * The wrapper of the canvas: its height is what the drag handle changes.
+ */
 export const screenWrapper = document.querySelector<HTMLDivElement>('#screen-wrapper') as HTMLDivElement
 
 export const SCREEN_HEIGHT_MIN = 200
 export const SCREEN_HEIGHT_MAX = 1000
 
-/** the height the view starts with, and what a double click on the handle restores */
+/**
+ * The height the view starts with, and what a double click on the handle restores.
+ */
 export const SCREEN_HEIGHT_DEFAULT = 600
 
-/** the height of the 3d view (px), the layout reads it through `--screen-height` */
+/**
+ * The height of the 3d view (px), the layout reads it through `--screen-height`.
+ */
 export const screenHeight = ref<number>(SCREEN_HEIGHT_DEFAULT)
 
 /**
@@ -51,7 +66,7 @@ export const screenHeight = ref<number>(SCREEN_HEIGHT_DEFAULT)
  * the next frame (`resizeRendererToDisplaySize`), and `onResize` asks for that frame.
  */
 export function setupCanvasResizer(onResize: () => void): void {
-  const apply = (height: number): void => {
+  function apply(height: number): void {
     screenHeight.value = Math.min(SCREEN_HEIGHT_MAX, Math.max(SCREEN_HEIGHT_MIN, Math.round(height)))
     screenWrapper.style.setProperty('--screen-height', `${screenHeight.value}px`)
     onResize()
@@ -78,7 +93,7 @@ export function setupCanvasResizer(onResize: () => void): void {
     apply(startHeight + event.clientY - startY)
   })
 
-  const stopDragging = (event: PointerEvent): void => {
+  function stopDragging(event: PointerEvent): void {
     if (canvasResizer.hasPointerCapture(event.pointerId)) {
       canvasResizer.releasePointerCapture(event.pointerId)
     }
@@ -119,7 +134,9 @@ mouseUnlocked.style.display = 'none'
 // the visibility switches are rendered by the `ToggleSwitch` components (ControlsPanel), driven by
 // these refs - the hotkeys below toggle the same refs
 
-/** the geometry itself (the `Mesh` switch): turning it off leaves only the overlays visible */
+/**
+ * The geometry itself (the `Mesh` switch): turning it off leaves only the overlays visible.
+ */
 export const meshVisible = ref(true)
 
 export const wireframeVisible = ref(false)
@@ -128,15 +145,14 @@ export const cameraLightVisible = ref(false)
 
 // ------------
 
-/** the little dot next to the flashlight hint: grey when the camera light is off, yellow when on */
+/**
+ * The little dot next to the flashlight hint: grey when the camera light is off, yellow when on.
+ */
 const flashlightIndicator = document.querySelector<HTMLElement>('#flashlight-indicator')
 
 function updateFlashlightIndicator(value: boolean): void {
   flashlightIndicator?.classList.toggle('on', value)
 }
-
-updateFlashlightIndicator(cameraLightVisible.value)
-watch(cameraLightVisible, updateFlashlightIndicator)
 
 export const cameraInfoVisible = ref(true)
 
@@ -147,15 +163,25 @@ export const cameraInfoVisible = ref(true)
 // ------------
 
 export const anchorsVisible = ref(false)
-/** show the *generated* anchor graph instead of the one that came with the file (cached) */
+/**
+ * Show the *generated* anchor graph instead of the one that came with the file (cached).
+ */
 export const showGeneratedAnchors = ref(false)
-/** show the file's graph and the generated one at the same time (green + cyan) */
+/**
+ * Show the file's graph and the generated one at the same time (green + cyan).
+ */
 export const bothAnchorGraphs = ref(false)
-/** the F2 payload panel (the same switch as the F2 hotkey) */
+/**
+ * The F2 payload panel (the same switch as the F2 hotkey).
+ */
 export const showDebugPanel = ref(false)
-/** dots where the two graphs differ (red: only in the file's graph, blue: only in the generated one) */
+/**
+ * Dots where the two graphs differ (red: only in the file's graph, blue: only in the generated one).
+ */
 export const anchorDiffVisible = ref(false)
-/** the links the generator repaired / filled in (yellow) */
+/**
+ * The links the generator repaired / filled in (yellow).
+ */
 export const rejectedLinksVisible = ref(false)
 export const portalsVisible = ref(false)
 export const lightsVisible = ref(false)
@@ -166,12 +192,7 @@ export const lightsVisible = ref(false)
  * The `lightingCalculatorMode` of the generator (the `.env` key). The URL uses the same key and the
  * select above the canvas is bound to it - the display mode is derived from this on the fly.
  */
-export type LightingCalculatorMode =
-  | 'MaxBrightness'
-  | 'CompleteDarkness'
-  | 'Arx'
-  | 'Realistic'
-  | 'TextureRainbow'
+export type LightingCalculatorMode = 'MaxBrightness' | 'CompleteDarkness' | 'Arx' | 'Realistic' | 'TextureRainbow'
 
 const lightingCalculatorModes: LightingCalculatorMode[] = [
   'Arx',
@@ -211,7 +232,11 @@ export const lightingCalculatorMode = ref<LightingCalculatorMode>(getLightingCal
 function getAmbientFloorFromUrl(): number {
   const raw = Number.parseInt(new URLSearchParams(globalThis.location.search).get('ambientFloor') ?? '0', 10)
 
-  return Number.isNaN(raw) ? 0 : Math.min(127, Math.max(0, raw))
+  if (Number.isNaN(raw)) {
+    return 0
+  }
+
+  return Math.min(127, Math.max(0, raw))
 }
 
 /**
@@ -255,91 +280,129 @@ export const shadows = ref<boolean>(new URLSearchParams(globalThis.location.sear
 
 // the switches, the lighting select and the slider live in the Vue components (ControlsPanel /
 // LightingSettings / DownloadDialog); only the url sync stays here
-watch(shadows, (value) => {
+
+/**
+ * Mirrors the `shadows` switch into the URL: `?shadows=0` when it is off, no parameter when it is on
+ * (the default).
+ */
+function syncShadowsWithUrl(value: boolean): void {
   const url = new URL(globalThis.location.href)
+
   if (value) {
     url.searchParams.delete('shadows')
   } else {
     url.searchParams.set('shadows', '0')
   }
-  globalThis.history.replaceState(null, '', url)
-})
 
-watch(ambientFloor, (value) => {
+  globalThis.history.replaceState(null, '', url)
+}
+
+/**
+ * Mirrors the ambient floor into the URL: `?ambientFloor=12`, no parameter for the default 0.
+ */
+function syncAmbientFloorWithUrl(value: number): void {
   const url = new URL(globalThis.location.href)
+
   if (value === 0) {
     url.searchParams.delete('ambientFloor')
   } else {
     url.searchParams.set('ambientFloor', String(value))
   }
-  globalThis.history.replaceState(null, '', url)
-})
 
-watch(lightingCalculatorMode, (value) => {
+  globalThis.history.replaceState(null, '', url)
+}
+
+/**
+ * Mirrors the lighting calculator mode into the URL and drops the legacy `?lighting=` parameter the
+ * old display modes used.
+ */
+function syncLightingModeWithUrl(value: LightingCalculatorMode): void {
   const url = new URL(globalThis.location.href)
   url.searchParams.set('lightingCalculatorMode', value)
   url.searchParams.delete('lighting')
   globalThis.history.replaceState(null, '', url)
-})
+}
 
 // ------------
 
-document.addEventListener(
-  'keypress',
-  (event: KeyboardEvent) => {
-    // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- we don't need to cover all keys here
-    switch (event.code) {
-      case 'KeyF': {
-        cameraLightVisible.value = !cameraLightVisible.value
-        break
-      }
-
-      case 'KeyM': {
-        meshVisible.value = !meshVisible.value
-        break
-      }
-
-      case 'KeyX': {
-        wireframeVisible.value = !wireframeVisible.value
-        break
-      }
-
-      // the three overlay hotkeys sit next to each other on both the english and the hungarian
-      // layouts (event.code is the physical key, not the character)
-      case 'KeyJ': {
-        anchorsVisible.value = !anchorsVisible.value
-        break
-      }
-
-      case 'KeyK': {
-        portalsVisible.value = !portalsVisible.value
-        break
-      }
-
-      case 'KeyL': {
-        lightsVisible.value = !lightsVisible.value
-        break
-      }
+/**
+ * The global keypress hotkeys of the view: F toggles the camera light, M the mesh, X the wireframe
+ * and J/K/L the anchors, the portals and the lights overlay (`event.code` is the physical key, so
+ * the keyboard layout does not matter).
+ */
+function handleKeypress(event: KeyboardEvent): void {
+  // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- we don't need to cover all keys here
+  switch (event.code) {
+    case 'KeyF': {
+      cameraLightVisible.value = !cameraLightVisible.value
+      break
     }
-  },
-  false,
-)
+
+    case 'KeyM': {
+      meshVisible.value = !meshVisible.value
+      break
+    }
+
+    case 'KeyX': {
+      wireframeVisible.value = !wireframeVisible.value
+      break
+    }
+
+    // the three overlay hotkeys sit next to each other on both the english and the hungarian
+    // layouts (event.code is the physical key, not the character)
+    case 'KeyJ': {
+      anchorsVisible.value = !anchorsVisible.value
+      break
+    }
+
+    case 'KeyK': {
+      portalsVisible.value = !portalsVisible.value
+      break
+    }
+
+    case 'KeyL': {
+      lightsVisible.value = !lightsVisible.value
+      break
+    }
+  }
+}
+
+// the ui is a singleton: the refs are wired here, once, when the module is evaluated
+
+watch(isLoading, updateLoadingIndicator, { immediate: true })
+watch(isLoading, updateCrosshair)
+watch(cameraLightVisible, updateFlashlightIndicator, { immediate: true })
+watch(shadows, syncShadowsWithUrl)
+watch(ambientFloor, syncAmbientFloorWithUrl)
+watch(lightingCalculatorMode, syncLightingModeWithUrl)
+
+document.addEventListener('keypress', handleKeypress, { capture: false })
 
 // ------------
 
-/** the level that is currently loaded (set by main.ts after the url validation) */
+/**
+ * The level that is currently loaded (set by main.ts after the url validation).
+ */
 export const currentLevelId = ref<number | undefined>(undefined)
 
-/** true when the mesh has been changed since the level was loaded - used by the level switcher */
+/**
+ * True when the mesh has been changed since the level was loaded - used by the level switcher.
+ */
 export const isDirty = ref(false)
 
-/** 0..100 while the download runs, driven by the download steps */
+/**
+ * 0..100 while the download runs, driven by the download steps.
+ */
 export const downloadProgress = ref(0)
 
-/** true only while `handleDownloadButtonClick` is running (the level load also uses `isLoading`) */
+/**
+ * True only while `handleDownloadButtonClick` is running (the level load also uses `isLoading`).
+ */
 export const isDownloading = ref(false)
 
-/** true after a successful download - shows the green check until the next download starts */
+/**
+ * True after a successful download - shows the green check until the next download starts.
+ */
 export const downloadCompleted = ref(false)
 
 // ------------

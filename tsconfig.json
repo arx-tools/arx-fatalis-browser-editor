@@ -1,4 +1,15 @@
 {
-  "files": [],
-  "references": [{ "path": "./tsconfig.app.json" }, { "path": "./tsconfig.node.json" }]
+  // this file exists for the editors only: visual studio code discovers the `tsconfig.json` files and
+  // ignores the folder specific ones (`tsconfig.app.json`, `tsconfig.node.json`, `tsconfig.tests.json`).
+  // it typechecks the app sources, the tests and the build tooling together (with the dom and the node
+  // types), so every `node:` import resolves where it is written. the build and the `typecheck` script
+  // never use it: they pass an explicit `-p` flag to the folder specific configs
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "incremental": false,
+    "rootDir": ".",
+    "types": ["vite/client", "node"]
+  },
+  "include": ["src/**/*", "tests/**/*", "vite.config.ts", "xo.config.ts"]
 }

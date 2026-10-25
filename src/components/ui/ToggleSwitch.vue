@@ -4,9 +4,13 @@ defineProps<{
   label: string
   hotkey?: string
   disabled?: boolean
-  /** draw the fixed width status slot (green check / spinning throbber) before the label */
+  /**
+   * Draw the fixed width status slot (green check / spinning throbber) before the label.
+   */
   status?: boolean
-  /** the worker is running: the slot shows a throbber instead of the check */
+  /**
+   * The worker is running: the slot shows a throbber instead of the check.
+   */
   busy?: boolean
 }>()
 

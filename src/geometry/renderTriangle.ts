@@ -5,10 +5,10 @@ export function createTriangle(triangle: Triangle): BufferGeometry {
 
   // prettier-ignore
   const vertices = new Float32Array([
-    ...triangle.a.toArray(),
-    ...triangle.b.toArray(),
-    ...triangle.c.toArray()
-  ]);
+    ...triangle.a,
+    ...triangle.b,
+    ...triangle.c
+  ])
 
   geometry.setAttribute('position', new BufferAttribute(vertices, 3))
 

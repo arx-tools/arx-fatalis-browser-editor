@@ -2,7 +2,9 @@ import { BufferAttribute, BufferGeometry, type Face } from 'three'
 import { MeshBVH } from 'three-mesh-bvh'
 
 /**
- * @returns a copy of the original geometry
+ * Builds a copy of the geometry without the triangles of the given faces and rebuilds the BVH.
+ *
+ * @returns A copy of the original geometry.
  */
 export function removeFaces(faces: Face[], geometry: BufferGeometry): BufferGeometry {
   const vertices = geometry.getAttribute('position')

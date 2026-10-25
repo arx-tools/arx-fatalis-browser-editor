@@ -17,6 +17,7 @@ const invalid = computed(() => {
   for (const name of cameraFieldNames) {
     result[name] = parseCameraField(cameraFields[name]) === undefined
   }
+
   return result
 })
 
@@ -25,7 +26,11 @@ function onInput(name: CameraFieldName, event: Event): void {
   commitCameraFields()
 }
 
-/** focus selects the whole value, so a new number can be typed right away */
+/**
+ * Focus selects the whole value, so a new number can be typed right away.
+ *
+ * @param event The focus event of the camera field.
+ */
 function onFocus(event: FocusEvent): void {
   ;(event.target as HTMLInputElement).select()
 }
@@ -34,7 +39,9 @@ function close(): void {
   cameraDialogVisible.value = false
 }
 
-const tabindexOf = (name: CameraFieldName): number => 100 + cameraFieldNames.indexOf(name)
+function tabindexOf(name: CameraFieldName): number {
+  return 100 + cameraFieldNames.indexOf(name)
+}
 
 function onAlign(mode: CameraAlignMode): void {
   alignCameraTo.value?.(mode)

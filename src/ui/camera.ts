@@ -16,7 +16,9 @@ export type CameraValues = {
 
 export const cameraDialogVisible = ref(false)
 
-/** the raw text of the inputs (a number input keeps the invalid text too, so it can be corrected) */
+/**
+ * The raw text of the inputs (a number input keeps the invalid text too, so it can be corrected).
+ */
 export const cameraFields = reactive<CameraFields>({
   x: '',
   y: '',
@@ -26,23 +28,38 @@ export const cameraFields = reactive<CameraFields>({
   roll: '',
 })
 
-/** the field names in the tab order */
+/**
+ * The field names in the tab order.
+ */
 export const cameraFieldNames: CameraFieldName[] = ['x', 'y', 'z', 'pitch', 'yaw', 'roll']
 
-/** the values the dialog was opened with, used while a field is invalid */
+/**
+ * The values the dialog was opened with, used while a field is invalid.
+ */
 let lastValidValues: CameraValues | undefined
 
-/** parses one field; `undefined` when it is not a finite number */
+/**
+ * Parses one field; `undefined` when it is not a finite number.
+ */
 export function parseCameraField(value: string): number | undefined {
   const parsed = Number.parseFloat(value)
-  return Number.isFinite(parsed) ? parsed : undefined
+
+  if (Number.isFinite(parsed)) {
+    return parsed
+  }
+
+  return undefined
 }
 
-/** all six fields, or `undefined` when any of them is invalid */
+/**
+ * All six fields, or `undefined` when any of them is invalid.
+ */
 export function readCameraValues(): CameraValues | undefined {
-  const numbers = cameraFieldNames.map((name) => parseCameraField(cameraFields[name]))
+  const numbers = cameraFieldNames.map((name) => {
+    return parseCameraField(cameraFields[name])
+  })
 
-  if (numbers.some((value) => value === undefined)) {
+  if (numbers.includes(undefined)) {
     return undefined
   }
 
@@ -53,13 +70,19 @@ export function readCameraValues(): CameraValues | undefined {
 
 export type CameraAlignMode = 'top' | 'front' | 'left'
 
-/** set by main.ts: fits the camera to the anchor graph of the level (`top` / `front` / `left`) */
+/**
+ * Set by main.ts: fits the camera to the anchor graph of the level (`top` / `front` / `left`).
+ */
 export const alignCameraTo = ref<((mode: CameraAlignMode) => void) | undefined>(undefined)
 
-/** set by main.ts: moves the camera, called on every valid edit */
+/**
+ * Set by main.ts: moves the camera, called on every valid edit.
+ */
 export const applyCameraValues = ref<((values: CameraValues) => void) | undefined>(undefined)
 
-/** fills the form, called by main.ts when the dialog opens */
+/**
+ * Fills the form, called by main.ts when the dialog opens.
+ */
 export function openCameraDialog(values: CameraValues): void {
   lastValidValues = values
 
@@ -73,7 +96,9 @@ export function openCameraDialog(values: CameraValues): void {
   cameraDialogVisible.value = true
 }
 
-/** called by the component on every `input` event: applies the values when they are all valid */
+/**
+ * Called by the component on every `input` event: applies the values when they are all valid.
+ */
 export function commitCameraFields(): void {
   const values = readCameraValues()
 
@@ -85,7 +110,9 @@ export function commitCameraFields(): void {
   applyCameraValues.value?.(values)
 }
 
-/** the values the camera keeps while a field is invalid */
+/**
+ * The values the camera keeps while a field is invalid.
+ */
 export function getLastValidCameraValues(): CameraValues | undefined {
   return lastValidValues
 }

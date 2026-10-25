@@ -2,7 +2,15 @@ import { explode, implode, concatArrayBuffers, sliceArrayBufferAt } from 'node-p
 import { getHeaderSize } from 'arx-header-size'
 import { DLF, FTS, LLF } from 'arx-convert'
 import { isQuad } from 'arx-convert/utils'
-import { ArxLightFlags, type ArxColor, type ArxDLF, type ArxFTS, type ArxLLF, type ArxPolygon, type ArxVector3 } from 'arx-convert/types'
+import {
+  ArxLightFlags,
+  type ArxColor,
+  type ArxDLF,
+  type ArxFTS,
+  type ArxLLF,
+  type ArxPolygon,
+  type ArxVector3,
+} from 'arx-convert/types'
 import {
   BufferAttribute,
   CanvasTexture,
@@ -40,15 +48,13 @@ import { ViewHelper } from 'three/examples/jsm/helpers/ViewHelper.js'
 import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh'
 import FloatingVue from 'floating-vue'
 import 'floating-vue/dist/style.css'
-import { createApp, watch } from 'vue'
+import { createApp, watch, type Ref } from 'vue'
 import './style.scss'
 import flatColorsByFilename from './assets/flat-colors.json'
 import { downloadBinaryAs, zipBuffers } from './download.js'
 import { registerDownloadHandler } from './download-handler.js'
-import type { Ref } from 'vue'
-import type { LightingCalculatorMode } from './ui/ui.js'
-import { mountUi } from './ui/ui-app.js'
 import {
+  type LightingCalculatorMode,
   ambientFloor,
   anchorsVisible,
   anchorDiffVisible,
@@ -84,6 +90,7 @@ import {
   updateMouseButtonStates,
   wireframeVisible,
 } from './ui/ui.js'
+import { mountUi } from './ui/ui-app.js'
 import { alignCameraTo, applyCameraValues, openCameraDialog } from './ui/camera.js'
 import { isDoubleSided, isNoDraw, isTransparent, wait } from './functions.js'
 import { Color } from './Color.js'
@@ -177,7 +184,11 @@ function writeLocalStorage(key: string, value: string): void {
 }
 
 function readActiveTab(): DebugTabId {
-  return readLocalStorage(DEBUG_PANEL_ACTIVE_TAB_KEY) === 'anchor' ? 'anchor' : 'selection'
+  if (readLocalStorage(DEBUG_PANEL_ACTIVE_TAB_KEY) === 'anchor') {
+    return 'anchor'
+  }
+
+  return 'selection'
 }
 
 let debugPanelVisible = false
@@ -189,7 +200,7 @@ function getActiveDebugTab(): DebugTab {
 }
 
 function formatDebugPayload(): string {
-  const payload = getActiveDebugTab().payload
+  const { payload } = getActiveDebugTab()
 
   if (payload === '') {
     return ''
@@ -198,7 +209,11 @@ function formatDebugPayload(): string {
   try {
     const parsed = JSON.parse(payload) as unknown
 
-    return debugPanelMinified ? JSON.stringify(parsed) : JSON.stringify(parsed, null, 2)
+    if (debugPanelMinified) {
+      return JSON.stringify(parsed)
+    }
+
+    return JSON.stringify(parsed, null, 2)
   } catch {
     return payload
   }
@@ -229,8 +244,13 @@ function renderDebugPanel(): void {
   const hasPayload = active.payload !== ''
   debugPanelMinify?.classList.toggle('hidden', !hasPayload)
 
+  let minifyLabel = 'Minify'
+  if (debugPanelMinified) {
+    minifyLabel = 'Format'
+  }
+
   if (debugPanelMinify !== null) {
-    debugPanelMinify.textContent = debugPanelMinified ? 'Format' : 'Minify'
+    debugPanelMinify.textContent = minifyLabel
   }
 }
 
@@ -260,7 +280,9 @@ function clearActiveDebugPayload(): void {
   renderDebugPanel()
 }
 
-/** a new payload for a tab: updates the textarea if it is the active one and drives the status dot */
+/**
+ * A new payload for a tab: updates the textarea if it is the active one and drives the status dot.
+ */
 function setDebugPayload(tabId: DebugTabId, payload: string): void {
   const tab = debugTabs[tabId]
 
@@ -280,7 +302,7 @@ function setDebugPayload(tabId: DebugTabId, payload: string): void {
       clearTimeout(tab.flashTimer)
     }
 
-    tab.flashTimer = globalThis.setTimeout(() => {
+    tab.flashTimer = setTimeout(() => {
       tab.flash = false
       tab.flashTimer = undefined
       renderDebugPanel()
@@ -339,12 +361,16 @@ function toggleDebugPanel(): void {
   setDebugPanelVisible(!debugPanelVisible)
 }
 
-/** the selection debug payload (the drag attempt) */
+/**
+ * The selection debug payload (the drag attempt).
+ */
 function setSelectionDebugPayload(payload: string): void {
   setDebugPayload('selection', payload)
 }
 
-/** the anchor debug payload (the other feature; the same panel, a separate tab) */
+/**
+ * The anchor debug payload (the other feature; the same panel, a separate tab).
+ */
 function setAnchorDebugPayload(payload: string): void {
   setDebugPayload('anchor', payload)
 }
@@ -405,7 +431,7 @@ function makePanelDraggable(panel: HTMLElement, handle: HTMLElement): void {
 
 const debugPanelHeader = debugPanel?.querySelector<HTMLElement>('.debug-panel-header')
 
-if (debugPanel !== null && debugPanel !== undefined && debugPanelHeader !== null && debugPanelHeader !== undefined) {
+if (debugPanel !== null && debugPanelHeader !== null && debugPanelHeader !== undefined) {
   makePanelDraggable(debugPanel, debugPanelHeader)
 }
 
@@ -415,7 +441,13 @@ debugPanelClose?.addEventListener('click', () => {
 
 debugPanelMinify?.addEventListener('click', () => {
   debugPanelMinified = !debugPanelMinified
-  writeLocalStorage(DEBUG_PANEL_MINIFIED_KEY, debugPanelMinified ? '1' : '0')
+
+  if (debugPanelMinified) {
+    writeLocalStorage(DEBUG_PANEL_MINIFIED_KEY, '1')
+  } else {
+    writeLocalStorage(DEBUG_PANEL_MINIFIED_KEY, '0')
+  }
+
   renderDebugPanel()
 })
 
@@ -449,7 +481,7 @@ document.addEventListener(
       return
     }
 
-    const target = event.target
+    const { target } = event
 
     if (target instanceof Node && (debugPanelConfirm.contains(target) || debugPanelClear?.contains(target) === true)) {
       return
@@ -457,16 +489,30 @@ document.addEventListener(
 
     hideDebugConfirm()
   },
-  true,
+  { capture: true },
 )
+
+/**
+ * Copies the selected text of the debug panel with the deprecated `execCommand`, which is the
+ * fallback for the browsers without the async clipboard api.
+ */
+function copyWithExecCommand(): void {
+  debugPanelOutput?.select()
+  // eslint-disable-next-line @typescript-eslint/no-deprecated -- the async clipboard api has no synchronous fallback
+  document.execCommand('copy')
+}
 
 debugPanelCopy?.addEventListener('click', () => {
   if (debugPanelOutput === null) {
     return
   }
 
-  const text = debugPanelOutput.value || getActiveDebugTab().payload
-  const markCopied = (): void => {
+  let text = debugPanelOutput.value
+  if (text === '') {
+    text = getActiveDebugTab().payload
+  }
+
+  function markCopied(): void {
     if (debugPanelCopy === null) {
       return
     }
@@ -481,8 +527,7 @@ debugPanelCopy?.addEventListener('click', () => {
   }
 
   if (navigator.clipboard?.writeText === undefined) {
-    debugPanelOutput.select()
-    document.execCommand('copy')
+    copyWithExecCommand()
     markCopied()
 
     return
@@ -492,8 +537,7 @@ debugPanelCopy?.addEventListener('click', () => {
     .writeText(text)
     .then(markCopied)
     .catch(() => {
-      debugPanelOutput.select()
-      document.execCommand('copy')
+      copyWithExecCommand()
       markCopied()
     })
 })
@@ -758,7 +802,9 @@ isLoading.value = 'loading'
 
 const levelSearchParams = new URLSearchParams(globalThis.location.search)
 
-/** `?hideUi=1` hides the editor chrome, so a screenshot shows only the canvas and its overlays */
+/**
+ * `?hideUi=1` hides the editor chrome, so a screenshot shows only the canvas and its overlays.
+ */
 if (levelSearchParams.get('hideUi') === '1' || levelSearchParams.get('hideUi') === 'true') {
   document.body.classList.add('hide-ui')
 }
@@ -772,16 +818,21 @@ function readBooleanSearchParam(name: string): boolean | undefined {
   if (value === null) {
     return undefined
   }
+
   if (value === 'true' || value === '1') {
     return true
   }
+
   if (value === 'false' || value === '0') {
     return false
   }
+
   return undefined
 }
 
-/** the bool switches of the url, both read at start and written on every change */
+/**
+ * The bool switches of the url, both read at start and written on every change.
+ */
 const searchParamSwitches: Array<[string, Ref<boolean>]> = [
   ['meshVisible', meshVisible],
   ['wireframeVisible', wireframeVisible],
@@ -806,10 +857,10 @@ if (!isValidOriginalArxLevelId(levelId)) {
   isLoading.value = 'rejected'
 
   if (levelId === 9) {
-    throw new Exception(`Invalid level ID "9", Arx Fatalis doesn't have a level 9.`, logger)
-  } else {
-    throw new Exception(`Invalid level ID "${levelId}"`, logger)
+    throw new Exception('Invalid level ID "9", Arx Fatalis doesn\'t have a level 9.', logger)
   }
+
+  throw new Exception(`Invalid level ID "${levelId}"`, logger)
 }
 
 currentLevelId.value = levelId
@@ -831,6 +882,7 @@ for (const container of fts.textureContainers) {
     flatColors.set(container.id, flatColor)
   }
 }
+
 logger.log('done', line1)
 
 isLoading.value = 'fulfilled'
@@ -846,87 +898,6 @@ export async function handleDownloadButtonClick(): Promise<void> {
     shadows: shadows.value,
   })
 }
-type DownloadSettings = {
-  mode: LightingCalculatorMode
-  ambientFloor: number
-  shadows: boolean
-}
-
-export async function startDownload(settings: DownloadSettings): Promise<void> {
-  if (isLoading.value !== 'fulfilled' || isDownloading.value) {
-    return
-  }
-
-  isDownloading.value = true
-  downloadCompleted.value = false
-  downloadProgress.value = 0
-
-  try {
-    // M1: the surviving polygons and the LLF palette filtered to them; the DLF is saved as it was
-    // opened (the editor does not handle entities yet)
-    const exportFts = buildExportFts(fts, deletedPolygons)
-
-    // the anchors are recomputed from the surviving geometry (like the palette): the deleted
-    // polygons took their anchors with them, and the links between the remaining ones change too
-    // the anchors are recomputed from the surviving geometry (like the palette). The editor may
-    // already show them (the Anchors overlay), then the cached graph is reused instead of running
-    // the generator twice
-    const exportFtsWithAnchors = buildExportAnchors(exportFts, {}, await ensureAnchorGraph())
-    downloadProgress.value = 10
-    // the palette cache is keyed by the settings, so the dialog reuses the display's bake when they match
-    const exportPalette =
-      settings.mode === 'Realistic'
-        ? await getRealisticPalette(settings.ambientFloor, settings.shadows)
-        : settings.mode === 'TextureRainbow'
-          ? await getRainbowPalette()
-          : undefined
-    const exportLlf = buildExportLlf(
-      fts,
-      llf,
-      deletedPolygons,
-      settings.mode,
-      meshes,
-      settings.ambientFloor,
-      settings.shadows,
-      exportPalette,
-    )
-
-    // the steps are sequential so the progress can follow them: 20 / 40 / 60 / 80 / 100
-    const line1 = logger.log('packing level data...')
-    downloadProgress.value = 20
-
-    const packedFts = await saveFTS(exportFtsWithAnchors, levelId)
-    downloadProgress.value = 40
-
-    const packedLlf = await saveLLF(exportLlf, levelId)
-    downloadProgress.value = 60
-
-    const packedDlf = await saveDLF(dlf, levelId)
-    downloadProgress.value = 80
-
-    logger.log('done', line1)
-
-    const line2 = logger.log('zipping files...')
-
-    const zip = await zipBuffers({
-      [`/game/graph/levels/level${levelId}/fast.fts`]: packedFts,
-      [`/graph/levels/level${levelId}/level${levelId}.llf`]: packedLlf,
-      [`/graph/levels/level${levelId}/level${levelId}.dlf`]: packedDlf,
-    })
-
-    logger.log('done', line2)
-
-    downloadProgress.value = 100
-
-    downloadBinaryAs('mod.zip', zip, 'application/zip')
-
-    // let the 100% be visible for a moment, then show the green check until the next download
-    await wait(300)
-    downloadCompleted.value = true
-  } finally {
-    isDownloading.value = false
-  }
-}
 
 registerDownloadHandler(() => {
   void handleDownloadButtonClick()
@@ -939,7 +910,6 @@ const timer = new Timer()
 
 timer.connect(document)
 
-
 // --------------------
 
 const offset = arxVector3toVector3(fts.header.mScenePosition)
@@ -948,14 +918,16 @@ const offset = arxVector3toVector3(fts.header.mScenePosition)
  * How the level is lit on screen, driven by the `lightingCalculatorMode` - the same key the
  * generator's `.env` will have, and the key the URL and the select above the canvas use.
  *
- * - `Arx` (the default) and `Realistic`: the `dynamic` display. The baked LLF color (the light
- *   multiplied by the texture albedo) is the base and the `SemiDynamic` lights around the camera
- *   are added on top of it as point lights, exactly like the game does at runtime. The
- *   `Realistic` will show the computed (shadowed) palette once the M3a lighting bake exists -
- *   until then it looks the same as `Arx`.
- * - `MaxBrightness`: an unlit white material, the `MaxBrightness` mode of the generator (useful
- *   for checking edits to a mesh). A level with an empty LLF falls back to this.
- * - `CompleteDarkness`: an unlit black material, the `CompleteDarkness` mode of the generator.
+ * `Arx` (the default) and `Realistic` are the `dynamic` display: the baked LLF color (the light
+ * multiplied by the texture albedo) is the base and the `SemiDynamic` lights around the camera are
+ * added on top of it as point lights, exactly like the game does at runtime. The `Realistic` will
+ * show the computed (shadowed) palette once the M3a lighting bake exists - until then it looks the
+ * same as `Arx`.
+ *
+ * `MaxBrightness` is an unlit white material, the `MaxBrightness` mode of the generator (useful for
+ * checking edits to a mesh). A level with an empty LLF falls back to this.
+ *
+ * `CompleteDarkness` is an unlit black material, the `CompleteDarkness` mode of the generator.
  *
  * The albedo of the mesh comes from the game's texture averages (`flatColors`), because the editor
  * does not load the textures yet - this is what makes the level look like the game's untextured
@@ -963,22 +935,31 @@ const offset = arxVector3toVector3(fts.header.mScenePosition)
  */
 type DisplayLightingMode = 'dynamic' | 'maxBrightness' | 'completeDarkness' | 'rainbow'
 
-/** the `lightingCalculatorMode` (.env) mapped to how the level is displayed */
+/**
+ * The `lightingCalculatorMode` (.env) mapped to how the level is displayed.
+ */
 function getDisplayLightingMode(): DisplayLightingMode {
   if (llf.colors.length === 0) {
     return 'maxBrightness'
   }
 
   switch (lightingCalculatorMode.value) {
-    case 'MaxBrightness':
+    case 'MaxBrightness': {
       return 'maxBrightness'
-    case 'CompleteDarkness':
+    }
+
+    case 'CompleteDarkness': {
       return 'completeDarkness'
-    case 'TextureRainbow':
+    }
+
+    case 'TextureRainbow': {
       return 'rainbow'
+    }
+
     case 'Arx':
-    case 'Realistic':
+    case 'Realistic': {
       return 'dynamic'
+    }
   }
 }
 
@@ -1006,18 +987,25 @@ const vertexColors = getVertexColors()
  * The `baked` attribute is the **final** baked color (the LLF light multiplied by the texture
  * albedo), which is not a light color the material can multiply - it is what the game shows.
  *
- * - in the `dynamic` mode the `MeshLambertMaterial` keeps the albedo (`color` attribute) as the
- *   diffuse and the baked color is added to `totalEmissiveRadiance`, so the semi-dynamic point
- *   lights add **on top of** the baked base (the game does the same at runtime),
- * - in the `baked` mode the `MeshBasicMaterial` is unlit and `diffuseColor.rgb` is replaced with
- *   the baked color.
+ * In the `dynamic` mode the `MeshLambertMaterial` keeps the albedo (`color` attribute) as the
+ * diffuse and the baked color is added to `totalEmissiveRadiance`, so the semi-dynamic point lights
+ * add **on top of** the baked base (the game does the same at runtime).
+ *
+ * In the `baked` mode the `MeshBasicMaterial` is unlit and `diffuseColor.rgb` is replaced with the
+ * baked color.
  */
-function addBakedColorToShader(material: MeshLambertMaterial | MeshBasicMaterial, target: 'emissive' | 'diffuse'): void {
-  material.onBeforeCompile = (shader) => {
+function addBakedColorToShader(
+  material: MeshLambertMaterial | MeshBasicMaterial,
+  target: 'emissive' | 'diffuse',
+): void {
+  material.onBeforeCompile = (shader): void => {
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec3 baked;\nvarying vec3 vBaked;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvBaked = baked;')
-    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vBaked;')
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <common>',
+      '#include <common>\nvarying vec3 vBaked;',
+    )
 
     if (target === 'emissive') {
       const emissiveDeclaration = 'vec3 totalEmissiveRadiance = emissive;'
@@ -1085,7 +1073,11 @@ function createMaterial(
 
   // CompleteDarkness: the baked attribute is zeroed by `applyLightingCalculatorMode`, so the only
   // light on the lambert surface is the camera light ([F]) - the darkest the editor can show
-  const material = new MeshLambertMaterial({ ...options, color: Color.white.getHex(), vertexColors: vertexColors !== undefined })
+  const material = new MeshLambertMaterial({
+    ...options,
+    color: Color.white.getHex(),
+    vertexColors: vertexColors !== undefined,
+  })
 
   if (vertexColors !== undefined) {
     addBakedColorToShader(material, 'emissive')
@@ -1109,10 +1101,7 @@ type MeshGroup = {
   mesh: Mesh
 }
 
-function createMeshGroup(
-  options: MaterialOptions,
-  predicate: (polygon: ArxPolygon) => boolean,
-): MeshGroup {
+function createMeshGroup(options: MaterialOptions, predicate: (polygon: ArxPolygon) => boolean): MeshGroup {
   const material = createMaterial(options, getDisplayLightingMode())
   const entries: SourcePolygon[] = fts.polygons
     .map((polygon, sourceIndex) => {
@@ -1123,7 +1112,9 @@ function createMeshGroup(
     })
 
   const mesh = arxPolygonsToMesh(
-    entries.map(({ polygon }) => polygon),
+    entries.map(({ polygon }) => {
+      return polygon
+    }),
     material,
     offset,
     vertexColors,
@@ -1140,22 +1131,40 @@ function createMeshGroup(
  * highlight are separate objects), so they get their own group with `opacity: 0`.
  */
 const invisibleContainerIds = new Set(
-  fts.textureContainers.filter((container) => /alpha/i.test(container.filename)).map((container) => container.id),
+  fts.textureContainers
+    .filter((container) => {
+      return /alpha/i.test(container.filename)
+    })
+    .map((container) => {
+      return container.id
+    }),
 )
 
-/** the polygons that have been deleted in the editor - the export drops them */
+/**
+ * The polygons that have been deleted in the editor - the export drops them.
+ */
 const deletedPolygons = new Set<number>()
 
-const isVisiblePolygon = (polygon: ArxPolygon): boolean => {
+function isVisiblePolygon(polygon: ArxPolygon): boolean {
   return !invisibleContainerIds.has(polygon.textureContainerId)
 }
 
 const meshGroups: MeshGroup[] = [
   createMeshGroup({ color: Color.white.getHex() }, (polygon) => {
-    return isVisiblePolygon(polygon) && !isTransparent(polygon.flags) && !isDoubleSided(polygon.flags) && !isNoDraw(polygon.flags)
+    return (
+      isVisiblePolygon(polygon) &&
+      !isTransparent(polygon.flags) &&
+      !isDoubleSided(polygon.flags) &&
+      !isNoDraw(polygon.flags)
+    )
   }),
   createMeshGroup({ color: Color.white.getHex(), side: DoubleSide }, (polygon) => {
-    return isVisiblePolygon(polygon) && !isTransparent(polygon.flags) && isDoubleSided(polygon.flags) && !isNoDraw(polygon.flags)
+    return (
+      isVisiblePolygon(polygon) &&
+      !isTransparent(polygon.flags) &&
+      isDoubleSided(polygon.flags) &&
+      !isNoDraw(polygon.flags)
+    )
   }),
   // the water: it must not write depth, otherwise it hides the overlays that are drawn after it
   createMeshGroup(
@@ -1174,14 +1183,101 @@ const meshGroups: MeshGroup[] = [
   ),
 ]
 
-const meshes: Mesh[] = meshGroups.map(({ mesh }) => mesh)
+const meshes: Mesh[] = meshGroups.map(({ mesh }) => {
+  return mesh
+})
 
-/** the baked attribute of each group as loaded - the Arx display restores it after a mode switch */
+type DownloadSettings = {
+  mode: LightingCalculatorMode
+  ambientFloor: number
+  shadows: boolean
+}
+
+export async function startDownload(settings: DownloadSettings): Promise<void> {
+  if (isLoading.value !== 'fulfilled' || isDownloading.value) {
+    return
+  }
+
+  isDownloading.value = true
+  downloadCompleted.value = false
+  downloadProgress.value = 0
+
+  try {
+    // M1: the surviving polygons and the LLF palette filtered to them; the DLF is saved as it was
+    // opened (the editor does not handle entities yet)
+    const exportFts = buildExportFts(fts, deletedPolygons)
+
+    // the anchors are recomputed from the surviving geometry (like the palette): the deleted
+    // polygons took their anchors with them, and the links between the remaining ones change too
+    // the anchors are recomputed from the surviving geometry (like the palette). The editor may
+    // already show them (the Anchors overlay), then the cached graph is reused instead of running
+    // the generator twice
+    const exportFtsWithAnchors = buildExportAnchors(exportFts, {}, await ensureAnchorGraph())
+    downloadProgress.value = 10
+    // the palette cache is keyed by the settings, so the dialog reuses the display's bake when they match
+    let exportPalette: ArxColor[] | undefined
+    if (settings.mode === 'Realistic') {
+      exportPalette = await getRealisticPalette(settings.ambientFloor, settings.shadows)
+    } else if (settings.mode === 'TextureRainbow') {
+      exportPalette = await getRainbowPalette()
+    }
+
+    const exportLlf = buildExportLlf(
+      fts,
+      llf,
+      deletedPolygons,
+      settings.mode,
+      meshes,
+      settings.ambientFloor,
+      settings.shadows,
+      exportPalette,
+    )
+
+    // the steps are sequential so the progress can follow them: 20 / 40 / 60 / 80 / 100
+    const line1 = logger.log('packing level data...')
+    downloadProgress.value = 20
+
+    const packedFts = await saveFTS(exportFtsWithAnchors, levelId)
+    downloadProgress.value = 40
+
+    const packedLlf = await saveLLF(exportLlf, levelId)
+    downloadProgress.value = 60
+
+    const packedDlf = await saveDLF(dlf, levelId)
+    downloadProgress.value = 80
+
+    logger.log('done', line1)
+
+    const line2 = logger.log('zipping files...')
+
+    const zip = await zipBuffers({
+      [`/game/graph/levels/level${levelId}/fast.fts`]: packedFts,
+      [`/graph/levels/level${levelId}/level${levelId}.llf`]: packedLlf,
+      [`/graph/levels/level${levelId}/level${levelId}.dlf`]: packedDlf,
+    })
+
+    logger.log('done', line2)
+
+    downloadProgress.value = 100
+
+    downloadBinaryAs('mod.zip', zip, 'application/zip')
+
+    // let the 100% be visible for a moment, then show the green check until the next download
+    await wait(300)
+    downloadCompleted.value = true
+  } finally {
+    isDownloading.value = false
+  }
+}
+
+/**
+ * The baked attribute of each group as loaded - the Arx display restores it after a mode switch.
+ */
 const originalBakedColors = new Map<Mesh, Float32Array>()
 for (const { mesh } of meshGroups) {
   const attribute = mesh.geometry.getAttribute('baked')
   if (attribute !== undefined) {
-    originalBakedColors.set(mesh, (attribute.array as Float32Array).slice())
+    originalBakedColors.set(mesh, Float32Array.from(attribute.array as Float32Array))
   }
 }
 
@@ -1248,16 +1344,23 @@ async function applyRealisticBakedColors(): Promise<void> {
       // `arxPolygonsToMesh()` - so the baked attribute needs **six** values per quad, in that order.
       // Writing four (the LLF's palette order) shifts every following vertex and every polygon gets
       // the colour of its neighbour.
-      const vertexOrder = isQuad(polygon) ? [0, 1, 2, 2, 1, 3] : [0, 1, 2]
+      let vertexOrder = [0, 1, 2]
+      if (isQuad(polygon)) {
+        vertexOrder = [0, 1, 2, 2, 1, 3]
+      }
 
       for (const vertexIndex of vertexOrder) {
         const colorIndex = polygon.vertices[vertexIndex].llfColorIdx
-        const color = colorIndex === undefined ? undefined : palette[colorIndex]
+        let color: ArxColor | undefined
+        if (colorIndex !== undefined) {
+          color = palette[colorIndex]
+        }
 
         if (color !== undefined) {
-          array[index * 3] = srgbToLinear((color.r / 255) * (flat[0] / 255))
-          array[index * 3 + 1] = srgbToLinear((color.g / 255) * (flat[1] / 255))
-          array[index * 3 + 2] = srgbToLinear((color.b / 255) * (flat[2] / 255))
+          const colorOffset = index * 3
+          array[colorOffset] = srgbToLinear((color.r / 255) * (flat[0] / 255))
+          array[colorOffset + 1] = srgbToLinear((color.g / 255) * (flat[1] / 255))
+          array[colorOffset + 2] = srgbToLinear((color.b / 255) * (flat[2] / 255))
         }
 
         index++
@@ -1310,16 +1413,23 @@ async function applyRainbowBakedColors(): Promise<void> {
 
     for (const { polygon } of survivingEntries(group)) {
       const flat = flatColors.get(polygon.textureContainerId) ?? [255, 255, 255]
-      const vertexOrder = isQuad(polygon) ? [0, 1, 2, 2, 1, 3] : [0, 1, 2]
+      let vertexOrder = [0, 1, 2]
+      if (isQuad(polygon)) {
+        vertexOrder = [0, 1, 2, 2, 1, 3]
+      }
 
       for (const vertexIndex of vertexOrder) {
         const colorIndex = polygon.vertices[vertexIndex].llfColorIdx
-        const color = colorIndex === undefined ? undefined : palette[colorIndex]
+        let color: ArxColor | undefined
+        if (colorIndex !== undefined) {
+          color = palette[colorIndex]
+        }
 
         if (color !== undefined) {
-          array[index * 3] = srgbToLinear((color.r / 255) * (flat[0] / 255))
-          array[index * 3 + 1] = srgbToLinear((color.g / 255) * (flat[1] / 255))
-          array[index * 3 + 2] = srgbToLinear((color.b / 255) * (flat[2] / 255))
+          const colorOffset = index * 3
+          array[colorOffset] = srgbToLinear((color.r / 255) * (flat[0] / 255))
+          array[colorOffset + 1] = srgbToLinear((color.g / 255) * (flat[1] / 255))
+          array[colorOffset + 2] = srgbToLinear((color.b / 255) * (flat[2] / 255))
         }
 
         index++
@@ -1382,7 +1492,9 @@ let wireframeDirty = true
 function createWireframeLines(): LineSegments[] {
   return meshGroups.map((group) => {
     const wireframe = createPolygonWireframe(
-      survivingEntries(group).map(({ polygon }) => polygon),
+      survivingEntries(group).map(({ polygon }) => {
+        return polygon
+      }),
       offset,
     )
     wireframe.renderOrder = 5
@@ -1390,7 +1502,9 @@ function createWireframeLines(): LineSegments[] {
   })
 }
 
-/** built lazily, and only rebuilt on the next show after a deletion while it was hidden */
+/**
+ * Built lazily, and only rebuilt on the next show after a deletion while it was hidden.
+ */
 function ensureWireframeLines(): LineSegments[] {
   if (wireframeLines === undefined || wireframeDirty) {
     wireframeLines = createWireframeLines()
@@ -1408,7 +1522,7 @@ watch(wireframeVisible, (value) => {
   }
 })
 
-if (wireframeVisible.value === true) {
+if (wireframeVisible.value) {
   scene.add(...ensureWireframeLines())
 }
 
@@ -1428,19 +1542,41 @@ function ftsPositionToThree(position: ArxVector3): Vector3 {
   return arxVector3toVector3(position).sub(offset)
 }
 
-/** the vertical blue ticks of the anchors (the game's debug view draws them, our comparison does not need them) */
+/**
+ * The vertical blue ticks of the anchors (the game's debug view draws them, our comparison does not need them).
+ */
 const SHOW_ANCHOR_TICKS = false
 
 const anchorsGroup = new Group()
 scene.add(anchorsGroup)
 
-/** the generated graph when both graphs are shown (cyan, the file's graph stays green) */
+/**
+ * The generated graph when both graphs are shown (cyan, the file's graph stays green).
+ */
 const generatedAnchorsGroup = new Group()
 scene.add(generatedAnchorsGroup)
 
-/** the diagnostic layers: the anchor diff dots and the repaired links */
+/**
+ * The diagnostic layers: the anchor diff dots and the repaired links.
+ */
 const anchorDebugGroup = new Group()
 scene.add(anchorDebugGroup)
+
+/**
+ * Disposes the geometry of every child of a group and removes them. The children are iterated
+ * **before** the removal (a loop that removes while iterating skips every second child), and the
+ * removal itself is a single `clear()`.
+ *
+ * @param group The group to empty.
+ */
+function disposeGroupChildren(group: Group): void {
+  for (const child of group.children) {
+    const withGeometry = child as unknown as { geometry?: BufferGeometry }
+    withGeometry.geometry?.dispose()
+  }
+
+  group.clear()
+}
 
 /**
  * Rebuilds the anchors' overlay from a graph. `requestFrame` is false for the initial call: this
@@ -1450,18 +1586,14 @@ function renderAnchorGraph(
   anchors: ReadonlyArray<{ position: { x: number; y: number; z: number }; linkedAnchors: number[] }>,
   requestFrame = true,
   group: Group = anchorsGroup,
-  linkColor = 0x35d84a,
+  linkColor = 0x35_d8_4a,
 ): void {
-  for (const child of [...group.children]) {
-    group.remove(child)
-    const withGeometry = child as unknown as { geometry?: BufferGeometry }
-    withGeometry.geometry?.dispose()
-  }
+  disposeGroupChildren(group)
 
   const anchorLinkPositions: number[] = []
   const anchorTickPositions: number[] = []
 
-  anchors.forEach((anchor, index) => {
+  for (const [index, anchor] of anchors.entries()) {
     const from = ftsPositionToThree(anchor.position)
 
     // the anchor of the format has a `height` (always -165 in the original levels, arx-convert does
@@ -1479,7 +1611,7 @@ function renderAnchorGraph(
       const to = ftsPositionToThree(anchors[linkedIndex].position)
       anchorLinkPositions.push(from.x, from.y, from.z, to.x, to.y, to.z)
     }
-  })
+  }
 
   const anchorLinksGeometry = new BufferGeometry()
   anchorLinksGeometry.setAttribute('position', new BufferAttribute(new Float32Array(anchorLinkPositions), 3))
@@ -1493,7 +1625,7 @@ function renderAnchorGraph(
   anchorTicksGeometry.setAttribute('position', new BufferAttribute(new Float32Array(anchorTickPositions), 3))
   const anchorTicks = new LineSegments(
     anchorTicksGeometry,
-    new LineBasicMaterial({ color: 0x4b7cff, transparent: true, opacity: 0.9 }),
+    new LineBasicMaterial({ color: 0x4b_7c_ff, transparent: true, opacity: 0.9 }),
   )
   anchorTicks.renderOrder = 8
 
@@ -1502,6 +1634,7 @@ function renderAnchorGraph(
   } else {
     anchorsGroup.add(anchorLinks)
   }
+
   anchorsGroup.visible = anchorsVisible.value
 
   if (requestFrame) {
@@ -1523,20 +1656,26 @@ renderAnchorGraph(originalAnchorGraph, false)
  * stale.
  */
 let anchorGraph: AnchorGraph | undefined
-/** the stats of the last generation (the repaired/filled links of the debug layer) */
+/**
+ * The stats of the last generation (the repaired/filled links of the debug layer).
+ */
 let anchorGraphStats: Record<string, unknown> | undefined
 let anchorGraphVersion = -1
 let geometryVersion = 0
 let anchorGeneration: Promise<AnchorGraph> | undefined
 
-/** the debounce of the regeneration after a polygon change (ms) */
+/**
+ * The debounce of the regeneration after a polygon change (ms).
+ */
 const ANCHOR_REGENERATION_DELAY = 700
 
 let anchorRegenerationTimer: ReturnType<typeof setTimeout> | undefined
 
-const anchorWorker = new Worker(new URL('./generator/anchor-worker.ts', import.meta.url), { type: 'module' })
+const anchorWorker = new Worker(new URL('generator/anchor-worker.ts', import.meta.url), { type: 'module' })
 
-/** the polygons the export would write: everything except the deleted ones */
+/**
+ * The polygons the export would write: everything except the deleted ones.
+ */
 function survivingPolygons(): ArxPolygon[] {
   return fts.polygons.filter((_polygon, sourceIndex) => {
     return !deletedPolygons.has(sourceIndex)
@@ -1550,49 +1689,56 @@ function survivingPolygons(): ArxPolygon[] {
  */
 async function generateAnchorGraph(): Promise<AnchorGraph> {
   if (anchorGeneration !== undefined) {
-    return anchorGeneration
+    return await anchorGeneration
   }
 
   const version = geometryVersion
 
-  anchorGeneration = (async () => {
+  anchorGeneration = (async (): Promise<AnchorGraph> => {
     const polygons = survivingPolygons()
     const positions = new Float32Array(polygons.length * 12)
     const normals = new Float32Array(polygons.length * 3)
     const flags = new Uint32Array(polygons.length)
     const areas = new Float32Array(polygons.length)
 
-    polygons.forEach((polygon, index) => {
-      const usedVertices = isQuad(polygon) ? 4 : 3
+    for (const [index, polygon] of polygons.entries()) {
+      let usedVertices = 3
+      if (isQuad(polygon)) {
+        usedVertices = 4
+      }
+
       const vertexOffset = index * 12
 
       for (let vertex = 0; vertex < 4; vertex++) {
         // a triangle repeats its last vertex in the 4th slot, the generator ignores it
         const source = polygon.vertices[Math.min(vertex, usedVertices - 1)]
-        positions[vertexOffset + vertex * 3] = source.x
-        positions[vertexOffset + vertex * 3 + 1] = source.y
-        positions[vertexOffset + vertex * 3 + 2] = source.z
+        const vertexInPolygon = vertex * 3
+        const target = vertexOffset + vertexInPolygon
+        positions[target] = source.x
+        positions[target + 1] = source.y
+        positions[target + 2] = source.z
       }
 
-      normals[index * 3] = polygon.norm.x
-      normals[index * 3 + 1] = polygon.norm.y
-      normals[index * 3 + 2] = polygon.norm.z
+      const normalOffset = index * 3
+      normals[normalOffset] = polygon.norm.x
+      normals[normalOffset + 1] = polygon.norm.y
+      normals[normalOffset + 2] = polygon.norm.z
       flags[index] = polygon.flags
       areas[index] = polygon.area
-    })
+    }
 
     const line = logger.log('generating anchors...')
     isComputingAnchors.value = true
 
     try {
       const response = await new Promise<AnchorWorkerResponse>((resolve, reject) => {
-        anchorWorker.onmessage = (event: MessageEvent<AnchorWorkerResponse>) => {
+        anchorWorker.addEventListener('message', (event: MessageEvent<AnchorWorkerResponse>): void => {
           resolve(event.data)
-        }
+        })
 
-        anchorWorker.onerror = (event) => {
+        anchorWorker.addEventListener('error', (event): void => {
           reject(new Error(event.message))
-        }
+        })
 
         anchorWorker.postMessage({ positions, normals, flags, areas, options: {} })
       })
@@ -1615,7 +1761,10 @@ async function generateAnchorGraph(): Promise<AnchorGraph> {
       // the F2 panel shows the filter counters and the island analysis of this graph
       publishAnchorDebugPayload(polygons, { ...graph, stats: response.stats ?? { generatorVersion: response.version } })
 
-      const links = graph.anchors.reduce((sum, anchor) => sum + anchor.linkedAnchors.length, 0) / 2
+      const links =
+        graph.anchors.reduce((sum, anchor) => {
+          return sum + anchor.linkedAnchors.length
+        }, 0) / 2
       logger.log(`done (${graph.anchors.length} anchors, ${links} links)`, line)
 
       // the graph is generated in the background (so the switch has something to show right away),
@@ -1632,7 +1781,7 @@ async function generateAnchorGraph(): Promise<AnchorGraph> {
     }
   })()
 
-  return anchorGeneration
+  return await anchorGeneration
 }
 
 /**
@@ -1644,7 +1793,7 @@ async function ensureAnchorGraph(): Promise<AnchorGraph> {
     return anchorGraph
   }
 
-  return generateAnchorGraph()
+  return await generateAnchorGraph()
 }
 
 /**
@@ -1656,8 +1805,8 @@ async function applyAnchorGraphVisibility(): Promise<void> {
   if (bothAnchorGraphs.value) {
     const graph = await ensureAnchorGraph()
 
-    renderAnchorGraph(originalAnchorGraph, true, anchorsGroup, 0x35d84a)
-    renderAnchorGraph(graph.anchors, true, generatedAnchorsGroup, 0x35c8d8)
+    renderAnchorGraph(originalAnchorGraph, true, anchorsGroup, 0x35_d8_4a)
+    renderAnchorGraph(graph.anchors, true, generatedAnchorsGroup, 0x35_c8_d8)
 
     anchorsGroup.visible = anchorsVisible.value
     generatedAnchorsGroup.visible = anchorsVisible.value
@@ -1684,7 +1833,9 @@ async function applyAnchorGraphVisibility(): Promise<void> {
   updateAnchorDebugLayers()
 }
 
-/** the nearest anchor of `candidates` within `maxDistance`, using a 100 unit grid hash */
+/**
+ * The nearest anchor of `candidates` within `maxDistance`, using a 100 unit grid hash.
+ */
 function hasAnchorNear(
   anchor: { position: { x: number; y: number; z: number } },
   candidates: ReadonlyArray<{ position: { x: number; y: number; z: number } }>,
@@ -1694,18 +1845,25 @@ function hasAnchorNear(
 
   for (const candidate of candidates) {
     const dx = candidate.position.x - anchor.position.x
-    if (dx > maxDistance || dx < -maxDistance) {
+    if (Math.abs(dx) > maxDistance) {
       continue
     }
+
     const dy = candidate.position.y - anchor.position.y
-    if (dy > maxDistance || dy < -maxDistance) {
+    if (Math.abs(dy) > maxDistance) {
       continue
     }
+
     const dz = candidate.position.z - anchor.position.z
-    if (dz > maxDistance || dz < -maxDistance) {
+    if (Math.abs(dz) > maxDistance) {
       continue
     }
-    if (dx * dx + dy * dy + dz * dz <= maxDistanceSquared) {
+
+    const dxSquared = dx * dx
+    const dySquared = dy * dy
+    const dzSquared = dz * dz
+
+    if (dxSquared + dySquared + dzSquared <= maxDistanceSquared) {
       return true
     }
   }
@@ -1713,13 +1871,11 @@ function hasAnchorNear(
   return false
 }
 
-/** the anchor diff dots and the repaired links of the generator (the Debug block) */
+/**
+ * The anchor diff dots and the repaired links of the generator (the Debug block).
+ */
 function updateAnchorDebugLayers(): void {
-  for (const child of [...anchorDebugGroup.children]) {
-    anchorDebugGroup.remove(child)
-    const withGeometry = child as unknown as { geometry?: BufferGeometry }
-    withGeometry.geometry?.dispose()
-  }
+  disposeGroupChildren(anchorDebugGroup)
 
   const graph = anchorGraph
   if (graph === undefined) {
@@ -1732,8 +1888,12 @@ function updateAnchorDebugLayers(): void {
   const colors: number[] = []
 
   if (anchorDiffVisible.value) {
-    const onlyOriginal = originalAnchorGraph.filter((anchor) => !hasAnchorNear(anchor, graph.anchors, 100))
-    const onlyGenerated = graph.anchors.filter((anchor) => !hasAnchorNear(anchor, originalAnchorGraph, 100))
+    const onlyOriginal = originalAnchorGraph.filter((anchor) => {
+      return !hasAnchorNear(anchor, graph.anchors, 100)
+    })
+    const onlyGenerated = graph.anchors.filter((anchor) => {
+      return !hasAnchorNear(anchor, originalAnchorGraph, 100)
+    })
 
     for (const anchor of onlyOriginal) {
       const point = ftsPositionToThree(anchor.position)
@@ -1749,7 +1909,12 @@ function updateAnchorDebugLayers(): void {
   }
 
   if (rejectedLinksVisible.value) {
-    const stats = anchorGraphStats as { gapFilledLinks?: Array<{ a: { x: number; y: number; z: number }; b: { x: number; y: number; z: number } }>; repairedLinks?: Array<{ a: { x: number; y: number; z: number }; b: { x: number; y: number; z: number } }> } | undefined
+    const stats = anchorGraphStats as
+      | {
+          gapFilledLinks?: Array<{ a: { x: number; y: number; z: number }; b: { x: number; y: number; z: number } }>
+          repairedLinks?: Array<{ a: { x: number; y: number; z: number }; b: { x: number; y: number; z: number } }>
+        }
+      | undefined
     const links = [...(stats?.repairedLinks ?? []), ...(stats?.gapFilledLinks ?? [])]
 
     const lines = new BufferGeometry()
@@ -1759,8 +1924,9 @@ function updateAnchorDebugLayers(): void {
       const to = ftsPositionToThree(link.b)
       linePositions.push(from.x, from.y, from.z, to.x, to.y, to.z)
     }
+
     lines.setAttribute('position', new BufferAttribute(new Float32Array(linePositions), 3))
-    const material = new LineBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0.9 })
+    const material = new LineBasicMaterial({ color: 0xff_d2_3f, transparent: true, opacity: 0.9 })
     const segments = new LineSegments(lines, material)
     segments.renderOrder = 9
     anchorDebugGroup.add(segments)
@@ -1805,8 +1971,9 @@ watch(anchorsVisible, (value) => {
   }
 })
 
-
-/** bumps the geometry version and regenerates the graph when the overlay is on (debounced) */
+/**
+ * Bumps the geometry version and regenerates the graph when the overlay is on (debounced).
+ */
 function onGeometryChanged(): void {
   geometryVersion++
 
@@ -1826,11 +1993,18 @@ if (fts.portals.length > 0) {
   const portalPositions: number[] = []
 
   for (const portal of fts.portals) {
-    const vertices = portal.polygon.vertices.map(({ position }) => ftsPositionToThree(position))
+    const vertices = portal.polygon.vertices.map(({ position }) => {
+      return ftsPositionToThree(position)
+    })
 
     // the stored vertex order is a "Z" (0, 1, 2, 3), the perimeter is 0-1-3-2 - with the stored
     // order the last two edges would be the diagonals of the quad
-    for (const [fromIndex, toIndex] of [[0, 1], [1, 3], [3, 2], [2, 0]]) {
+    for (const [fromIndex, toIndex] of [
+      [0, 1],
+      [1, 3],
+      [3, 2],
+      [2, 0],
+    ]) {
       const from = vertices[fromIndex]
       const to = vertices[toIndex]
       portalPositions.push(from.x, from.y, from.z, to.x, to.y, to.z)
@@ -1841,7 +2015,7 @@ if (fts.portals.length > 0) {
   portalGeometry.setAttribute('position', new BufferAttribute(new Float32Array(portalPositions), 3))
   const portalLines = new LineSegments(
     portalGeometry,
-    new LineBasicMaterial({ color: 0x00ffcc, transparent: true, opacity: 0.9 }),
+    new LineBasicMaterial({ color: 0x00_ff_cc, transparent: true, opacity: 0.9 }),
   )
   portalLines.renderOrder = 8
   portalsGroup.add(portalLines)
@@ -1862,14 +2036,14 @@ if (llf.lights.length > 0) {
   const dummy = new Object3D()
   const color = new ThreeColor()
 
-  llf.lights.forEach((light, index) => {
+  for (const [index, light] of llf.lights.entries()) {
     dummy.position.copy(arxVector3toVector3(light.position))
     dummy.updateMatrix()
     gizmos.setMatrixAt(index, dummy.matrix)
 
     color.setHex(Color.fromArxColor(light.color).getHex())
     gizmos.setColorAt(index, color)
-  })
+  }
 
   gizmos.instanceMatrix.needsUpdate = true
 
@@ -1924,7 +2098,7 @@ watch(lightsVisible, (value) => {
  * `CALC_DLIGHT`), and the LLF `colors` were baked with exactly this formula (the old
  * `arx-level-generator` repeats it in `calculateDanaeVertexColor()`).
  *
- * three.js has no such falloff, but `decay = 0` (no distance falloff) with `distance = fallEnd`
+ * Three.js has no such falloff, but `decay = 0` (no distance falloff) with `distance = fallEnd`
  * (the cutoff) is close: the smooth cutoff is ~1 until `fallStart` - which is usually around
  * `fallEnd / 2` - and then falls to 0, very much like the linear ramp.
  *
@@ -1985,7 +2159,7 @@ watch(cameraLightVisible, (value) => {
   }
 })
 
-if (cameraLightVisible.value === true) {
+if (cameraLightVisible.value) {
   scene.add(cameraLight)
 }
 
@@ -2015,17 +2189,27 @@ const HUD_FONT = '12px monospace'
 const HUD_PENCIL_FONT = '12px monospace'
 const HUD_PENCIL_COLOR = '#8b8080'
 const HUD_BACKGROUND = 'rgba(0, 0, 0, 0.55)'
-/** the whole block: the two lines and the pencil strip on the right */
+/**
+ * The whole block: the two lines and the pencil strip on the right.
+ */
 const HUD_CANVAS_WIDTH = 380
-const HUD_CANVAS_HEIGHT = 2 * HUD_LINE_HEIGHT + HUD_PADDING * 2
+const HUD_LINES_HEIGHT = 2 * HUD_LINE_HEIGHT
+const HUD_VERTICAL_PADDING = 2 * HUD_PADDING
+const HUD_CANVAS_HEIGHT = HUD_LINES_HEIGHT + HUD_VERTICAL_PADDING
 const HUD_PENCIL_STRIP_WIDTH = 18
 const HUD_PENCIL_BACKGROUND = 'rgba(255, 255, 255, 0.06)'
 const HUD_PENCIL_HOVER_COLOR = '#595151'
-/** the pencil is only highlighted while the pointer is over the block and the pointer is not locked */
+/**
+ * The pencil is only highlighted while the pointer is over the block and the pointer is not locked.
+ */
 let hudPencilHighlighted = false
-/** the pencil is only drawn while the pointer is over the canvas (and the pointer is not locked) */
+/**
+ * The pencil is only drawn while the pointer is over the canvas (and the pointer is not locked).
+ */
 let hudPencilVisible = false
-/** forces the next `updateCameraInfo` to redraw even when the text did not change */
+/**
+ * Forces the next `updateCameraInfo` to redraw even when the text did not change.
+ */
 let hudForceRedraw = false
 
 const hudCanvas = document.createElement('canvas')
@@ -2038,16 +2222,18 @@ const hudSprite = new Sprite(
 )
 const hudScene = new Scene()
 hudScene.add(hudSprite)
-/** pixel space, y up (the renderer's drawing buffer is in css pixels here) */
+/**
+ * Pixel space, y up (the renderer's drawing buffer is in css pixels here).
+ */
 const hudCamera = new OrthographicCamera(0, 1, 1, 0, -10, 10)
 
-
-/** the last text of the overlay, so the texture is only redrawn when something changed */
+/**
+ * The last text of the overlay, so the texture is only redrawn when something changed.
+ */
 let hudText = ''
 
 function updateHudLayout(): void {
-  const width = hudCanvas.width
-  const height = hudCanvas.height
+  const { width, height } = hudCanvas
   const bufferWidth = renderer.domElement.width
   const bufferHeight = renderer.domElement.height
 
@@ -2058,7 +2244,12 @@ function updateHudLayout(): void {
   hudCamera.updateProjectionMatrix()
 
   hudSprite.scale.set(width, height, 1)
-  hudSprite.position.set(HUD_MARGIN + width / 2, bufferHeight - HUD_MARGIN - height / 2, 0)
+
+  const halfWidth = width / 2
+  const halfHeight = height / 2
+  const spriteX = HUD_MARGIN + halfWidth
+  const spriteY = bufferHeight - HUD_MARGIN - halfHeight
+  hudSprite.position.set(spriteX, spriteY, 0)
 }
 
 /**
@@ -2082,19 +2273,33 @@ function drawHud(lines: string[]): void {
   // overlay is clickable (it opens the camera dialog). It appears on hover and lights up over the
   // strip itself.
   if (hudPencilVisible) {
-    hudContext.fillStyle = hudPencilHighlighted ? HUD_PENCIL_HOVER_COLOR : HUD_PENCIL_BACKGROUND
+    let pencilFillStyle = HUD_PENCIL_BACKGROUND
+    if (hudPencilHighlighted) {
+      pencilFillStyle = HUD_PENCIL_HOVER_COLOR
+    }
+
+    hudContext.fillStyle = pencilFillStyle
     hudContext.fillRect(HUD_CANVAS_WIDTH - HUD_PENCIL_STRIP_WIDTH, 1, HUD_PENCIL_STRIP_WIDTH - 1, HUD_CANVAS_HEIGHT - 2)
   }
 
   hudContext.fillStyle = 'white'
-  lines.forEach((line, index) => {
-    hudContext.fillText(line, HUD_PADDING, HUD_PADDING + HUD_LINE_HEIGHT * (index + 0.5))
-  })
+  for (const [index, line] of lines.entries()) {
+    const lineOffset = HUD_LINE_HEIGHT * (index + 0.5)
+    hudContext.fillText(line, HUD_PADDING, HUD_PADDING + lineOffset)
+  }
 
   if (hudPencilVisible) {
-    hudContext.fillStyle = hudPencilHighlighted ? '#ffffff' : HUD_PENCIL_COLOR
+    let pencilFillStyle = HUD_PENCIL_COLOR
+    if (hudPencilHighlighted) {
+      pencilFillStyle = '#ffffff'
+    }
+
+    const pencilX = HUD_CANVAS_WIDTH - HUD_PENCIL_STRIP_WIDTH + 4
+    const halfHeight = HUD_CANVAS_HEIGHT / 2
+
+    hudContext.fillStyle = pencilFillStyle
     hudContext.font = HUD_PENCIL_FONT
-    hudContext.fillText('✎', HUD_CANVAS_WIDTH - HUD_PENCIL_STRIP_WIDTH + 4, HUD_CANVAS_HEIGHT / 2 - 4)
+    hudContext.fillText('✎', pencilX, halfHeight - 4)
   }
 
   hudTexture.needsUpdate = true
@@ -2153,7 +2358,9 @@ function getGameAngleOfCamera(): { yaw: number; pitch: number } {
   }
 }
 
-/** parses `x,y,z` (or `pitch,yaw,roll`); `undefined` when the value is missing or malformed */
+/**
+ * Parses `x,y,z` (or `pitch,yaw,roll`); `undefined` when the value is missing or malformed.
+ */
 function parseNumberTuple(value: string | null, length: number): number[] | undefined {
   if (value === null) {
     return undefined
@@ -2163,7 +2370,12 @@ function parseNumberTuple(value: string | null, length: number): number[] | unde
     return Number.parseFloat(part.trim())
   })
 
-  if (parts.length !== length || parts.some((part) => !Number.isFinite(part))) {
+  if (
+    parts.length !== length ||
+    parts.some((part) => {
+      return !Number.isFinite(part)
+    })
+  ) {
     return undefined
   }
 
@@ -2218,7 +2430,9 @@ function updateCameraInfo(): void {
   drawHud(text.split('\n'))
 }
 
-/** how often the camera state is written into the url (ms) */
+/**
+ * How often the camera state is written into the url (ms).
+ */
 const cameraUrlUpdateInterval = 250
 let lastCameraUrlUpdateAt = Number.NEGATIVE_INFINITY
 let lastCameraUrl: string | undefined
@@ -2295,7 +2509,9 @@ watch(cameraInfoVisible, (value) => {
 applyCameraStateFromUrl()
 updateCameraUrl()
 
-/** how often the dynamic light pool follows the camera (ms) */
+/**
+ * How often the dynamic light pool follows the camera (ms).
+ */
 const dynamicLightsUpdateInterval = 250
 let lastDynamicLightsUpdateAt = Number.NEGATIVE_INFINITY
 
@@ -2356,12 +2572,12 @@ function updateDynamicLights(): void {
     })
     .slice(0, maxDynamicLights)
 
-  dynamicLights.forEach((pointLight, index) => {
+  for (const [index, pointLight] of dynamicLights.entries()) {
     const nearest = nearestLights[index]
 
     if (nearest === undefined) {
       pointLight.intensity = 0
-      return
+      continue
     }
 
     const { light, position } = nearest
@@ -2371,12 +2587,14 @@ function updateDynamicLights(): void {
     pointLight.intensity = light.intensity * ARX_GLOBAL_LIGHT_FACTOR * Math.PI * dynamicLightIntensityScale
     pointLight.distance = light.fallEnd
     pointLight.decay = 0
-  })
+  }
 }
 
 updateDynamicLights()
 
-/** swaps the materials of the three groups and the light pool to the selected display mode */
+/**
+ * Swaps the materials of the three groups and the light pool to the selected display mode.
+ */
 async function applyLightingCalculatorMode(): Promise<void> {
   const displayMode = getDisplayLightingMode()
 
@@ -2394,7 +2612,12 @@ async function applyLightingCalculatorMode(): Promise<void> {
     await applyRainbowBakedColors()
   } else {
     for (const { mesh } of meshGroups) {
-      setBakedColors(mesh, displayMode === 'completeDarkness' ? 0 : originalBakedColors.get(mesh))
+      let bakedColors: Float32Array | 0 | undefined = originalBakedColors.get(mesh)
+      if (displayMode === 'completeDarkness') {
+        bakedColors = 0
+      }
+
+      setBakedColors(mesh, bakedColors)
     }
   }
 
@@ -2409,7 +2632,17 @@ async function applyLightingCalculatorMode(): Promise<void> {
 // the visibility toggles and the lighting settings change the scene from the ui, not from an input
 // event on this element, so they request a frame too
 watch(
-  [wireframeVisible, meshVisible, anchorsVisible, portalsVisible, lightsVisible, cameraLightVisible, lightingCalculatorMode, ambientFloor, shadows],
+  [
+    wireframeVisible,
+    meshVisible,
+    anchorsVisible,
+    portalsVisible,
+    lightsVisible,
+    cameraLightVisible,
+    lightingCalculatorMode,
+    ambientFloor,
+    shadows,
+  ],
   requestRender,
 )
 
@@ -2464,9 +2697,15 @@ const highlightMaterial = new MeshBasicMaterial({
 
 let highlightOfSelectedPolygons: Mesh[] = []
 
-/** the stored vertex order is a "Z" (0, 1, 2, 3), the perimeter is 0-1-3-2 for a quad */
+/**
+ * The stored vertex order is a "Z" (0, 1, 2, 3), the perimeter is 0-1-3-2 for a quad.
+ */
 function getPolygonPerimeter(polygon: ArxPolygon): number[] {
-  return isQuad(polygon) ? [0, 1, 3, 2] : [0, 1, 2]
+  if (isQuad(polygon)) {
+    return [0, 1, 3, 2]
+  }
+
+  return [0, 1, 2]
 }
 
 function getPolygonVertices(polygon: ArxPolygon): Vector3[] {
@@ -2497,12 +2736,14 @@ function createPolygonOutlineGeometry(polygon: ArxPolygon): BufferGeometry {
 
 function createPolygonFillGeometry(polygon: ArxPolygon): BufferGeometry {
   const vertices = getPolygonVertices(polygon)
-  const triangles = isQuad(polygon)
-    ? [
-        [0, 1, 2],
-        [2, 1, 3],
-      ]
-    : [[0, 1, 2]]
+  let triangles = [[0, 1, 2]]
+  if (isQuad(polygon)) {
+    triangles = [
+      [0, 1, 2],
+      [2, 1, 3],
+    ]
+  }
+
   const positions: number[] = []
 
   for (const [a, b, c] of triangles) {
@@ -2519,13 +2760,19 @@ function createPolygonFillGeometry(polygon: ArxPolygon): BufferGeometry {
   return geometry
 }
 
-/** how far the cursor and the selection raycast look (game units) */
+/**
+ * How far the cursor and the selection raycast look (game units).
+ */
 const SELECTION_RAY_FAR = 100_000
 
-/** how many of the nearest hits are checked for a connected polygon while dragging */
+/**
+ * How many of the nearest hits are checked for a connected polygon while dragging.
+ */
 const SELECTION_CANDIDATE_LIMIT = 32
 
-/** the selection is polygon based: a quad is one unit, both of its triangles are highlighted */
+/**
+ * The selection is polygon based: a quad is one unit, both of its triangles are highlighted.
+ */
 /**
  * Draws the selection as **one** mesh: a flood fill can select a few thousand polygons (the biggest
  * connected same texture area of the original levels is ~1800), and one draw call per polygon would
@@ -2536,9 +2783,9 @@ function updateHighlightOfSelectedPolygons(): void {
 
   if (highlightOfSelectedPolygons.length > 0) {
     scene.remove(...highlightOfSelectedPolygons)
-    highlightOfSelectedPolygons.forEach((mesh) => {
+    for (const mesh of highlightOfSelectedPolygons) {
       mesh.geometry.dispose()
-    })
+    }
   }
 
   const positions: number[] = []
@@ -2636,15 +2883,14 @@ function deletePolygons(polygonsToDelete: ReadonlySet<number>): void {
   scene.remove(cursorTriangleMesh)
 }
 
-
 /**
- * being relevant when new polygons are to be added to or removed from the selectedPolygons
+ * Being relevant when new polygons are to be added to or removed from the selectedPolygons.
  *
- * if the left mouse button is pressed with a face that is already in the selection,
+ * If the left mouse button is pressed with a face that is already in the selection,
  * that means the polygon will be removed and all subsequent polygons will get removed from selectedPolygons
- * otherwise all subsequent polygons will be added
+ * otherwise all subsequent polygons will be added.
  *
- * until the first polygon is clicked the state is undefined
+ * Until the first polygon is clicked the state is undefined.
  */
 /**
  * The vertices of the polygons that were selected **during the current drag**, in a grid so a
@@ -2664,16 +2910,23 @@ let selectionDragVertices: Map<string, SelectionPoint[]> | undefined
 
 type SelectionPoint = { x: number; y: number; z: number }
 
-/** the grid cell of the selection lookup (game units) */
+/**
+ * The grid cell of the selection lookup (game units).
+ */
 const SELECTION_GRID_CELL = 4
 
 function getSelectionGridKey(x: number, y: number, z: number): string {
   return `${Math.floor(x / SELECTION_GRID_CELL)}:${Math.floor(y / SELECTION_GRID_CELL)}:${Math.floor(z / SELECTION_GRID_CELL)}`
 }
 
-/** the vertices the polygon actually renders (the 4th vertex of a triangle is unused) */
+/**
+ * The vertices the polygon actually renders (the 4th vertex of a triangle is unused).
+ */
 function getUsedVerticesOf(polygon: ArxPolygon): SelectionPoint[] {
-  const count = isQuad(polygon) ? 4 : 3
+  let count = 3
+  if (isQuad(polygon)) {
+    count = 4
+  }
 
   return polygon.vertices.slice(0, count).map(({ x, y, z }) => {
     return { x, y, z }
@@ -2698,7 +2951,9 @@ function addVerticesToSelectionGrid(vertices: SelectionPoint[]): void {
   }
 }
 
-/** the rounded position of a vertex, the key of the neighbour lookup of the flood fill */
+/**
+ * The rounded position of a vertex, the key of the neighbour lookup of the flood fill.
+ */
 function getVertexKey(vertex: { x: number; y: number; z: number }): string {
   return `${vertex.x.toFixed(2)}:${vertex.y.toFixed(2)}:${vertex.z.toFixed(2)}`
 }
@@ -2717,7 +2972,7 @@ function getPolygonsByVertexKey(): Map<string, number[]> {
 
   const index = new Map<string, number[]>()
 
-  fts.polygons.forEach((polygon, polygonIndex) => {
+  for (const [polygonIndex, polygon] of fts.polygons.entries()) {
     for (const vertex of getUsedVerticesOf(polygon)) {
       const key = getVertexKey(vertex)
       let list = index.get(key)
@@ -2729,7 +2984,7 @@ function getPolygonsByVertexKey(): Map<string, number[]> {
 
       list.push(polygonIndex)
     }
-  })
+  }
 
   polygonsByVertexKey = index
 
@@ -2778,7 +3033,7 @@ function selectSameTextureArea(startPolygonIndex: number, mode: SelectionMode): 
 
         const candidate = fts.polygons[neighbour]
 
-        if (candidate === undefined || candidate.textureContainerId !== start.textureContainerId) {
+        if (candidate?.textureContainerId !== start.textureContainerId) {
           continue
         }
 
@@ -2804,11 +3059,17 @@ function selectSameTextureArea(startPolygonIndex: number, mode: SelectionMode): 
 
   updateHighlightOfSelectedPolygons()
 
-  const verb = mode === 'remove' ? 'removed' : 'selected'
+  let verb = 'selected'
+  if (mode === 'remove') {
+    verb = 'removed'
+  }
+
   logger.log(`${verb} ${selected.size} polygons of the same texture`)
 }
 
-/** drops the whole selection (the "clear selection" button and the alt+a hotkey) */
+/**
+ * Drops the whole selection (the "clear selection" button and the alt+a hotkey).
+ */
 function clearSelection(): void {
   if (selectedPolygons.size === 0) {
     return
@@ -2818,14 +3079,22 @@ function clearSelection(): void {
   updateHighlightOfSelectedPolygons()
 }
 
-/** the bounding volume hierarchy of the mesh, or undefined when three-mesh-bvh did not build one */
+/**
+ * The bounding volume hierarchy of the mesh, or undefined when three-mesh-bvh did not build one.
+ */
 function getBoundsTreeOf(mesh: Mesh): MeshBVH | undefined {
-  const boundsTree = mesh.geometry.boundsTree
+  const { boundsTree } = mesh.geometry
 
-  return boundsTree instanceof MeshBVH ? boundsTree : undefined
+  if (boundsTree instanceof MeshBVH) {
+    return boundsTree
+  }
+
+  return undefined
 }
 
-/** one drag attempt, kept for the selection debug payload (see the panel at F2) */
+/**
+ * One drag attempt, kept for the selection debug payload (see the panel at F2).
+ */
 type SelectionAttempt = {
   startPoint: Vector3
   startPolygonIndex: number
@@ -2835,10 +3104,14 @@ type SelectionAttempt = {
 
 let lastSelectionAttempt: SelectionAttempt | undefined
 
-/** the camera state at the press, in the same format as the URL parameters */
+/**
+ * The camera state at the press, in the same format as the URL parameters.
+ */
 let selectionDragStartCamera: { positionAt: string; angle: string } | undefined
 
-/** the camera state in the format of the `positionAt`/`angle` url parameters */
+/**
+ * The camera state in the format of the `positionAt`/`angle` url parameters.
+ */
 function getCameraDebugState(): { positionAt: string; angle: string } {
   const position = threePositionToGamePosition(camera.position)
   const { yaw, pitch } = getGameAngleOfCamera()
@@ -2849,7 +3122,9 @@ function getCameraDebugState(): { positionAt: string; angle: string } {
   }
 }
 
-/** the center of a polygon in the game coordinate system */
+/**
+ * The center of a polygon in the game coordinate system.
+ */
 function getPolygonDebugCenter(polygonIndex: number): { x: number; y: number; z: number } | undefined {
   const polygon = fts.polygons[polygonIndex]
 
@@ -2860,16 +3135,40 @@ function getPolygonDebugCenter(polygonIndex: number): { x: number; y: number; z:
   const vertices = getUsedVerticesOf(polygon)
 
   return {
-    x: vertices.reduce((sum, vertex) => sum + vertex.x, 0) / vertices.length,
-    y: vertices.reduce((sum, vertex) => sum + vertex.y, 0) / vertices.length,
-    z: vertices.reduce((sum, vertex) => sum + vertex.z, 0) / vertices.length,
+    x:
+      vertices.reduce((sum, vertex) => {
+        return sum + vertex.x
+      }, 0) / vertices.length,
+    y:
+      vertices.reduce((sum, vertex) => {
+        return sum + vertex.y
+      }, 0) / vertices.length,
+    z:
+      vertices.reduce((sum, vertex) => {
+        return sum + vertex.z
+      }, 0) / vertices.length,
   }
 }
 
-/** a polygon in the debug payload: the index, the game center, the hit point, the normal and the texture */
+/**
+ * A polygon in the debug payload: the index, the game center, the hit point, the normal and the texture.
+ */
 function describePolygonForDebug(polygonIndex: number, point: Vector3): Record<string, unknown> {
   const polygon = fts.polygons[polygonIndex]
   const gamePoint = threePositionToGamePosition(point)
+
+  let normal: { x: number; y: number; z: number } | undefined
+  let texture: string | undefined
+  if (polygon !== undefined) {
+    normal = {
+      x: Number(polygon.norm.x.toFixed(3)),
+      y: Number(polygon.norm.y.toFixed(3)),
+      z: Number(polygon.norm.z.toFixed(3)),
+    }
+    texture = fts.textureContainers.find((container) => {
+      return container.id === polygon.textureContainerId
+    })?.filename
+  }
 
   return {
     polygon: polygonIndex,
@@ -2879,22 +3178,14 @@ function describePolygonForDebug(polygonIndex: number, point: Vector3): Record<s
       y: Number(gamePoint.y.toFixed(2)),
       z: Number(gamePoint.z.toFixed(2)),
     },
-    normal:
-      polygon === undefined
-        ? undefined
-        : {
-            x: Number(polygon.norm.x.toFixed(3)),
-            y: Number(polygon.norm.y.toFixed(3)),
-            z: Number(polygon.norm.z.toFixed(3)),
-          },
-    texture:
-      polygon === undefined
-        ? undefined
-        : fts.textureContainers.find((container) => container.id === polygon.textureContainerId)?.filename,
+    normal,
+    texture,
   }
 }
 
-/** writes the last drag attempt into the debug panel (JSON, copyable) */
+/**
+ * Writes the last drag attempt into the debug panel (JSON, copyable).
+ */
 function buildSelectionDebugPayload(): void {
   const attempt = lastSelectionAttempt
 
@@ -2916,7 +3207,9 @@ function buildSelectionDebugPayload(): void {
   setSelectionDebugPayload(JSON.stringify(payload, null, 2))
 }
 
-/** the drag is over: build the payload from the last attempt and forget the attempt */
+/**
+ * The drag is over: build the payload from the last attempt and forget the attempt.
+ */
 function finishSelectionDebugAttempt(): void {
   if (lastSelectionAttempt !== undefined) {
     buildSelectionDebugPayload()
@@ -2926,7 +3219,9 @@ function finishSelectionDebugAttempt(): void {
   selectionDragStartCamera = undefined
 }
 
-/** is any of the vertices closer than `selectionConnectDistance` to a vertex selected in this drag? */
+/**
+ * Is any of the vertices closer than `selectionConnectDistance` to a vertex selected in this drag?
+ */
 function isConnectedToSelection(vertices: SelectionPoint[]): boolean {
   if (selectionDragVertices === undefined || selectionDragVertices.size === 0) {
     return true
@@ -2954,8 +3249,11 @@ function isConnectedToSelection(vertices: SelectionPoint[]): boolean {
             const x = other.x - vertex.x
             const y = other.y - vertex.y
             const z = other.z - vertex.z
+            const xSquared = x * x
+            const ySquared = y * y
+            const zSquared = z * z
 
-            if (x * x + y * y + z * z <= distanceSquared) {
+            if (xSquared + ySquared + zSquared <= distanceSquared) {
               return true
             }
           }
@@ -2975,7 +3273,9 @@ let selectionDragMode: 'replace' | 'add' | 'remove' | undefined
 
 type SelectionMode = 'replace' | 'add' | 'remove'
 
-/** the mode of the gesture, from the modifiers of the mouse event itself (always up to date) */
+/**
+ * The mode of the gesture, from the modifiers of the mouse event itself (always up to date).
+ */
 function getSelectionModeFromEvent(event: MouseEvent): SelectionMode {
   if (event.ctrlKey || event.metaKey) {
     return 'remove'
@@ -2988,7 +3288,9 @@ function getSelectionModeFromEvent(event: MouseEvent): SelectionMode {
   return 'replace'
 }
 
-/** the mode of the gesture, from the tracked keys (for the camera changes inside a drag) */
+/**
+ * The mode of the gesture, from the tracked keys (for the camera changes inside a drag).
+ */
 function getSelectionMode(): SelectionMode {
   if (pressedKeys.ControlLeft || pressedKeys.ControlRight || pressedKeys.MetaLeft || pressedKeys.MetaRight) {
     return 'remove'
@@ -3001,22 +3303,37 @@ function getSelectionMode(): SelectionMode {
   return 'replace'
 }
 
-/** the mode of the gesture that is currently pressed down (set on mousedown) */
+/**
+ * The mode of the gesture that is currently pressed down (set on mousedown).
+ */
 let pendingSelectionMode: SelectionMode | undefined
 
-/** the modifier keys: their state changes the colour of the cursor outline, no mouse move needed */
+/**
+ * The modifier keys: their state changes the colour of the cursor outline, no mouse move needed.
+ */
+const MODIFIER_KEYS = new Set(['ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight', 'MetaLeft', 'MetaRight'])
+
 function isModifierKey(code: string): boolean {
-  return (
-    code === 'ShiftLeft' ||
-    code === 'ShiftRight' ||
-    code === 'ControlLeft' ||
-    code === 'ControlRight' ||
-    code === 'MetaLeft' ||
-    code === 'MetaRight'
-  )
+  return MODIFIER_KEYS.has(code)
 }
 
-/** repaints the cursor outline for the current mode (red only when the gesture would remove) */
+/**
+ * The colour of the cursor outline: red in the `remove` mode, green otherwise.
+ *
+ * @param mode The mode of the running gesture, or undefined while the modifiers have not decided.
+ * @returns The colour of the outline.
+ */
+function cursorOutlineColor(mode: SelectionMode | undefined): number {
+  if (mode === 'remove') {
+    return Color.red.getHex()
+  }
+
+  return Color.green.getHex()
+}
+
+/**
+ * Repaints the cursor outline for the current mode (red only when the gesture would remove).
+ */
 function updateCursorColor(): void {
   if (polygonBeingLookedAt === undefined) {
     return
@@ -3024,7 +3341,7 @@ function updateCursorColor(): void {
 
   const mode = selectionDragMode ?? getSelectionMode()
 
-  cursorTriangleMaterial.color.set(mode === 'remove' ? Color.red.getHex() : Color.green.getHex())
+  cursorTriangleMaterial.color.set(cursorOutlineColor(mode))
 }
 
 function render(): void {
@@ -3051,7 +3368,7 @@ function render(): void {
 }
 
 /**
- * three.js does **not** decide when to draw: whatever the loop asks for is rendered. Until now
+ * Three.js does **not** decide when to draw: whatever the loop asks for is rendered. Until now
  * `setAnimationLoop(animate)` rendered the whole scene ~60 times a second even when nothing moved,
  * which is a lot of GPU time on a 150 000 polygon level (and a warm laptop). The loop now stops
  * after `RENDER_IDLE_TIMEOUT` ms without a request - the tail covers the throttled work (the camera
@@ -3062,7 +3379,9 @@ const RENDER_IDLE_TIMEOUT = 800
 let lastRenderRequestAt = performance.now()
 let animationLoopRunning = false
 
-/** asks for a frame (the next few frames, see `RENDER_IDLE_TIMEOUT`) - safe to call often */
+/**
+ * Asks for a frame (the next few frames, see `RENDER_IDLE_TIMEOUT`) - safe to call often.
+ */
 function requestRender(): void {
   lastRenderRequestAt = performance.now()
 
@@ -3148,7 +3467,9 @@ interface EditorAutomation {
   setCamera: (positionAt: string, angle: string) => boolean
   getCamera: () => { positionAt: string; angle: string }
   setSwitch: (name: string, value: boolean) => boolean
-  ensureAnchorGraph: () => Promise<{ anchors: number; links: number; components: number; stats: Record<string, unknown> } | undefined>
+  ensureAnchorGraph: () => Promise<
+    { anchors: number; links: number; components: number; stats: Record<string, unknown> } | undefined
+  >
   getAnchorGraph: () => { anchors: Array<{ x: number; y: number; z: number; linked: number[] }> } | undefined
   hideUi: (hidden: boolean) => void
 }
@@ -3172,36 +3493,57 @@ const automation: EditorAutomation = {
     requestRender()
     return true
   },
-  getCamera: () => getCameraDebugState(),
+  getCamera: () => {
+    return getCameraDebugState()
+  },
   setSwitch: (name, value) => {
     const reference = switchedRefs[name]
     if (reference === undefined) {
       return false
     }
+
     reference.value = value
     return true
   },
   ensureAnchorGraph: async () => {
     const graph = await ensureAnchorGraph()
-    const links = graph.anchors.reduce((sum, anchor) => sum + anchor.linkedAnchors.length, 0) / 2
+    const links =
+      graph.anchors.reduce((sum, anchor) => {
+        return sum + anchor.linkedAnchors.length
+      }, 0) / 2
     const sizes = new Map<number, number>()
-    const parent = graph.anchors.map((_, index) => index)
-    const find = (index: number): number => (parent[index] === index ? index : (parent[index] = find(parent[index])))
+    const parent = graph.anchors.map((_, index) => {
+      return index
+    })
+    function find(index: number): number {
+      if (parent[index] === index) {
+        return index
+      }
+
+      const root = find(parent[index])
+      parent[index] = root
+
+      return root
+    }
+
     for (const [index, anchor] of graph.anchors.entries()) {
       for (const linked of anchor.linkedAnchors) {
         parent[find(index)] = find(linked)
       }
     }
-    graph.anchors.forEach((_, index) => {
+
+    for (const index of graph.anchors.keys()) {
       const root = find(index)
       sizes.set(root, (sizes.get(root) ?? 0) + 1)
-    })
+    }
+
     return { anchors: graph.anchors.length, links, components: sizes.size, stats: anchorGraphStats ?? {} }
   },
   getAnchorGraph: () => {
     if (anchorGraph === undefined) {
       return undefined
     }
+
     return {
       anchors: anchorGraph.anchors.map((anchor) => {
         return {
@@ -3219,6 +3561,7 @@ const automation: EditorAutomation = {
   },
 }
 
+// eslint-disable-next-line unicorn/no-global-object-property-assignment -- the deliberate global the playwright test drives
 ;(globalThis as { __arxEditor?: EditorAutomation }).__arxEditor = automation
 
 function onKeyDown(event: KeyboardEvent): void {
@@ -3265,8 +3608,8 @@ function onKeyUp(event: KeyboardEvent): void {
 
 setupCanvasResizer(requestRender)
 
-document.addEventListener('keydown', onKeyDown, false)
-document.addEventListener('keyup', onKeyUp, false)
+document.addEventListener('keydown', onKeyDown, { capture: false })
+document.addEventListener('keyup', onKeyUp, { capture: false })
 
 // every user input may change the picture (the movement, the cursor, the selection, a hotkey), so
 // they all keep the render loop alive
@@ -3287,11 +3630,9 @@ document.addEventListener(
 
     pendingSelectionMode = getSelectionModeFromEvent(event)
 
-    cursorTriangleMaterial.color.set(
-      pendingSelectionMode === 'remove' ? Color.red.getHex() : Color.green.getHex(),
-    )
+    cursorTriangleMaterial.color.set(cursorOutlineColor(pendingSelectionMode))
   },
-  false,
+  { capture: false },
 )
 
 document.addEventListener(
@@ -3303,7 +3644,7 @@ document.addEventListener(
 
     updateMouseButtonStates(event)
 
-    if (!(mousePressed[LeftMouseButton].oldValue && !mousePressed[LeftMouseButton].currentValue)) {
+    if (!mousePressed[LeftMouseButton].oldValue || mousePressed[LeftMouseButton].currentValue) {
       return
     }
 
@@ -3329,19 +3670,21 @@ document.addEventListener(
         selectedPolygons.add(polygonBeingLookedAt)
       }
 
-      cursorTriangleMaterial.color.set(mode === 'remove' ? Color.red.getHex() : Color.green.getHex())
+      cursorTriangleMaterial.color.set(cursorOutlineColor(mode))
 
       updateHighlightOfSelectedPolygons()
     } else {
       selectionDragMode = undefined
 
-      cursorTriangleMaterial.color.set(getSelectionMode() === 'remove' ? Color.red.getHex() : Color.green.getHex())
+      cursorTriangleMaterial.color.set(cursorOutlineColor(getSelectionMode()))
     }
   },
-  false,
+  { capture: false },
 )
 
-/** true when the css coordinates are inside the position/rotation block */
+/**
+ * True when the css coordinates are inside the position/rotation block.
+ */
 function isOverHud(x: number, y: number): boolean {
   return x >= HUD_MARGIN && x <= HUD_MARGIN + HUD_CANVAS_WIDTH && y >= HUD_MARGIN && y <= HUD_MARGIN + HUD_CANVAS_HEIGHT
 }
@@ -3388,10 +3731,7 @@ canvas.addEventListener(
     const y = event.clientY - rect.top
 
     const insideHud =
-      x >= HUD_MARGIN &&
-      x <= HUD_MARGIN + hudCanvas.width &&
-      y >= HUD_MARGIN &&
-      y <= HUD_MARGIN + hudCanvas.height
+      x >= HUD_MARGIN && x <= HUD_MARGIN + hudCanvas.width && y >= HUD_MARGIN && y <= HUD_MARGIN + hudCanvas.height
 
     if (!insideHud) {
       return
@@ -3405,23 +3745,32 @@ canvas.addEventListener(
 
     openCameraDialog({ position, angle: { pitch, yaw, roll: 0 } })
   },
-  true,
+  { capture: true },
 )
 
 /**
  * Fits the camera to the anchor graph of the level (the one being shown): a plan view from above,
  * and two horizontal views. The graph is in game coordinates; up is -Y, so "above" is a smaller y.
  */
-alignCameraTo.value = (mode) => {
-  const anchors = showGeneratedAnchors.value && anchorGraph !== undefined ? anchorGraph.anchors : originalAnchorGraph
+alignCameraTo.value = (mode): void => {
+  let anchors = originalAnchorGraph
+  if (anchorGraph !== undefined && showGeneratedAnchors.value) {
+    anchors = anchorGraph.anchors
+  }
 
   if (anchors.length === 0) {
     return
   }
 
-  const xs = anchors.map((anchor) => anchor.position.x)
-  const ys = anchors.map((anchor) => anchor.position.y)
-  const zs = anchors.map((anchor) => anchor.position.z)
+  const xs = anchors.map((anchor) => {
+    return anchor.position.x
+  })
+  const ys = anchors.map((anchor) => {
+    return anchor.position.y
+  })
+  const zs = anchors.map((anchor) => {
+    return anchor.position.z
+  })
 
   const center = {
     x: (Math.min(...xs) + Math.max(...xs)) / 2,
@@ -3432,7 +3781,10 @@ alignCameraTo.value = (mode) => {
   const size = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs))
   const distance = Math.max(400, size * 0.7)
 
-  const views: Record<'top' | 'front' | 'left', { position: { x: number; y: number; z: number }; angle: { pitch: number; yaw: number; roll: number } }> = {
+  const views: Record<
+    'top' | 'front' | 'left',
+    { position: { x: number; y: number; z: number }; angle: { pitch: number; yaw: number; roll: number } }
+  > = {
     top: { position: { ...center, y: center.y - distance }, angle: { pitch: 90, yaw: 0, roll: 0 } },
     front: { position: { ...center, z: center.z - distance }, angle: { pitch: 0, yaw: 0, roll: 0 } },
     left: { position: { ...center, x: center.x - distance }, angle: { pitch: 0, yaw: 90, roll: 0 } },
@@ -3451,7 +3803,7 @@ alignCameraTo.value = (mode) => {
   requestRender()
 }
 
-applyCameraValues.value = ({ position, angle }) => {
+applyCameraValues.value = ({ position, angle }): void => {
   camera.position.copy(gamePositionToThreePosition(position.x, position.y, position.z))
   setCameraAngleFromGameAngle(angle.pitch, angle.yaw)
 
@@ -3465,7 +3817,7 @@ canvas.addEventListener('click', () => {
 })
 
 document.addEventListener('dblclick', (event) => {
-  if (!controls.isLocked || polygonBeingLookedAt === undefined) {
+  if (polygonBeingLookedAt === undefined || !controls.isLocked) {
     return
   }
 
@@ -3492,9 +3844,11 @@ cursorTriangleMesh.renderOrder = 10
  * `side` `undefined` means "follow the viewport": the side of the group's material, exactly what the
  * renderer culls with, so the picker never selects a polygon that is not drawn.
  */
-/** the side the renderer culls the mesh with (the editor uses a single material per group) */
+/**
+ * The side the renderer culls the mesh with (the editor uses a single material per group).
+ */
 function getMaterialSide(mesh: Mesh): Side {
-  const material = mesh.material
+  const { material } = mesh
 
   if (Array.isArray(material)) {
     const [firstMaterial] = material
@@ -3529,7 +3883,7 @@ function collectRayHits(
     for (const intersection of boundsTree.raycast(ray, materialSide, 0, SELECTION_RAY_FAR)) {
       // `intersection.faceIndex` is an internal index of the BVH (it reorders the triangles), the
       // vertex index of the hit triangle is in `face.a` - the same value the raycaster used to give.
-      const face = intersection.face
+      const { face } = intersection
 
       if (face === undefined || face === null) {
         continue
@@ -3595,7 +3949,7 @@ function updatePolygonUnderCursor(): void {
   // while adding to the selection prefer the nearest polygon that is connected to the ones selected
   // in this drag, so a polygon that was skipped (not connected) does not hide the connectable one
   const [nearestHit] = hits
-  let polygonIndex = nearestHit.polygonIndex
+  let { polygonIndex } = nearestHit
 
   if (selectionDragMode !== undefined && selectionDragMode !== 'remove' && polygonIndex !== undefined) {
     // only the nearest hits are worth checking (the ray can cross the whole level)
@@ -3614,7 +3968,10 @@ function updatePolygonUnderCursor(): void {
     }
   }
 
-  const polygon = polygonIndex === undefined ? undefined : fts.polygons[polygonIndex]
+  let polygon: ArxPolygon | undefined
+  if (polygonIndex !== undefined) {
+    polygon = fts.polygons[polygonIndex]
+  }
 
   cursorTriangleMesh.geometry.dispose()
 
@@ -3635,7 +3992,7 @@ function updatePolygonUnderCursor(): void {
   const mode = selectionDragMode ?? getSelectionMode()
 
   // red only in the "remove" mode: it is the only case where a click takes something away
-  cursorTriangleMaterial.color.set(mode === 'remove' ? Color.red.getHex() : Color.green.getHex())
+  cursorTriangleMaterial.color.set(cursorOutlineColor(mode))
 
   if (mousePressed[LeftMouseButton].currentValue) {
     if (!mousePressed[LeftMouseButton].oldValue) {
@@ -3649,7 +4006,11 @@ function updatePolygonUnderCursor(): void {
         updateHighlightOfSelectedPolygons()
       }
 
-      selectionDragVertices = selectionDragMode === 'remove' ? undefined : new Map()
+      if (selectionDragMode === 'remove') {
+        selectionDragVertices = undefined
+      } else {
+        selectionDragVertices = new Map()
+      }
 
       if (selectionDragMode !== 'remove' && polygon !== undefined) {
         addVerticesToSelectionGrid(getUsedVerticesOf(polygon))

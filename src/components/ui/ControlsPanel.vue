@@ -1,17 +1,15 @@
 <script setup lang="ts">
+import { ambientFloor, lightingCalculatorMode, shadows } from '../../_editor/state/state'
 import {
   anchorsVisible,
   anchorDiffVisible,
   bothAnchorGraphs,
-  ambientFloor,
   isComputingAnchors,
   isComputingLighting,
-  lightingCalculatorMode,
   lightsVisible,
   meshVisible,
   portalsVisible,
   rejectedLinksVisible,
-  shadows,
   showDebugPanel,
   showGeneratedAnchors,
   wireframeVisible,

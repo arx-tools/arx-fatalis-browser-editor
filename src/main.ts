@@ -54,8 +54,6 @@ import flatColorsByFilename from './assets/flat-colors.json'
 import { downloadBinaryAs, zipBuffers } from './download.js'
 import { registerDownloadHandler } from './download-handler.js'
 import {
-  type LightingCalculatorMode,
-  ambientFloor,
   anchorsVisible,
   anchorDiffVisible,
   bothAnchorGraphs,
@@ -72,7 +70,6 @@ import {
   isDirty,
   isDownloading,
   isLoading,
-  lightingCalculatorMode,
   lightsVisible,
   LeftMouseButton,
   meshVisible,
@@ -85,7 +82,6 @@ import {
   selectionConnectDistance,
   setupCanvasResizer,
   showDebugPanel,
-  shadows,
   updateMouseButtonState,
   updateMouseButtonStates,
   wireframeVisible,
@@ -93,7 +89,15 @@ import {
 import { mountUi } from './ui/ui-app.js'
 import { alignCameraTo, applyCameraValues, openCameraDialog } from './ui/camera.js'
 import { isDoubleSided, isNoDraw, isTransparent, wait } from './functions.js'
-import { debugPanelActiveTab, debugPanelMinified } from './_editor/state/state.js'
+import {
+  ambientFloor,
+  debugPanelActiveTab,
+  debugPanelMinified,
+  lightingCalculatorMode,
+  shadows,
+} from './_editor/state/state.js'
+import { toDisplayLightingMode, type DisplayLightingMode } from './_editor/types.js'
+import type { LightingCalculatorMode } from './_generator/types.js'
 import { Color } from './Color.js'
 import { isValidOriginalArxLevelId } from './constants.js'
 import { Logger } from './ui/Logger.js'
@@ -901,34 +905,16 @@ const offset = arxVector3toVector3(fts.header.mScenePosition)
  * does not load the textures yet - this is what makes the level look like the game's untextured
  * (flat color) mode instead of a white clay render.
  */
-type DisplayLightingMode = 'dynamic' | 'maxBrightness' | 'completeDarkness' | 'rainbow'
-
 /**
- * The `lightingCalculatorMode` (.env) mapped to how the level is displayed.
+ * The `lightingCalculatorMode` (.env) mapped to how the level is displayed: a level without a
+ * palette falls back to the unlit white material.
  */
 function getDisplayLightingMode(): DisplayLightingMode {
   if (llf.colors.length === 0) {
     return 'maxBrightness'
   }
 
-  switch (lightingCalculatorMode.value) {
-    case 'MaxBrightness': {
-      return 'maxBrightness'
-    }
-
-    case 'CompleteDarkness': {
-      return 'completeDarkness'
-    }
-
-    case 'TextureRainbow': {
-      return 'rainbow'
-    }
-
-    case 'Arx':
-    case 'Realistic': {
-      return 'dynamic'
-    }
-  }
+  return toDisplayLightingMode(lightingCalculatorMode.value)
 }
 
 /**

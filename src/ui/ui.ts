@@ -189,63 +189,10 @@ export const lightsVisible = ref(false)
 // ------------
 
 /**
- * The `lightingCalculatorMode` of the generator (the `.env` key). The URL uses the same key and the
- * select above the canvas is bound to it - the display mode is derived from this on the fly.
- */
-export type LightingCalculatorMode = 'MaxBrightness' | 'CompleteDarkness' | 'Arx' | 'Realistic' | 'TextureRainbow'
-
-const lightingCalculatorModes: LightingCalculatorMode[] = [
-  'Arx',
-  'Realistic',
-  'TextureRainbow',
-  'MaxBrightness',
-  'CompleteDarkness',
-]
-
-function getLightingCalculatorModeFromUrl(): LightingCalculatorMode {
-  const params = new URLSearchParams(globalThis.location.search)
-  const requested = params.get('lightingCalculatorMode')
-  if (requested !== null && (lightingCalculatorModes as string[]).includes(requested)) {
-    return requested as LightingCalculatorMode
-  }
-
-  // the legacy `?lighting=` display modes: `flat` was the maximum brightness, the rest was the
-  // game-like (`Arx`) look
-  if (params.get('lighting') === 'flat') {
-    return 'MaxBrightness'
-  }
-
-  return 'Arx'
-}
-
-export const lightingCalculatorMode = ref<LightingCalculatorMode>(getLightingCalculatorModeFromUrl())
-
-/**
- * A **display only** ambient floor (0..64) for the `Realistic` palette: the baked palette has no
- * ambient (`ambient = 0` in `bakeLlfColors`, like Fred's `DistanceAngleShadowNoTransparency`), so
- * every surface that no light reaches is pitch black. The game's original (Danae) palette has an
- * ambient floor of 23 there, which is why the level never looks fully black in the game - this
- * value makes the editor look the same without changing the exported LLF.
- *
- * `?ambientFloor=12` in the URL; 0 (the default) keeps the exported palette untouched.
- */
-function getAmbientFloorFromUrl(): number {
-  const raw = Number.parseInt(new URLSearchParams(globalThis.location.search).get('ambientFloor') ?? '0', 10)
-
-  if (Number.isNaN(raw)) {
-    return 0
-  }
-
-  return Math.min(127, Math.max(0, raw))
-}
-
-/**
  * The discrete steps of the "Minimum light level" slider (the ambient floor of the `Realistic`
  * bake). 0 = no ambient, 23 = the ambient floor of the game's original palette, 127 = the brightest.
  */
 export const minimumLightLevels = [0, 11, 23, 34, 50, 67, 83, 100, 127]
-
-export const ambientFloor = ref<number>(getAmbientFloorFromUrl())
 
 /**
  * How close (in game units) two polygon vertices have to be to count as the same point when the
@@ -271,57 +218,8 @@ export const isComputingLighting = ref<boolean>(false)
  */
 export const isComputingAnchors = ref<boolean>(false)
 
-/**
- * Whether the `Realistic` bake casts shadows (the Fred `DistanceAngleShadowNoTransparency`
- * occlusion). Off = every light reaches every vertex it faces (the Danae-like look, the game's
- * original palette has no occlusion). `?shadows=0` in the URL; on by default.
- */
-export const shadows = ref<boolean>(new URLSearchParams(globalThis.location.search).get('shadows') !== '0')
-
 // the switches, the lighting select and the slider live in the Vue components (ControlsPanel /
-// LightingSettings / DownloadDialog); only the url sync stays here
-
-/**
- * Mirrors the `shadows` switch into the URL: `?shadows=0` when it is off, no parameter when it is on
- * (the default).
- */
-function syncShadowsWithUrl(value: boolean): void {
-  const url = new URL(globalThis.location.href)
-
-  if (value) {
-    url.searchParams.delete('shadows')
-  } else {
-    url.searchParams.set('shadows', '0')
-  }
-
-  globalThis.history.replaceState(null, '', url)
-}
-
-/**
- * Mirrors the ambient floor into the URL: `?ambientFloor=12`, no parameter for the default 0.
- */
-function syncAmbientFloorWithUrl(value: number): void {
-  const url = new URL(globalThis.location.href)
-
-  if (value === 0) {
-    url.searchParams.delete('ambientFloor')
-  } else {
-    url.searchParams.set('ambientFloor', String(value))
-  }
-
-  globalThis.history.replaceState(null, '', url)
-}
-
-/**
- * Mirrors the lighting calculator mode into the URL and drops the legacy `?lighting=` parameter the
- * old display modes used.
- */
-function syncLightingModeWithUrl(value: LightingCalculatorMode): void {
-  const url = new URL(globalThis.location.href)
-  url.searchParams.set('lightingCalculatorMode', value)
-  url.searchParams.delete('lighting')
-  globalThis.history.replaceState(null, '', url)
-}
+// LightingSettings / DownloadDialog); the values they show live in `_editor/state/state.ts`
 
 // ------------
 
@@ -372,9 +270,6 @@ function handleKeypress(event: KeyboardEvent): void {
 watch(isLoading, updateLoadingIndicator, { immediate: true })
 watch(isLoading, updateCrosshair)
 watch(cameraLightVisible, updateFlashlightIndicator, { immediate: true })
-watch(shadows, syncShadowsWithUrl)
-watch(ambientFloor, syncAmbientFloorWithUrl)
-watch(lightingCalculatorMode, syncLightingModeWithUrl)
 
 document.addEventListener('keypress', handleKeypress, { capture: false })
 

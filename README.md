@@ -39,7 +39,7 @@ makes the parts added to a level later show up in blue (lost media research).
 
 The export button (the floppy icon of the game) starts the download right away with the lighting
 settings the settings panel shows. The controls under the canvas are Vue components
-(`src/components/ui/`): the visibility toggles, the shared lighting settings and the key help. The legacy `?level=` and `?lighting=` are still read. `?positionAt=x,y,z` and `?angle=pitch,yaw,roll` open a level at a given game position
+(`src/components/ui/`): the visibility toggles, the shared lighting settings and the key help. The legacy `?level=` is still read. `?positionAt=x,y,z` and `?angle=pitch,yaw,roll` open a level at a given game position
 and orientation (the roll is ignored); the url follows the camera (with `history.replaceState`, so
 no history entries are created), which makes a view shareable.
 

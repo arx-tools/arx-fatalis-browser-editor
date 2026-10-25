@@ -1,7 +1,8 @@
 import { getCellCoords, isQuad, MAP_WIDTH_IN_CELLS } from 'arx-convert/utils'
 import type { Mesh } from 'three'
 import type { ArxColor, ArxEPData, ArxFTS, ArxLLF, ArxPolygon } from 'arx-convert/types'
-import { bakeLlfColors, type LightingCalculatorMode } from './lighting/bake.js'
+import type { LightingCalculatorMode } from './_generator/types.js'
+import { bakeLlfColors } from './lighting/bake.js'
 import { publishAnchorDebugPayload } from './generator/anchor-debug.js'
 import { generateAnchors, validateAnchors, type AnchorGeneratorOptions } from './generator/anchor-generator.js'
 

@@ -14,6 +14,9 @@ export function isPrimitive(value: unknown): boolean {
  * @remarks
  * - arrays are compared item by item, objects key by key, and the key order does not matter
  * - the values the module stores are json compatible, so the recursion stops at the primitives
+ * - ramda has the same function as `R.equals`
+ *
+ * @see https://ramdajs.com/docs/#equals
  *
  * @param left The first value.
  * @param right The second value.

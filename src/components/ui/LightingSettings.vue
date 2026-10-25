@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { minimumLightLevels, type LightingCalculatorMode } from '../../ui/ui'
+import type { LightingCalculatorMode } from '../../_generator/types'
+import { minimumLightLevels } from '../../ui/ui'
 
 const props = defineProps<{
   mode: LightingCalculatorMode

@@ -12,6 +12,7 @@ import { type Mesh, Raycaster, Vector3 } from 'three'
 // eslint-disable-next-line import-x/no-unassigned-import -- the type augmentation of `Raycaster#firstHitOnly` comes from it
 import 'three-mesh-bvh'
 import { arxVector3toVector3 } from '../arx-threejs-format-converters.js'
+import type { LightingCalculatorMode } from '../_generator/types.js'
 
 /**
  * The same key the generator's `.env` will use (`lightingCalculatorMode`). It decides what ends up
@@ -32,7 +33,6 @@ import { arxVector3toVector3 } from '../arx-threejs-format-converters.js'
  * the latest ones blue (`hue = 240 * index / (count - 1)`). Areas that use a late texture (blue)
  * were added to the level later, which makes the late edits visible (lost media research)
  */
-export type LightingCalculatorMode = 'MaxBrightness' | 'CompleteDarkness' | 'Arx' | 'Realistic' | 'TextureRainbow'
 
 /**
  * Hsv -> rgb, hue in degrees (0..360), saturation and value in 0..1.

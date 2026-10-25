@@ -407,6 +407,108 @@ void describe('persistedRef', () => {
     assert.equal(readParam(current(), 'camera'), '1|2|3')
   })
 
+  void it('rounds the url value with transformOutput.url', async () => {
+    const { adapters, current } = createAdapters()
+
+    const camera = persistedRef<number[]>(
+      {
+        key: 'camera',
+        defaultValue: [0, 0, 0],
+        persistInUrl: true,
+        transformOutput: {
+          url: (value) => {
+            return value.map((part) => {
+              return Math.round(part * 100) / 100
+            })
+          },
+        },
+      },
+      adapters,
+    )
+
+    camera.value = [1.236, 2, 3]
+    await nextTick()
+
+    // the url gets the rounded form, the ref keeps the value the caller set
+    assert.equal(readParam(current(), 'camera'), '1.24,2,3')
+    assert.deepEqual(camera.value, [1.236, 2, 3])
+  })
+
+  void it('transforms the stored value with transformOutput.localStorage', async () => {
+    const { adapters, storage } = createAdapters()
+
+    const camera = persistedRef<number[]>(
+      {
+        key: 'camera',
+        defaultValue: [0, 0, 0],
+        persistInLocalStorage: true,
+        transformOutput: {
+          localStorage: (value) => {
+            return value.map((part) => {
+              return Math.round(part)
+            })
+          },
+        },
+      },
+      adapters,
+    )
+
+    camera.value = [1.6, 2.2, 3]
+    await nextTick()
+
+    assert.equal(storage.data.get('camera'), '[2,2,3]')
+    assert.deepEqual(camera.value, [1.6, 2.2, 3])
+  })
+
+  void it('keeps the canonical form in the ref with transformOutput.value', async () => {
+    const { adapters, current } = createAdapters()
+
+    const camera = persistedRef<number[]>(
+      {
+        key: 'camera',
+        defaultValue: [0, 0, 0],
+        persistInUrl: true,
+        transformOutput: {
+          value: (value) => {
+            return value.map((part) => {
+              return Math.round(part * 100) / 100
+            })
+          },
+        },
+      },
+      adapters,
+    )
+
+    camera.value = [1.236, 2, 3]
+    await nextTick()
+
+    // the ref itself is canonical, and the url is written from that
+    assert.deepEqual(camera.value, [1.24, 2, 3])
+    assert.equal(readParam(current(), 'camera'), '1.24,2,3')
+  })
+
+  void it('canonicalises the hydrated value too', () => {
+    const { adapters } = createAdapters({ stored: { camera: '[1.236,2,3]' } })
+
+    const camera = persistedRef<number[]>(
+      {
+        key: 'camera',
+        defaultValue: [0, 0, 0],
+        persistInLocalStorage: true,
+        transformOutput: {
+          value: (value) => {
+            return value.map((part) => {
+              return Math.round(part * 100) / 100
+            })
+          },
+        },
+      },
+      adapters,
+    )
+
+    assert.deepEqual(camera.value, [1.24, 2, 3])
+  })
+
   void it('coalesces the writes with throttle', (t: TestContext) => {
     const { adapters, current } = createAdapters()
     t.mock.timers.enable({ apis: ['setTimeout'] })

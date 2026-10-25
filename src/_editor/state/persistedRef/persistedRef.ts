@@ -29,6 +29,45 @@ export type PersistenceAdapters = {
 }
 
 /**
+ * The optional transformations of a value on its way out of the ref.
+ *
+ * @remarks
+ * - every callback gets the value the ref holds and gives back the same type, so it changes the
+ * value and not the format; the format belongs to `serialize` / `urlSerialize`
+ * - a codec can shape a value too, but only on the way out to one target: it can not touch the ref
+ * itself, and the read side would have to undo the shaping again
+ * - `value` is the canonical form: the ref stores it and the targets are written from it, so it has
+ * to be idempotent (a rounding, a clamp, a normalisation)
+ * - the three keys are independent: a camera can keep the full precision in the ref and in the
+ * storage, and round only the url
+ *
+ * @example
+ * ```ts
+ * // the url carries the rounded position, the ref and the storage the exact one
+ * const cameraPosition = persistedRef({
+ *   key: 'positionAt',
+ *   defaultValue: [0, 0, 0],
+ *   persistInUrl: true,
+ *   transformOutput: { url: (value) => value.map(roundToHundredth) },
+ * })
+ * ```
+ */
+export type PersistedTransformOutput<T> = {
+  /**
+   * Canonicalises the value of the ref, applied on every set and to the hydrated value.
+   */
+  value?: (value: T) => T
+  /**
+   * Transforms the value on its way into the `localStorage`.
+   */
+  localStorage?: (value: T) => T
+  /**
+   * Transforms the value on its way into the url.
+   */
+  url?: (value: T) => T
+}
+
+/**
  * The configuration of {@link persistedRef}.
  */
 export type PersistedRefOptions<T> = {
@@ -76,6 +115,10 @@ export type PersistedRefOptions<T> = {
    * The url deserialization.
    */
   urlDeserialize?: (raw: string) => T
+  /**
+   * The optional transformations of the value on its way into the ref, the storage and the url.
+   */
+  transformOutput?: PersistedTransformOutput<T> | undefined
 }
 
 /**
@@ -107,6 +150,7 @@ const registry = new Map<string, PersistedRef<unknown>>()
 type PersistedRefRuntime<T> = {
   targetStorage?: StorageLike | undefined
   targetUrl?: UrlAdapter | undefined
+  canonicalize: ((value: T) => T) | undefined
   encodeUrl: (value: T) => string | undefined
   decodeUrl: (raw: string) => T
   encodeStorage: (value: T) => string
@@ -165,15 +209,26 @@ function createRuntime<T>(
     delay = debounce
   }
 
+  const canonicalize = options.transformOutput?.value
+  const transformForUrl = options.transformOutput?.url
+  const transformForStorage = options.transformOutput?.localStorage
+
   return {
     targetStorage,
     targetUrl,
+    canonicalize,
     encodeUrl(value: T): string | undefined {
-      if (options.urlSerialize !== undefined) {
-        return options.urlSerialize(value)
+      let output = value
+
+      if (transformForUrl !== undefined) {
+        output = transformForUrl(value)
       }
 
-      return defaultUrlSerialize(value)
+      if (options.urlSerialize !== undefined) {
+        return options.urlSerialize(output)
+      }
+
+      return defaultUrlSerialize(output)
     },
     decodeUrl(raw: string): T {
       if (options.urlDeserialize !== undefined) {
@@ -183,11 +238,17 @@ function createRuntime<T>(
       return defaultUrlDeserialize(raw, options.defaultValue) as T
     },
     encodeStorage(value: T): string {
-      if (options.serialize !== undefined) {
-        return options.serialize(value)
+      let output = value
+
+      if (transformForStorage !== undefined) {
+        output = transformForStorage(value)
       }
 
-      return JSON.stringify(value)
+      if (options.serialize !== undefined) {
+        return options.serialize(output)
+      }
+
+      return JSON.stringify(output)
     },
     decodeStorage(raw: string): T {
       if (options.deserialize !== undefined) {
@@ -200,6 +261,21 @@ function createRuntime<T>(
     delay,
     isDebounced: debounce > 0,
   }
+}
+
+/**
+ * Puts a value which came from a target into the canonical form of the ref.
+ *
+ * @param value The value the target had.
+ * @param runtime The runtime of the ref.
+ * @returns The value the ref should hold.
+ */
+function toCanonicalValue<T>(value: T, runtime: PersistedRefRuntime<T>): T {
+  if (runtime.canonicalize === undefined) {
+    return value
+  }
+
+  return runtime.canonicalize(value)
 }
 
 /**
@@ -217,7 +293,7 @@ function hydrate<T>(options: PersistedRefOptions<T>, runtime: PersistedRefRuntim
       const decoded = runtime.decodeUrl(raw)
 
       if (decoded !== undefined) {
-        return decoded
+        return toCanonicalValue(decoded, runtime)
       }
     }
   }
@@ -235,7 +311,7 @@ function hydrate<T>(options: PersistedRefOptions<T>, runtime: PersistedRefRuntim
       const decoded = runtime.decodeStorage(raw)
 
       if (decoded !== undefined) {
-        return decoded
+        return toCanonicalValue(decoded, runtime)
       }
     }
   }
@@ -411,7 +487,23 @@ export function persistedRef<T>(
     },
   })
 
-  watch(state, scheduleWrite, { deep: true, flush: 'sync' })
+  watch(
+    state,
+    (value) => {
+      const canonicalValue = toCanonicalValue(value, runtime)
+
+      // the canonical form is what the ref and the targets have to hold: store it, which triggers
+      // this watcher again, and let that pass write the targets
+      if (!deepEquals(canonicalValue, value)) {
+        state.value = canonicalValue
+
+        return
+      }
+
+      scheduleWrite()
+    },
+    { deep: true, flush: 'sync' },
+  )
   registry.set(options.key, state)
 
   return state

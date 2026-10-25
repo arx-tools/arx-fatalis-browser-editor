@@ -93,6 +93,7 @@ import {
 import { mountUi } from './ui/ui-app.js'
 import { alignCameraTo, applyCameraValues, openCameraDialog } from './ui/camera.js'
 import { isDoubleSided, isNoDraw, isTransparent, wait } from './functions.js'
+import { debugPanelActiveTab, debugPanelMinified } from './_editor/state/state.js'
 import { Color } from './Color.js'
 import { isValidOriginalArxLevelId } from './constants.js'
 import { Logger } from './ui/Logger.js'
@@ -149,9 +150,6 @@ const debugPanelConfirmCancel = document.querySelector<HTMLButtonElement>('#debu
 const debugPanelConfirmDelete = document.querySelector<HTMLButtonElement>('#debug-panel-confirm-delete')
 const debugPanelTabs = [...document.querySelectorAll<HTMLButtonElement>('[data-debug-tab]')]
 
-const DEBUG_PANEL_MINIFIED_KEY = 'debugPanelMinified'
-const DEBUG_PANEL_ACTIVE_TAB_KEY = 'debugPanelActiveTab'
-
 type DebugTabId = 'selection' | 'anchor'
 
 type DebugTab = {
@@ -167,36 +165,14 @@ const debugTabs: Record<DebugTabId, DebugTab> = {
   anchor: { id: 'anchor', payload: '', unread: false, flash: false, flashTimer: undefined },
 }
 
-function readLocalStorage(key: string): string | undefined {
-  try {
-    return localStorage.getItem(key) ?? undefined
-  } catch {
-    return undefined
-  }
-}
-
-function writeLocalStorage(key: string, value: string): void {
-  try {
-    localStorage.setItem(key, value)
-  } catch {
-    // the storage can be blocked (private mode); the panel still works without persistence
-  }
-}
-
-function readActiveTab(): DebugTabId {
-  if (readLocalStorage(DEBUG_PANEL_ACTIVE_TAB_KEY) === 'anchor') {
-    return 'anchor'
-  }
-
-  return 'selection'
-}
-
 let debugPanelVisible = false
-let debugPanelActiveTab: DebugTabId = readActiveTab()
-let debugPanelMinified = readLocalStorage(DEBUG_PANEL_MINIFIED_KEY) === '1'
 
 function getActiveDebugTab(): DebugTab {
-  return debugTabs[debugPanelActiveTab]
+  if (debugPanelActiveTab.value === 'anchor') {
+    return debugTabs.anchor
+  }
+
+  return debugTabs.selection
 }
 
 function formatDebugPayload(): string {
@@ -209,7 +185,7 @@ function formatDebugPayload(): string {
   try {
     const parsed = JSON.parse(payload) as unknown
 
-    if (debugPanelMinified) {
+    if (debugPanelMinified.value) {
       return JSON.stringify(parsed)
     }
 
@@ -232,20 +208,20 @@ function renderDebugPanel(): void {
     const tab = debugTabs[tabId]
     const dot = button.querySelector<HTMLElement>('.flashlight-indicator')
 
-    button.classList.toggle('active', tabId === debugPanelActiveTab)
+    button.classList.toggle('active', tabId === debugPanelActiveTab.value)
     dot?.classList.toggle('on', tab.unread || tab.flash)
   }
 
   if (debugPanelOutput !== null) {
     debugPanelOutput.value = formatDebugPayload()
-    debugPanelOutput.classList.toggle('minified', debugPanelMinified)
+    debugPanelOutput.classList.toggle('minified', debugPanelMinified.value)
   }
 
   const hasPayload = active.payload !== ''
   debugPanelMinify?.classList.toggle('hidden', !hasPayload)
 
   let minifyLabel = 'Minify'
-  if (debugPanelMinified) {
+  if (debugPanelMinified.value) {
     minifyLabel = 'Format'
   }
 
@@ -293,7 +269,7 @@ function setDebugPayload(tabId: DebugTabId, payload: string): void {
   tab.payload = payload
   hideDebugConfirm()
 
-  if (debugPanelVisible && debugPanelActiveTab === tabId) {
+  if (debugPanelVisible && debugPanelActiveTab.value === tabId) {
     // the user is looking at it: flash the dot for a second, then grey
     tab.unread = false
     tab.flash = true
@@ -316,8 +292,7 @@ function setDebugPayload(tabId: DebugTabId, payload: string): void {
 }
 
 function setDebugActiveTab(tabId: DebugTabId): void {
-  debugPanelActiveTab = tabId
-  writeLocalStorage(DEBUG_PANEL_ACTIVE_TAB_KEY, tabId)
+  debugPanelActiveTab.value = tabId
 
   const tab = debugTabs[tabId]
 
@@ -440,14 +415,7 @@ debugPanelClose?.addEventListener('click', () => {
 })
 
 debugPanelMinify?.addEventListener('click', () => {
-  debugPanelMinified = !debugPanelMinified
-
-  if (debugPanelMinified) {
-    writeLocalStorage(DEBUG_PANEL_MINIFIED_KEY, '1')
-  } else {
-    writeLocalStorage(DEBUG_PANEL_MINIFIED_KEY, '0')
-  }
-
+  debugPanelMinified.value = !debugPanelMinified.value
   renderDebugPanel()
 })
 

@@ -13,5 +13,7 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/**/*.ts", "src/**/*.vue"]
+  "include": ["src/**/*.ts", "src/**/*.vue"],
+  // the old app is archived: it is neither built nor typechecked, it only has to stay readable
+  "exclude": ["src/_old"]
 }

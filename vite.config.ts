@@ -1,29 +1,23 @@
 import { readFile } from 'node:fs/promises'
 import process from 'node:process'
 import vue from '@vitejs/plugin-vue'
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig } from 'vite'
 
 /**
- * Replaces the "<!-- build info -->" placeholder of index.html with the version of this build,
- * so the deployed editor can be told apart from an older one.
+ * The version, the commit and the build date of this build, so the deployed editor can be told apart
+ * from an older one.
  *
- * The commit is only known in the release workflow (it sets GITHUB_SHA), a local build says
- * "local".
+ * The commit is only known in the release workflow (it sets GITHUB_SHA), a local build says "local".
+ *
+ * @param version The version of `package.json`.
+ *
+ * @returns The one line build info the shell header shows.
  */
-function buildInfo(version: string): Plugin {
+function buildInfo(version: string): string {
   const commit = process.env.GITHUB_SHA?.slice(0, 7) ?? 'local'
   const builtAt = new Date().toISOString().slice(0, 10)
-  const text = `v${version} (${commit}, ${builtAt})`
 
-  return {
-    name: 'arx-build-info',
-    transformIndexHtml(html: string): string {
-      // a replacer function, so the `$` patterns of the replacement are not expanded
-      return html.replace('<!-- build info -->', () => {
-        return text
-      })
-    },
-  }
+  return `v${version} (${commit}, ${builtAt})`
 }
 
 export default defineConfig(async () => {
@@ -37,7 +31,12 @@ export default defineConfig(async () => {
     // /editor/, and the hashed file names of the assets make the browser fetch a new one after
     // every build without any ?v= suffix.
     base: '/editor/',
-    plugins: [vue(), buildInfo(packageJson.version)],
+    plugins: [vue()],
     clearScreen: false,
+    define: {
+      // the header of the shell renders it, so it is a compile time constant instead of a
+      // placeholder in index.html (the header is a vue component, the html can not reach into it)
+      BUILD_INFO: JSON.stringify(buildInfo(packageJson.version)),
+    },
   }
 })

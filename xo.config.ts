@@ -16,15 +16,19 @@ const xoConfig: XoConfigItem[] = [
     scriptProject: './tsconfig.node.json',
   }),
   {
-    // the anchor generator is a vendored, dependency free module which is still plain javascript
-    // with a hand written declaration file: it is ported to typescript separately, until then it
-    // would only produce formatting and typing noise
-    ignores: ['src/generator/anchor-generator.js', 'src/generator/anchor-generator.d.ts'],
+    // the old app is archived under `src/_old/`: it is not built, not typechecked and not linted, it
+    // only has to stay readable as the reference of the previous behaviour
+    ignores: ['src/_old/**'],
   },
   {
-    // the flat color table is a data asset (a few thousand texture name -> color pairs), not source,
-    // and the editor reads it as json at runtime
-    ignores: ['src/assets/**'],
+    // `BUILD_INFO` is a compile time constant the vite config injects (`define`), so it is a global
+    // in the bundle: the type side has its declaration in `src/_editor/vite-env.d.ts`
+    files: ['src/**/*.ts', 'src/**/*.vue'],
+    languageOptions: {
+      globals: {
+        BUILD_INFO: 'readonly',
+      },
+    },
   },
   {
     // the html ruleset targets documents (meta description, open graph, head order), this file is the
@@ -72,23 +76,6 @@ const xoConfig: XoConfigItem[] = [
       },
     },
     rules,
-  },
-  {
-    // both modules do their wiring on the top level by design: `main.ts` mounts the app and builds
-    // the scene, `ui.ts` creates the shared state and registers the watchers of the url and the dom
-    files: ['src/main.ts', 'src/ui/ui.ts'],
-    rules: {
-      'unicorn/no-top-level-side-effects': 'off',
-    },
-  },
-  {
-    files: ['src/main.ts'],
-    rules: {
-      // the parts of the module call each other in both directions (the scene builders ask the
-      // render loop for a frame, the loop renders the scene), so only the variables can keep the
-      // strict definition order: the functions are hoisted anyway
-      'no-use-before-define': ['error', { functions: false, classes: true, variables: true, allowNamedExports: false }],
-    },
   },
 ]
 

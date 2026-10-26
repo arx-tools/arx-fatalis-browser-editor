@@ -7,6 +7,17 @@ Work in progress. The levels are loaded from
 [pkware-test-files](https://github.com/arx-tools/pkware-test-files), the parsing and the writing
 of the formats is done by [arx-convert](https://github.com/arx-tools/arx-convert).
 
+## The new shell (`src/_editor/`)
+
+The editor is being rebuilt as a **dock based shell**: a thin header and a dock of widgets, where the
+layout can be rearranged (and later saved) by the user. The new code lives under `src/_editor/`
+(`state/`, `keyboard/` and the shell itself); the shared generator modules stay in `src/_generator/`.
+
+The **previous app is archived under `src/_old/`** (2026-10-26). It is neither built nor typechecked
+nor linted: it stays in the repository as the reference of the earlier behaviour, and its features are
+ported into widgets one by one. Until that happens, the feature descriptions below describe the
+archived app.
+
 ## Development
 
 The tests run **directly with Node.js** — there is no build step for them. The `.ts` files are loaded

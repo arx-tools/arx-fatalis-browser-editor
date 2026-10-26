@@ -11,5 +11,7 @@
     "rootDir": ".",
     "types": ["vite/client", "node"]
   },
-  "include": ["src/**/*", "tests/**/*", "vite.config.ts", "xo.config.ts"]
+  "include": ["src/**/*", "tests/**/*", "vite.config.ts", "xo.config.ts"],
+  // the old app is archived (see tsconfig.app.json)
+  "exclude": ["src/_old"]
 }

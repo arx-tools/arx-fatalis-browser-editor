@@ -38,6 +38,7 @@
     "color-rgba": "^3.0.0",
     "floating-vue": "^5.4.0",
     "jszip": "^3.10.1",
+    "lucide-vue-next": "^1.0.0",
     "node-pkware": "^6.0.0",
     "sass-embedded": "^1.100.0",
     "three": "^0.183.1",

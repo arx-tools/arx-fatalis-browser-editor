@@ -166,7 +166,8 @@ void describe('writeUrlValue', () => {
 
     writeUrlValue(adapter, 'camera', '1,2,3')
 
-    assert.equal(page.replaced[0], '/editor/?keep=1&camera=1%2C2%2C3#frag')
+    // the commas stay readable, they are legal in a query string
+    assert.equal(page.replaced[0], '/editor/?keep=1&camera=1,2,3#frag')
   })
 
   void it('removes a parameter and keeps the others', () => {

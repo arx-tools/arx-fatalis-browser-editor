@@ -5,13 +5,13 @@
  * - `Arx` is the game-like look (the palette the file came with), `Realistic` bakes it from the
  * light sources, `TextureRainbow` gives every polygon a hue of its texture, and the two extremes
  * are `MaxBrightness` and `CompleteDarkness`
- * - this is the generator's type: the editor holds a `DisplayLightingMode` (see `_editor/types.ts`),
- * which is the same set today
+ * - this is the level generator's type: a consumer which shows the result may keep its own display
+ * type and map this to it
  */
 export type LightingCalculatorMode = 'MaxBrightness' | 'CompleteDarkness' | 'Arx' | 'Realistic' | 'TextureRainbow'
 
 /**
- * The values of {@link LightingCalculatorMode}, in the order the editor's select shows them.
+ * The values of {@link LightingCalculatorMode}, in the order a select should show them.
  */
 export const lightingCalculatorModes: readonly LightingCalculatorMode[] = [
   'Arx',

@@ -1,4 +1,6 @@
+import type { TripleOf } from 'arx-convert/utils'
 import { MathUtils } from 'three'
+import { parseNumberTriplet, roundTriplet } from '../functions.ts'
 import { isLightingCalculatorMode, type LightingCalculatorMode } from '../../_generator/types.ts'
 import { persistedRef } from './persistedRef/persistedRef.ts'
 
@@ -155,4 +157,40 @@ export const rejectedLinksVisible = persistedRef({
   key: 'rejectedLinksVisible',
   defaultValue: false,
   persistInUrl: true,
+})
+
+/**
+ * The camera position (a triplet) in the game's coordinate system (`?positionAt=x,y,z`). `undefined` means the
+ * url has none, so the level opens with its own view.
+ *
+ * @remarks
+ * - the url gets the rounded value (2 decimals), the ref keeps the exact position
+ * - `throttle` is for the render loop: the camera moves on every frame, the url follows slower
+ * - a camera push with an unchanged pose does not write the url again (the ref skips it)
+ */
+export const cameraPosition = persistedRef<TripleOf<number>>({
+  key: 'positionAt',
+  persistInUrl: true,
+  throttle: 150,
+  transformOutput: { url: roundTriplet },
+  urlDeserialize: (raw: string) => {
+    // a broken triplet must not move the camera
+    return parseNumberTriplet(raw)
+  },
+})
+
+/**
+ * The camera rotation in the game's angles (`?angle=pitch,yaw,roll`). The roll is always 0, the
+ * editor's camera has no roll.
+ *
+ * @see cameraPosition
+ */
+export const cameraAngle = persistedRef<TripleOf<number>>({
+  key: 'angle',
+  persistInUrl: true,
+  throttle: 150,
+  transformOutput: { url: roundTriplet },
+  urlDeserialize: (raw: string) => {
+    return parseNumberTriplet(raw)
+  },
 })

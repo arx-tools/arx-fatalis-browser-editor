@@ -1,17 +1,14 @@
-import { ArxPolygonFlags } from 'arx-convert/types'
-
-export function percentOf(percentage: number, maxValue: number): number {
-  return (maxValue / 100) * percentage
-}
-
-export function isTransparent(flags: ArxPolygonFlags): boolean {
-  return (flags & ArxPolygonFlags.Transparent) !== 0
-}
-
-export function isDoubleSided(flags: ArxPolygonFlags): boolean {
-  return (flags & ArxPolygonFlags.DoubleSided) !== 0
-}
-
-export function isNoDraw(flags: ArxPolygonFlags): boolean {
-  return (flags & ArxPolygonFlags.NoDraw) !== 0
+/**
+ * Takes a percentage of a number.
+ *
+ * @remarks
+ * - the subject (`x`) comes first, like `MathUtils.clamp` in three: there is no currying in the
+ * level generator, so the arguments read left to right
+ *
+ * @param x The number to take the percentage of.
+ * @param percentage The percentage, 0..100.
+ * @returns `percentage` percent of `x`.
+ */
+export function percentOf(x: number, percentage: number): number {
+  return (x / 100) * percentage
 }

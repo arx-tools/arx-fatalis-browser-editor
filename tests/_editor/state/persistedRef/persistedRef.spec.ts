@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict'
 import { beforeEach, describe, it, type TestContext } from 'node:test'
+import type { TripleOf } from 'arx-convert/utils'
 import { nextTick } from 'vue'
 import {
   clearPersistedRefRegistry,
   persistedRef,
   type PersistenceAdapters,
 } from '../../../../src/_editor/state/persistedRef/persistedRef.ts'
+import { parseNumberTriplet } from '../../../../src/_editor/functions.ts'
+import { createBrowserUrlAdapter } from '../../../../src/_editor/state/persistedRef/url.ts'
 import { persistenceProblems } from '../../../../src/_editor/state/persistedRef/persistenceProblems.ts'
 
 /**
@@ -507,6 +510,51 @@ void describe('persistedRef', () => {
     )
 
     assert.deepEqual(camera.value, [1.24, 2, 3])
+  })
+
+  void it('falls back to the default when the url deserializer rejects the value', () => {
+    const { adapters } = createAdapters({ search: 'camera=broken' })
+
+    const camera = persistedRef<TripleOf<number>>(
+      {
+        key: 'camera',
+        defaultValue: [0, 0, 0],
+        persistInUrl: true,
+        urlDeserialize: (raw: string) => {
+          return parseNumberTriplet(raw)
+        },
+      },
+      adapters,
+    )
+
+    assert.deepEqual(camera.value, [0, 0, 0])
+  })
+
+  void it('does not write the same value into the url twice', async () => {
+    const replaced: string[] = []
+    let search = '?keep=1'
+    const adapter = createBrowserUrlAdapter({
+      location: { hash: '', pathname: '/editor/', search },
+      history: {
+        replaceState(_data: unknown, _title: string, url: string): void {
+          replaced.push(url)
+          search = new URL(url, 'http://localhost').search
+        },
+      },
+    })
+
+    const camera = persistedRef<number[]>(
+      { key: 'camera', defaultValue: [0, 0, 0], persistInUrl: true },
+      { url: adapter },
+    )
+
+    camera.value = [1, 2, 3]
+    await nextTick()
+    // the same content in a new array: the camera pushes this on every frame
+    camera.value = [1, 2, 3]
+    await nextTick()
+
+    assert.equal(replaced.length, 1)
   })
 
   void it('coalesces the writes with throttle', (t: TestContext) => {

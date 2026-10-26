@@ -79,11 +79,12 @@ import {
 } from './ui/ui.js'
 import { mountUi } from './ui/ui-app.js'
 import { alignCameraTo, applyCameraValues, openCameraDialog } from './ui/camera.js'
-import { wait } from './functions.js'
-import { isDoubleSided, isNoDraw, isTransparent } from './_generator/functions.js'
+import { isDoubleSided, isNoDraw, isTransparent, parseNumberTriplet, wait } from './_editor/functions.js'
 import {
   ambientFloor,
   anchorsVisible,
+  cameraAngle,
+  cameraPosition,
   anchorDiffVisible,
   bothAnchorGraphsVisible,
   debugPanelActiveTab,
@@ -2206,48 +2207,25 @@ function getGameAngleOfCamera(): { yaw: number; pitch: number } {
 }
 
 /**
- * Parses `x,y,z` (or `pitch,yaw,roll`); `undefined` when the value is missing or malformed.
+ * Opens the level at the camera pose the url asked for (the refs are hydrated from the url).
  */
-function parseNumberTuple(value: string | null, length: number): number[] | undefined {
-  if (value === null) {
-    return undefined
-  }
-
-  const parts = value.split(',').map((part) => {
-    return Number.parseFloat(part.trim())
-  })
-
-  if (
-    parts.length !== length ||
-    parts.some((part) => {
-      return !Number.isFinite(part)
-    })
-  ) {
-    return undefined
-  }
-
-  return parts
-}
-
-function applyCameraStateFromUrl(): void {
-  const params = new URLSearchParams(globalThis.location.search)
-
-  const position = parseNumberTuple(params.get('positionAt'), 3)
-  if (position !== undefined) {
-    const [x, y, z] = position
+function applyCameraState(): void {
+  if (cameraPosition.value !== undefined) {
+    const [x, y, z] = cameraPosition.value
     camera.position.copy(gamePositionToThreePosition(x, y, z))
   }
 
-  const angle = parseNumberTuple(params.get('angle'), 3)
-  if (angle !== undefined) {
-    const [pitch, yaw] = angle
+  if (cameraAngle.value === undefined) {
+    return
+  }
 
-    // a broken angle should not move the camera; the third value (the roll) is ignored
-    if (yaw >= 0 && yaw < 360 && pitch >= -90 && pitch <= 90) {
-      setCameraAngleFromGameAngle(pitch, yaw)
-    } else {
-      console.warn(`[camera] ignoring the angle from the url: ${angle.join(',')}`)
-    }
+  const [pitch, yaw] = cameraAngle.value
+
+  // a broken angle should not move the camera; the third value (the roll) is ignored
+  if (yaw >= 0 && yaw < 360 && pitch >= -90 && pitch <= 90) {
+    setCameraAngleFromGameAngle(pitch, yaw)
+  } else {
+    console.warn(`[camera] ignoring the angle from the url: ${cameraAngle.value.join(',')}`)
   }
 }
 
@@ -2278,44 +2256,18 @@ function updateCameraInfo(): void {
 }
 
 /**
- * How often the camera state is written into the url (ms).
- */
-const cameraUrlUpdateInterval = 250
-let lastCameraUrlUpdateAt = Number.NEGATIVE_INFINITY
-let lastCameraUrl: string | undefined
-
-/**
- * Writes the camera state into the **current** history entry with `replaceState`: the address bar
- * always shows the current view, but no new history entries are created, so the back button still
- * goes to the page that was open before the editor.
+ * Pushes the camera pose into the persisted refs: they write the url (throttled, rounded to two
+ * decimals, `replaceState` only, so no history entry is created) and skip it when the pose did not
+ * change.
  */
 function updateCameraUrl(): void {
-  const now = performance.now()
-  if (now - lastCameraUrlUpdateAt < cameraUrlUpdateInterval) {
-    return
-  }
-
-  lastCameraUrlUpdateAt = now
-
-  const position = threePositionToGamePosition(camera.position)
-  const { yaw, pitch } = getGameAngleOfCamera()
-
   updateCameraInfo()
 
-  const params = new URLSearchParams(globalThis.location.search)
-  params.set('positionAt', `${position.x.toFixed(2)},${position.y.toFixed(2)},${position.z.toFixed(2)}`)
-  params.set('angle', `${pitch.toFixed(2)},${yaw.toFixed(2)},0.00`)
+  const position = threePositionToGamePosition(camera.position)
+  cameraPosition.value = [position.x, position.y, position.z]
 
-  // the commas are legal in a query string and make the url readable
-  const search = params.toString().replaceAll('%2C', ',')
-  const url = `${globalThis.location.pathname}?${search}${globalThis.location.hash}`
-
-  if (url === lastCameraUrl) {
-    return
-  }
-
-  globalThis.history.replaceState(globalThis.history.state, '', url)
-  lastCameraUrl = url
+  const { yaw, pitch } = getGameAngleOfCamera()
+  cameraAngle.value = [pitch, yaw, 0]
 }
 
 watch(cameraInfoVisible, (value) => {
@@ -2329,7 +2281,7 @@ watch(cameraInfoVisible, (value) => {
   }
 })
 
-applyCameraStateFromUrl()
+applyCameraState()
 updateCameraUrl()
 
 /**
@@ -3315,8 +3267,8 @@ const switchedRefs: Record<string, Ref<boolean>> = {
 
 const automation: EditorAutomation = {
   setCamera: (positionAt, angle) => {
-    const position = parseNumberTuple(positionAt, 3)
-    const rotation = parseNumberTuple(angle, 3)
+    const position = parseNumberTriplet(positionAt)
+    const rotation = parseNumberTriplet(angle)
 
     if (position === undefined || rotation === undefined) {
       return false

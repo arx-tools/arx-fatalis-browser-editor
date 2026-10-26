@@ -1,5 +1,5 @@
 import { ref, watch, type Ref } from 'vue'
-import { deepEquals, parseJson } from './helpers.ts'
+import { deepEquals, parseJson } from './functions.ts'
 import { clearPersistenceProblems, reportProblem } from './persistenceProblems.ts'
 import { checkStorage, clearStorageProbes, getLocalStorage, type StorageLike } from './storage.ts'
 import {
@@ -10,11 +10,6 @@ import {
   writeUrlValue,
   type UrlAdapter,
 } from './url.ts'
-
-/**
- * A value which survives a JSON round trip: the only shapes the module stores.
- */
-export type PersistedValue = boolean | null | number | string | PersistedValue[] | { [key: string]: PersistedValue }
 
 /**
  * The outside world of the module: the storages and the url.
@@ -104,17 +99,17 @@ export type PersistedRefOptions<T> = {
    */
   serialize?: (value: T) => string
   /**
-   * The storage deserialization, JSON by default.
+   * The storage deserialization, JSON by default; `undefined` falls back to the default value.
    */
-  deserialize?: (raw: string) => T
+  deserialize?: (raw: string) => T | undefined
   /**
    * The url serialization, `undefined` removes the parameter.
    */
   urlSerialize?: (value: T) => string | undefined
   /**
-   * The url deserialization.
+   * The url deserialization; `undefined` falls back to the default value.
    */
-  urlDeserialize?: (raw: string) => T
+  urlDeserialize?: (raw: string) => T | undefined
   /**
    * The optional transformations of the value on its way into the ref, the storage and the url.
    */
@@ -152,9 +147,9 @@ type PersistedRefRuntime<T> = {
   targetUrl?: UrlAdapter | undefined
   canonicalize: ((value: T) => T) | undefined
   encodeUrl: (value: T) => string | undefined
-  decodeUrl: (raw: string) => T
+  decodeUrl: (raw: string) => T | undefined
   encodeStorage: (value: T) => string
-  decodeStorage: (raw: string) => T
+  decodeStorage: (raw: string) => T | undefined
   dropUrlValueAtDefault: boolean
   delay: number
   isDebounced: boolean
@@ -230,7 +225,7 @@ function createRuntime<T>(
 
       return defaultUrlSerialize(output)
     },
-    decodeUrl(raw: string): T {
+    decodeUrl(raw: string): T | undefined {
       if (options.urlDeserialize !== undefined) {
         return options.urlDeserialize(raw)
       }
@@ -250,7 +245,7 @@ function createRuntime<T>(
 
       return JSON.stringify(output)
     },
-    decodeStorage(raw: string): T {
+    decodeStorage(raw: string): T | undefined {
       if (options.deserialize !== undefined) {
         return options.deserialize(raw)
       }
@@ -431,6 +426,8 @@ export function persistedRef<T>(
   const state = ref(hydrate(options, runtime)) as unknown as PersistedRef<T>
   let pendingTimer: ReturnType<typeof setTimeout> | undefined
   let hasPendingWrite = false
+  // the last value which reached the targets: the camera pushes the same pose on every frame
+  let lastWritten: T | undefined = state.value
 
   /**
    * Writes the pending value (if any) right away, the throttled and debounced writes call it too.
@@ -446,6 +443,12 @@ export function persistedRef<T>(
     }
 
     hasPendingWrite = false
+
+    if (deepEquals(state.value, lastWritten)) {
+      return
+    }
+
+    lastWritten = state.value
     writeValue(options, runtime, state.value)
   }
 

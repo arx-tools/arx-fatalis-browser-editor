@@ -1,4 +1,4 @@
-import { isPrimitive, parseJson } from './helpers.ts'
+import { isPrimitive, parseJson } from './functions.ts'
 
 /**
  * Reads and writes the query string of the page.
@@ -180,5 +180,6 @@ export function writeUrlValue(url: UrlAdapter, key: string, value: string | unde
     params.set(key, value)
   }
 
-  url.write(params.toString())
+  // the commas are legal in a query string and keep the url readable (`positionAt=1,2,3`)
+  url.write(params.toString().replaceAll('%2C', ','))
 }

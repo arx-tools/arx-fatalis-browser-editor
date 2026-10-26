@@ -229,13 +229,13 @@ export class Color {
    * Brightens the color by adding <percent>% of 256 to every channel.
    */
   lighten(percent: number): this {
-    return this.addScalar(percentOf(percent, 255))
+    return this.addScalar(percentOf(255, percent))
   }
 
   /**
    * Darkens the color by subtracting <percent>% of 256 from every channel.
    */
   darken(percent: number): this {
-    return this.subScalar(percentOf(percent, 255))
+    return this.subScalar(percentOf(255, percent))
   }
 }

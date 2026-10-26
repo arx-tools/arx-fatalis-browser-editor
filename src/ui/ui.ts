@@ -1,5 +1,4 @@
 import { ref, watch } from 'vue'
-import { anchorsVisible, lightsVisible, meshVisible, portalsVisible, wireframeVisible } from '../_editor/state/state.js'
 
 type LoadingState = 'idle' | 'loading' | 'fulfilled' | 'rejected'
 
@@ -198,55 +197,11 @@ export const isComputingAnchors = ref<boolean>(false)
 
 // ------------
 
-/**
- * The global keypress hotkeys of the view: F toggles the camera light, M the mesh, X the wireframe
- * and J/K/L the anchors, the portals and the lights overlay (`event.code` is the physical key, so
- * the keyboard layout does not matter).
- */
-function handleKeypress(event: KeyboardEvent): void {
-  // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- we don't need to cover all keys here
-  switch (event.code) {
-    case 'KeyF': {
-      cameraLightVisible.value = !cameraLightVisible.value
-      break
-    }
-
-    case 'KeyM': {
-      meshVisible.value = !meshVisible.value
-      break
-    }
-
-    case 'KeyX': {
-      wireframeVisible.value = !wireframeVisible.value
-      break
-    }
-
-    // the three overlay hotkeys sit next to each other on both the english and the hungarian
-    // layouts (event.code is the physical key, not the character)
-    case 'KeyJ': {
-      anchorsVisible.value = !anchorsVisible.value
-      break
-    }
-
-    case 'KeyK': {
-      portalsVisible.value = !portalsVisible.value
-      break
-    }
-
-    case 'KeyL': {
-      lightsVisible.value = !lightsVisible.value
-      break
-    }
-  }
-}
-
 // the ui is a singleton: the refs are wired here, once, when the module is evaluated
 
 watch(isLoading, updateLoadingIndicator, { immediate: true })
 watch(isLoading, updateCrosshair)
 watch(cameraLightVisible, updateFlashlightIndicator, { immediate: true })
-
-document.addEventListener('keypress', handleKeypress, { capture: false })
 
 // ------------
 

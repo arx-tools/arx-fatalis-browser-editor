@@ -78,8 +78,18 @@ import {
   updateMouseButtonStates,
 } from './ui/ui.js'
 import { mountUi } from './ui/ui-app.js'
-import { alignCameraTo, applyCameraValues, openCameraDialog } from './ui/camera.js'
+import { alignCameraTo, applyCameraValues, cameraDialogVisible, openCameraDialog } from './ui/camera.js'
 import { isDoubleSided, isNoDraw, isTransparent, parseNumberTriplet, wait } from './_editor/functions.js'
+import {
+  isKeyboardActionActive,
+  isKeyDown,
+  onKeyboardActivity,
+  onKeyboardAction,
+  onKeyboardToggle,
+  setDialogOpen,
+  setPointerLocked,
+  startKeyboard,
+} from './_editor/keyboard/keyboard.js'
 import {
   ambientFloor,
   anchorsVisible,
@@ -333,10 +343,6 @@ function setDebugPanelVisible(visible: boolean): void {
   }
 
   renderDebugPanel()
-}
-
-function toggleDebugPanel(): void {
-  setDebugPanelVisible(!debugPanelVisible.value)
 }
 
 /**
@@ -2455,8 +2461,6 @@ function resizeRendererToDisplaySize(renderer: WebGLRenderer): boolean {
 const controls = new PointerLockControls(camera, document.body)
 const viewHelper = new ViewHelper(camera, document.body)
 
-const pressedKeys: Record<string, boolean> = {}
-
 const selectedPolygons = new Set<number>()
 let polygonBeingLookedAt: number | undefined
 
@@ -3067,11 +3071,11 @@ function getSelectionModeFromEvent(event: MouseEvent): SelectionMode {
  * The mode of the gesture, from the tracked keys (for the camera changes inside a drag).
  */
 function getSelectionMode(): SelectionMode {
-  if (pressedKeys.ControlLeft || pressedKeys.ControlRight || pressedKeys.MetaLeft || pressedKeys.MetaRight) {
+  if (isKeyDown('ControlLeft') || isKeyDown('ControlRight') || isKeyDown('MetaLeft') || isKeyDown('MetaRight')) {
     return 'remove'
   }
 
-  if (pressedKeys.ShiftLeft || pressedKeys.ShiftRight) {
+  if (isKeyDown('ShiftLeft') || isKeyDown('ShiftRight')) {
     return 'add'
   }
 
@@ -3082,15 +3086,6 @@ function getSelectionMode(): SelectionMode {
  * The mode of the gesture that is currently pressed down (set on mousedown).
  */
 let pendingSelectionMode: SelectionMode | undefined
-
-/**
- * The modifier keys: their state changes the colour of the cursor outline, no mouse move needed.
- */
-const MODIFIER_KEYS = new Set(['ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight', 'MetaLeft', 'MetaRight'])
-
-function isModifierKey(code: string): boolean {
-  return MODIFIER_KEYS.has(code)
-}
 
 /**
  * The colour of the cursor outline: red in the `remove` mode, green otherwise.
@@ -3181,32 +3176,32 @@ function animate(): void {
 
     // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/code
 
-    if (pressedKeys.KeyA || pressedKeys.ArrowLeft) {
+    if (isKeyboardActionActive('moveLeft')) {
       const rotation = new Euler(0, MathUtils.degToRad(90), 0, 'XYZ')
       const sideDirection = facing.clone().applyEuler(rotation)
       sideDirection.y = 0
       direction.add(sideDirection)
     }
 
-    if (pressedKeys.KeyD || pressedKeys.ArrowRight) {
+    if (isKeyboardActionActive('moveRight')) {
       const rotation = new Euler(0, MathUtils.degToRad(-90), 0, 'XYZ')
       const sideDirection = facing.clone().applyEuler(rotation)
       sideDirection.y = 0
       direction.add(sideDirection)
     }
 
-    if (pressedKeys.KeyW || pressedKeys.ArrowUp) {
+    if (isKeyboardActionActive('moveForward')) {
       direction.add(facing)
     }
 
-    if (pressedKeys.KeyS || pressedKeys.ArrowDown) {
+    if (isKeyboardActionActive('moveBackward')) {
       direction.add(facing.clone().negate())
     }
 
     const cameraSpeed = 10
     direction.normalize()
 
-    if (pressedKeys.ShiftLeft || pressedKeys.ShiftRight) {
+    if (isKeyboardActionActive('moveSlower')) {
       direction.multiplyScalar(cameraSpeed / 2)
     } else {
       direction.multiplyScalar(cameraSpeed)
@@ -3214,10 +3209,6 @@ function animate(): void {
 
     camera.position.add(direction)
     cameraLight.position.set(camera.position.x, camera.position.y, camera.position.z)
-
-    if (pressedKeys.Delete && selectedPolygons.size > 0) {
-      deletePolygons(selectedPolygons)
-    }
   } else {
     mouseLocked.style.display = 'none'
     mouseUnlocked.style.display = 'block'
@@ -3353,52 +3344,66 @@ const automation: EditorAutomation = {
 // eslint-disable-next-line unicorn/no-global-object-property-assignment -- the deliberate global the playwright test drives
 ;(globalThis as { __arxEditor?: EditorAutomation }).__arxEditor = automation
 
-function onKeyDown(event: KeyboardEvent): void {
-  if (event.code === 'F2') {
-    event.preventDefault()
-    toggleDebugPanel()
+// the hotkeys: the table lives in `_editor/keyboard/actions.ts`, the implementations are here, so the
+// table stays pure data and the bindings can be read (and later rebound) in one place
+onKeyboardToggle('toggleMesh', meshVisible)
+onKeyboardToggle('toggleWireframe', wireframeVisible)
+onKeyboardToggle('toggleCameraLight', cameraLightVisible)
+onKeyboardToggle('toggleCameraInfo', cameraInfoVisible)
+onKeyboardToggle('toggleAnchors', anchorsVisible)
+onKeyboardToggle('togglePortals', portalsVisible)
+onKeyboardToggle('toggleLights', lightsVisible)
+onKeyboardToggle('toggleDebugPanel', debugPanelVisible)
 
-    return
+onKeyboardAction('clearSelection', () => {
+  clearSelection()
+})
+
+onKeyboardAction('deleteSelectedPolygons', () => {
+  if (selectedPolygons.size > 0) {
+    deletePolygons(selectedPolygons)
   }
+})
 
-  if (event.code === 'Escape') {
-    controls.unlock()
+onKeyboardAction('unlockPointer', () => {
+  controls.unlock()
 
-    updateMouseButtonState(LeftMouseButton, false)
-    updateMouseButtonState(RightMouseButton, false)
-    updateMouseButtonState(MiddleMouseButton, false)
+  updateMouseButtonState(LeftMouseButton, false)
+  updateMouseButtonState(RightMouseButton, false)
+  updateMouseButtonState(MiddleMouseButton, false)
+})
 
-    return
-  }
+onKeyboardAction('closeDialog', () => {
+  cameraDialogVisible.value = false
+})
 
-  // the escape key belongs to the browser while the pointer is locked (it leaves the lock and the
-  // page does not even get the keydown in firefox), so a plain letter key clears the selection
-  // without leaving: [c]
-  if (event.code === 'KeyC' && selectedPolygons.size > 0) {
-    clearSelection()
+onKeyboardAction('openCameraDialog', () => {
+  const position = threePositionToGamePosition(camera.position)
+  const { yaw, pitch } = getGameAngleOfCamera()
 
-    return
-  }
+  openCameraDialog({ position, angle: { pitch, yaw, roll: 0 } })
+})
 
-  pressedKeys[event.code] = true
+// the cursor outline follows the modifiers, which are not an action
+onKeyboardActivity(() => {
+  updateCursorColor()
+})
 
-  if (isModifierKey(event.code)) {
-    updateCursorColor()
-  }
-}
+controls.addEventListener('lock', () => {
+  setPointerLocked(true)
+})
 
-function onKeyUp(event: KeyboardEvent): void {
-  pressedKeys[event.code] = false
+controls.addEventListener('unlock', () => {
+  setPointerLocked(false)
+})
 
-  if (isModifierKey(event.code)) {
-    updateCursorColor()
-  }
-}
+watch(cameraDialogVisible, (open) => {
+  setDialogOpen('camera', open)
+})
+
+startKeyboard()
 
 setupCanvasResizer(requestRender)
-
-document.addEventListener('keydown', onKeyDown, { capture: false })
-document.addEventListener('keyup', onKeyUp, { capture: false })
 
 // every user input may change the picture (the movement, the cursor, the selection, a hotkey), so
 // they all keep the render loop alive

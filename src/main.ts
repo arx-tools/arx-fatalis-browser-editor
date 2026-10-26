@@ -79,7 +79,8 @@ import {
 } from './ui/ui.js'
 import { mountUi } from './ui/ui-app.js'
 import { alignCameraTo, applyCameraValues, openCameraDialog } from './ui/camera.js'
-import { isDoubleSided, isNoDraw, isTransparent, wait } from './functions.js'
+import { wait } from './functions.js'
+import { isDoubleSided, isNoDraw, isTransparent } from './_generator/functions.js'
 import {
   ambientFloor,
   anchorsVisible,
@@ -98,7 +99,7 @@ import {
 } from './_editor/state/state.js'
 import { toDisplayLightingMode, type DisplayLightingMode } from './_editor/types.js'
 import type { LightingCalculatorMode } from './_generator/types.js'
-import { Color } from './Color.js'
+import { Color } from './_generator/Color.js'
 import { isValidOriginalArxLevelId } from './constants.js'
 import { Logger } from './ui/Logger.js'
 import { Exception } from './ui/Exception.js'
@@ -538,25 +539,15 @@ async function getFTS(level: number): Promise<ArxFTS> {
 
   logger.log('done', line1)
 
-  await wait(100)
-
   const line2 = logger.log(`- [fts]: unpacking level ${level} fts...`)
 
   const packedFts = await response.arrayBuffer()
   const headerSize = getHeaderSize(packedFts, 'fts')
 
-  await wait(100)
-
   const [header, body] = sliceArrayBufferAt(packedFts, headerSize.total)
 
-  await wait(100)
-
   const explodedBody = explode(body)
-  await wait(100)
-
   const unpackedFts = concatArrayBuffers([header, explodedBody])
-
-  await wait(100)
 
   const fts = FTS.load(unpackedFts)
 
@@ -578,25 +569,15 @@ async function getLLF(level: number): Promise<ArxLLF> {
 
   logger.log('done', line1)
 
-  await wait(100)
-
   const line2 = logger.log(`- [llf]: unpacking level ${level} llf...`)
 
   const packedLlf = await response.arrayBuffer()
   const headerSize = getHeaderSize(packedLlf, 'llf')
 
-  await wait(100)
-
   const [header, body] = sliceArrayBufferAt(packedLlf, headerSize.total)
 
-  await wait(100)
-
   const explodedBody = explode(body)
-  await wait(100)
-
   const unpackedLlf = concatArrayBuffers([header, explodedBody])
-
-  await wait(100)
 
   const llf = LLF.load(unpackedLlf)
 
@@ -618,25 +599,15 @@ async function getDLF(level: number): Promise<ArxDLF> {
 
   logger.log('done', line1)
 
-  await wait(100)
-
   const line2 = logger.log(`- [dlf]: unpacking level ${level} dlf...`)
 
   const packedDlf = await response.arrayBuffer()
   const headerSize = getHeaderSize(packedDlf, 'dlf')
 
-  await wait(100)
-
   const [header, body] = sliceArrayBufferAt(packedDlf, headerSize.total)
 
-  await wait(100)
-
   const explodedBody = explode(body)
-  await wait(100)
-
   const unpackedDlf = concatArrayBuffers([header, explodedBody])
-
-  await wait(100)
 
   const dlf = DLF.load(unpackedDlf)
 
@@ -645,120 +616,84 @@ async function getDLF(level: number): Promise<ArxDLF> {
   return dlf
 }
 
-async function saveFTS(fts: ArxFTS, level: number): Promise<ArrayBuffer> {
+function saveFTS(fts: ArxFTS, level: number): ArrayBuffer {
   const line1 = logger.log(`[fts]: packing level ${level} fts...`)
-
-  await wait(100)
 
   console.time('FTS.save')
   const unpackedFts = FTS.save(fts) // 1739ms
   console.timeEnd('FTS.save')
 
-  await wait(100)
-
   console.time('getHeaderSize')
   const headerSize = getHeaderSize(unpackedFts, 'fts') // 0ms
   console.timeEnd('getHeaderSize')
-
-  await wait(100)
 
   console.time('sliceArrayBufferAt')
   const [header, body] = sliceArrayBufferAt(unpackedFts, headerSize.total) // 5ms
   console.timeEnd('sliceArrayBufferAt')
 
-  await wait(100)
-
   console.time('implode')
   const implodedBody = implode(body, 'binary', 'large') // 14308ms in firefox, 9521ms in chrome
   console.timeEnd('implode')
 
-  await wait(100)
-
   console.time('concatArrayBuffers')
   const packedFts = concatArrayBuffers([header, implodedBody]) // 3ms
   console.timeEnd('concatArrayBuffers')
-
-  await wait(100)
 
   logger.log('done', line1)
 
   return packedFts
 }
 
-async function saveLLF(llf: ArxLLF, level: number): Promise<ArrayBuffer> {
+function saveLLF(llf: ArxLLF, level: number): ArrayBuffer {
   const line1 = logger.log(`[llf]: packing level ${level} llf...`)
-
-  await wait(100)
 
   console.time('LLF.save')
   const unpackedLlf = LLF.save(llf)
   console.timeEnd('LLF.save')
 
-  await wait(100)
-
   console.time('getHeaderSize')
   const headerSize = getHeaderSize(unpackedLlf, 'llf')
   console.timeEnd('getHeaderSize')
-
-  await wait(100)
 
   console.time('sliceArrayBufferAt')
   const [header, body] = sliceArrayBufferAt(unpackedLlf, headerSize.total)
   console.timeEnd('sliceArrayBufferAt')
 
-  await wait(100)
-
   console.time('implode')
   const implodedBody = implode(body, 'binary', 'large')
   console.timeEnd('implode')
 
-  await wait(100)
-
   console.time('concatArrayBuffers')
   const packedLlf = concatArrayBuffers([header, implodedBody])
   console.timeEnd('concatArrayBuffers')
-
-  await wait(100)
 
   logger.log('done', line1)
 
   return packedLlf
 }
 
-async function saveDLF(dlf: ArxDLF, level: number): Promise<ArrayBuffer> {
+function saveDLF(dlf: ArxDLF, level: number): ArrayBuffer {
   const line1 = logger.log(`[dlf]: packing level ${level} dlf...`)
-
-  await wait(100)
 
   console.time('DLF.save')
   const unpackedDlf = DLF.save(dlf)
   console.timeEnd('DLF.save')
 
-  await wait(100)
-
   console.time('getHeaderSize')
   const headerSize = getHeaderSize(unpackedDlf, 'dlf')
   console.timeEnd('getHeaderSize')
-
-  await wait(100)
 
   console.time('sliceArrayBufferAt')
   const [header, body] = sliceArrayBufferAt(unpackedDlf, headerSize.total)
   console.timeEnd('sliceArrayBufferAt')
 
-  await wait(100)
-
   console.time('implode')
   const implodedBody = implode(body, 'binary', 'large')
   console.timeEnd('implode')
 
-  await wait(100)
-
   console.time('concatArrayBuffers')
   const packedDlf = concatArrayBuffers([header, implodedBody])
   console.timeEnd('concatArrayBuffers')
-
-  await wait(100)
 
   logger.log('done', line1)
 
@@ -1144,15 +1079,19 @@ export async function startDownload(settings: DownloadSettings): Promise<void> {
     // the steps are sequential so the progress can follow them: 20 / 40 / 60 / 80 / 100
     const line1 = logger.log('packing level data...')
     downloadProgress.value = 20
+    await wait(100)
 
-    const packedFts = await saveFTS(exportFtsWithAnchors, levelId)
+    const packedFts = saveFTS(exportFtsWithAnchors, levelId)
     downloadProgress.value = 40
+    await wait(100)
 
-    const packedLlf = await saveLLF(exportLlf, levelId)
+    const packedLlf = saveLLF(exportLlf, levelId)
     downloadProgress.value = 60
+    await wait(100)
 
-    const packedDlf = await saveDLF(dlf, levelId)
+    const packedDlf = saveDLF(dlf, levelId)
     downloadProgress.value = 80
+    await wait(100)
 
     logger.log('done', line1)
 

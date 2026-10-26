@@ -2,7 +2,7 @@ import type { ArxPolygon } from 'arx-convert/types'
 import { isQuad } from 'arx-convert/utils'
 import { BufferAttribute, BufferGeometry, LineSegments, MeshBasicMaterial, type Vector3 } from 'three'
 import { arxVector3toVector3 } from '../arx-threejs-format-converters.js'
-import { Color } from '../Color.js'
+import { Color } from '../_generator/Color.js'
 
 /**
  * A polygon based wireframe: the perimeter of every source polygon (a triangle or a quad) instead

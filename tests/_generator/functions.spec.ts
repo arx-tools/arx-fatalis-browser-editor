@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { ArxPolygonFlags } from 'arx-convert/types'
-import { isDoubleSided, isNoDraw, isTransparent, percentOf } from '../src/functions.ts'
+import { isDoubleSided, isNoDraw, isTransparent, percentOf } from '../../src/_generator/functions.ts'
 
 void describe('percentOf', () => {
   void it('scales a value by a percentage', () => {

@@ -1,5 +1,7 @@
 import { DockPanel, Widget } from '@lumino/widgets'
+import { ref, type Ref } from 'vue'
 import { dockWidgets } from '../layout/dockWidgets.ts'
+import { LayoutEditor, type MountWidgetOverlay } from '../layout/layoutEditor.ts'
 import { createWidget, type WidgetDefinition } from '../layout/widgetDefinition.ts'
 
 /**
@@ -10,6 +12,21 @@ export interface EditorShell {
    * The dock panel the widgets live in.
    */
   readonly dock: DockPanel
+  /**
+   * The layout editor of the dock.
+   */
+  readonly editor: LayoutEditor
+  /**
+   * Tells whether the layout edit mode is on (the open lock). It is reactive, so the lock button and
+   * the escape key stay in sync.
+   */
+  readonly isEditing: Ref<boolean>
+  /**
+   * Turns the edit mode on or off.
+   *
+   * @param editing `true` for edit mode (open lock), `false` for the normal, locked layout.
+   */
+  setEditing: (editing: boolean) => void
   /**
    * Creates a widget of the kind and puts it into the dock.
    *
@@ -32,22 +49,35 @@ export interface EditorShell {
  * - lumino only inserts its own node into the host: sizing it is the host's job (the `.Dock` rule of
  * `components/Dock.vue` puts it on `inset: 0`)
  * - every size change of the host has to refit the layout, which is what the resize observer does
+ * - `Escape` leaves the edit mode; the drag of a widget handles its own `Escape` earlier, so the two
+ * do not fire for the same press
  *
  * @param host The element the dock is attached to.
  * @param definitions The widget kinds the shell can put on the dock. The shell has no registry of its
  * own: the caller passes it, so a test can pass plain widgets instead of the real (vue) widgets.
+ * @param mountOverlay Mounts the overlay of the edit mode; the app passes the Vue component, a test
+ * passes a stand-in, so this module has no `.vue` import either.
  *
  * @returns The handle of the shell.
+ *
+ * @throws When the kind is not in the widget registry.
  */
-export function createEditorShell(host: HTMLElement, definitions: readonly WidgetDefinition[]): EditorShell {
+export function createEditorShell(
+  host: HTMLElement,
+  definitions: readonly WidgetDefinition[],
+  mountOverlay: MountWidgetOverlay,
+): EditorShell {
   const dock = new DockPanel()
   dock.spacing = 4
 
   // `Widget.attach` puts the node into the host and fits it to the host size
   Widget.attach(dock, host)
 
+  const editor = new LayoutEditor(dock, host, mountOverlay)
+  const isEditing = ref(false)
+
   /**
-   * Creates a widget of the kind and puts it into the dock.
+   * Creates a widget of the kind, decorates it for the edit mode and puts it into the dock.
    *
    * @param kind The identifier of the widget kind.
    * @param options Where the widget goes (a lumino insertion mode and a reference widget).
@@ -66,9 +96,20 @@ export function createEditorShell(host: HTMLElement, definitions: readonly Widge
     }
 
     const widget = createWidget(definition)
+    editor.decorate(widget)
     dock.addWidget(widget, options)
 
     return widget
+  }
+
+  /**
+   * Turns the edit mode on or off.
+   *
+   * @param editing `true` for edit mode (open lock), `false` for the normal, locked layout.
+   */
+  function setEditing(editing: boolean): void {
+    isEditing.value = editing
+    editor.setUnlocked(editing)
   }
 
   // the starting layout: the 3D view on the left, the statistics above the help on the right
@@ -81,6 +122,19 @@ export function createEditorShell(host: HTMLElement, definitions: readonly Widge
   })
   resizeObserver.observe(host)
 
+  /**
+   * Leaves the edit mode when the escape key is pressed.
+   *
+   * @param event The keydown event of the document.
+   */
+  function handleKeyDown(event: KeyboardEvent): void {
+    if (event.key === 'Escape' && isEditing.value) {
+      setEditing(false)
+    }
+  }
+
+  document.addEventListener('keydown', handleKeyDown)
+
   // the first layout pass: the widgets get their real size here (after the browser laid the host out)
   const firstFit = requestAnimationFrame(() => {
     dock.fit()
@@ -88,10 +142,16 @@ export function createEditorShell(host: HTMLElement, definitions: readonly Widge
 
   return {
     dock,
+    editor,
+    isEditing,
+    setEditing,
     addWidget,
     dispose: (): void => {
       cancelAnimationFrame(firstFit)
       resizeObserver.disconnect()
+      document.removeEventListener('keydown', handleKeyDown)
+      setEditing(false)
+      editor.dispose()
 
       // `DockLayout` does not dispose its children (only `PanelLayout` does), so the widgets go first:
       // their Vue apps have to be unmounted

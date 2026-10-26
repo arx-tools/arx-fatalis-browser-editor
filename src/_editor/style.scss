@@ -34,6 +34,67 @@ body {
   overflow: auto;
 }
 
+// the mount point of the overlay of the layout editor: it has to cover the widget node
+.WidgetOverlay-host {
+  position: absolute;
+  inset: 0;
+}
+
+// the widget that is being dragged shows itself faded under the ghost
+.lm-DockPanel-widget.is-drag-source .WidgetOverlay {
+  background: rgb(38 41 46 / 74%);
+  border-color: rgb(230 145 56 / 55%);
+}
+
+// while a widget is dragged the whole page changes the cursor and drops the text selection
+body.is-dragging {
+  cursor: move;
+  user-select: none;
+}
+
+// the ghost follows the pointer during a drag
+.drag-ghost {
+  position: fixed;
+  z-index: 1000;
+  top: 0;
+  left: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  font-size: 12px;
+  white-space: nowrap;
+  color: #f0f2f5;
+  background: rgb(46 50 56 / 94%);
+  border: 1px solid #e69138;
+  border-radius: 4px;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 55%);
+  pointer-events: none;
+  will-change: transform;
+
+  svg {
+    width: 12px;
+    height: 12px;
+    color: #e69138;
+  }
+}
+
+// the preview shows the half (or the edge strip) of the dock where the dragged widget would land
+.drop-preview {
+  position: absolute;
+  z-index: 20;
+  display: none;
+  box-sizing: border-box;
+  background: rgb(230 145 56 / 18%);
+  border: 2px solid #e69138;
+  border-radius: 2px;
+  pointer-events: none;
+
+  &.is-visible {
+    display: block;
+  }
+}
+
 // an icon only button: the glyph is the whole button, the state shows in the opacity, and every
 // component that puts a small icon button in a toolbar reuses it
 .icon-button {

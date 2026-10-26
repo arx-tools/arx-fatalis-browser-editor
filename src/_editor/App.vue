@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import Dock from './components/Dock.vue'
 import EditorHeader from './components/EditorHeader.vue'
+import { provideEditorShell } from './modules/shell/editorShellContext.ts'
+
+// the dock builds the shell when it is mounted, the header reads it from here
+provideEditorShell()
 </script>
 
 <template>

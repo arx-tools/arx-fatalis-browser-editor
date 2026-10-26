@@ -1,17 +1,15 @@
-import type { TripleOf } from 'arx-convert/utils'
-import { MathUtils } from 'three'
-import { isLightingCalculatorMode, type LightingCalculatorMode } from '../_generator/types.ts'
-import { parseNumberTriplet, roundTriplet } from './modules/functions.ts'
-import { persistedRef } from './modules/persistedRef/persistedRef.ts'
-
 /**
- * The state of the editor: every value which survives a reload lives here, so the modules only ask
- * for the ref and never touch the url or the storage themselves.
+ * ARCHIVED: the persisted values of the previous app.
  *
  * @remarks
- * - the persistence of a value is one config object: `persistInLocalStorage`, `persistInUrl`, the
- * default value and the optional `throttle`/`debounce`
- * - a value which is not persisted is a plain `ref()` and does not belong here
+ * - this file is **not** part of the build: it lives in `src/_old/`, which is neither typechecked nor
+ * linted nor built
+ * - it is the reference of the persisted state of the old editor: the **keys**, the defaults and the
+ * storage targets (url or localStorage) are a contract, because they live in shared links and in the
+ * saved settings of the users
+ * - the refs are re-added one by one, where they belong: next to the widget that uses them, or in the
+ * module of the concept when several widgets share them (see the TODO of the editor repository)
+ * - the camera values (`positionAt` and `angle`) are the first ones, with the 3D view widget
  */
 
 /**

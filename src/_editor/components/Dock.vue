@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, useTemplateRef } from 'vue'
+import { createEditorShell } from '../modules/shell/createEditorShell.ts'
+import { useEditorShell } from '../modules/shell/editorShellContext.ts'
 import { widgetDefinitions } from '../widgetDefinitions.ts'
-import { createEditorShell, type EditorShell } from '../modules/shell/createEditorShell.ts'
+import { mountWidgetOverlay } from '../widgetOverlayMount.ts'
 
-// the shell lives outside the reactive state: lumino owns the dom of the widgets, vue only hosts it
-let shell: EditorShell | undefined
+// the shell handle is reactive (the header reads it), the widgets themselves are lumino's: vue only
+// hosts the dock element
+const shell = useEditorShell()
 
 const host = useTemplateRef<HTMLElement>('host')
 
@@ -15,12 +18,12 @@ onMounted(() => {
     throw new Error('The dock has no host element.')
   }
 
-  shell = createEditorShell(element, widgetDefinitions)
+  shell.value = createEditorShell(element, widgetDefinitions, mountWidgetOverlay)
 })
 
 onBeforeUnmount(() => {
-  shell?.dispose()
-  shell = undefined
+  shell.value?.dispose()
+  shell.value = undefined
 })
 </script>
 

@@ -1,4 +1,5 @@
 import { ref, watch } from 'vue'
+import { anchorsVisible, lightsVisible, meshVisible, portalsVisible, wireframeVisible } from '../_editor/state/state.js'
 
 type LoadingState = 'idle' | 'loading' | 'fulfilled' | 'rejected'
 
@@ -132,14 +133,7 @@ mouseUnlocked.style.display = 'none'
 // ------------
 
 // the visibility switches are rendered by the `ToggleSwitch` components (ControlsPanel), driven by
-// these refs - the hotkeys below toggle the same refs
-
-/**
- * The geometry itself (the `Mesh` switch): turning it off leaves only the overlays visible.
- */
-export const meshVisible = ref(true)
-
-export const wireframeVisible = ref(false)
+// the refs of `_editor/state/state.ts` - the hotkeys below toggle the same refs
 
 export const cameraLightVisible = ref(false)
 
@@ -162,29 +156,10 @@ export const cameraInfoVisible = ref(true)
 
 // ------------
 
-export const anchorsVisible = ref(false)
 /**
  * Show the *generated* anchor graph instead of the one that came with the file (cached).
  */
 export const showGeneratedAnchors = ref(false)
-/**
- * Show the file's graph and the generated one at the same time (green + cyan).
- */
-export const bothAnchorGraphs = ref(false)
-/**
- * The F2 payload panel (the same switch as the F2 hotkey).
- */
-export const showDebugPanel = ref(false)
-/**
- * Dots where the two graphs differ (red: only in the file's graph, blue: only in the generated one).
- */
-export const anchorDiffVisible = ref(false)
-/**
- * The links the generator repaired / filled in (yellow).
- */
-export const rejectedLinksVisible = ref(false)
-export const portalsVisible = ref(false)
-export const lightsVisible = ref(false)
 
 // ------------
 

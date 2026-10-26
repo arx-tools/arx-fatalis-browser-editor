@@ -1,19 +1,19 @@
 <script setup lang="ts">
-import { ambientFloor, lightingCalculatorMode, shadows } from '../../_editor/state/state'
 import {
+  ambientFloor,
   anchorsVisible,
   anchorDiffVisible,
-  bothAnchorGraphs,
-  isComputingAnchors,
-  isComputingLighting,
+  bothAnchorGraphsVisible,
+  lightingCalculatorMode,
   lightsVisible,
   meshVisible,
   portalsVisible,
   rejectedLinksVisible,
-  showDebugPanel,
-  showGeneratedAnchors,
+  shadowsRendering,
+  debugPanelVisible,
   wireframeVisible,
-} from '../../ui/ui'
+} from '../../_editor/state/state'
+import { isComputingAnchors, isComputingLighting, showGeneratedAnchors } from '../../ui/ui'
 import LightingSettings from './LightingSettings.vue'
 import ToggleSwitch from './ToggleSwitch.vue'
 </script>
@@ -33,7 +33,7 @@ import ToggleSwitch from './ToggleSwitch.vue'
       <LightingSettings
         v-model:mode="lightingCalculatorMode"
         v-model:ambient-floor="ambientFloor"
-        v-model:shadows="shadows"
+        v-model:shadows="shadowsRendering"
         :computing="isComputingLighting"
       />
 
@@ -47,7 +47,7 @@ import ToggleSwitch from './ToggleSwitch.vue'
       <h3>Debug</h3>
       <label class="generated-anchors">
         <span>Both anchor graphs</span>
-        <input v-model="bothAnchorGraphs" type="checkbox" />
+        <input v-model="bothAnchorGraphsVisible" type="checkbox" />
       </label>
       <label class="generated-anchors">
         <span>Anchor diff</span>
@@ -59,7 +59,7 @@ import ToggleSwitch from './ToggleSwitch.vue'
       </label>
       <label class="generated-anchors">
         <span>Show debug panel</span>
-        <input v-model="showDebugPanel" type="checkbox" />
+        <input v-model="debugPanelVisible" type="checkbox" />
         <span class="hint">(hotkey F2)</span>
       </label>
     </div>

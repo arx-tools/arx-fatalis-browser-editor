@@ -54,10 +54,6 @@ import flatColorsByFilename from './assets/flat-colors.json'
 import { downloadBinaryAs, zipBuffers } from './download.js'
 import { registerDownloadHandler } from './download-handler.js'
 import {
-  anchorsVisible,
-  anchorDiffVisible,
-  bothAnchorGraphs,
-  rejectedLinksVisible,
   cameraInfoVisible,
   cameraLightVisible,
   canvas,
@@ -70,31 +66,35 @@ import {
   isDirty,
   isDownloading,
   isLoading,
-  lightsVisible,
   LeftMouseButton,
-  meshVisible,
   MiddleMouseButton,
   mouseLocked,
   mousePressed,
   mouseUnlocked,
-  portalsVisible,
   RightMouseButton,
   selectionConnectDistance,
   setupCanvasResizer,
-  showDebugPanel,
   updateMouseButtonState,
   updateMouseButtonStates,
-  wireframeVisible,
 } from './ui/ui.js'
 import { mountUi } from './ui/ui-app.js'
 import { alignCameraTo, applyCameraValues, openCameraDialog } from './ui/camera.js'
 import { isDoubleSided, isNoDraw, isTransparent, wait } from './functions.js'
 import {
   ambientFloor,
+  anchorsVisible,
+  anchorDiffVisible,
+  bothAnchorGraphsVisible,
   debugPanelActiveTab,
   debugPanelMinified,
   lightingCalculatorMode,
-  shadows,
+  lightsVisible,
+  meshVisible,
+  portalsVisible,
+  rejectedLinksVisible,
+  shadowsRendering,
+  debugPanelVisible,
+  wireframeVisible,
 } from './_editor/state/state.js'
 import { toDisplayLightingMode, type DisplayLightingMode } from './_editor/types.js'
 import type { LightingCalculatorMode } from './_generator/types.js'
@@ -168,8 +168,6 @@ const debugTabs: Record<DebugTabId, DebugTab> = {
   selection: { id: 'selection', payload: '', unread: false, flash: false, flashTimer: undefined },
   anchor: { id: 'anchor', payload: '', unread: false, flash: false, flashTimer: undefined },
 }
-
-let debugPanelVisible = false
 
 function getActiveDebugTab(): DebugTab {
   if (debugPanelActiveTab.value === 'anchor') {
@@ -273,7 +271,7 @@ function setDebugPayload(tabId: DebugTabId, payload: string): void {
   tab.payload = payload
   hideDebugConfirm()
 
-  if (debugPanelVisible && debugPanelActiveTab.value === tabId) {
+  if (debugPanelVisible.value && debugPanelActiveTab.value === tabId) {
     // the user is looking at it: flash the dot for a second, then grey
     tab.unread = false
     tab.flash = true
@@ -313,8 +311,7 @@ function setDebugActiveTab(tabId: DebugTabId): void {
 }
 
 function setDebugPanelVisible(visible: boolean): void {
-  debugPanelVisible = visible
-  showDebugPanel.value = visible
+  debugPanelVisible.value = visible
   debugPanel?.classList.toggle('hidden', !visible)
 
   if (!visible) {
@@ -337,7 +334,7 @@ function setDebugPanelVisible(visible: boolean): void {
 }
 
 function toggleDebugPanel(): void {
-  setDebugPanelVisible(!debugPanelVisible)
+  setDebugPanelVisible(!debugPanelVisible.value)
 }
 
 /**
@@ -781,49 +778,6 @@ if (levelSearchParams.get('hideUi') === '1' || levelSearchParams.get('hideUi') =
   document.body.classList.add('hide-ui')
 }
 
-/**
- * The visibility switches can be set from the url too (`?meshVisible=false&anchorsVisible=true`), so
- * a test can open a view with the overlays already in the right state - no clicking needed.
- */
-function readBooleanSearchParam(name: string): boolean | undefined {
-  const value = levelSearchParams.get(name)
-  if (value === null) {
-    return undefined
-  }
-
-  if (value === 'true' || value === '1') {
-    return true
-  }
-
-  if (value === 'false' || value === '0') {
-    return false
-  }
-
-  return undefined
-}
-
-/**
- * The bool switches of the url, both read at start and written on every change.
- */
-const searchParamSwitches: Array<[string, Ref<boolean>]> = [
-  ['meshVisible', meshVisible],
-  ['wireframeVisible', wireframeVisible],
-  ['anchorsVisible', anchorsVisible],
-  ['portalsVisible', portalsVisible],
-  ['lightsVisible', lightsVisible],
-  ['bothAnchorGraphs', bothAnchorGraphs],
-  ['anchorDiff', anchorDiffVisible],
-  ['rejectedLinks', rejectedLinksVisible],
-  ['debugPanel', showDebugPanel],
-]
-
-for (const [name, reference] of searchParamSwitches) {
-  const value = readBooleanSearchParam(name)
-  if (value !== undefined) {
-    reference.value = value
-  }
-}
-
 const levelId = Number.parseInt(levelSearchParams.get('levelIdx') ?? levelSearchParams.get('level') ?? '11', 10)
 if (!isValidOriginalArxLevelId(levelId)) {
   isLoading.value = 'rejected'
@@ -867,7 +821,7 @@ export async function handleDownloadButtonClick(): Promise<void> {
   await startDownload({
     mode: lightingCalculatorMode.value,
     ambientFloor: ambientFloor.value,
-    shadows: shadows.value,
+    shadows: shadowsRendering.value,
   })
 }
 
@@ -1279,7 +1233,7 @@ async function getRealisticPalette(ambientFloorValue: number, shadowsValue: bool
 }
 
 async function applyRealisticBakedColors(): Promise<void> {
-  const palette = await getRealisticPalette(ambientFloor.value, shadows.value)
+  const palette = await getRealisticPalette(ambientFloor.value, shadowsRendering.value)
 
   for (const group of meshGroups) {
     const attribute = group.mesh.geometry.getAttribute('baked')
@@ -1335,7 +1289,7 @@ async function getRainbowPalette(): Promise<ArxColor[]> {
 
   try {
     const line = logger.log('computing the texture colours...')
-    const palette = bakeLlfColors(fts, llf, 'TextureRainbow', meshes, ambientFloor.value, shadows.value)
+    const palette = bakeLlfColors(fts, llf, 'TextureRainbow', meshes, ambientFloor.value, shadowsRendering.value)
     logger.log('done', line)
 
     rainbowPaletteCache = palette
@@ -1756,7 +1710,7 @@ async function ensureAnchorGraph(): Promise<AnchorGraph> {
  * `geometryVersion`, so it is only computed again when the geometry changed while it was shown.
  */
 async function applyAnchorGraphVisibility(): Promise<void> {
-  if (bothAnchorGraphs.value) {
+  if (bothAnchorGraphsVisible.value) {
     const graph = await ensureAnchorGraph()
 
     renderAnchorGraph(originalAnchorGraph, true, anchorsGroup, 0x35_d8_4a)
@@ -1903,24 +1857,24 @@ watch(showGeneratedAnchors, () => {
   void applyAnchorGraphVisibility()
 })
 
-watch(showDebugPanel, (value) => {
+watch(debugPanelVisible, (value) => {
   setDebugPanelVisible(value)
 })
 
-for (const reference of [bothAnchorGraphs, anchorDiffVisible, rejectedLinksVisible]) {
+for (const reference of [bothAnchorGraphsVisible, anchorDiffVisible, rejectedLinksVisible]) {
   watch(reference, () => {
     void applyAnchorGraphVisibility()
   })
 }
 
 // the url may have enabled the generated graph (or both graphs) before the watchers existed
-if (showGeneratedAnchors.value || bothAnchorGraphs.value) {
+if (showGeneratedAnchors.value || bothAnchorGraphsVisible.value) {
   void applyAnchorGraphVisibility()
 }
 
 watch(anchorsVisible, (value) => {
   anchorDebugGroup.visible = value && (anchorDiffVisible.value || rejectedLinksVisible.value)
-  if (bothAnchorGraphs.value) {
+  if (bothAnchorGraphsVisible.value) {
     generatedAnchorsGroup.visible = value
   }
 })
@@ -2425,30 +2379,6 @@ function updateCameraUrl(): void {
   lastCameraUrl = url
 }
 
-/**
- * Writes the visibility switches into the url, so a reload (or a test) opens the same view:
- * `meshVisible`, `wireframeVisible`, `anchorsVisible`, `portalsVisible`, `lightsVisible`.
- */
-function setUrlParameter(name: string, value: string): void {
-  const params = new URLSearchParams(globalThis.location.search)
-  params.set(name, value)
-
-  const search = params.toString().replaceAll('%2C', ',')
-  const url = `${globalThis.location.pathname}?${search}${globalThis.location.hash}`
-
-  if (url === globalThis.location.pathname + globalThis.location.search + globalThis.location.hash) {
-    return
-  }
-
-  globalThis.history.replaceState(globalThis.history.state, '', url)
-}
-
-for (const [name, reference] of searchParamSwitches) {
-  watch(reference, (value) => {
-    setUrlParameter(name, String(value))
-  })
-}
-
 watch(cameraInfoVisible, (value) => {
   // the sprite keeps its last texture, so it has to be hidden separately
   hudSprite.visible = value
@@ -2595,7 +2525,7 @@ watch(
     cameraLightVisible,
     lightingCalculatorMode,
     ambientFloor,
-    shadows,
+    shadowsRendering,
   ],
   requestRender,
 )
@@ -2610,7 +2540,7 @@ watch(ambientFloor, () => {
   void applyLightingCalculatorMode()
 })
 
-watch(shadows, () => {
+watch(shadowsRendering, () => {
   void applyLightingCalculatorMode()
 })
 
@@ -3428,7 +3358,21 @@ interface EditorAutomation {
   hideUi: (hidden: boolean) => void
 }
 
-const switchedRefs: Record<string, Ref<boolean>> = Object.fromEntries(searchParamSwitches)
+/**
+ * The switches the automation api can reach, under the name the url uses for them (which is the
+ * name of the ref).
+ */
+const switchedRefs: Record<string, Ref<boolean>> = {
+  meshVisible,
+  wireframeVisible,
+  anchorsVisible,
+  portalsVisible,
+  lightsVisible,
+  bothAnchorGraphsVisible,
+  anchorDiffVisible,
+  rejectedLinksVisible,
+  debugPanelVisible,
+}
 
 const automation: EditorAutomation = {
   setCamera: (positionAt, angle) => {

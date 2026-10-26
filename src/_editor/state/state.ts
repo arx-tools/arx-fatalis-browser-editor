@@ -35,12 +35,22 @@ export const debugPanelActiveTab = persistedRef({
 })
 
 /**
+ * Whether the debug panel is shown: the floating window which collects the debug output of the
+ * different tools (the selection payload and the anchor graph payload, one tab each).
+ */
+export const debugPanelVisible = persistedRef({
+  key: 'debugPanelVisible',
+  defaultValue: false,
+  persistInUrl: true,
+})
+
+/**
  * Whether the `Realistic` bake casts shadows (the Fred `DistanceAngleShadowNoTransparency`
  * occlusion). Off = every light reaches every vertex it faces (the Danae-like look, the game's
- * original palette has no occlusion). `?shadows=false` in the url, on by default.
+ * original palette has no occlusion). `?shadowsRendering=false` in the url, on by default.
  */
-export const shadows = persistedRef({
-  key: 'shadows',
+export const shadowsRendering = persistedRef({
+  key: 'shadowsRendering',
   defaultValue: true,
   persistInUrl: true,
 })
@@ -84,4 +94,65 @@ export const lightingCalculatorMode = persistedRef<LightingCalculatorMode>({
 
     return 'Arx'
   },
+})
+
+/**
+ * The geometry itself (the `Mesh` switch): turning it off leaves only the overlays visible.
+ */
+export const meshVisible = persistedRef({
+  key: 'meshVisible',
+  defaultValue: true,
+  persistInUrl: true,
+})
+
+export const wireframeVisible = persistedRef({
+  key: 'wireframeVisible',
+  defaultValue: false,
+  persistInUrl: true,
+})
+
+export const anchorsVisible = persistedRef({
+  key: 'anchorsVisible',
+  defaultValue: false,
+  persistInUrl: true,
+})
+
+export const portalsVisible = persistedRef({
+  key: 'portalsVisible',
+  defaultValue: false,
+  persistInUrl: true,
+})
+
+export const lightsVisible = persistedRef({
+  key: 'lightsVisible',
+  defaultValue: false,
+  persistInUrl: true,
+})
+
+/**
+ * Show the file's anchor graph and the generated one at the same time (green + cyan).
+ */
+export const bothAnchorGraphsVisible = persistedRef({
+  key: 'bothAnchorGraphsVisible',
+  defaultValue: false,
+  persistInUrl: true,
+})
+
+/**
+ * Dots where the two anchor graphs differ (red: only in the file's graph, blue: only in the
+ * generated one).
+ */
+export const anchorDiffVisible = persistedRef({
+  key: 'anchorDiffVisible',
+  defaultValue: false,
+  persistInUrl: true,
+})
+
+/**
+ * The links the generator repaired / filled in (yellow).
+ */
+export const rejectedLinksVisible = persistedRef({
+  key: 'rejectedLinksVisible',
+  defaultValue: false,
+  persistInUrl: true,
 })

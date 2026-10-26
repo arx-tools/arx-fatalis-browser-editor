@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { toDisplayLightingMode } from '../../src/_editor/types.ts'
+import { toDisplayLightingMode } from '../../../src/_editor/modules/types.ts'
 
 void describe('toDisplayLightingMode', () => {
   void it('shows the game-like look for Arx', () => {

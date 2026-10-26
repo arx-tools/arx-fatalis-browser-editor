@@ -5,7 +5,7 @@ import {
   isQuotaError,
   probeStorage,
   type StorageLike,
-} from '../../../../src/_editor/state/persistedRef/storage.ts'
+} from '../../../../src/_editor/modules/persistedRef/storage.ts'
 
 /**
  * Builds a storage which fails on every write and remove the way a real one would.

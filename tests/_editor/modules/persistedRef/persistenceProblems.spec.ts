@@ -3,7 +3,7 @@ import {
   clearPersistenceProblems,
   persistenceProblems,
   reportProblem,
-} from '../../../../src/_editor/state/persistedRef/persistenceProblems.ts'
+} from '../../../../src/_editor/modules/persistedRef/persistenceProblems.ts'
 
 /**
  * Starts a test from an empty problem list and records the warnings.

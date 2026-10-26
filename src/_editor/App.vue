@@ -1,16 +1,20 @@
 <script setup lang="ts">
+import Dock from './components/Dock.vue'
 import EditorHeader from './components/EditorHeader.vue'
 </script>
 
 <template>
-  <div class="shell">
+  <div class="App">
     <EditorHeader />
-
-    <main class="shell-dock">
-      <p class="shell-placeholder">
-        The dock goes here.
-        <small>(the layout editor, the widget registry and the panel persistence come next)</small>
-      </p>
-    </main>
+    <Dock />
   </div>
 </template>
+
+<style scoped lang="scss">
+// The shell is a flex column: the header keeps its height, the dock takes the rest.
+.App {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+</style>

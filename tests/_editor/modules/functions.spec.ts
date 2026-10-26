@@ -9,7 +9,7 @@ import {
   roundToNDecimals,
   roundTriplet,
   wait,
-} from '../../src/_editor/functions.ts'
+} from '../../../src/_editor/modules/functions.ts'
 
 void describe('wait', () => {
   void it('waits for roughly the given time', async () => {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { deepEquals, isPrimitive, parseJson } from '../../../../src/_editor/state/persistedRef/functions.ts'
+import { deepEquals, isPrimitive, parseJson } from '../../../../src/_editor/modules/persistedRef/functions.ts'
 
 void describe('isPrimitive', () => {
   void it('accepts a string, a number and a boolean', () => {

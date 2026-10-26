@@ -1,11 +1,11 @@
-// The base styles of the new shell: a dark, full window page that never scrolls.
+// The page frame of the new shell: a dark, full window page that never scrolls.
 //
 // The old app kept the whole game view in one scrolling document; the new shell is a thin header and
 // a dock that fills the rest, so every widget scrolls inside itself.
 //
-// What belongs to a component is in the component's own scoped style; this file keeps the page frame,
-// the shell layout and the primitives that several components share. The nesting follows the
-// elements, and a class name is never broken apart with `&`: it has to stay searchable in the sources.
+// What belongs to a component is in the component's own scoped style; this file keeps the page frame
+// and the primitives that several components share. The nesting follows the elements, and a class
+// name is never broken apart with `&`: it has to stay searchable in the sources.
 
 html,
 body {
@@ -22,36 +22,16 @@ body {
   height: 100%;
 }
 
-// the shell is a flex column: the header, then the dock that takes the remaining height
-.shell {
-  display: flex;
-  flex-direction: column;
+// a widget can not be dragged to zero: lumino reads these limits from the css (`Widget.fit`)
+.lm-DockPanel-widget {
+  min-width: 160px;
+  min-height: 120px;
+}
+
+// the content element of a Vue widget: the component fills it, and the widget scrolls inside itself
+.VueWidget-content {
   height: 100%;
-
-  // the dock placeholder: the real dock replaces it in the next round
-  .shell-dock {
-    display: flex;
-    flex: 1;
-    align-items: center;
-    justify-content: center;
-    min-height: 0;
-    margin: 8px;
-    border: 1px dashed #3a3f47;
-    border-radius: 4px;
-
-    .shell-placeholder {
-      margin: 0;
-      color: #8b929b;
-      text-align: center;
-
-      small {
-        display: block;
-        margin-top: 4px;
-        font-size: 11px;
-        opacity: 0.7;
-      }
-    }
-  }
+  overflow: auto;
 }
 
 // an icon only button: the glyph is the whole button, the state shows in the opacity, and every

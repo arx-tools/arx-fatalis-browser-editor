@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { nextTick } from 'vue'
-import { persistedRef } from '../../../../src/_editor/state/persistedRef/persistedRef.ts'
+import { persistedRef } from '../../../../src/_editor/modules/persistedRef/persistedRef.ts'
 import {
   createBrowserUrlAdapter,
   defaultUrlDeserialize,
@@ -11,7 +11,7 @@ import {
   writeUrlValue,
   type BrowserPage,
   type UrlAdapter,
-} from '../../../../src/_editor/state/persistedRef/url.ts'
+} from '../../../../src/_editor/modules/persistedRef/url.ts'
 
 /**
  * The location the fake page starts with.

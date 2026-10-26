@@ -1,8 +1,8 @@
 import type { TripleOf } from 'arx-convert/utils'
 import { MathUtils } from 'three'
-import { parseNumberTriplet, roundTriplet } from '../functions.ts'
-import { isLightingCalculatorMode, type LightingCalculatorMode } from '../../_generator/types.ts'
-import { persistedRef } from './persistedRef/persistedRef.ts'
+import { isLightingCalculatorMode, type LightingCalculatorMode } from '../_generator/types.ts'
+import { parseNumberTriplet, roundTriplet } from './modules/functions.ts'
+import { persistedRef } from './modules/persistedRef/persistedRef.ts'
 
 /**
  * The state of the editor: every value which survives a reload lives here, so the modules only ask

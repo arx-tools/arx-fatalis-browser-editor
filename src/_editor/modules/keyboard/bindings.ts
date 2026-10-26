@@ -1,4 +1,4 @@
-import { persistedRef, type PersistedRef } from '../state/persistedRef/persistedRef.ts'
+import { persistedRef, type PersistedRef } from '../persistedRef/persistedRef.ts'
 import { keyboardActions, type KeyboardActionId } from './actions.ts'
 import { resolveKeys, type KeyCombo } from './functions.ts'
 

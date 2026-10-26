@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { keyboardActions, type KeyboardAction, type KeyboardGroup } from '../../../src/_editor/keyboard/actions.ts'
-import { createDefaultBindings } from '../../../src/_editor/keyboard/bindings.ts'
-import { getComboId, resolveKeys, type KeyboardMode } from '../../../src/_editor/keyboard/functions.ts'
+import {
+  keyboardActions,
+  type KeyboardAction,
+  type KeyboardGroup,
+} from '../../../../src/_editor/modules/keyboard/actions.ts'
+import { createDefaultBindings } from '../../../../src/_editor/modules/keyboard/bindings.ts'
+import { getComboId, resolveKeys, type KeyboardMode } from '../../../../src/_editor/modules/keyboard/functions.ts'
 
 /**
  * The groups the help panel knows.

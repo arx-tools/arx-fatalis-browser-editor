@@ -13,7 +13,7 @@ import {
   resolveKeys,
   resolveModifiers,
   type KeyboardEventLike,
-} from '../../../src/_editor/keyboard/functions.ts'
+} from '../../../../src/_editor/modules/keyboard/functions.ts'
 
 /**
  * Builds the part of an event the matcher reads.

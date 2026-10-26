@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { beforeEach, describe, it, type TestContext } from 'node:test'
-import { keyboardActions, type KeyboardAction } from '../../../src/_editor/keyboard/actions.ts'
-import { createDefaultBindings, type KeyboardBindings } from '../../../src/_editor/keyboard/bindings.ts'
-import { isMacPlatform } from '../../../src/_editor/keyboard/functions.ts'
+import { keyboardActions, type KeyboardAction } from '../../../../src/_editor/modules/keyboard/actions.ts'
+import { createDefaultBindings, type KeyboardBindings } from '../../../../src/_editor/modules/keyboard/bindings.ts'
+import { isMacPlatform } from '../../../../src/_editor/modules/keyboard/functions.ts'
 import {
   clearPressedKeys,
   handleKeyDown,
@@ -22,7 +22,7 @@ import {
   setKeyboardBindings,
   setPointerLocked,
   type KeyboardDownEvent,
-} from '../../../src/_editor/keyboard/keyboard.ts'
+} from '../../../../src/_editor/modules/keyboard/keyboard.ts'
 
 /**
  * The flags a test can set on the fake event.

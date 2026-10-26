@@ -6,10 +6,10 @@ import {
   clearPersistedRefRegistry,
   persistedRef,
   type PersistenceAdapters,
-} from '../../../../src/_editor/state/persistedRef/persistedRef.ts'
-import { parseNumberTriplet } from '../../../../src/_editor/functions.ts'
-import { createBrowserUrlAdapter } from '../../../../src/_editor/state/persistedRef/url.ts'
-import { persistenceProblems } from '../../../../src/_editor/state/persistedRef/persistenceProblems.ts'
+} from '../../../../src/_editor/modules/persistedRef/persistedRef.ts'
+import { parseNumberTriplet } from '../../../../src/_editor/modules/functions.ts'
+import { createBrowserUrlAdapter } from '../../../../src/_editor/modules/persistedRef/url.ts'
+import { persistenceProblems } from '../../../../src/_editor/modules/persistedRef/persistenceProblems.ts'
 
 /**
  * A stand-in for `localStorage`, so the tests run in node where there is no web storage.

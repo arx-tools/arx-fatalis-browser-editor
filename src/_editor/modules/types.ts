@@ -1,4 +1,4 @@
-import type { LightingCalculatorMode } from '../_generator/types.ts'
+import type { LightingCalculatorMode } from '../../_generator/types.ts'
 
 /**
  * How the editor's materials show the level.

@@ -1,5 +1,5 @@
 import { DLF, FTS, LLF } from 'arx-convert'
-import type { ArxDLF, ArxFTS, ArxLight, ArxLLF, ArxVector3 } from 'arx-convert/types'
+import type { ArxDLF, ArxFTS, ArxLight, ArxLLF, ArxRotation, ArxVector3 } from 'arx-convert/types'
 import { Mesh } from 'three'
 import { unpackArxFile } from './files.ts'
 import { createLevelGeometry, createLevelMaterial } from './meshes.ts'
@@ -67,8 +67,20 @@ export class ArxMap {
    * The camera of the editor starts here once it gets its controls; the first round only frames the
    * whole level, so it does not use it yet.
    */
-  get playerStart(): ArxVector3 {
+  get playerPosition(): ArxVector3 {
     return this.dlf.header.player.position
+  }
+
+  /**
+   * The way the player faces when it enters the level: the `angleEdit` of the DLF.
+   *
+   * @remarks
+   * The game turns the player to this angle on a level load and then zeroes the pitch
+   * (`src/core/Core.cpp`: `player.angle.setPitch(0)`), so only the yaw (`b`) survives. The fields are
+   * `a` = pitch, `b` = yaw, `g` = roll.
+   */
+  get playerOrientation(): ArxRotation {
+    return this.dlf.header.player.orientation
   }
 
   /**

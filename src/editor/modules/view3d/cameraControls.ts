@@ -1,4 +1,4 @@
-import type { ArxVector3 } from 'arx-convert/types'
+import type { ArxRotation, ArxVector3 } from 'arx-convert/types'
 import { Euler, MathUtils, Vector3, type PerspectiveCamera } from 'three'
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js'
 import { arxVector3toVector3 } from '../../../generator/meshes.ts'
@@ -41,7 +41,11 @@ export interface CameraControlsOptions {
   /**
    * Where the camera starts when the url does not name a pose.
    */
-  readonly playerStart: ArxVector3
+  readonly playerPosition: ArxVector3
+  /**
+   * The `angleEdit` of the level: the way the player faces when it enters it.
+   */
+  readonly playerOrientation: ArxRotation
   /**
    * Called when the pose of the camera changed, so the widget can draw its readout.
    */
@@ -194,7 +198,7 @@ export class CameraControls {
    * Puts the camera where the url asked for it, or to the player start of the level.
    */
   private applyStoredPose(): void {
-    const { camera, scene, playerStart } = this.options
+    const { camera, scene, playerPosition, playerOrientation } = this.options
     const position = cameraPosition.value
     const angle = cameraAngle.value
 
@@ -202,10 +206,11 @@ export class CameraControls {
       // the player position of the DLF is already in the mesh's own space (the mesh is shifted by the
       // scene position, the spawn is not), so it only has to be mirrored - the archived editor did the
       // same, and subtracting the scene position would put the camera outside the level
-      camera.position.copy(arxVector3toVector3(playerStart))
-      // the game enters the level with the default rotation (the DLF has a `posEdit`/`angleEdit` pair,
-      // but that was the DANAE editor's, the game does not read it)
-      applyGameAngle(camera, { pitch: 0, yaw: 0 })
+      camera.position.copy(arxVector3toVector3(playerPosition))
+      // The game puts the player to `pos_edit` (relative to the scene position) and turns it to
+      // `angle_edit` on a level load, then zeroes the pitch, so only the yaw of the level survives
+      // (`src/core/Core.cpp`: `player.angle.setPitch(0)`). The editor does the same.
+      applyGameAngle(camera, { pitch: 0, yaw: playerOrientation.b })
     } else {
       const [x, y, z] = position
 

@@ -28,9 +28,13 @@ const xoConfig: XoConfigItem[] = [
     languageOptions: {
       globals: {
         BUILD_INFO: 'readonly',
+        cancelAnimationFrame: 'readonly',
         document: 'readonly',
+        window: 'readonly',
         KeyboardEvent: 'readonly',
         Node: 'readonly',
+        requestAnimationFrame: 'readonly',
+        ResizeObserver: 'readonly',
       },
     },
   },

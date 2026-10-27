@@ -107,6 +107,23 @@ void describe('the edit mode of the shell', () => {
     shell.dispose()
   })
 
+  void it('closes the picker before the edit mode with the escape key', () => {
+    const { shell } = buildShell()
+
+    shell.setEditing(true)
+    shell.setPickerOpen(true)
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+
+    assert.equal(shell.pickerOpen.value, false)
+    assert.equal(shell.isEditing.value, true)
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+
+    assert.equal(shell.isEditing.value, false)
+    shell.dispose()
+  })
+
   void it('closes the edit mode with the escape key', () => {
     const { shell } = buildShell()
 
@@ -152,6 +169,31 @@ void describe('createEditorShell', () => {
 
     assert.ok(layout instanceof DockLayout)
     assert.equal(layout.saveLayout().main?.type, 'split-area')
+    shell.dispose()
+  })
+
+  void it('lists the kinds that are on the dock', () => {
+    const { shell } = buildShell()
+
+    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['help', 'statistics', 'view3d'])
+
+    shell.addWidget('help')
+
+    assert.equal(shell.placedKinds.value.length, 4)
+    shell.dispose()
+  })
+
+  void it('removes a widget by its kind', () => {
+    const { shell } = buildShell()
+
+    shell.removeWidgetByKind('statistics')
+
+    assert.equal(shell.placedKinds.value.includes('statistics'), false)
+    assert.equal(dockWidgets(shell.dock).length, 2)
+
+    shell.removeWidgetByKind('nope')
+
+    assert.equal(dockWidgets(shell.dock).length, 2)
     shell.dispose()
   })
 

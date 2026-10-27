@@ -1,0 +1,203 @@
+<script setup lang="ts">
+import { computed, onBeforeUnmount, ref } from 'vue'
+import { Check, GripVertical, Trash2 } from 'lucide-vue-next'
+import { dragWidget } from '../modules/layout/dragDrop.ts'
+import { pickerRows } from '../modules/layout/pickerRows.ts'
+import { useEditorShell } from '../modules/shell/editorShellContext.ts'
+
+const emit = defineEmits<{
+  /**
+   * The picker has to be closed: the caller hides it.
+   */
+  close: []
+}>()
+
+const shell = useEditorShell()
+const isDragging = ref(false)
+
+/**
+ * The rows of the popup: a placed kind offers the trash, a free one can be dragged in.
+ */
+const rows = computed(() => {
+  const current = shell.value
+
+  if (current === undefined) {
+    return []
+  }
+
+  return pickerRows(current.definitions, current.placedKinds.value)
+})
+
+/**
+ * Asks the editor to locate the widget of a placed row, or clears the spotlight.
+ *
+ * @param kind The kind of the hovered row, or `null` when the pointer left it.
+ */
+function spotlight(kind: string | null): void {
+  shell.value?.editor.spotlight(kind)
+}
+
+/**
+ * Removes the widget of a placed row from the dock.
+ *
+ * @param kind The kind of the widget to remove.
+ */
+function remove(kind: string): void {
+  shell.value?.removeWidgetByKind(kind)
+  spotlight(null)
+}
+
+// if the popup closes while a row is hovered, no pointerleave arrives, so the marks are cleared here
+onBeforeUnmount(() => {
+  spotlight(null)
+})
+
+/**
+ * Drags a free kind out of the popup and puts the new widget where it is dropped.
+ *
+ * @param event The press that arms the drag.
+ * @param kind The kind of the widget to create.
+ */
+async function startDrag(event: PointerEvent, kind: string): Promise<void> {
+  const current = shell.value
+  const row = rows.value.find((candidate) => {
+    return candidate.kind === kind
+  })
+
+  if (current === undefined || row === undefined || row.isPlaced || event.button !== 0) {
+    return
+  }
+
+  event.preventDefault()
+
+  const target = await dragWidget({
+    label: row.label,
+    clientX: event.clientX,
+    clientY: event.clientY,
+    pointerId: event.pointerId,
+    dock: current.dock,
+    container: current.host,
+    onDragStateChange: (dragging) => {
+      isDragging.value = dragging
+    },
+  })
+
+  if (target === null) {
+    return
+  }
+
+  current.addWidget(kind, { mode: target.mode, ref: target.ref })
+  emit('close')
+}
+</script>
+
+<template>
+  <div class="WidgetPicker" :class="{ 'is-dragging': isDragging }" role="menu" aria-label="Add a widget">
+    <div
+      v-for="row in rows"
+      :key="row.kind"
+      class="row"
+      :class="{ 'is-placed': row.isPlaced }"
+      role="menuitem"
+      :data-picker-kind="row.kind"
+      @pointerdown="startDrag($event, row.kind)"
+      @pointerenter="spotlight(row.isPlaced ? row.kind : null)"
+      @pointerleave="spotlight(null)"
+    >
+      <Check v-if="row.isPlaced" class="mark" :size="13" aria-hidden="true" />
+      <GripVertical v-else class="grip" :size="13" aria-hidden="true" />
+      <span class="name">{{ row.label }}</span>
+      <button
+        v-if="row.isPlaced"
+        class="trash"
+        type="button"
+        v-tooltip="`Remove the ${row.label} widget`"
+        :aria-label="`Remove the ${row.label} widget`"
+        @pointerdown.stop
+        @click="remove(row.kind)"
+      >
+        <Trash2 :size="13" />
+      </button>
+    </div>
+  </div>
+</template>
+
+<style scoped lang="scss">
+// The popup of the `+` button: one row per widget kind. The left slot is the grip of a free row and
+// the check of a placed one (so no row looks half-done), the right one is the trash of a placed kind;
+// while a widget is dragged out of the popup it fades to 75% transparency.
+.WidgetPicker {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 170px;
+  padding: 4px;
+  background: #23262b;
+  border: 1px solid #3a3f47;
+  border-radius: 6px;
+  box-shadow: 0 10px 28px rgb(0 0 0 / 55%);
+  transition: opacity 120ms ease-out;
+
+  &.is-dragging {
+    opacity: 0.25;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+
+    &:hover {
+      color: #fff;
+      background: #2f343b;
+    }
+
+    &.is-placed {
+      cursor: default;
+    }
+
+    .grip,
+    .mark {
+      flex: none;
+    }
+
+    .grip {
+      color: #7d8590;
+    }
+
+    .mark {
+      color: #6aa84f;
+    }
+
+    .name {
+      flex: 1;
+      white-space: nowrap;
+    }
+
+    .trash {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      padding: 0;
+      color: #b8877e;
+      background: transparent;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+
+      &:hover {
+        color: #f0f2f5;
+        background: rgb(184 64 44 / 85%);
+      }
+    }
+  }
+}
+</style>

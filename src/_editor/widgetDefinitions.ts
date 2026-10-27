@@ -1,4 +1,5 @@
 import type { Widget } from '@lumino/widgets'
+import CameraWidget from './components/widgets/CameraWidget.vue'
 import HelpWidget from './components/widgets/HelpWidget.vue'
 import StatisticsWidget from './components/widgets/StatisticsWidget.vue'
 import View3DWidget from './components/widgets/View3DWidget.vue'
@@ -35,6 +36,13 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
     label: 'Help',
     create: (): Widget => {
       return new VueWidget(HelpWidget)
+    },
+  },
+  {
+    kind: 'camera',
+    label: 'Camera',
+    create: (): Widget => {
+      return new VueWidget(CameraWidget)
     },
   },
 ]

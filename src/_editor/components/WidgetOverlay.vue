@@ -22,7 +22,7 @@ const emit = defineEmits<{
     <button
       class="trash"
       type="button"
-      :title="`Remove the ${props.label} widget`"
+      v-tooltip="`Remove the ${props.label} widget`"
       :aria-label="`Remove the ${props.label} widget`"
       @pointerdown.stop
       @click="emit('remove')"

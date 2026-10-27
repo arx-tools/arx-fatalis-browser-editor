@@ -40,6 +40,36 @@ body {
   inset: 0;
 }
 
+// the picker locates a widget. In edit mode the overlay is there, so the plate of the others darkens
+// and the target gets the accent frame on the plate itself.
+.lm-DockPanel-widget.is-dimmed .WidgetOverlay {
+  background: rgb(24 26 30 / 74%);
+  border-color: transparent;
+}
+
+.lm-DockPanel-widget.is-spotlit .WidgetOverlay {
+  background: rgb(86 92 101 / 74%);
+  border-color: #e69138;
+  box-shadow: inset 0 0 0 1px rgb(230 145 56 / 35%);
+}
+
+// In the locked layout there is no overlay, so the widget node carries both marks: a half
+// transparent black veil over the others (the veil must not eat the pointer, the widget stays live)
+// and a dashed frame on the target.
+.Dock:not(.is-editing) .lm-DockPanel-widget.is-dimmed::after {
+  content: '';
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  background: rgb(0 0 0 / 20%);
+  pointer-events: none;
+}
+
+.Dock:not(.is-editing) .lm-DockPanel-widget.is-spotlit {
+  outline: 2px dashed #e69138;
+  outline-offset: -2px;
+}
+
 // the widget that is being dragged shows itself faded under the ghost
 .lm-DockPanel-widget.is-drag-source .WidgetOverlay {
   background: rgb(38 41 46 / 74%);

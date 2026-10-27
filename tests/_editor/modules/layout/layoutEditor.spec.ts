@@ -6,6 +6,8 @@ import { installDom } from '../../../support/dom.ts'
 installDom()
 
 const { DockPanel, Widget } = await import('@lumino/widgets')
+const { dockWidgets } = await import('../../../../src/_editor/modules/layout/dockWidgets.ts')
+const { createWidget } = await import('../../../../src/_editor/modules/layout/widgetDefinition.ts')
 const { LayoutEditor } = await import('../../../../src/_editor/modules/layout/layoutEditor.ts')
 
 /**
@@ -41,14 +43,37 @@ function buildEditor(): {
   const dock = new DockPanel()
   Widget.attach(dock, container)
 
-  const widget = new Widget()
-  widget.title.label = 'Statistics'
+  const widget = createWidget({
+    kind: 'statistics',
+    label: 'Statistics',
+    create: () => {
+      return new Widget()
+    },
+  })
   dock.addWidget(widget)
 
   const editor = new LayoutEditor(dock, container, mountFakeOverlay)
   editor.decorate(widget)
 
   return { editor, dock, container, widget }
+}
+
+/**
+ * Looks a widget up by the name on its plate.
+ *
+ * @param dock The dock to search.
+ * @param label The text of the plate ('Statistics', 'Help', …).
+ *
+ * @returns The one with that plate.
+ */
+function byLabel(dock: InstanceType<typeof DockPanel>, label: string): InstanceType<typeof Widget> {
+  const found = dockWidgets(dock).find((widget) => {
+    return widget.title.label === label
+  })
+
+  assert.ok(found)
+
+  return found
 }
 
 /**
@@ -99,8 +124,13 @@ void describe('LayoutEditor', () => {
 
     editor.setUnlocked(true)
 
-    const late = new Widget()
-    late.title.label = 'Help'
+    const late = createWidget({
+      kind: 'help',
+      label: 'Help',
+      create: () => {
+        return new Widget()
+      },
+    })
     dock.addWidget(late)
     editor.decorate(late)
 
@@ -120,6 +150,56 @@ void describe('LayoutEditor', () => {
     const { layout } = dock
 
     assert.notEqual(layout, null)
+  })
+
+  void it('marks the widget of the hovered kind and dims the others', () => {
+    const { editor, dock } = buildEditor()
+
+    const late = createWidget({
+      kind: 'help',
+      label: 'Help',
+      create: () => {
+        return new Widget()
+      },
+    })
+    dock.addWidget(late)
+    editor.decorate(late)
+
+    const help = byLabel(dock, 'Help')
+    const statistics = byLabel(dock, 'Statistics')
+
+    editor.spotlight('help')
+
+    assert.equal(help.node.classList.contains('is-spotlit'), true)
+    assert.equal(help.node.classList.contains('is-dimmed'), false)
+    assert.equal(statistics.node.classList.contains('is-dimmed'), true)
+    assert.equal(statistics.node.classList.contains('is-spotlit'), false)
+
+    editor.spotlight(null)
+
+    assert.equal(help.node.classList.contains('is-spotlit'), false)
+    assert.equal(statistics.node.classList.contains('is-dimmed'), false)
+  })
+
+  void it('lights nothing for a kind that is not on the dock', () => {
+    const { editor, dock, widget } = buildEditor()
+
+    editor.spotlight('camera')
+
+    assert.equal(widget.node.classList.contains('is-spotlit'), false)
+    assert.equal(widget.node.classList.contains('is-dimmed'), true)
+    assert.equal(byLabel(dock, 'Statistics').node.classList.contains('is-dimmed'), true)
+  })
+
+  void it('clears the spotlight when the mode is closed', () => {
+    const { editor, widget } = buildEditor()
+
+    editor.setUnlocked(true)
+    editor.spotlight('statistics')
+    editor.setUnlocked(false)
+
+    assert.equal(widget.node.classList.contains('is-spotlit'), false)
+    assert.equal(widget.node.classList.contains('is-dimmed'), false)
   })
 
   void it('unmounts every overlay when the editor is disposed', () => {

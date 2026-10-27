@@ -1,6 +1,7 @@
 import type { DockPanel, Widget } from '@lumino/widgets'
 import { dragWidget } from './dragDrop.ts'
 import { placeWidget } from './placement.ts'
+import { widgetKind } from './widgetDefinition.ts'
 
 /**
  * What the overlay of a widget shows and does.
@@ -104,6 +105,8 @@ export class LayoutEditor {
   setUnlocked(unlocked: boolean): void {
     this.unlocked = unlocked
     this.container.classList.toggle('is-editing', unlocked)
+    // the spotlight is a hover effect of the picker: closing the mode must not leave it behind
+    this.spotlight(null)
 
     if (unlocked) {
       for (const widget of this.widgets) {
@@ -115,6 +118,23 @@ export class LayoutEditor {
 
     for (const widget of this.widgets) {
       this.detachOverlay(widget)
+    }
+  }
+
+  /**
+   * Locates a widget: it gets a frame and every other widget is dimmed.
+   *
+   * @remarks
+   * The picker calls this while the pointer is over a placed row, so the user can find the widget the
+   * row belongs to. The classes are the css's: the overlay of the widget reads them.
+   *
+   * @param kind The kind of the widget to locate, or `null` to clear the spotlight.
+   */
+  spotlight(kind: string | null): void {
+    for (const widget of this.widgets) {
+      const isTarget = kind !== null && widgetKind(widget) === kind
+      widget.node.classList.toggle('is-spotlit', isTarget)
+      widget.node.classList.toggle('is-dimmed', kind !== null && !isTarget)
     }
   }
 

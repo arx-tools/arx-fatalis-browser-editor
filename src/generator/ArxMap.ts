@@ -50,6 +50,17 @@ export class ArxMap {
   private readonly llf: ArxLLF
 
   /**
+   * The scene position of the level, which is the origin of the mesh's coordinate system.
+   *
+   * @remarks
+   * The mesh is built as `M(v - scenePosition)`, so anything that wants to stand in the same place as
+   * the mesh (the camera) has to convert with this value.
+   */
+  get scenePosition(): ArxVector3 {
+    return this.fts.header.mScenePosition
+  }
+
+  /**
    * Where the player enters the level, in the game's coordinate system.
    *
    * @remarks

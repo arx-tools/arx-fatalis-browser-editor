@@ -1,14 +1,23 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue'
 import { PerspectiveCamera, Scene, WebGLRenderer } from 'three'
+import type { ArxVector3 } from 'arx-convert/types'
 import { ArxMap } from '../../../generator/ArxMap.ts'
-import { addPreviewLights, fitCameraToCanvas, frameLevel } from '../../modules/view3d/levelScene.ts'
+import { CameraControls } from '../../modules/view3d/cameraControls.ts'
+import { readGameAngle, worldPositionToGame } from '../../modules/view3d/cameraPose.ts'
+import { addPreviewLights, fitCameraToCanvas } from '../../modules/view3d/levelScene.ts'
 import { STARTER_LEVEL, fetchLevelFiles } from '../../modules/view3d/levelSource.ts'
 
 /**
  * What the widget shows over the canvas: the loading state, a failure, or nothing while the level is on.
  */
 const status = ref('Loading the level…')
+
+/**
+ * The readout over the canvas: the camera position and rotation in the game's coordinates, in the same
+ * format as the game's own debug hud. There is no pencil button and no click-to-copy yet.
+ */
+const hud = ref('')
 
 const host = useTemplateRef<HTMLElement>('host')
 const canvas = useTemplateRef<HTMLCanvasElement>('canvas')
@@ -31,8 +40,11 @@ function messageOf(error: unknown): string | undefined {
 let renderer: WebGLRenderer | undefined
 let scene: Scene | undefined
 let camera: PerspectiveCamera | undefined
+let controls: CameraControls | undefined
+let scenePosition: ArxVector3 | undefined
 let observer: ResizeObserver | undefined
 let frame = 0
+let lastFrameAt = 0
 
 /**
  * Draws the next frame, at most once per animation frame.
@@ -53,6 +65,73 @@ function requestRender(): void {
       renderer.render(scene, camera)
     }
   })
+}
+
+/**
+ * Turns the pose of the camera into the text of the readout.
+ *
+ * The values are in the game's coordinate system and in the game's debug hud format (`position x y z`,
+ * `rotation pitch yaw roll`), so the two can be compared directly. The roll is always zero.
+ */
+function refreshHud(): void {
+  if (camera === undefined || scenePosition === undefined) {
+    return
+  }
+
+  const position = worldPositionToGame(camera.position, scenePosition)
+  const { pitch, yaw } = readGameAngle(camera)
+
+  hud.value = [
+    `position  ${position.x.toFixed(2)}  ${position.y.toFixed(2)}  ${position.z.toFixed(2)}`,
+    `rotation  ${pitch.toFixed(2)}  ${yaw.toFixed(2)}  0.00`,
+  ].join('\n')
+}
+
+/**
+ * Draws the frames for as long as the pointer is locked.
+ *
+ * @remarks
+ * Outside the pointer lock nothing moves the camera, so the scene is only redrawn when something
+ * changes (the level arrived, the widget was resized). The loop stops when the lock is released.
+ *
+ * @param now The timestamp the browser gave the frame.
+ */
+function animate(now: number): void {
+  let deltaSeconds = 0
+
+  if (lastFrameAt !== 0) {
+    deltaSeconds = (now - lastFrameAt) / 1000
+  }
+
+  lastFrameAt = now
+
+  if (controls?.isLocked !== true) {
+    frame = 0
+    lastFrameAt = 0
+
+    return
+  }
+
+  controls.update(deltaSeconds)
+
+  if (renderer !== undefined && scene !== undefined && camera !== undefined) {
+    renderer.render(scene, camera)
+  }
+
+  frame = requestAnimationFrame(animate)
+}
+
+/**
+ * Starts the locked movement loop, if it is not running already.
+ */
+function startLoop(): void {
+  if (frame !== 0) {
+    requestAnimationFrame(animate)
+    return
+  }
+
+  lastFrameAt = 0
+  frame = requestAnimationFrame(animate)
 }
 
 /**
@@ -125,14 +204,29 @@ async function loadStarterLevel(): Promise<void> {
       scene.add(mesh)
     }
 
-    // one mesh for now: the polygons are not grouped by material yet
-    const levelMesh = map.meshes[0]
-    const boundingBox = levelMesh?.geometry.boundingBox
+    scenePosition = map.scenePosition
 
-    if (boundingBox !== null && boundingBox !== undefined) {
-      frameLevel(camera, boundingBox)
-    }
+    controls = new CameraControls({
+      canvas: target,
+      camera,
+      scene: map.scenePosition,
+      playerStart: map.playerStart,
+      onPoseChange: (): void => {
+        refreshHud()
+        requestRender()
+      },
+      onLockChange: (locked: boolean): void => {
+        if (locked) {
+          startLoop()
 
+          return
+        }
+
+        requestRender()
+      },
+    })
+
+    refreshHud()
     status.value = ''
     requestRender()
   } catch (error) {
@@ -158,6 +252,8 @@ onMounted(() => {
 onBeforeUnmount(() => {
   observer?.disconnect()
   observer = undefined
+  controls?.dispose()
+  controls = undefined
 
   if (frame !== 0) {
     cancelAnimationFrame(frame)
@@ -171,6 +267,7 @@ onBeforeUnmount(() => {
 <template>
   <div ref="host" class="View3DWidget">
     <canvas ref="canvas" class="stage"></canvas>
+    <div v-if="hud !== ''" class="hud">{{ hud }}</div>
     <p v-if="status !== ''" class="status">{{ status }}</p>
   </div>
 </template>
@@ -178,8 +275,9 @@ onBeforeUnmount(() => {
 <style scoped lang="scss">
 @use '../../palette' as *;
 
-// The 3D view: the canvas fills the widget and the renderer follows its size. The status line lies on
-// top, so a slow download or a failed one is visible instead of a black rectangle.
+// The 3D view: the canvas fills the widget and the renderer follows its size. The readout and the
+// status line are plain elements above the canvas (the readout is not painted into it), so both are
+// selectable and stylable, and neither takes the pointer away from the canvas.
 .View3DWidget {
   position: relative;
   height: 100%;
@@ -191,6 +289,22 @@ onBeforeUnmount(() => {
     display: block;
     width: 100%;
     height: 100%;
+  }
+
+  // the camera readout: two lines, in the game's debug hud format
+  .hud {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    padding: 4px 8px;
+    font-family: monospace;
+    font-size: 12px;
+    line-height: 1.4;
+    white-space: pre;
+    color: $text;
+    background: rgba($surface-app, 0.72);
+    border-radius: 3px;
+    pointer-events: none;
   }
 
   .status {

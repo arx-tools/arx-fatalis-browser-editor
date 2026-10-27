@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { beforeEach, describe, it } from 'node:test'
 import type { Widget as LuminoWidget } from '@lumino/widgets'
 import type { WidgetOverlayOptions } from '../../../../src/_editor/modules/layout/layoutEditor.ts'
 import { installDom } from '../../../support/dom.ts'
@@ -9,7 +9,15 @@ installDom()
 // the dom has to be in place before these modules load (vue and lumino read the document on import)
 const { DockLayout, Widget } = await import('@lumino/widgets')
 const { dockWidgets } = await import('../../../../src/_editor/modules/layout/dockWidgets.ts')
+const { clearPersistedRefRegistry } = await import('../../../../src/_editor/modules/persistedRef/persistedRef.ts')
 const { createEditorShell } = await import('../../../../src/_editor/modules/shell/createEditorShell.ts')
+
+// the layout is a shared persisted ref (one `layout` key), so every test starts with an empty storage
+// and a fresh registry: otherwise the previous test's layout would come back
+beforeEach((): void => {
+  localStorage.clear()
+  clearPersistedRefRegistry()
+})
 
 /**
  * The widget kinds of the test: plain lumino widgets instead of the real (vue) ones.
@@ -32,6 +40,13 @@ const definitions = [
   {
     kind: 'help',
     label: 'Help',
+    create: (): LuminoWidget => {
+      return new Widget()
+    },
+  },
+  {
+    kind: 'camera',
+    label: 'Camera',
     create: (): LuminoWidget => {
       return new Widget()
     },
@@ -83,6 +98,87 @@ void describe('dockWidgets', () => {
         .toSorted(),
       ['3D View', 'Help', 'Statistics'],
     )
+    shell.dispose()
+  })
+})
+
+void describe('the layout of the shell', () => {
+  void it('starts from the default layout', () => {
+    const { shell } = buildShell()
+
+    assert.equal(shell.isLayoutModified.value, false)
+    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['help', 'statistics', 'view3d'])
+    shell.dispose()
+  })
+
+  void it('shows the reset state after a widget was added', () => {
+    const { shell } = buildShell()
+
+    shell.addWidget('camera')
+
+    assert.equal(shell.isLayoutModified.value, true)
+    shell.dispose()
+  })
+
+  void it('restores the default layout on reset', () => {
+    const { shell } = buildShell()
+
+    shell.addWidget('camera')
+    shell.resetLayout()
+
+    assert.equal(shell.isLayoutModified.value, false)
+    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['help', 'statistics', 'view3d'])
+    shell.dispose()
+  })
+
+  void it('restores the layout that was in the storage', () => {
+    localStorage.setItem(
+      'layout',
+      JSON.stringify({
+        type: 'split',
+        orientation: 'vertical',
+        sizes: [0.7, 0.3],
+        children: [
+          { type: 'widget', kind: 'help' },
+          { type: 'widget', kind: 'camera' },
+        ],
+      }),
+    )
+
+    const { shell } = buildShell()
+
+    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['camera', 'help'])
+    assert.equal(shell.isLayoutModified.value, true)
+    shell.dispose()
+  })
+
+  void it('falls back to the default for a broken storage value', () => {
+    localStorage.setItem('layout', 'not json at all')
+
+    const { shell } = buildShell()
+
+    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['help', 'statistics', 'view3d'])
+    assert.equal(shell.isLayoutModified.value, false)
+    shell.dispose()
+  })
+
+  void it('drops a stored kind that is not in the registry', () => {
+    localStorage.setItem(
+      'layout',
+      JSON.stringify({
+        type: 'split',
+        orientation: 'horizontal',
+        sizes: [0.5, 0.5],
+        children: [
+          { type: 'widget', kind: 'help' },
+          { type: 'widget', kind: 'nonsense' },
+        ],
+      }),
+    )
+
+    const { shell } = buildShell()
+
+    assert.deepEqual([...shell.placedKinds.value], ['help'])
     shell.dispose()
   })
 })

@@ -139,6 +139,20 @@ export class LayoutEditor {
   }
 
   /**
+   * Forgets a widget: its overlay is unmounted and it is no longer decorated.
+   *
+   * @remarks
+   * The layout apply drops every widget and builds the tree again, so the disposed ones must not stay
+   * in the decorated set (a later spotlight would touch a disposed node).
+   *
+   * @param widget The widget to forget.
+   */
+  undecorate(widget: Widget): void {
+    this.detachOverlay(widget)
+    this.widgets.delete(widget)
+  }
+
+  /**
    * Deletes a widget; the dock reflows the remaining ones into the freed space.
    *
    * @param widget The widget to delete.

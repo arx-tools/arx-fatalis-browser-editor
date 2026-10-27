@@ -1,11 +1,18 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { LockKeyhole, LockKeyholeOpen, Plus } from 'lucide-vue-next'
+import { LockKeyhole, LockKeyholeOpen, Plus, UndoDot } from 'lucide-vue-next'
 import { useEditorShell } from '../modules/shell/editorShellContext.ts'
 import WidgetPicker from './WidgetPicker.vue'
 
 const shell = useEditorShell()
 const root = ref<HTMLElement>()
+
+/**
+ * Tells whether the layout differs from the default one: only then is there anything to reset.
+ */
+const isLayoutModified = computed(() => {
+  return shell.value?.isLayoutModified.value === true
+})
 
 /**
  * Tells whether the widget picker is open.
@@ -30,6 +37,13 @@ function toggleEditing(): void {
   if (current !== undefined) {
     current.setEditing(!current.isEditing.value)
   }
+}
+
+/**
+ * Restores the default layout, so the user can step back from a rearranged dock.
+ */
+function resetLayout(): void {
+  shell.value?.resetLayout()
 }
 
 /**
@@ -89,6 +103,16 @@ onBeforeUnmount(() => {
     <button class="plus" type="button" v-tooltip="'Add a widget'" aria-label="Add a widget" @click="togglePicker">
       <Plus :size="14" />
     </button>
+    <button
+      v-if="isLayoutModified"
+      class="reset"
+      type="button"
+      v-tooltip="'Reset the layout'"
+      aria-label="Reset the layout"
+      @click="resetLayout"
+    >
+      <UndoDot :size="14" />
+    </button>
 
     <WidgetPicker v-if="isPickerOpen" @close="closePicker" />
   </div>
@@ -112,7 +136,8 @@ onBeforeUnmount(() => {
   }
 
   .lock,
-  .plus {
+  .plus,
+  .reset {
     display: inline-flex;
     align-items: center;
     justify-content: center;

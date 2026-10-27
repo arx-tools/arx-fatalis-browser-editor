@@ -95,6 +95,8 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped lang="scss">
+@use '../palette' as *;
+
 // The widget manager: the label of the group and the buttons that act on the widgets of the dock.
 // The lock carries the mode: green when the layout is locked, orange (and a lighter plate) when the
 // layout editor is open. The popup of the `+` is positioned against this element.
@@ -117,24 +119,24 @@ onBeforeUnmount(() => {
     width: 26px;
     height: 22px;
     padding: 0;
-    color: #c8ccd2;
+    color: $text-icon;
     background: transparent;
-    border: 1px solid #3a3f47;
+    border: 1px solid $border;
     border-radius: 4px;
     cursor: pointer;
 
     &:hover {
-      background: #2f343b;
+      background: $surface-panel;
     }
   }
 
   .lock {
-    color: #6aa84f;
+    color: $ok;
 
     &[aria-pressed='true'] {
-      color: #e69138;
-      background: #4a5058;
-      border-color: #5b626b;
+      color: $accent;
+      background: $surface-raised;
+      border-color: $border-strong;
     }
   }
 }

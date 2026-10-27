@@ -23,6 +23,8 @@ const hotkeys = [
 </template>
 
 <style scoped lang="scss">
+@use '../../palette' as *;
+
 .HelpWidget {
   height: 100%;
   padding: 8px;
@@ -37,19 +39,19 @@ const hotkeys = [
 
   dd {
     margin: 0;
-    color: #c8ccd2;
+    color: $text-icon;
   }
 
   kbd {
     display: inline-block;
     min-width: 18px;
     padding: 0 4px;
-    color: #e6e6e6;
+    color: $text;
     font-family: inherit;
     font-size: 12px;
     text-align: center;
-    background: #2f343b;
-    border: 1px solid #3a3f47;
+    background: $surface-panel;
+    border: 1px solid $border;
     border-radius: 3px;
   }
 }

@@ -32,6 +32,8 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped lang="scss">
+@use '../palette' as *;
+
 // The dock takes the remaining height of the shell. Lumino only inserts its own node into the host,
 // so the host has to size it, and the layout is refitted on every size change of the host.
 .Dock {
@@ -52,7 +54,7 @@ onBeforeUnmount(() => {
   // the splitter between two widgets: lumino ships no style for it without its theme, so it is a thin
   // line here, and it is the element that is dragged to resize the widgets of the split
   :deep(.lm-DockPanel-handle) {
-    background: #2f343b;
+    background: $surface-panel;
     cursor: ew-resize;
 
     // the splitter is thin, so the grab area is widened (the same idea as the lumino theme)
@@ -76,7 +78,7 @@ onBeforeUnmount(() => {
   }
 
   :deep(.lm-DockPanel-handle:hover) {
-    background: #4a90d9;
+    background: $interactive;
   }
 }
 </style>

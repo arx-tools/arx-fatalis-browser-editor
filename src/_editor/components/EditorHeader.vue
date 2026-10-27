@@ -17,6 +17,8 @@ const buildInfo = BUILD_INFO
 </template>
 
 <style scoped lang="scss">
+@use '../palette' as *;
+
 // The header is scoped: the root class is the component name, the nested names stay short, and the
 // nesting only follows the elements of this component.
 .EditorHeader {
@@ -24,8 +26,8 @@ const buildInfo = BUILD_INFO
   align-items: center;
   gap: 8px;
   padding: 4px 10px;
-  border-bottom: 1px solid #333;
-  background: #23262b;
+  border-bottom: 1px solid $border-dark;
+  background: $surface-float;
 
   // the brand takes the free space, so the widget manager ends up on the right side
   .brand {
@@ -36,13 +38,13 @@ const buildInfo = BUILD_INFO
     min-width: 0;
 
     .title {
-      color: #e6e6e6;
+      color: $text;
       white-space: nowrap;
     }
 
     // the version, the commit and the build date: muted, so the title stays the loud one
     .version {
-      color: #6d747d;
+      color: $text-subtle;
       font-size: 11px;
       white-space: nowrap;
     }

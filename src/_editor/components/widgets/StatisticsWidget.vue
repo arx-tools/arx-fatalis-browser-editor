@@ -21,6 +21,8 @@ const statistics = [
 </template>
 
 <style scoped lang="scss">
+@use '../../palette' as *;
+
 .StatisticsWidget {
   height: 100%;
   padding: 8px;
@@ -34,12 +36,12 @@ const statistics = [
   }
 
   dt {
-    color: #8b929b;
+    color: $text-muted;
   }
 
   dd {
     margin: 0;
-    color: #e6e6e6;
+    color: $text;
     text-align: right;
   }
 }

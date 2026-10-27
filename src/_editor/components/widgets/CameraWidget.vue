@@ -19,6 +19,8 @@ const values = [
 </template>
 
 <style scoped lang="scss">
+@use '../../palette' as *;
+
 .CameraWidget {
   height: 100%;
   padding: 8px;
@@ -32,12 +34,12 @@ const values = [
   }
 
   dt {
-    color: #8b929b;
+    color: $text-muted;
   }
 
   dd {
     margin: 0;
-    color: #e6e6e6;
+    color: $text;
   }
 }
 </style>

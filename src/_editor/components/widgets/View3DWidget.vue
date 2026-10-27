@@ -11,14 +11,16 @@
 </template>
 
 <style scoped lang="scss">
+@use '../../palette' as *;
+
 .View3DWidget {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   height: 100%;
-  background: #14161a;
-  color: #8b929b;
+  background: $surface-widget;
+  color: $text-muted;
 
   p {
     margin: 0;

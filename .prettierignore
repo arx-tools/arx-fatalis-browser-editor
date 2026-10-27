@@ -1,0 +1,4 @@
+# The palette keeps its aligned columns: the values are laid out per block so the ramp reads at a
+# glance, and the editor draws the colour swatch next to a literal `hsl()` value. Prettier would
+# collapse the padding (and format-on-save would do it on every save), so the file is ignored.
+src/_editor/palette.scss

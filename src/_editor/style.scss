@@ -1,3 +1,5 @@
+@use './palette' as *;
+
 // The page frame of the new shell: a dark, full window page that never scrolls.
 //
 // The old app kept the whole game view in one scrolling document; the new shell is a thin header and
@@ -12,8 +14,8 @@ body {
   height: 100%;
   margin: 0;
   overflow: hidden;
-  background: #1b1d21;
-  color: #e6e6e6;
+  background: $surface-app;
+  color: $text;
   font-family: sans-serif;
   font-size: 13px;
 }
@@ -34,6 +36,13 @@ body {
   overflow: auto;
 }
 
+// The root of a widget component is `height: 100%` and usually has a padding. Without `border-box` the
+// padding adds to that height, so the widget is 16px taller than its cell and gets a scrollbar — the
+// rule lives here, next to the content element, so a new widget can not forget it.
+.VueWidget-content > * {
+  box-sizing: border-box;
+}
+
 // the mount point of the overlay of the layout editor: it has to cover the widget node
 .WidgetOverlay-host {
   position: absolute;
@@ -43,14 +52,14 @@ body {
 // the picker locates a widget. In edit mode the overlay is there, so the plate of the others darkens
 // and the target gets the accent frame on the plate itself.
 .lm-DockPanel-widget.is-dimmed .WidgetOverlay {
-  background: rgb(24 26 30 / 74%);
+  background: rgba($surface-app, 0.74);
   border-color: transparent;
 }
 
 .lm-DockPanel-widget.is-spotlit .WidgetOverlay {
-  background: rgb(86 92 101 / 74%);
-  border-color: #e69138;
-  box-shadow: inset 0 0 0 1px rgb(230 145 56 / 35%);
+  background: rgba($surface-spotlit, 0.74);
+  border-color: $accent;
+  box-shadow: inset 0 0 0 1px rgba($accent, 0.35);
 }
 
 // In the locked layout there is no overlay, so the widget node carries both marks: a half
@@ -61,19 +70,19 @@ body {
   position: absolute;
   z-index: 5;
   inset: 0;
-  background: rgb(0 0 0 / 20%);
+  background: rgba($ink, 0.2);
   pointer-events: none;
 }
 
 .Dock:not(.is-editing) .lm-DockPanel-widget.is-spotlit {
-  outline: 2px dashed #e69138;
+  outline: 2px dashed $accent;
   outline-offset: -2px;
 }
 
 // the widget that is being dragged shows itself faded under the ghost
 .lm-DockPanel-widget.is-drag-source .WidgetOverlay {
-  background: rgb(38 41 46 / 74%);
-  border-color: rgb(230 145 56 / 55%);
+  background: rgba($surface-drag-source, 0.74);
+  border-color: rgba($accent, 0.55);
 }
 
 // while a widget is dragged the whole page changes the cursor and drops the text selection
@@ -94,18 +103,18 @@ body.is-dragging {
   padding: 5px 9px;
   font-size: 12px;
   white-space: nowrap;
-  color: #f0f2f5;
-  background: rgb(46 50 56 / 94%);
-  border: 1px solid #e69138;
+  color: $text-strong;
+  background: rgba($surface-float, 0.94);
+  border: 1px solid $accent;
   border-radius: 4px;
-  box-shadow: 0 6px 18px rgb(0 0 0 / 55%);
+  box-shadow: 0 6px 18px rgba($ink, 0.55);
   pointer-events: none;
   will-change: transform;
 
   svg {
     width: 12px;
     height: 12px;
-    color: #e69138;
+    color: $accent;
   }
 }
 
@@ -115,8 +124,8 @@ body.is-dragging {
   z-index: 20;
   display: none;
   box-sizing: border-box;
-  background: rgb(230 145 56 / 18%);
-  border: 2px solid #e69138;
+  background: rgba($accent, 0.18);
+  border: 2px solid $accent;
   border-radius: 2px;
   pointer-events: none;
 
@@ -134,14 +143,14 @@ body.is-dragging {
   width: 26px;
   height: 22px;
   padding: 0;
-  color: #c8ccd2;
+  color: $text-icon;
   background: transparent;
-  border: 1px solid #3a3f47;
+  border: 1px solid $border;
   border-radius: 4px;
   cursor: pointer;
 
   &:hover:not(:disabled) {
-    background: #2f343b;
+    background: $surface-panel;
   }
 
   &:disabled {

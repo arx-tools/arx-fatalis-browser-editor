@@ -123,6 +123,8 @@ async function startDrag(event: PointerEvent, kind: string): Promise<void> {
 </template>
 
 <style scoped lang="scss">
+@use '../palette' as *;
+
 // The popup of the `+` button: one row per widget kind. The left slot is the grip of a free row and
 // the check of a placed one (so no row looks half-done), the right one is the trash of a placed kind;
 // while a widget is dragged out of the popup it fades to 75% transparency.
@@ -133,10 +135,10 @@ async function startDrag(event: PointerEvent, kind: string): Promise<void> {
   right: 0;
   min-width: 170px;
   padding: 4px;
-  background: #23262b;
-  border: 1px solid #3a3f47;
+  background: $surface-float;
+  border: 1px solid $border;
   border-radius: 6px;
-  box-shadow: 0 10px 28px rgb(0 0 0 / 55%);
+  box-shadow: 0 10px 28px rgba($ink, 0.55);
   transition: opacity 120ms ease-out;
 
   &.is-dragging {
@@ -154,8 +156,8 @@ async function startDrag(event: PointerEvent, kind: string): Promise<void> {
     user-select: none;
 
     &:hover {
-      color: #fff;
-      background: #2f343b;
+      color: $text-strong;
+      background: $surface-panel;
     }
 
     &.is-placed {
@@ -168,11 +170,11 @@ async function startDrag(event: PointerEvent, kind: string): Promise<void> {
     }
 
     .grip {
-      color: #7d8590;
+      color: $text-dim;
     }
 
     .mark {
-      color: #6aa84f;
+      color: $ok;
     }
 
     .name {
@@ -187,15 +189,15 @@ async function startDrag(event: PointerEvent, kind: string): Promise<void> {
       width: 20px;
       height: 20px;
       padding: 0;
-      color: #b8877e;
+      color: $danger-muted;
       background: transparent;
       border: none;
       border-radius: 3px;
       cursor: pointer;
 
       &:hover {
-        color: #f0f2f5;
-        background: rgb(184 64 44 / 85%);
+        color: $text-strong;
+        background: rgba($danger, 0.85);
       }
     }
   }

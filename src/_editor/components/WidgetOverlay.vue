@@ -33,6 +33,8 @@ const emit = defineEmits<{
 </template>
 
 <style scoped lang="scss">
+@use '../palette' as *;
+
 // The overlay of a widget in the edit mode: a grey plate, the name on a chip and the trash in the
 // top right corner. It covers the whole widget, so the entire surface is the drag handle.
 .WidgetOverlay {
@@ -43,27 +45,27 @@ const emit = defineEmits<{
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  background: rgb(72 77 85 / 74%);
+  background: rgba($surface-overlay, 0.74);
   border: 2px dashed transparent;
   cursor: move;
   touch-action: none;
 
   &:hover {
-    background: rgb(86 92 101 / 74%);
-    border-color: rgb(230 145 56 / 80%);
+    background: rgba($surface-spotlit, 0.74);
+    border-color: rgba($accent, 0.8);
   }
 
   .name {
     padding: 4px 10px;
-    color: #fff;
+    color: $text-strong;
     font-size: 13px;
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    background: rgb(20 22 26 / 65%);
-    border: 1px solid rgb(255 255 255 / 12%);
+    background: rgba($surface-widget, 0.65);
+    border: 1px solid rgba($text-strong, 0.12);
     border-radius: 3px;
-    text-shadow: 0 1px 3px black;
+    text-shadow: 0 1px 3px $ink;
     pointer-events: none;
   }
 
@@ -77,15 +79,15 @@ const emit = defineEmits<{
     width: 24px;
     height: 24px;
     padding: 0;
-    color: #f6d7d2;
-    background: rgb(140 40 30 / 88%);
-    border: 1px solid rgb(200 80 60 / 70%);
+    color: $text-on-danger;
+    background: rgba($danger-deep, 0.88);
+    border: 1px solid rgba($danger-bright, 0.7);
     border-radius: 4px;
     cursor: pointer;
 
     &:hover {
-      color: #fff;
-      background: #b8402c;
+      color: $text-strong;
+      background: $danger;
     }
   }
 }

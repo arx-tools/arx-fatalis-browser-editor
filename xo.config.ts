@@ -23,7 +23,7 @@ const xoConfig: XoConfigItem[] = [
   {
     // the vue block below sets its own parser, and the browser environment does not come along with
     // it, so the dom globals the components use are named here; `BUILD_INFO` is a compile time
-    // constant the vite config injects (`define`), its type side is in `src/_editor/vite-env.d.ts`
+    // constant the vite config injects (`define`), its type side is in `src/editor/vite-env.d.ts`
     files: ['src/**/*.ts', 'src/**/*.vue'],
     languageOptions: {
       globals: {

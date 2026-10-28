@@ -72,7 +72,7 @@ function buildDock(kinds: string[]): {
 
 void describe('toLayoutNode', () => {
   void it('reads the dock back into the default layout', () => {
-    const { dock } = buildDock(['view3d', 'statistics', 'help'])
+    const { dock } = buildDock(['3d-view', 'map-statistics', 'controls'])
     const { layout } = dock
 
     assert.ok(layout instanceof DockLayout)
@@ -80,7 +80,7 @@ void describe('toLayoutNode', () => {
     const node = toLayoutNode(layout.saveLayout(), kindOf)
 
     assert.ok(node)
-    assert.deepEqual(collectKinds(node).toSorted(), ['help', 'statistics', 'view3d'])
+    assert.deepEqual(collectKinds(node).toSorted(), ['3d-view', 'controls', 'map-statistics'])
     assert.equal(node.type, 'split')
   })
 
@@ -97,7 +97,7 @@ void describe('toLayoutNode', () => {
   void it('drops an unknown widget from a split', () => {
     const known = createWidget({
       kind: 'help',
-      label: 'Help',
+      label: 'Controls',
       create: () => {
         return new Widget()
       },
@@ -125,7 +125,7 @@ void describe('toLayoutNode', () => {
 
 void describe('toDockConfig', () => {
   void it('builds the default layout from its tree', () => {
-    const widgets = makeWidgets(['view3d', 'statistics', 'help'])
+    const widgets = makeWidgets(['3d-view', 'map-statistics', 'controls'])
     const config = toDockConfig(defaultLayout, (kind) => {
       return widgets.get(kind)
     })

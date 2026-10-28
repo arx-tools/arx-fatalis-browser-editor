@@ -30,6 +30,11 @@ body {
   min-height: 120px;
 }
 
+// the camera form fits in one line, so it can be squeezed into a thin strip above or below the 3D view
+.lm-DockPanel-widget[data-widget-kind='camera-controls'] {
+  min-height: 44px;
+}
+
 // the content element of a Vue widget: the component fills it, and the widget scrolls inside itself
 .VueWidget-content {
   height: 100%;

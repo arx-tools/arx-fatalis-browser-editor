@@ -44,13 +44,13 @@ void describe('the default preset', () => {
 
     assert.equal(root.orientation, 'horizontal')
     assert.deepEqual(root.sizes, [0.7, 0.3])
-    assert.deepEqual(collectKinds(root), ['view3d', 'statistics', 'help'])
+    assert.deepEqual(collectKinds(root), ['3d-view', 'map-statistics', 'controls'])
   })
 })
 
 void describe('collectKinds', () => {
   void it('gives the kinds of the default layout', () => {
-    assert.deepEqual(collectKinds(defaultLayout).toSorted(), ['help', 'statistics', 'view3d'])
+    assert.deepEqual(collectKinds(defaultLayout).toSorted(), ['3d-view', 'controls', 'map-statistics'])
   })
 
   void it('keeps the order of the layout', () => {

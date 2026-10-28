@@ -1,11 +1,11 @@
 <script setup lang="ts">
 // the placeholder of the key help: the real list is generated from the hotkey table (a later round)
 const hotkeys = [
-  ['F2', 'selection debug'],
-  ['M', 'toggle the mesh'],
-  ['X', 'wireframe'],
-  ['J / K / L', 'anchors, portals, lights'],
-  ['Escape', 'leave the layout editor'],
+  ['F2', 'Selection debug'],
+  ['M', 'Toggle the mesh'],
+  ['X', 'Wireframe'],
+  ['J / K / L', 'Anchors, portals, lights'],
+  ['Escape', 'Leave the layout editor'],
 ] as const
 </script>
 

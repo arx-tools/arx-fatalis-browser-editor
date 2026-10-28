@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { WIDGET_KINDS } from '../../../modules/layout/widgetKinds.ts'
+import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
 import { cameraStore } from '../cameraStore.ts'
 import {
   cameraFieldNames,
@@ -15,9 +17,13 @@ import {
 } from './cameraFields.ts'
 
 /**
- * One row of the form: the label on the left and the fields of that row.
+ * One group of the form: a label and the fields that belong together.
+ *
+ * @remarks
+ * The groups are inline boxes, so a wide widget puts all of them in one line — and the widget can be
+ * squeezed into a single strip — while a narrow one wraps them, and a group never breaks apart.
  */
-interface CameraRow {
+interface CameraGroup {
   readonly label: string
   readonly fields: readonly CameraFieldName[]
 }
@@ -38,11 +44,11 @@ const fields = reactive<CameraFields>(emptyFields())
 const focused = ref<CameraFieldName>()
 
 /**
- * The two rows, in the order the form shows them.
+ * The groups, in the order the form shows them.
  */
-const rows: readonly CameraRow[] = [
-  { label: 'position', fields: cameraFieldNames.slice(0, 3) },
-  { label: 'rotation', fields: cameraFieldNames.slice(3) },
+const groups: readonly CameraGroup[] = [
+  { label: 'Position', fields: cameraFieldNames.slice(0, 3) },
+  { label: 'Rotation', fields: cameraFieldNames.slice(3) },
 ]
 
 /**
@@ -72,6 +78,15 @@ watch(
   },
   { immediate: true },
 )
+
+// the walkable view hides its HUD while this form is on the dock, so it has to know that we are here
+onMounted(() => {
+  widgetPresence.register(WIDGET_KINDS.cameraControls)
+})
+
+onBeforeUnmount(() => {
+  widgetPresence.unregister(WIDGET_KINDS.cameraControls)
+})
 
 /**
  * Applies the form as it is typed, when every field holds a number.
@@ -161,28 +176,30 @@ function onSpawn(): void {
 
 <template>
   <div class="CameraControlsWidget">
-    <div v-for="row in rows" :key="row.label" class="row">
-      <span class="label">{{ row.label }}</span>
-      <input
-        v-for="name in row.fields"
-        :key="name"
-        :value="fields[name]"
-        :class="{ invalid: invalid[name] }"
-        :disabled="readOnly || name === 'roll'"
-        :aria-label="`${row.label} ${name}`"
-        type="number"
-        :step="stepSize"
-        @input="onInput(name, $event)"
-        @focus="onFocus(name, $event)"
-        @blur="onBlur(name)"
-        @keydown.up.prevent="onStep(name, 1)"
-        @keydown.down.prevent="onStep(name, -1)"
-      />
-    </div>
+    <div class="fields">
+      <span v-for="group in groups" :key="group.label" class="group">
+        <span class="label">{{ group.label }}</span>
+        <input
+          v-for="name in group.fields"
+          :key="name"
+          :value="fields[name]"
+          :class="{ invalid: invalid[name] }"
+          :disabled="readOnly || name === 'roll'"
+          :aria-label="`${group.label} ${name}`"
+          type="number"
+          :step="stepSize"
+          @input="onInput(name, $event)"
+          @focus="onFocus(name, $event)"
+          @blur="onBlur(name)"
+          @keydown.up.prevent="onStep(name, 1)"
+          @keydown.down.prevent="onStep(name, -1)"
+        />
+      </span>
 
-    <div class="row">
-      <span class="label">Jump to:</span>
-      <button type="button" :disabled="readOnly" @click="onSpawn">spawn</button>
+      <span class="group">
+        <span class="label">Jump to:</span>
+        <button type="button" :disabled="readOnly" @click="onSpawn">spawn</button>
+      </span>
     </div>
   </div>
 </template>
@@ -190,29 +207,35 @@ function onSpawn(): void {
 <style scoped lang="scss">
 @use '../../../palette' as *;
 
-// The camera form: two rows of numbers and the align row. The label holds the left column, so the inputs
-// of the two rows start at the same place.
+// The camera form: the fields are inline groups, so a wide widget shows them in one line (and the widget
+// can be a thin strip above the 3D view — the dock reads the min height of the widget from the css). A
+// narrow widget wraps the groups, and a group never breaks apart.
 .CameraControlsWidget {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
   height: 100%;
   padding: 8px;
+  overflow: auto;
   font-size: 13px;
 
-  .row {
+  .fields {
     display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 18px;
+  }
+
+  .group {
+    display: inline-flex;
     align-items: center;
     gap: 6px;
   }
 
   .label {
-    width: 64px;
     color: $text-muted;
+    white-space: nowrap;
   }
 
   input {
-    width: 92px;
+    width: 88px;
     padding: 3px 5px;
     border: 1px solid $border-dark;
     border-radius: 4px;

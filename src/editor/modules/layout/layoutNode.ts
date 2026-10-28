@@ -18,14 +18,14 @@ import type { DockLayout, Widget } from '@lumino/widgets'
  *   orientation: 'horizontal',
  *   sizes: [0.5, 0.5],
  *   children: [
- *     { type: 'widget', kind: 'view3d' },
+ *     { type: 'widget', kind: '3d-view' },
  *     {
  *       type: 'split',
  *       orientation: 'vertical',
  *       sizes: [0.5, 0.5],
  *       children: [
- *         { type: 'widget', kind: 'statistics' },
- *         { type: 'widget', kind: 'help' },
+ *         { type: 'widget', kind: 'map-statistics' },
+ *         { type: 'widget', kind: 'controls' },
  *       ],
  *     },
  *   ],

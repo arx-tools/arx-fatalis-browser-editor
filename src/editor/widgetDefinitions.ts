@@ -5,6 +5,7 @@ import HelpWidget from './components/widgets/HelpWidget/HelpWidget.vue'
 import StatisticsWidget from './components/widgets/StatisticsWidget/StatisticsWidget.vue'
 import View3DWidget from './components/widgets/View3DWidget/View3DWidget.vue'
 import type { CameraViewMode } from './components/widgets/FixedViewWidget/cameraAlign.ts'
+import { WIDGET_KINDS } from './modules/layout/widgetKinds.ts'
 import { VueWidget } from './modules/vueWidget/VueWidget.ts'
 import type { WidgetDefinition } from './modules/layout/widgetDefinition.ts'
 
@@ -35,12 +36,12 @@ interface FixedViewDefinition {
  * `FixedViewWidget`, the module behind it is `components/widgets/FixedViewWidget/fixedView.ts`.
  */
 const fixedViews: readonly FixedViewDefinition[] = [
-  { kind: 'view-top', label: 'Top view', mode: 'top' },
-  { kind: 'view-bottom', label: 'Bottom view', mode: 'bottom' },
-  { kind: 'view-front', label: 'Front view', mode: 'front' },
-  { kind: 'view-back', label: 'Back view', mode: 'back' },
-  { kind: 'view-left', label: 'Left view', mode: 'left' },
-  { kind: 'view-right', label: 'Right view', mode: 'right' },
+  { kind: WIDGET_KINDS.topView, label: 'Top View', mode: 'top' },
+  { kind: WIDGET_KINDS.bottomView, label: 'Bottom View', mode: 'bottom' },
+  { kind: WIDGET_KINDS.frontView, label: 'Front View', mode: 'front' },
+  { kind: WIDGET_KINDS.backView, label: 'Back View', mode: 'back' },
+  { kind: WIDGET_KINDS.leftView, label: 'Left View', mode: 'left' },
+  { kind: WIDGET_KINDS.rightView, label: 'Right View', mode: 'right' },
 ]
 
 /**
@@ -50,12 +51,12 @@ const fixedViews: readonly FixedViewDefinition[] = [
  * be dragged in twice), so the `kind` is a stable identifier of both the widget and its place in the
  * saved layout.
  *
- * The statistics and the help are placeholders for now: the real numbers and the key table come with
+ * The statistics and the controls are placeholders for now: the real numbers and the key table come with
  * the later rounds.
  */
 export const widgetDefinitions: readonly WidgetDefinition[] = [
   {
-    kind: 'view3d',
+    kind: WIDGET_KINDS.view3d,
     label: '3D View',
     create: (): Widget => {
       return new VueWidget(View3DWidget)
@@ -71,22 +72,22 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
     }
   }),
   {
-    kind: 'camera',
-    label: 'Camera',
+    kind: WIDGET_KINDS.cameraControls,
+    label: 'Camera Controls',
     create: (): Widget => {
       return new VueWidget(CameraControlsWidget)
     },
   },
   {
-    kind: 'statistics',
-    label: 'Statistics',
+    kind: WIDGET_KINDS.mapStatistics,
+    label: 'Map Statistics',
     create: (): Widget => {
       return new VueWidget(StatisticsWidget)
     },
   },
   {
-    kind: 'help',
-    label: 'Help',
+    kind: WIDGET_KINDS.controls,
+    label: 'Controls',
     create: (): Widget => {
       return new VueWidget(HelpWidget)
     },

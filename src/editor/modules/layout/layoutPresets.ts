@@ -1,4 +1,5 @@
 import type { LayoutNode } from './layoutNode.ts'
+import { WIDGET_KINDS } from './widgetKinds.ts'
 
 /**
  * The presets of the dock layout: the trees the editor can start from.
@@ -25,14 +26,14 @@ export const defaultLayout: LayoutNode = {
   orientation: 'horizontal',
   sizes: [0.7, 0.3],
   children: [
-    { type: 'widget', kind: 'view3d' },
+    { type: 'widget', kind: WIDGET_KINDS.view3d },
     {
       type: 'split',
       orientation: 'vertical',
       sizes: [0.5, 0.5],
       children: [
-        { type: 'widget', kind: 'statistics' },
-        { type: 'widget', kind: 'help' },
+        { type: 'widget', kind: WIDGET_KINDS.mapStatistics },
+        { type: 'widget', kind: WIDGET_KINDS.controls },
       ],
     },
   ],

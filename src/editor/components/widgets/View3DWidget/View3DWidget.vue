@@ -3,6 +3,8 @@ import { computed, onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue
 import type { Mesh } from 'three'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { levelStore } from '../../../modules/level/levelStore.ts'
+import { WIDGET_KINDS } from '../../../modules/layout/widgetKinds.ts'
+import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
 import { cameraStore } from '../cameraStore.ts'
 import { viewMeshesOf } from '../levelScene.ts'
 import { createViewScene, disposeViewScene, resizeViewScene, type ViewScene } from '../viewScene.ts'
@@ -31,12 +33,18 @@ const status = computed(() => {
  *
  * @remarks
  * The numbers come from {@link cameraStore}, the same place the camera controls widget reads and writes them, so
- * the readout follows a typed position as well as a walked one.
+ * the readout follows a typed position as well as a walked one. While the camera controls widget is on the
+ * dock the readout is hidden: it would show the same numbers twice (TODO 82).
  */
 const hud = computed(() => {
   const pose = cameraStore.pose.value
 
   if (pose === undefined) {
+    return ''
+  }
+
+  // the camera form shows the same numbers: while it is on the dock the readout is a duplicate
+  if (widgetPresence.kinds.value.has(WIDGET_KINDS.cameraControls)) {
     return ''
   }
 

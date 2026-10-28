@@ -24,29 +24,29 @@ beforeEach((): void => {
  */
 const definitions = [
   {
-    kind: 'statistics',
-    label: 'Statistics',
+    kind: 'map-statistics',
+    label: 'Map Statistics',
     create: (): LuminoWidget => {
       return new Widget()
     },
   },
   {
-    kind: 'view3d',
+    kind: '3d-view',
     label: '3D View',
     create: (): LuminoWidget => {
       return new Widget()
     },
   },
   {
-    kind: 'help',
-    label: 'Help',
+    kind: 'controls',
+    label: 'Controls',
     create: (): LuminoWidget => {
       return new Widget()
     },
   },
   {
-    kind: 'camera',
-    label: 'Camera',
+    kind: 'camera-controls',
+    label: '3D Camera',
     create: (): LuminoWidget => {
       return new Widget()
     },
@@ -96,7 +96,7 @@ void describe('dockWidgets', () => {
           return widget.title.label
         })
         .toSorted(),
-      ['3D View', 'Help', 'Statistics'],
+      ['3D View', 'Controls', 'Map Statistics'],
     )
     shell.dispose()
   })
@@ -107,14 +107,14 @@ void describe('the layout of the shell', () => {
     const { shell } = buildShell()
 
     assert.equal(shell.isLayoutModified.value, false)
-    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['help', 'statistics', 'view3d'])
+    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['3d-view', 'controls', 'map-statistics'])
     shell.dispose()
   })
 
   void it('shows the reset state after a widget was added', () => {
     const { shell } = buildShell()
 
-    shell.addWidget('camera')
+    shell.addWidget('camera-controls')
 
     assert.equal(shell.isLayoutModified.value, true)
     shell.dispose()
@@ -123,11 +123,11 @@ void describe('the layout of the shell', () => {
   void it('restores the default layout on reset', () => {
     const { shell } = buildShell()
 
-    shell.addWidget('camera')
+    shell.addWidget('camera-controls')
     shell.resetLayout()
 
     assert.equal(shell.isLayoutModified.value, false)
-    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['help', 'statistics', 'view3d'])
+    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['3d-view', 'controls', 'map-statistics'])
     shell.dispose()
   })
 
@@ -139,16 +139,39 @@ void describe('the layout of the shell', () => {
         orientation: 'vertical',
         sizes: [0.7, 0.3],
         children: [
-          { type: 'widget', kind: 'help' },
-          { type: 'widget', kind: 'camera' },
+          { type: 'widget', kind: 'controls' },
+          { type: 'widget', kind: 'camera-controls' },
         ],
       }),
     )
 
     const { shell } = buildShell()
 
-    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['camera', 'help'])
+    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['camera-controls', 'controls'])
     assert.equal(shell.isLayoutModified.value, true)
+    shell.dispose()
+  })
+
+  void it('starts from the default when the stored layout has the old kind names', () => {
+    localStorage.setItem(
+      'layout',
+      JSON.stringify({
+        type: 'split',
+        orientation: 'vertical',
+        sizes: [0.7, 0.3],
+        children: [
+          { type: 'widget', kind: 'help' },
+          { type: 'widget', kind: 'view3d' },
+        ],
+      }),
+    )
+
+    const { shell } = buildShell()
+
+    // the kind rename does not keep the old names alive: the unknown kinds drop out and, with nothing
+    // left, the default layout takes over (the editor is not 1.0.0 yet)
+    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['3d-view', 'controls', 'map-statistics'])
+    assert.equal(shell.isLayoutModified.value, false)
     shell.dispose()
   })
 
@@ -157,7 +180,7 @@ void describe('the layout of the shell', () => {
 
     const { shell } = buildShell()
 
-    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['help', 'statistics', 'view3d'])
+    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['3d-view', 'controls', 'map-statistics'])
     assert.equal(shell.isLayoutModified.value, false)
     shell.dispose()
   })
@@ -170,7 +193,7 @@ void describe('the layout of the shell', () => {
         orientation: 'horizontal',
         sizes: [0.5, 0.5],
         children: [
-          { type: 'widget', kind: 'help' },
+          { type: 'widget', kind: 'controls' },
           { type: 'widget', kind: 'nonsense' },
         ],
       }),
@@ -178,7 +201,7 @@ void describe('the layout of the shell', () => {
 
     const { shell } = buildShell()
 
-    assert.deepEqual([...shell.placedKinds.value], ['help'])
+    assert.deepEqual([...shell.placedKinds.value], ['controls'])
     shell.dispose()
   })
 })
@@ -244,7 +267,7 @@ void describe('the edit mode of the shell', () => {
     const { shell, host } = buildShell()
 
     shell.setEditing(true)
-    shell.addWidget('help')
+    shell.addWidget('controls')
 
     assert.equal(host.querySelectorAll('.WidgetOverlay-host').length, 4)
     shell.dispose()
@@ -271,9 +294,9 @@ void describe('createEditorShell', () => {
   void it('lists the kinds that are on the dock', () => {
     const { shell } = buildShell()
 
-    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['help', 'statistics', 'view3d'])
+    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['3d-view', 'controls', 'map-statistics'])
 
-    shell.addWidget('help')
+    shell.addWidget('controls')
 
     assert.equal(shell.placedKinds.value.length, 4)
     shell.dispose()
@@ -282,9 +305,9 @@ void describe('createEditorShell', () => {
   void it('removes a widget by its kind', () => {
     const { shell } = buildShell()
 
-    shell.removeWidgetByKind('statistics')
+    shell.removeWidgetByKind('map-statistics')
 
-    assert.equal(shell.placedKinds.value.includes('statistics'), false)
+    assert.equal(shell.placedKinds.value.includes('map-statistics'), false)
     assert.equal(dockWidgets(shell.dock).length, 2)
 
     shell.removeWidgetByKind('nope')
@@ -295,10 +318,10 @@ void describe('createEditorShell', () => {
 
   void it('adds a widget of a known kind', () => {
     const { shell } = buildShell()
-    const widget = shell.addWidget('help')
+    const widget = shell.addWidget('controls')
 
     assert.equal(dockWidgets(shell.dock).length, 4)
-    assert.equal(widget.title.label, 'Help')
+    assert.equal(widget.title.label, 'Controls')
     shell.dispose()
   })
 

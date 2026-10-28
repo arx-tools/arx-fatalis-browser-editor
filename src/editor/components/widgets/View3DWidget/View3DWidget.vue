@@ -57,6 +57,7 @@ const hud = computed(() => {
 
 const host = useTemplateRef<HTMLElement>('host')
 const canvas = useTemplateRef<HTMLCanvasElement>('canvas')
+const gizmoCanvas = useTemplateRef<HTMLCanvasElement>('gizmoCanvas')
 
 let view: ViewScene | undefined
 let gizmo: OrientationGizmo | undefined
@@ -68,11 +69,11 @@ let lastFrameAt = 0
 let stopWatching: (() => void) | undefined
 
 /**
- * Draws one frame: the scene, then the orientation compass over it.
+ * Draws one frame: the scene, then the orientation compass in its own corner.
  *
  * @remarks
- * The gizmo draws in its own small viewport at the bottom-right corner, so it comes after the scene: it
- * clears the depth of its corner and puts the viewport back when it is done.
+ * The gizmo has a canvas of its own over the corner, so it draws after the scene and never touches its
+ * frame.
  */
 function drawFrame(): void {
   if (view === undefined) {
@@ -80,7 +81,7 @@ function drawFrame(): void {
   }
 
   view.renderer.render(view.scene, view.camera)
-  gizmo?.render(view.renderer)
+  gizmo?.render()
 }
 
 /**
@@ -173,13 +174,14 @@ function resize(): void {
  */
 function createScene(): void {
   const target = canvas.value
+  const gizmoTarget = gizmoCanvas.value
 
-  if (target === null) {
+  if (target === null || gizmoTarget === null) {
     return
   }
 
   view = createViewScene(target)
-  gizmo = createOrientationGizmo(target, view.camera)
+  gizmo = createOrientationGizmo(gizmoTarget, view.camera)
   resize()
 }
 
@@ -320,6 +322,9 @@ onBeforeUnmount(() => {
 <template>
   <div ref="host" class="View3DWidget">
     <canvas ref="canvas" class="stage"></canvas>
+    <div class="gizmo" aria-hidden="true">
+      <canvas ref="gizmoCanvas"></canvas>
+    </div>
     <div v-if="hud !== ''" class="hud">{{ hud }}</div>
     <p v-if="status !== ''" class="status">{{ status }}</p>
   </div>
@@ -342,6 +347,31 @@ onBeforeUnmount(() => {
     display: block;
     width: 100%;
     height: 100%;
+  }
+
+  // the compass sits in a translucent disc, so the thin triad reads on a light level and on the dark
+  // empty space alike; it takes no pointer, the canvas below keeps the pointer lock. The disc is a bit
+  // smaller than the square the helper draws in: the canvas is transparent around the triad, so it can
+  // hang over the edge of the disc without showing
+  .gizmo {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    background: rgba($ink, 0.35);
+    pointer-events: none;
+
+    canvas {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      display: block;
+      width: 128px;
+      height: 128px;
+      transform: translate(-50%, -50%);
+    }
   }
 
   // the camera readout: two lines, in the game's debug hud format

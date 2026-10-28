@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import type { CameraPose } from '../../../../src/editor/modules/view3d/cameraPose.ts'
-import { cameraAngle, cameraPosition } from '../../../../src/editor/modules/view3d/cameraState.ts'
-import { createCameraStore, type CameraDriver } from '../../../../src/editor/modules/view3d/cameraStore.ts'
+import type { CameraPose } from '../../../../src/editor/components/widgets/cameraPose.ts'
+import { cameraAngle, cameraPosition } from '../../../../src/editor/components/widgets/cameraState.ts'
+import { createCameraStore, type CameraDriver } from '../../../../src/editor/components/widgets/cameraStore.ts'
 
 /**
  * A pose the tests move the camera to.

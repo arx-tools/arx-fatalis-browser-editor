@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
+import { cameraStore } from '../cameraStore.ts'
 import {
   cameraFieldNames,
   emptyFields,
@@ -11,8 +12,7 @@ import {
   syncFields,
   type CameraFieldName,
   type CameraFields,
-} from '../../modules/view3d/cameraFields.ts'
-import { cameraStore } from '../../modules/view3d/cameraStore.ts'
+} from './cameraFields.ts'
 
 /**
  * One row of the form: the label on the left and the fields of that row.
@@ -188,7 +188,7 @@ function onSpawn(): void {
 </template>
 
 <style scoped lang="scss">
-@use '../../palette' as *;
+@use '../../../palette' as *;
 
 // The camera form: two rows of numbers and the align row. The label holds the left column, so the inputs
 // of the two rows start at the same place.

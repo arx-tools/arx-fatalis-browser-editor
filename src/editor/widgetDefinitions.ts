@@ -1,10 +1,10 @@
 import type { Widget } from '@lumino/widgets'
-import CameraControlsWidget from './components/widgets/CameraControlsWidget.vue'
-import FixedViewWidget from './components/widgets/FixedViewWidget.vue'
-import HelpWidget from './components/widgets/HelpWidget.vue'
-import StatisticsWidget from './components/widgets/StatisticsWidget.vue'
-import View3DWidget from './components/widgets/View3DWidget.vue'
-import type { CameraViewMode } from './modules/view3d/cameraAlign.ts'
+import CameraControlsWidget from './components/widgets/CameraControlsWidget/CameraControlsWidget.vue'
+import FixedViewWidget from './components/widgets/FixedViewWidget/FixedViewWidget.vue'
+import HelpWidget from './components/widgets/HelpWidget/HelpWidget.vue'
+import StatisticsWidget from './components/widgets/StatisticsWidget/StatisticsWidget.vue'
+import View3DWidget from './components/widgets/View3DWidget/View3DWidget.vue'
+import type { CameraViewMode } from './components/widgets/FixedViewWidget/cameraAlign.ts'
 import { VueWidget } from './modules/vueWidget/VueWidget.ts'
 import type { WidgetDefinition } from './modules/layout/widgetDefinition.ts'
 
@@ -32,7 +32,7 @@ interface FixedViewDefinition {
  * @remarks
  * They are the small overviews of a level editor (the THEO Game Maker layout): a widget per direction,
  * always framed on the level, with no pointer lock and no camera fields of its own. The widget is
- * `FixedViewWidget`, the module behind it is `view3d/fixedView.ts`.
+ * `FixedViewWidget`, the module behind it is `components/widgets/FixedViewWidget/fixedView.ts`.
  */
 const fixedViews: readonly FixedViewDefinition[] = [
   { kind: 'view-top', label: 'Top view', mode: 'top' },

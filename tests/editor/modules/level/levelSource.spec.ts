@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { fetchLevelFiles, levelFileNames, levelFileUrls } from '../../../../src/editor/modules/view3d/levelSource.ts'
+import { fetchLevelFiles, levelFileNames, levelFileUrls } from '../../../../src/editor/modules/level/levelSource.ts'
 
 /**
  * A fake fetch which answers with the bytes of the url.

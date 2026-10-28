@@ -1,7 +1,7 @@
 import { ref, shallowRef, type Ref, type ShallowRef } from 'vue'
 import type { ArxMap } from '../../../generator/ArxMap.ts'
 import type { LoadingStatus } from '../../types.ts'
-import { loadLevelMap } from '../view3d/levelSource.ts'
+import { loadLevelMap } from './levelSource.ts'
 
 /**
  * The configuration of {@link createLevelStore}.

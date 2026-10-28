@@ -17,7 +17,7 @@ import {
   frameLevel,
   gameBoundsOf,
   viewMeshesOf,
-} from '../../../../src/editor/modules/view3d/levelScene.ts'
+} from '../../../../src/editor/components/widgets/levelScene.ts'
 
 /**
  * The scene position of the test level.

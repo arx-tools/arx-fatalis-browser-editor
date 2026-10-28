@@ -1,5 +1,5 @@
-import { roundToNDecimals } from '../functions.ts'
-import type { CameraPose } from './cameraPose.ts'
+import { roundToNDecimals } from '../../../modules/functions.ts'
+import type { CameraPose } from '../cameraPose.ts'
 
 /**
  * The name of one field of the camera form.

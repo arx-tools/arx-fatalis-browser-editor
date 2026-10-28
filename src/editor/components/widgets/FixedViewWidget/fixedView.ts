@@ -1,7 +1,8 @@
 import type { ArxVector3 } from 'arx-convert/types'
 import type { PerspectiveCamera } from 'three'
-import { alignPose, centreOfBounds, frustumOf, type CameraBounds, type CameraViewMode } from './cameraAlign.ts'
-import { gamePositionToWorld, setCameraPose, type CameraPose } from './cameraPose.ts'
+import { centreOfBounds, type CameraBounds } from '../cameraBounds.ts'
+import { gamePositionToWorld, setCameraPose, type CameraPose } from '../cameraPose.ts'
+import { alignPose, frustumOf, type CameraViewMode } from './cameraAlign.ts'
 
 /**
  * How far the camera sees, compared to the distance it stands from the level.

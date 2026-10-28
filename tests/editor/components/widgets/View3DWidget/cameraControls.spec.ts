@@ -2,17 +2,17 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ArxDLF } from 'arx-convert/types'
 // a type only import disappears at compile time, so it can come before the dom is installed
-import type { CameraPose } from '../../../../src/editor/modules/view3d/cameraPose.ts'
-import { installDom } from '../../../support/dom.ts'
+import type { CameraPose } from '../../../../../src/editor/components/widgets/cameraPose.ts'
+import { installDom } from '../../../../support/dom.ts'
 
 // the controls build a pointer lock and start the keyboard module: both want a document
 installDom()
 
 const { PerspectiveCamera, Vector3 } = await import('three')
-const { CameraControls } = await import('../../../../src/editor/modules/view3d/cameraControls.ts')
-const { cameraAngle, cameraPosition } = await import('../../../../src/editor/modules/view3d/cameraState.ts')
-const { Player } = await import('../../../../src/generator/Player.ts')
-const { gamePositionToWorld } = await import('../../../../src/editor/modules/view3d/cameraPose.ts')
+const { CameraControls } = await import('../../../../../src/editor/components/widgets/View3DWidget/cameraControls.ts')
+const { cameraAngle, cameraPosition } = await import('../../../../../src/editor/components/widgets/cameraState.ts')
+const { Player } = await import('../../../../../src/generator/Player.ts')
+const { gamePositionToWorld } = await import('../../../../../src/editor/components/widgets/cameraPose.ts')
 
 /**
  * The scene position of the test level.

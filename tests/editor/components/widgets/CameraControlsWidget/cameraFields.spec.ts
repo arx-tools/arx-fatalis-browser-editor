@@ -11,8 +11,8 @@ import {
   stepSize,
   syncFields,
   type CameraFields,
-} from '../../../../src/editor/modules/view3d/cameraFields.ts'
-import type { CameraPose } from '../../../../src/editor/modules/view3d/cameraPose.ts'
+} from '../../../../../src/editor/components/widgets/CameraControlsWidget/cameraFields.ts'
+import type { CameraPose } from '../../../../../src/editor/components/widgets/cameraPose.ts'
 
 /**
  * A pose with a negative coordinate in every axis, so a lost sign shows up.

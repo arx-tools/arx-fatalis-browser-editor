@@ -23,7 +23,7 @@ const hotkeys = [
 </template>
 
 <style scoped lang="scss">
-@use '../../palette' as *;
+@use '../../../palette' as *;
 
 .HelpWidget {
   height: 100%;

@@ -1,9 +1,9 @@
 import type { ArxVector3 } from 'arx-convert/types'
 import { Euler, MathUtils, Vector3, type PerspectiveCamera } from 'three'
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js'
-import { arxVector3toVector3 } from '../../../generator/meshes.ts'
-import type { Player } from '../../../generator/Player.ts'
-import { isKeyboardActionActive, setPointerLocked, startKeyboard } from '../keyboard/keyboard.ts'
+import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
+import type { Player } from '../../../../generator/Player.ts'
+import { isKeyboardActionActive, setPointerLocked, startKeyboard } from '../../../modules/keyboard/keyboard.ts'
 import {
   applyGameAngle,
   gamePositionToWorld,
@@ -11,8 +11,8 @@ import {
   readCameraPose,
   setCameraPose,
   type CameraPose,
-} from './cameraPose.ts'
-import { cameraAngle, cameraPosition } from './cameraState.ts'
+} from '../cameraPose.ts'
+import { cameraAngle, cameraPosition } from '../cameraState.ts'
 
 /**
  * How far the camera moves in one second, in the level's units.

@@ -1,6 +1,6 @@
 import type { TripleOf } from 'arx-convert/utils'
-import { parseNumberTriplet, roundTriplet } from '../functions.ts'
-import { persistedRef } from '../persistedRef/persistedRef.ts'
+import { parseNumberTriplet, roundTriplet } from '../../modules/functions.ts'
+import { persistedRef } from '../../modules/persistedRef/persistedRef.ts'
 
 /**
  * Rounds a triplet on its way into the url, and lets the missing one through.

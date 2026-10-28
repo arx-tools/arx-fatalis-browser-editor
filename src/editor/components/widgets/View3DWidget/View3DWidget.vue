@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
 import type { Mesh } from 'three'
-import type { ArxMap } from '../../../generator/ArxMap.ts'
-import { levelStore } from '../../modules/level/levelStore.ts'
-import { CameraControls } from '../../modules/view3d/cameraControls.ts'
-import { cameraStore } from '../../modules/view3d/cameraStore.ts'
-import { viewMeshesOf } from '../../modules/view3d/levelScene.ts'
-import { createViewScene, disposeViewScene, resizeViewScene, type ViewScene } from '../../modules/view3d/viewScene.ts'
+import type { ArxMap } from '../../../../generator/ArxMap.ts'
+import { levelStore } from '../../../modules/level/levelStore.ts'
+import { cameraStore } from '../cameraStore.ts'
+import { viewMeshesOf } from '../levelScene.ts'
+import { createViewScene, disposeViewScene, resizeViewScene, type ViewScene } from '../viewScene.ts'
+import { CameraControls } from './cameraControls.ts'
 
 /**
  * What the widget shows over the canvas: the loading state, a failure, or nothing while the level is on.
@@ -296,7 +296,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped lang="scss">
-@use '../../palette' as *;
+@use '../../../palette' as *;
 
 // The 3D view: the canvas fills the widget and the renderer follows its size. The readout and the
 // status line are plain elements above the canvas (the readout is not painted into it), so both are

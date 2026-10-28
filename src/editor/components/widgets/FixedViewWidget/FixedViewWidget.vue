@@ -2,12 +2,13 @@
 import { onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
 import type { Mesh } from 'three'
 import type { ArxVector3 } from 'arx-convert/types'
-import type { ArxMap } from '../../../generator/ArxMap.ts'
-import { levelStore } from '../../modules/level/levelStore.ts'
-import type { CameraBounds, CameraViewMode } from '../../modules/view3d/cameraAlign.ts'
-import { frameFixedView } from '../../modules/view3d/fixedView.ts'
-import { gameBoundsOf, viewMeshesOf } from '../../modules/view3d/levelScene.ts'
-import { createViewScene, disposeViewScene, resizeViewScene, type ViewScene } from '../../modules/view3d/viewScene.ts'
+import type { ArxMap } from '../../../../generator/ArxMap.ts'
+import { levelStore } from '../../../modules/level/levelStore.ts'
+import type { CameraBounds } from '../cameraBounds.ts'
+import { gameBoundsOf, viewMeshesOf } from '../levelScene.ts'
+import { createViewScene, disposeViewScene, resizeViewScene, type ViewScene } from '../viewScene.ts'
+import type { CameraViewMode } from './cameraAlign.ts'
+import { frameFixedView } from './fixedView.ts'
 
 /**
  * The direction the widget shows the level from.
@@ -198,7 +199,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped lang="scss">
-@use '../../palette' as *;
+@use '../../../palette' as *;
 
 // A fixed view: the canvas fills the widget and the only overlay is the name of the direction, so it is
 // clear which one this is.

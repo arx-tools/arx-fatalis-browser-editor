@@ -1,7 +1,7 @@
 import type { ArxVector3 } from 'arx-convert/types'
 import { Box3, Mesh, type PerspectiveCamera, AmbientLight, DirectionalLight, type Scene, Vector3 } from 'three'
 import { Color } from '../../../generator/Color.ts'
-import type { CameraBounds } from './cameraAlign.ts'
+import type { CameraBounds } from './cameraBounds.ts'
 import { worldPositionToGame } from './cameraPose.ts'
 
 /**

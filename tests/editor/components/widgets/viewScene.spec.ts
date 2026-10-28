@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { BoxGeometry, Mesh, MeshLambertMaterial, PerspectiveCamera, Scene, type WebGLRenderer } from 'three'
-import { type ViewScene, disposeViewScene, resizeViewScene } from '../../../../src/editor/modules/view3d/viewScene.ts'
+import {
+  type ViewScene,
+  disposeViewScene,
+  resizeViewScene,
+} from '../../../../src/editor/components/widgets/viewScene.ts'
 
 /**
  * Builds a view whose renderer only records the calls.

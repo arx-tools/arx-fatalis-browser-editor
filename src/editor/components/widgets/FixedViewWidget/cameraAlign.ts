@@ -1,25 +1,7 @@
 import type { ArxVector3 } from 'arx-convert/types'
 import { Vector3 } from 'three'
-import type { CameraPose, GameAngle } from './cameraPose.ts'
-
-/**
- * The box the align buttons fit the view to, in the game's coordinate system.
- *
- * @remarks
- * The fixed views align to the **level**, so the box comes from the bounding box of the mesh. The archived
- * editor aligned to the anchor graph instead; the anchors are not ported yet, and the level is the next
- * best answer to "show me the whole thing".
- */
-export interface CameraBounds {
-  /**
-   * The corner with the smallest coordinates.
-   */
-  readonly min: ArxVector3
-  /**
-   * The corner with the largest coordinates.
-   */
-  readonly max: ArxVector3
-}
+import { centreOfBounds, type CameraBounds } from '../cameraBounds.ts'
+import type { CameraPose, GameAngle } from '../cameraPose.ts'
 
 /**
  * The six fixed views of the align row.
@@ -80,21 +62,6 @@ export function frustumOf(fieldOfView: number, aspect: number): CameraFrustum {
   const tanVertical = Math.tan((fieldOfView * Math.PI) / 360)
 
   return { tanHorizontal: tanVertical * aspect, tanVertical }
-}
-
-/**
- * Reads the centre of a box.
- *
- * @param bounds The box to read.
- *
- * @returns The point in the middle of it, in the game's coordinates.
- */
-export function centreOfBounds(bounds: CameraBounds): ArxVector3 {
-  return {
-    x: (bounds.min.x + bounds.max.x) / 2,
-    y: (bounds.min.y + bounds.max.y) / 2,
-    z: (bounds.min.z + bounds.max.z) / 2,
-  }
 }
 
 /**

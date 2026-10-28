@@ -2,20 +2,19 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { PerspectiveCamera, Vector3 } from 'three'
 import type { ArxVector3 } from 'arx-convert/types'
+import type { CameraBounds } from '../../../../src/editor/components/widgets/cameraBounds.ts'
 import {
   alignPose,
-  centreOfBounds,
   frustumOf,
-  type CameraBounds,
   type CameraFrustum,
   type CameraViewMode,
-} from '../../../../src/editor/modules/view3d/cameraAlign.ts'
+} from '../../../../src/editor/components/widgets/FixedViewWidget/cameraAlign.ts'
 import {
   applyGameAngle,
   gamePositionToWorld,
   setCameraPose,
   type CameraPose,
-} from '../../../../src/editor/modules/view3d/cameraPose.ts'
+} from '../../../../src/editor/components/widgets/cameraPose.ts'
 
 /**
  * The scene position of the test level.
@@ -261,11 +260,5 @@ void describe('frustumOf', () => {
 
   void it('is the frustum the align covers the frame with', () => {
     assert.deepEqual(frustumOf(fieldOfView, aspect), frustum)
-  })
-})
-
-void describe('centreOfBounds', () => {
-  void it('is the middle of the box', () => {
-    assert.deepEqual(centreOfBounds(bounds), centre)
   })
 })

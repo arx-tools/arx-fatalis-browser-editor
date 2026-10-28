@@ -21,7 +21,7 @@ const statistics = [
 </template>
 
 <style scoped lang="scss">
-@use '../../palette' as *;
+@use '../../../palette' as *;
 
 .StatisticsWidget {
   height: 100%;

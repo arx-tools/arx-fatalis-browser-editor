@@ -8,6 +8,7 @@ import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
 import { cameraStore } from '../cameraStore.ts'
 import { viewMeshesOf } from '../levelScene.ts'
 import { createViewScene, disposeViewScene, resizeViewScene, type ViewScene } from '../viewScene.ts'
+import { createOrientationGizmo, type OrientationGizmo } from './orientationGizmo.ts'
 import { CameraControls } from './cameraControls.ts'
 
 /**
@@ -58,12 +59,29 @@ const host = useTemplateRef<HTMLElement>('host')
 const canvas = useTemplateRef<HTMLCanvasElement>('canvas')
 
 let view: ViewScene | undefined
+let gizmo: OrientationGizmo | undefined
 let shown: Mesh[] = []
 let controls: CameraControls | undefined
 let observer: ResizeObserver | undefined
 let frame = 0
 let lastFrameAt = 0
 let stopWatching: (() => void) | undefined
+
+/**
+ * Draws one frame: the scene, then the orientation compass over it.
+ *
+ * @remarks
+ * The gizmo draws in its own small viewport at the bottom-right corner, so it comes after the scene: it
+ * clears the depth of its corner and puts the viewport back when it is done.
+ */
+function drawFrame(): void {
+  if (view === undefined) {
+    return
+  }
+
+  view.renderer.render(view.scene, view.camera)
+  gizmo?.render(view.renderer)
+}
 
 /**
  * Draws the next frame, at most once per animation frame.
@@ -79,7 +97,7 @@ function requestRender(): void {
 
   frame = requestAnimationFrame(() => {
     frame = 0
-    view?.renderer.render(view.scene, view.camera)
+    drawFrame()
   })
 }
 
@@ -109,7 +127,7 @@ function animate(now: number): void {
   }
 
   controls.update(deltaSeconds)
-  view?.renderer.render(view.scene, view.camera)
+  drawFrame()
 
   frame = requestAnimationFrame(animate)
 }
@@ -161,6 +179,7 @@ function createScene(): void {
   }
 
   view = createViewScene(target)
+  gizmo = createOrientationGizmo(target, view.camera)
   resize()
 }
 
@@ -287,6 +306,9 @@ onBeforeUnmount(() => {
     cancelAnimationFrame(frame)
     frame = 0
   }
+
+  gizmo?.dispose()
+  gizmo = undefined
 
   if (view !== undefined) {
     disposeViewScene(view)

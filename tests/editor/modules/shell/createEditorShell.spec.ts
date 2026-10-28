@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { beforeEach, describe, it } from 'node:test'
 import type { Widget as LuminoWidget } from '@lumino/widgets'
 import type { WidgetOverlayOptions } from '../../../../src/editor/modules/layout/layoutEditor.ts'
+import type { WidgetDefinition } from '../../../../src/editor/modules/layout/widgetDefinition.ts'
 import { installDom } from '../../../support/dom.ts'
 
 installDom()
@@ -22,10 +23,11 @@ beforeEach((): void => {
 /**
  * The widget kinds of the test: plain lumino widgets instead of the real (vue) ones.
  */
-const definitions = [
+const definitions: readonly WidgetDefinition[] = [
   {
     kind: 'map-statistics',
     label: 'Map Statistics',
+    group: 'info',
     create: (): LuminoWidget => {
       return new Widget()
     },
@@ -33,6 +35,7 @@ const definitions = [
   {
     kind: '3d-view',
     label: '3D View',
+    group: 'rendering',
     create: (): LuminoWidget => {
       return new Widget()
     },
@@ -40,6 +43,7 @@ const definitions = [
   {
     kind: 'controls',
     label: 'Controls',
+    group: 'info',
     create: (): LuminoWidget => {
       return new Widget()
     },
@@ -47,6 +51,7 @@ const definitions = [
   {
     kind: 'camera-controls',
     label: '3D Camera',
+    group: 'controls',
     create: (): LuminoWidget => {
       return new Widget()
     },

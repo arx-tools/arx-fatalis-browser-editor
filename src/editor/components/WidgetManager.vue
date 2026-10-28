@@ -100,7 +100,16 @@ onBeforeUnmount(() => {
       <LockKeyholeOpen v-if="isEditing" :size="14" />
       <LockKeyhole v-else :size="14" />
     </button>
-    <button class="plus" type="button" v-tooltip="'Add a widget'" aria-label="Add a widget" @click="togglePicker">
+    <button
+      class="plus"
+      :class="{ 'is-open': isPickerOpen }"
+      type="button"
+      aria-haspopup="menu"
+      :aria-expanded="isPickerOpen"
+      v-tooltip="'Add a widget'"
+      aria-label="Add a widget"
+      @click="togglePicker"
+    >
       <Plus :size="14" />
     </button>
     <button
@@ -155,6 +164,13 @@ onBeforeUnmount(() => {
     }
   }
 
+  // the plus is lit while its popup is open: it says which button the list belongs to
+  .plus.is-open {
+    color: $text-strong;
+    background: $surface-raised;
+    border-color: $border-strong;
+  }
+
   .lock {
     color: $ok;
 
@@ -163,6 +179,11 @@ onBeforeUnmount(() => {
       background: $surface-raised;
       border-color: $border-strong;
     }
+  }
+
+  // the reset is a separate action from the add: a wider gap keeps them apart (besides the 6px gap)
+  .reset {
+    margin-left: 10px;
   }
 }
 </style>

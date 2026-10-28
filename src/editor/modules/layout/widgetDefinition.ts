@@ -7,6 +7,38 @@ import type { Widget } from '@lumino/widgets'
 const kinds = new WeakMap<Widget, string>()
 
 /**
+ * The category of a widget in the picker.
+ *
+ * @remarks
+ * The categories are what the popup groups its rows by: what **draws** the level (`rendering`), what
+ * **drives** the view (`controls`) and what only **shows** something about the level (`info`).
+ */
+export type WidgetGroup = 'controls' | 'info' | 'rendering'
+
+/**
+ * One category of the picker.
+ */
+export interface WidgetGroupDescription {
+  /**
+   * The identifier of the category.
+   */
+  readonly id: WidgetGroup
+  /**
+   * The name shown above the rows of the category.
+   */
+  readonly label: string
+}
+
+/**
+ * The categories of the picker, in the order the popup shows them.
+ */
+export const widgetGroups: readonly WidgetGroupDescription[] = [
+  { id: 'rendering', label: 'Rendering' },
+  { id: 'controls', label: 'Controls' },
+  { id: 'info', label: 'Info' },
+]
+
+/**
  * Everything the shell needs to know about one widget kind.
  */
 export interface WidgetDefinition {
@@ -18,6 +50,10 @@ export interface WidgetDefinition {
    * The name of the widget: the overlay, the picker and the hotkey table all use this.
    */
   readonly label: string
+  /**
+   * The category the picker lists the widget under.
+   */
+  readonly group: WidgetGroup
   /**
    * Creates a new, unparented widget of the kind.
    */

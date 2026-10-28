@@ -7,7 +7,7 @@ import View3DWidget from './components/widgets/View3DWidget/View3DWidget.vue'
 import type { CameraViewMode } from './components/widgets/FixedViewWidget/cameraAlign.ts'
 import { WIDGET_KINDS } from './modules/layout/widgetKinds.ts'
 import { VueWidget } from './modules/vueWidget/VueWidget.ts'
-import type { WidgetDefinition } from './modules/layout/widgetDefinition.ts'
+import type { WidgetDefinition, WidgetGroup } from './modules/layout/widgetDefinition.ts'
 
 /**
  * One fixed direction of the level and the widget that shows it.
@@ -25,6 +25,10 @@ interface FixedViewDefinition {
    * The direction the widget shows the level from.
    */
   readonly mode: CameraViewMode
+  /**
+   * The category of the picker the widget goes to.
+   */
+  readonly group: WidgetGroup
 }
 
 /**
@@ -36,12 +40,12 @@ interface FixedViewDefinition {
  * `FixedViewWidget`, the module behind it is `components/widgets/FixedViewWidget/fixedView.ts`.
  */
 const fixedViews: readonly FixedViewDefinition[] = [
-  { kind: WIDGET_KINDS.topView, label: 'Top View', mode: 'top' },
-  { kind: WIDGET_KINDS.bottomView, label: 'Bottom View', mode: 'bottom' },
-  { kind: WIDGET_KINDS.frontView, label: 'Front View', mode: 'front' },
-  { kind: WIDGET_KINDS.backView, label: 'Back View', mode: 'back' },
-  { kind: WIDGET_KINDS.leftView, label: 'Left View', mode: 'left' },
-  { kind: WIDGET_KINDS.rightView, label: 'Right View', mode: 'right' },
+  { kind: WIDGET_KINDS.topView, label: 'Top View', mode: 'top', group: 'rendering' },
+  { kind: WIDGET_KINDS.bottomView, label: 'Bottom View', mode: 'bottom', group: 'rendering' },
+  { kind: WIDGET_KINDS.frontView, label: 'Front View', mode: 'front', group: 'rendering' },
+  { kind: WIDGET_KINDS.backView, label: 'Back View', mode: 'back', group: 'rendering' },
+  { kind: WIDGET_KINDS.leftView, label: 'Left View', mode: 'left', group: 'rendering' },
+  { kind: WIDGET_KINDS.rightView, label: 'Right View', mode: 'right', group: 'rendering' },
 ]
 
 /**
@@ -58,6 +62,7 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
   {
     kind: WIDGET_KINDS.view3d,
     label: '3D View',
+    group: 'rendering',
     create: (): Widget => {
       return new VueWidget(View3DWidget)
     },
@@ -66,6 +71,7 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
     return {
       kind: view.kind,
       label: view.label,
+      group: view.group,
       create: (): Widget => {
         return new VueWidget(FixedViewWidget, { mode: view.mode })
       },
@@ -74,6 +80,7 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
   {
     kind: WIDGET_KINDS.cameraControls,
     label: 'Camera Controls',
+    group: 'controls',
     create: (): Widget => {
       return new VueWidget(CameraControlsWidget)
     },
@@ -81,13 +88,15 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
   {
     kind: WIDGET_KINDS.mapStatistics,
     label: 'Map Statistics',
+    group: 'info',
     create: (): Widget => {
       return new VueWidget(StatisticsWidget)
     },
   },
   {
     kind: WIDGET_KINDS.controls,
-    label: 'Controls',
+    label: 'Keyboard Shortcuts',
+    group: 'info',
     create: (): Widget => {
       return new VueWidget(HelpWidget)
     },

@@ -13,6 +13,7 @@ void describe('createWidget', () => {
     const widget = createWidget({
       kind: 'statistics',
       label: 'Statistics',
+      group: 'info',
       create: () => {
         return new Widget()
       },
@@ -26,6 +27,7 @@ void describe('createWidget', () => {
     const widget = createWidget({
       kind: 'help',
       label: 'Help',
+      group: 'info',
       create: () => {
         return new Widget()
       },
@@ -41,6 +43,7 @@ void describe('createWidget', () => {
     const widget = createWidget({
       kind: 'view3d',
       label: '3D View',
+      group: 'rendering',
       create: () => {
         calls = calls + 1
 

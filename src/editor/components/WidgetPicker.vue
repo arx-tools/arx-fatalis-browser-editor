@@ -16,9 +16,9 @@ const shell = useEditorShell()
 const isDragging = ref(false)
 
 /**
- * The rows of the popup: a placed kind offers the trash, a free one can be dragged in.
+ * The categories of the popup: a placed kind offers the trash, a free one can be dragged in.
  */
-const rows = computed(() => {
+const groups = computed(() => {
   const current = shell.value
 
   if (current === undefined) {
@@ -60,9 +60,13 @@ onBeforeUnmount(() => {
  */
 async function startDrag(event: PointerEvent, kind: string): Promise<void> {
   const current = shell.value
-  const row = rows.value.find((candidate) => {
-    return candidate.kind === kind
-  })
+  const row = groups.value
+    .flatMap((group) => {
+      return group.rows
+    })
+    .find((candidate) => {
+      return candidate.kind === kind
+    })
 
   if (current === undefined || row === undefined || row.isPlaced || event.button !== 0) {
     return
@@ -93,31 +97,34 @@ async function startDrag(event: PointerEvent, kind: string): Promise<void> {
 
 <template>
   <div class="WidgetPicker" :class="{ 'is-dragging': isDragging }" role="menu" aria-label="Add a widget">
-    <div
-      v-for="row in rows"
-      :key="row.kind"
-      class="row"
-      :class="{ 'is-placed': row.isPlaced }"
-      role="menuitem"
-      :data-picker-kind="row.kind"
-      @pointerdown="startDrag($event, row.kind)"
-      @pointerenter="spotlight(row.isPlaced ? row.kind : null)"
-      @pointerleave="spotlight(null)"
-    >
-      <Check v-if="row.isPlaced" class="mark" :size="13" aria-hidden="true" />
-      <GripVertical v-else class="grip" :size="13" aria-hidden="true" />
-      <span class="name">{{ row.label }}</span>
-      <button
-        v-if="row.isPlaced"
-        class="trash"
-        type="button"
-        v-tooltip="`Remove the ${row.label} widget`"
-        :aria-label="`Remove the ${row.label} widget`"
-        @pointerdown.stop
-        @click="remove(row.kind)"
+    <div v-for="group in groups" :key="group.group" class="group">
+      <span class="heading">{{ group.label }}</span>
+      <div
+        v-for="row in group.rows"
+        :key="row.kind"
+        class="row"
+        :class="{ 'is-placed': row.isPlaced }"
+        role="menuitem"
+        :data-picker-kind="row.kind"
+        @pointerdown="startDrag($event, row.kind)"
+        @pointerenter="spotlight(row.isPlaced ? row.kind : null)"
+        @pointerleave="spotlight(null)"
       >
-        <Trash2 :size="13" />
-      </button>
+        <Check v-if="row.isPlaced" class="mark" :size="13" aria-hidden="true" />
+        <GripVertical v-else class="grip" :size="13" aria-hidden="true" />
+        <span class="name">{{ row.label }}</span>
+        <button
+          v-if="row.isPlaced"
+          class="trash"
+          type="button"
+          v-tooltip="`Remove the ${row.label} widget`"
+          :aria-label="`Remove the ${row.label} widget`"
+          @pointerdown.stop
+          @click="remove(row.kind)"
+        >
+          <Trash2 :size="13" />
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -143,6 +150,23 @@ async function startDrag(event: PointerEvent, kind: string): Promise<void> {
 
   &.is-dragging {
     opacity: 0.25;
+  }
+
+  // the heading of a category: never a drag source, its only job is to separate the rows
+  .heading {
+    display: block;
+    padding: 6px 8px 2px;
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: $text-subtle;
+  }
+
+  .group + .group .heading {
+    padding-top: 10px;
+    border-top: 1px solid $border-dark;
+    margin-top: 4px;
   }
 
   .row {

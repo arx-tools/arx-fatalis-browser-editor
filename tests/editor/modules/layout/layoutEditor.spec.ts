@@ -46,6 +46,7 @@ function buildEditor(): {
   const widget = createWidget({
     kind: 'statistics',
     label: 'Statistics',
+    group: 'info',
     create: () => {
       return new Widget()
     },
@@ -127,6 +128,7 @@ void describe('LayoutEditor', () => {
     const late = createWidget({
       kind: 'help',
       label: 'Help',
+      group: 'info',
       create: () => {
         return new Widget()
       },
@@ -158,6 +160,7 @@ void describe('LayoutEditor', () => {
     const late = createWidget({
       kind: 'help',
       label: 'Help',
+      group: 'info',
       create: () => {
         return new Widget()
       },

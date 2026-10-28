@@ -21,6 +21,7 @@ function makeWidgets(kinds: string[]): Map<string, InstanceType<typeof Widget>> 
       createWidget({
         kind,
         label: kind,
+        group: 'rendering',
         create: () => {
           return new Widget()
         },
@@ -98,6 +99,7 @@ void describe('toLayoutNode', () => {
     const known = createWidget({
       kind: 'help',
       label: 'Controls',
+      group: 'info',
       create: () => {
         return new Widget()
       },

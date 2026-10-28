@@ -30,8 +30,10 @@ body {
   min-height: 120px;
 }
 
-// the camera form fits in one line, so it can be squeezed into a thin strip above or below the 3D view
-.lm-DockPanel-widget[data-widget-kind='camera-controls'] {
+// the camera form and the jump row fit in one line, so they can be squeezed into a thin strip above or
+// below the 3D view
+.lm-DockPanel-widget[data-widget-kind='camera-controls'],
+.lm-DockPanel-widget[data-widget-kind='jump-to-location'] {
   min-height: 44px;
 }
 

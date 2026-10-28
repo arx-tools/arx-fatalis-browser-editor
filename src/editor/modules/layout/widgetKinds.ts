@@ -46,6 +46,10 @@ export const WIDGET_KINDS = {
    */
   cameraControls: 'camera-controls',
   /**
+   * The points the camera can jump to.
+   */
+  jumpToLocation: 'jump-to-location',
+  /**
    * The numbers of the loaded level.
    */
   mapStatistics: 'map-statistics',

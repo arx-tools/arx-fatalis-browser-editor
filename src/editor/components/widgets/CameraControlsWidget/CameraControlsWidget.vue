@@ -165,13 +165,6 @@ function onStep(name: CameraFieldName, direction: 1 | -1): void {
 
   cameraStore.moveCamera(stepped)
 }
-
-/**
- * Jumps to the spawn of the level: the pose the editor starts with when the url carries no pose.
- */
-function onSpawn(): void {
-  cameraStore.moveToSpawn()
-}
 </script>
 
 <template>
@@ -194,11 +187,6 @@ function onSpawn(): void {
           @keydown.up.prevent="onStep(name, 1)"
           @keydown.down.prevent="onStep(name, -1)"
         />
-      </span>
-
-      <span class="group">
-        <span class="label">Jump to:</span>
-        <button type="button" :disabled="readOnly" @click="onSpawn">spawn</button>
       </span>
     </div>
   </div>

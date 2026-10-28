@@ -2,6 +2,7 @@ import type { Widget } from '@lumino/widgets'
 import CameraControlsWidget from './components/widgets/CameraControlsWidget/CameraControlsWidget.vue'
 import FixedViewWidget from './components/widgets/FixedViewWidget/FixedViewWidget.vue'
 import HelpWidget from './components/widgets/HelpWidget/HelpWidget.vue'
+import JumpToLocationWidget from './components/widgets/JumpToLocationWidget/JumpToLocationWidget.vue'
 import StatisticsWidget from './components/widgets/StatisticsWidget/StatisticsWidget.vue'
 import View3DWidget from './components/widgets/View3DWidget/View3DWidget.vue'
 import type { CameraViewMode } from './components/widgets/FixedViewWidget/cameraAlign.ts'
@@ -83,6 +84,14 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
     group: 'controls',
     create: (): Widget => {
       return new VueWidget(CameraControlsWidget)
+    },
+  },
+  {
+    kind: WIDGET_KINDS.jumpToLocation,
+    label: 'Jump to Location',
+    group: 'controls',
+    create: (): Widget => {
+      return new VueWidget(JumpToLocationWidget)
     },
   },
   {

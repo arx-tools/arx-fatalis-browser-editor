@@ -1,17 +1,29 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { PerspectiveCamera, Scene, WebGLRenderer } from 'three'
 import type { ArxVector3 } from 'arx-convert/types'
-import { ArxMap } from '../../../generator/ArxMap.ts'
+import type { ArxMap } from '../../../generator/ArxMap.ts'
+import { levelStore } from '../../modules/level/levelStore.ts'
 import { CameraControls } from '../../modules/view3d/cameraControls.ts'
 import { readGameAngle, worldPositionToGame } from '../../modules/view3d/cameraPose.ts'
 import { addPreviewLights, fitCameraToCanvas } from '../../modules/view3d/levelScene.ts'
-import { STARTER_LEVEL, fetchLevelFiles } from '../../modules/view3d/levelSource.ts'
 
 /**
  * What the widget shows over the canvas: the loading state, a failure, or nothing while the level is on.
+ *
+ * The level itself is loaded by {@link levelStore}, so a rebuilt widget shows it at once.
  */
-const status = ref('Loading the level…')
+const status = computed(() => {
+  if (levelStore.status.value === 'error') {
+    return levelStore.error.value ?? 'Failed to load the level.'
+  }
+
+  if (levelStore.status.value === 'ready') {
+    return ''
+  }
+
+  return 'Loading the level…'
+})
 
 /**
  * The readout over the canvas: the camera position and rotation in the game's coordinates, in the same
@@ -22,21 +34,6 @@ const hud = ref('')
 const host = useTemplateRef<HTMLElement>('host')
 const canvas = useTemplateRef<HTMLCanvasElement>('canvas')
 
-/**
- * Reads the message of a failure.
- *
- * @param error The thrown value.
- *
- * @returns The message of an `Error`, or `undefined` when the value has none.
- */
-function messageOf(error: unknown): string | undefined {
-  if (error instanceof Error) {
-    return error.message
-  }
-
-  return undefined
-}
-
 let renderer: WebGLRenderer | undefined
 let scene: Scene | undefined
 let camera: PerspectiveCamera | undefined
@@ -45,6 +42,7 @@ let scenePosition: ArxVector3 | undefined
 let observer: ResizeObserver | undefined
 let frame = 0
 let lastFrameAt = 0
+let stopWatching: (() => void) | undefined
 
 /**
  * Draws the next frame, at most once per animation frame.
@@ -179,13 +177,12 @@ function disposeScene(): void {
 }
 
 /**
- * Downloads, unpacks and draws the level.
+ * Builds the scene of the widget: the renderer, the camera and the lights.
  */
-async function loadStarterLevel(): Promise<void> {
-  const element = host.value
+function createScene(): void {
   const target = canvas.value
 
-  if (element === null || target === null) {
+  if (target === null) {
     return
   }
 
@@ -195,50 +192,66 @@ async function loadStarterLevel(): Promise<void> {
   camera = new PerspectiveCamera(75, 1, 0.1, 10_000)
   addPreviewLights(scene)
   resize()
+}
 
-  try {
-    const files = await fetchLevelFiles(STARTER_LEVEL)
-    const map = new ArxMap(files.dlf, files.fts, files.llf)
+/**
+ * Shows a map: the meshes go into the scene and the camera starts from the player of the level.
+ *
+ * @param map The map the store loaded.
+ */
+function showMap(map: ArxMap): void {
+  const target = canvas.value
 
-    for (const mesh of map.meshes) {
-      scene.add(mesh)
-    }
+  if (scene === undefined || camera === undefined || target === null) {
+    return
+  }
 
-    scenePosition = map.scenePosition
+  for (const mesh of map.meshes) {
+    scene.add(mesh)
+  }
 
-    controls = new CameraControls({
-      canvas: target,
-      camera,
-      scene: map.scenePosition,
-      player: map.player,
-      onPoseChange: (): void => {
-        refreshHud()
-        requestRender()
-      },
-      onLockChange: (locked: boolean): void => {
-        if (locked) {
-          startLoop()
+  scenePosition = map.scenePosition
+  controls = new CameraControls({
+    canvas: target,
+    camera,
+    scene: map.scenePosition,
+    player: map.player,
+    onPoseChange: (): void => {
+      refreshHud()
+      requestRender()
+    },
+    onLockChange: (locked: boolean): void => {
+      if (locked) {
+        startLoop()
 
-          return
-        }
+        return
+      }
 
-        requestRender()
-      },
-    })
+      requestRender()
+    },
+  })
 
-    refreshHud()
-    status.value = ''
-    requestRender()
-  } catch (error) {
-    status.value = messageOf(error) ?? `Failed to load level ${STARTER_LEVEL}.`
+  refreshHud()
+  requestRender()
+}
+
+/**
+ * Takes the map out of the scene again.
+ *
+ * @remarks
+ * The meshes belong to the store, so this only unparents them: a rebuilt widget puts the same
+ * geometries back, and their materials are not touched.
+ *
+ * @param map The map to remove from the scene.
+ */
+function hideMap(map: ArxMap): void {
+  for (const mesh of map.meshes) {
+    scene?.remove(mesh)
   }
 }
 
 onMounted(() => {
-  // the loader handles its own failures, but the call is not awaited: the widget has to mount first
-  loadStarterLevel().catch((error: unknown) => {
-    status.value = messageOf(error) ?? `Failed to load level ${STARTER_LEVEL}.`
-  })
+  createScene()
 
   observer = new ResizeObserver(() => {
     resize()
@@ -247,9 +260,33 @@ onMounted(() => {
   if (host.value !== null) {
     observer.observe(host.value)
   }
+
+  // The level is not the widget's: it may have been loaded before this widget was even mounted, and it
+  // stays loaded when the widget goes away (a layout reset rebuilds the dock, not the map). The watch
+  // starts here and not in the setup, because `immediate` has to find the scene already built.
+  stopWatching = watch(
+    () => {
+      return levelStore.map.value
+    },
+    (map, previous) => {
+      if (previous !== undefined) {
+        hideMap(previous)
+      }
+
+      if (map !== undefined) {
+        showMap(map)
+      }
+    },
+    { immediate: true },
+  )
 })
 
+// the level is not the widget's: it may have been loaded before this widget was even mounted, and it
+// stays loaded when the widget goes away (a layout reset rebuilds the dock, not the map)
 onBeforeUnmount(() => {
+  stopWatching?.()
+  stopWatching = undefined
+
   observer?.disconnect()
   observer = undefined
   controls?.dispose()

@@ -1,3 +1,5 @@
+import { ArxMap } from '../../../generator/ArxMap.ts'
+
 /**
  * Where the packed level files are downloaded from.
  *
@@ -82,4 +84,18 @@ export async function fetchLevelFiles(
   ])
 
   return { dlf, fts, llf }
+}
+
+/**
+ * Downloads, unpacks and builds a level.
+ *
+ * @param level The number of the level.
+ * @param fetchImpl The fetch to use; the tests pass a fake one.
+ *
+ * @returns The built map of that level.
+ */
+export async function loadLevelMap(level: number = STARTER_LEVEL, fetchImpl: typeof fetch = fetch): Promise<ArxMap> {
+  const files = await fetchLevelFiles(level, fetchImpl)
+
+  return new ArxMap(files.dlf, files.fts, files.llf)
 }

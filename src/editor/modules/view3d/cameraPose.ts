@@ -16,6 +16,24 @@ export interface GameAngle {
 }
 
 /**
+ * Where the camera stands and where it looks, in the game's coordinate system.
+ *
+ * @remarks
+ * This is the form the url, the camera controls widget and the fixed views all speak: both halves are in
+ * the game's terms, so the conversion to the three.js space only happens at the camera itself.
+ */
+export interface CameraPose {
+  /**
+   * The eye of the camera.
+   */
+  readonly position: ArxVector3
+  /**
+   * Where the camera looks to.
+   */
+  readonly angle: GameAngle
+}
+
+/**
  * The euler the camera reads its angles with, kept outside so the getter does not allocate.
  */
 const cameraEuler = new Euler(0, 0, 0, 'YXZ')
@@ -92,4 +110,31 @@ export function readGameAngle(camera: PerspectiveCamera): GameAngle {
  */
 export function isGameAngleInRange(angle: GameAngle): boolean {
   return angle.yaw >= 0 && angle.yaw < 360 && angle.pitch >= -90 && angle.pitch <= 90
+}
+
+/**
+ * Reads where the camera stands and looks, in the game's coordinates.
+ *
+ * @param camera The camera to read.
+ * @param scene The scene position of the level (`fts.header.mScenePosition`).
+ *
+ * @returns The eye and the facing of the camera, in the game's terms.
+ */
+export function readCameraPose(camera: PerspectiveCamera, scene: ArxVector3): CameraPose {
+  return {
+    position: worldPositionToGame(camera.position, scene),
+    angle: readGameAngle(camera),
+  }
+}
+
+/**
+ * Puts the camera to a pose of the game's coordinate system.
+ *
+ * @param camera The camera to move.
+ * @param scene The scene position of the level (`fts.header.mScenePosition`).
+ * @param pose The pose to set.
+ */
+export function setCameraPose(camera: PerspectiveCamera, scene: ArxVector3, pose: CameraPose): void {
+  camera.position.copy(gamePositionToWorld(pose.position, scene))
+  applyGameAngle(camera, pose.angle)
 }

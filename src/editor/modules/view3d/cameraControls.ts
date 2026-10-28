@@ -8,8 +8,9 @@ import {
   applyGameAngle,
   gamePositionToWorld,
   isGameAngleInRange,
-  readGameAngle,
-  worldPositionToGame,
+  readCameraPose,
+  setCameraPose,
+  type CameraPose,
 } from './cameraPose.ts'
 import { cameraAngle, cameraPosition } from './cameraState.ts'
 
@@ -44,9 +45,11 @@ export interface CameraControlsOptions {
    */
   readonly player: Player
   /**
-   * Called when the pose of the camera changed, so the widget can draw its readout.
+   * Called when the pose of the camera changed, with the new pose in the game's coordinates.
+   *
+   * @param pose Where the camera stands and looks now.
    */
-  readonly onPoseChange?: () => void
+  readonly onPoseChange?: (pose: CameraPose) => void
   /**
    * Called when the pointer lock is taken or released.
    *
@@ -64,8 +67,10 @@ export interface CameraControlsOptions {
  * - the movement reads the `moveForward` / `moveBackward` / `moveLeft` / `moveRight` / `moveSlower`
  * actions of the keyboard module, which are `hold` actions and only fire while the pointer is locked.
  * The side steps stay horizontal; walking forward follows the view, exactly like the archived editor
- * - the pose is written into the `positionAt` and `angle` refs (in the game's coordinates), so the url
+ * - the pose is written into the `position` and `rotation` refs (in the game's coordinates), so the url
  * carries the camera and a link can be shared
+ * - the widget above this class moves the camera the same way the mouse does, with
+ * {@link CameraControls.applyPose}: the pose travels as the game's coordinates, both ways
  */
 export class CameraControls {
   private readonly options: CameraControlsOptions
@@ -170,13 +175,42 @@ export class CameraControls {
    * The refs write the url with a throttle, so this can be called on every frame.
    */
   storePose(): void {
-    const { camera, scene } = this.options
-    const position = worldPositionToGame(camera.position, scene)
-    const { pitch, yaw } = readGameAngle(camera)
+    const pose = readCameraPose(this.options.camera, this.options.scene)
 
-    cameraPosition.value = [position.x, position.y, position.z]
-    cameraAngle.value = [pitch, yaw, 0]
-    this.options.onPoseChange?.()
+    cameraPosition.value = [pose.position.x, pose.position.y, pose.position.z]
+    cameraAngle.value = [pose.angle.pitch, pose.angle.yaw, 0]
+    this.options.onPoseChange?.(pose)
+  }
+
+  /**
+   * Puts the camera to a pose and stores it.
+   *
+   * @remarks
+   * This is the way the camera controls widget moves the camera: the pose is in the game's coordinates, so
+   * the caller does not have to know about the three.js conversions or the stored refs.
+   * The camera keeps the pose as `applyGameAngle` sets it, and {@link CameraControls.storePose} reports
+   * what the camera really holds.
+   *
+   * @param pose The pose to set, in the game's coordinates.
+   */
+  applyPose(pose: CameraPose): void {
+    setCameraPose(this.options.camera, this.options.scene, pose)
+    this.storePose()
+  }
+
+  /**
+   * Puts the camera to the spawn of the level and stores it.
+   *
+   * @remarks
+   * This is the pose the editor starts with when the url carries neither a position nor a rotation: the
+   * player of the DLF, with its own orientation. The game moves the player to `pos_edit` (relative to the
+   * scene position) and turns it to `angle_edit` on a level load, then zeroes the pitch, so only the yaw
+   * of the level survives (`src/core/Core.cpp`: `player.angle.setPitch(0)`); the spawn view does the
+   * same, so a link without a pose and the spawn button can not disagree.
+   */
+  applySpawnPose(): void {
+    this.setSpawnPose()
+    this.storePose()
   }
 
   /**
@@ -192,22 +226,30 @@ export class CameraControls {
   }
 
   /**
+   * Moves the camera to the player of the level, without storing the pose.
+   *
+   * @remarks
+   * The player position of the DLF is already in the mesh's own space (the mesh is shifted by the scene
+   * position, the spawn is not), so it only has to be mirrored: subtracting the scene position would put
+   * the camera outside the level.
+   */
+  private setSpawnPose(): void {
+    const { camera, player } = this.options
+
+    camera.position.copy(arxVector3toVector3(player.position))
+    applyGameAngle(camera, { pitch: 0, yaw: player.orientation.b })
+  }
+
+  /**
    * Puts the camera where the url asked for it, or to the player start of the level.
    */
   private applyStoredPose(): void {
-    const { camera, scene, player } = this.options
+    const { camera, scene } = this.options
     const position = cameraPosition.value
     const angle = cameraAngle.value
 
     if (position === undefined) {
-      // the player position of the DLF is already in the mesh's own space (the mesh is shifted by the
-      // scene position, the spawn is not), so it only has to be mirrored - the archived editor did the
-      // same, and subtracting the scene position would put the camera outside the level
-      camera.position.copy(arxVector3toVector3(player.position))
-      // The game puts the player to `pos_edit` (relative to the scene position) and turns it to
-      // `angle_edit` on a level load, then zeroes the pitch, so only the yaw of the level survives
-      // (`src/core/Core.cpp`: `player.angle.setPitch(0)`). The editor does the same.
-      applyGameAngle(camera, { pitch: 0, yaw: player.orientation.b })
+      this.setSpawnPose()
     } else {
       const [x, y, z] = position
 

@@ -1,10 +1,47 @@
 import type { Widget } from '@lumino/widgets'
-import CameraWidget from './components/widgets/CameraWidget.vue'
+import CameraControlsWidget from './components/widgets/CameraControlsWidget.vue'
+import FixedViewWidget from './components/widgets/FixedViewWidget.vue'
 import HelpWidget from './components/widgets/HelpWidget.vue'
 import StatisticsWidget from './components/widgets/StatisticsWidget.vue'
 import View3DWidget from './components/widgets/View3DWidget.vue'
+import type { CameraViewMode } from './modules/view3d/cameraAlign.ts'
 import { VueWidget } from './modules/vueWidget/VueWidget.ts'
 import type { WidgetDefinition } from './modules/layout/widgetDefinition.ts'
+
+/**
+ * One fixed direction of the level and the widget that shows it.
+ */
+interface FixedViewDefinition {
+  /**
+   * The kind of the widget, also its key in the saved layout.
+   */
+  readonly kind: string
+  /**
+   * The name of the widget in the picker and the overlay.
+   */
+  readonly label: string
+  /**
+   * The direction the widget shows the level from.
+   */
+  readonly mode: CameraViewMode
+}
+
+/**
+ * The six fixed direction views.
+ *
+ * @remarks
+ * They are the small overviews of a level editor (the THEO Game Maker layout): a widget per direction,
+ * always framed on the level, with no pointer lock and no camera fields of its own. The widget is
+ * `FixedViewWidget`, the module behind it is `view3d/fixedView.ts`.
+ */
+const fixedViews: readonly FixedViewDefinition[] = [
+  { kind: 'view-top', label: 'Top view', mode: 'top' },
+  { kind: 'view-bottom', label: 'Bottom view', mode: 'bottom' },
+  { kind: 'view-front', label: 'Front view', mode: 'front' },
+  { kind: 'view-back', label: 'Back view', mode: 'back' },
+  { kind: 'view-left', label: 'Left view', mode: 'left' },
+  { kind: 'view-right', label: 'Right view', mode: 'right' },
+]
 
 /**
  * The widget kinds of the shell.
@@ -13,8 +50,8 @@ import type { WidgetDefinition } from './modules/layout/widgetDefinition.ts'
  * be dragged in twice), so the `kind` is a stable identifier of both the widget and its place in the
  * saved layout.
  *
- * The contents are placeholders for now: the real statistics, the key help and the 3D renderer are
- * ported from the archived app in later rounds.
+ * The statistics and the help are placeholders for now: the real numbers and the key table come with
+ * the later rounds.
  */
 export const widgetDefinitions: readonly WidgetDefinition[] = [
   {
@@ -22,6 +59,22 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
     label: '3D View',
     create: (): Widget => {
       return new VueWidget(View3DWidget)
+    },
+  },
+  ...fixedViews.map((view) => {
+    return {
+      kind: view.kind,
+      label: view.label,
+      create: (): Widget => {
+        return new VueWidget(FixedViewWidget, { mode: view.mode })
+      },
+    }
+  }),
+  {
+    kind: 'camera',
+    label: 'Camera',
+    create: (): Widget => {
+      return new VueWidget(CameraControlsWidget)
     },
   },
   {
@@ -36,13 +89,6 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
     label: 'Help',
     create: (): Widget => {
       return new VueWidget(HelpWidget)
-    },
-  },
-  {
-    kind: 'camera',
-    label: 'Camera',
-    create: (): Widget => {
-      return new VueWidget(CameraWidget)
     },
   },
 ]

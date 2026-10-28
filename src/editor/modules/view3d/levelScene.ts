@@ -1,5 +1,8 @@
-import { type Box3, type PerspectiveCamera, AmbientLight, DirectionalLight, type Scene, Vector3 } from 'three'
+import type { ArxVector3 } from 'arx-convert/types'
+import { Box3, Mesh, type PerspectiveCamera, AmbientLight, DirectionalLight, type Scene, Vector3 } from 'three'
 import { Color } from '../../../generator/Color.ts'
+import type { CameraBounds } from './cameraAlign.ts'
+import { worldPositionToGame } from './cameraPose.ts'
 
 /**
  * The distance multiplier the camera keeps from the level, in radii.
@@ -66,4 +69,71 @@ export function fitCameraToCanvas(camera: PerspectiveCamera, width: number, heig
 
   camera.aspect = aspect
   camera.updateProjectionMatrix()
+}
+
+/**
+ * Reads the box of the level in the game's coordinates.
+ *
+ * @remarks
+ * - the geometry of the meshes is built in the three.js space (the mesh itself is not moved), so the two
+ * corners of the combined box are converted back
+ * - the conversion mirrors X and Y, which swaps the corners: the smaller and the larger one are picked
+ * per axis
+ *
+ * @param meshes The meshes of the level, each with a computed bounding box.
+ * @param scene The scene position of the level, the origin of the conversion.
+ *
+ * @returns The box of the level, or `undefined` when no mesh has a bounding box.
+ */
+export function gameBoundsOf(meshes: readonly Mesh[], scene: ArxVector3): CameraBounds | undefined {
+  const box = new Box3()
+
+  for (const mesh of meshes) {
+    const geometryBox = mesh.geometry.boundingBox
+
+    if (geometryBox === null) {
+      continue
+    }
+
+    box.union(geometryBox)
+  }
+
+  if (box.isEmpty()) {
+    return undefined
+  }
+
+  const first = worldPositionToGame(box.min, scene)
+  const second = worldPositionToGame(box.max, scene)
+
+  return {
+    min: {
+      x: Math.min(first.x, second.x),
+      y: Math.min(first.y, second.y),
+      z: Math.min(first.z, second.z),
+    },
+    max: {
+      x: Math.max(first.x, second.x),
+      y: Math.max(first.y, second.y),
+      z: Math.max(first.z, second.z),
+    },
+  }
+}
+
+/**
+ * Wraps the meshes of the map for one scene.
+ *
+ * @remarks
+ * The geometry and the material belong to the map, but a `Mesh` is the wrapper that puts them into a
+ * scene, and one wrapper can only be in **one** scene: adding the same mesh to a second scene takes it
+ * out of the first. The editor has more than one 3D widget (the walkable view and the six directions),
+ * so every widget builds its own wrappers over the same geometry and material.
+ *
+ * @param meshes The meshes of the map.
+ *
+ * @returns New meshes over the same geometries and materials.
+ */
+export function viewMeshesOf(meshes: readonly Mesh[]): Mesh[] {
+  return meshes.map((mesh) => {
+    return new Mesh(mesh.geometry, mesh.material)
+  })
 }

@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
-import { PerspectiveCamera, Scene, WebGLRenderer } from 'three'
-import type { ArxVector3 } from 'arx-convert/types'
+import { computed, onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
+import type { Mesh } from 'three'
 import type { ArxMap } from '../../../generator/ArxMap.ts'
 import { levelStore } from '../../modules/level/levelStore.ts'
 import { CameraControls } from '../../modules/view3d/cameraControls.ts'
-import { readGameAngle, worldPositionToGame } from '../../modules/view3d/cameraPose.ts'
-import { addPreviewLights, fitCameraToCanvas } from '../../modules/view3d/levelScene.ts'
+import { cameraStore } from '../../modules/view3d/cameraStore.ts'
+import { viewMeshesOf } from '../../modules/view3d/levelScene.ts'
+import { createViewScene, disposeViewScene, resizeViewScene, type ViewScene } from '../../modules/view3d/viewScene.ts'
 
 /**
  * What the widget shows over the canvas: the loading state, a failure, or nothing while the level is on.
@@ -28,17 +28,30 @@ const status = computed(() => {
 /**
  * The readout over the canvas: the camera position and rotation in the game's coordinates, in the same
  * format as the game's own debug hud. There is no pencil button and no click-to-copy yet.
+ *
+ * @remarks
+ * The numbers come from {@link cameraStore}, the same place the camera controls widget reads and writes them, so
+ * the readout follows a typed position as well as a walked one.
  */
-const hud = ref('')
+const hud = computed(() => {
+  const pose = cameraStore.pose.value
+
+  if (pose === undefined) {
+    return ''
+  }
+
+  return [
+    `position  ${pose.position.x.toFixed(2)}  ${pose.position.y.toFixed(2)}  ${pose.position.z.toFixed(2)}`,
+    `rotation  ${pose.angle.pitch.toFixed(2)}  ${pose.angle.yaw.toFixed(2)}  0.00`,
+  ].join('\n')
+})
 
 const host = useTemplateRef<HTMLElement>('host')
 const canvas = useTemplateRef<HTMLCanvasElement>('canvas')
 
-let renderer: WebGLRenderer | undefined
-let scene: Scene | undefined
-let camera: PerspectiveCamera | undefined
+let view: ViewScene | undefined
+let shown: Mesh[] = []
 let controls: CameraControls | undefined
-let scenePosition: ArxVector3 | undefined
 let observer: ResizeObserver | undefined
 let frame = 0
 let lastFrameAt = 0
@@ -58,31 +71,8 @@ function requestRender(): void {
 
   frame = requestAnimationFrame(() => {
     frame = 0
-
-    if (renderer !== undefined && scene !== undefined && camera !== undefined) {
-      renderer.render(scene, camera)
-    }
+    view?.renderer.render(view.scene, view.camera)
   })
-}
-
-/**
- * Turns the pose of the camera into the text of the readout.
- *
- * The values are in the game's coordinate system and in the game's debug hud format (`position x y z`,
- * `rotation pitch yaw roll`), so the two can be compared directly. The roll is always zero.
- */
-function refreshHud(): void {
-  if (camera === undefined || scenePosition === undefined) {
-    return
-  }
-
-  const position = worldPositionToGame(camera.position, scenePosition)
-  const { pitch, yaw } = readGameAngle(camera)
-
-  hud.value = [
-    `position  ${position.x.toFixed(2)}  ${position.y.toFixed(2)}  ${position.z.toFixed(2)}`,
-    `rotation  ${pitch.toFixed(2)}  ${yaw.toFixed(2)}  0.00`,
-  ].join('\n')
 }
 
 /**
@@ -111,10 +101,7 @@ function animate(now: number): void {
   }
 
   controls.update(deltaSeconds)
-
-  if (renderer !== undefined && scene !== undefined && camera !== undefined) {
-    renderer.render(scene, camera)
-  }
+  view?.renderer.render(view.scene, view.camera)
 
   frame = requestAnimationFrame(animate)
 }
@@ -140,7 +127,7 @@ function startLoop(): void {
 function resize(): void {
   const element = host.value
 
-  if (element === null || renderer === undefined || camera === undefined) {
+  if (element === null || view === undefined) {
     return
   }
 
@@ -151,29 +138,8 @@ function resize(): void {
     return
   }
 
-  renderer.setSize(width, height, false)
-  fitCameraToCanvas(camera, width, height)
+  resizeViewScene(view, width, height)
   requestRender()
-}
-
-/**
- * Frees the GPU resources of the scene.
- */
-function disposeScene(): void {
-  scene?.traverse((object) => {
-    const disposables = object as unknown as {
-      geometry?: { dispose?: () => void }
-      material?: { dispose?: () => void }
-    }
-
-    disposables.geometry?.dispose?.()
-    disposables.material?.dispose?.()
-  })
-
-  scene = undefined
-  camera = undefined
-  renderer?.dispose()
-  renderer = undefined
 }
 
 /**
@@ -186,11 +152,7 @@ function createScene(): void {
     return
   }
 
-  renderer = new WebGLRenderer({ canvas: target, antialias: true })
-  renderer.setPixelRatio(window.devicePixelRatio)
-  scene = new Scene()
-  camera = new PerspectiveCamera(75, 1, 0.1, 10_000)
-  addPreviewLights(scene)
+  view = createViewScene(target)
   resize()
 }
 
@@ -202,22 +164,26 @@ function createScene(): void {
 function showMap(map: ArxMap): void {
   const target = canvas.value
 
-  if (scene === undefined || camera === undefined || target === null) {
+  if (view === undefined || target === null) {
     return
   }
 
-  for (const mesh of map.meshes) {
-    scene.add(mesh)
+  shown = viewMeshesOf(map.meshes)
+
+  for (const mesh of shown) {
+    view.scene.add(mesh)
   }
 
-  scenePosition = map.scenePosition
-  controls = new CameraControls({
+  // a level change builds a new camera: the old one has to let the pointer and the listeners go
+  controls?.dispose()
+
+  const created = new CameraControls({
     canvas: target,
-    camera,
+    camera: view.camera,
     scene: map.scenePosition,
     player: map.player,
-    onPoseChange: (): void => {
-      refreshHud()
+    onPoseChange: (pose): void => {
+      cameraStore.setPose(pose)
       requestRender()
     },
     onLockChange: (locked: boolean): void => {
@@ -231,7 +197,18 @@ function showMap(map: ArxMap): void {
     },
   })
 
-  refreshHud()
+  controls = created
+
+  // the camera controls widget moves this camera, so it needs a handle on it
+  cameraStore.setDriver({
+    applyPose: (pose): void => {
+      created.applyPose(pose)
+    },
+    moveToSpawn: (): void => {
+      created.applySpawnPose()
+    },
+  })
+
   requestRender()
 }
 
@@ -239,15 +216,20 @@ function showMap(map: ArxMap): void {
  * Takes the map out of the scene again.
  *
  * @remarks
- * The meshes belong to the store, so this only unparents them: a rebuilt widget puts the same
- * geometries back, and their materials are not touched.
- *
- * @param map The map to remove from the scene.
+ * The geometry and the material belong to the store, so this only removes the wrappers of this widget: a
+ * rebuilt widget puts the level back at once. The camera goes with the map: the store keeps the last pose
+ * it reported, but nothing is left to move.
  */
-function hideMap(map: ArxMap): void {
-  for (const mesh of map.meshes) {
-    scene?.remove(mesh)
+function hideMap(): void {
+  for (const mesh of shown) {
+    view?.scene.remove(mesh)
   }
+
+  shown = []
+
+  cameraStore.setDriver(undefined)
+  controls?.dispose()
+  controls = undefined
 }
 
 onMounted(() => {
@@ -270,7 +252,7 @@ onMounted(() => {
     },
     (map, previous) => {
       if (previous !== undefined) {
-        hideMap(previous)
+        hideMap()
       }
 
       if (map !== undefined) {
@@ -289,6 +271,7 @@ onBeforeUnmount(() => {
 
   observer?.disconnect()
   observer = undefined
+  cameraStore.setDriver(undefined)
   controls?.dispose()
   controls = undefined
 
@@ -297,7 +280,10 @@ onBeforeUnmount(() => {
     frame = 0
   }
 
-  disposeScene()
+  if (view !== undefined) {
+    disposeViewScene(view)
+    view = undefined
+  }
 })
 </script>
 

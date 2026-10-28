@@ -5,8 +5,11 @@ import {
   applyGameAngle,
   gamePositionToWorld,
   isGameAngleInRange,
+  readCameraPose,
   readGameAngle,
+  setCameraPose,
   worldPositionToGame,
+  type CameraPose,
 } from '../../../../src/editor/modules/view3d/cameraPose.ts'
 
 /**
@@ -128,5 +131,36 @@ void describe('isGameAngleInRange', () => {
     assert.equal(isGameAngleInRange({ pitch: 0, yaw: -1 }), false)
     assert.equal(isGameAngleInRange({ pitch: 91, yaw: 0 }), false)
     assert.equal(isGameAngleInRange({ pitch: -91, yaw: 0 }), false)
+  })
+})
+
+void describe('setCameraPose and readCameraPose', () => {
+  void it('puts the camera to the pose the game asks for', () => {
+    const camera = new PerspectiveCamera()
+    const pose: CameraPose = { position: { x: -1716.36, y: 384.4, z: 5227.66 }, angle: { pitch: 0, yaw: 270 } }
+
+    setCameraPose(camera, scene, pose)
+
+    assert.deepEqual(rounded(camera.position), [6966.36, 840.6, 877.66])
+    // a game yaw of 270 looks towards the negative X of three, which is the positive X of the game
+    const direction = camera.getWorldDirection(new Vector3())
+    assert.ok(Math.abs(direction.x + 1) < 1e-9)
+  })
+
+  void it('reads the pose back, so a set and a read are the same pose', () => {
+    const camera = new PerspectiveCamera()
+    const pose: CameraPose = { position: { x: -1716.36, y: 384.4, z: 5227.66 }, angle: { pitch: -12, yaw: 270 } }
+
+    setCameraPose(camera, scene, pose)
+    const read = readCameraPose(camera, scene)
+
+    assert.deepEqual(
+      [read.position.x, read.position.y, read.position.z].map((value) => {
+        return Math.round(value * 100) / 100
+      }),
+      [pose.position.x, pose.position.y, pose.position.z],
+    )
+    assert.equal(roundDifference(read.angle.pitch - pose.angle.pitch), 0)
+    assert.equal(roundDifference(read.angle.yaw - pose.angle.yaw), 0)
   })
 })

@@ -1,20 +1,27 @@
 <script setup lang="ts">
-// placeholder figures: the real numbers come from the loaded level (a later round)
-const statistics = [
-  ['Polygon count', '12 348'],
-  ['Textured polygons', '9 812'],
-  ['Light count', '47'],
-  ['Anchors', '3'],
-  ['Portals', '8'],
-] as const
+import { computed } from 'vue'
+import { levelStore } from '../../../modules/level/levelStore.ts'
+import { statisticsRows } from './statistics.ts'
+
+/**
+ * The numbers of the loaded level.
+ *
+ * @remarks
+ * They come from the three files of the level (the FTS holds the polygons, the anchors and the portals, the
+ * LLF the lights), so the widget follows the level store: it shows `…` until the level is parsed, then the
+ * real counts.
+ */
+const rows = computed(() => {
+  return statisticsRows(levelStore.map.value)
+})
 </script>
 
 <template>
   <div class="StatisticsWidget">
     <dl>
-      <template v-for="[label, value] in statistics" :key="label">
-        <dt>{{ label }}</dt>
-        <dd>{{ value }}</dd>
+      <template v-for="row in rows" :key="row.label">
+        <dt>{{ row.label }}</dt>
+        <dd>{{ row.value }}</dd>
       </template>
     </dl>
   </div>

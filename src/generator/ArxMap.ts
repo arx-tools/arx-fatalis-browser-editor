@@ -3,7 +3,38 @@ import type { ArxDLF, ArxFTS, ArxLight, ArxLLF, ArxVector3 } from 'arx-convert/t
 import { Mesh } from 'three'
 import { unpackArxFile } from './files.ts'
 import { Player } from './Player.ts'
-import { createLevelGeometry, createLevelMaterial } from './meshes.ts'
+import { createLevelGeometry, createLevelMaterial, visiblePolygons } from './meshes.ts'
+
+/**
+ * The numbers the statistics widget shows about a level.
+ *
+ * @remarks
+ * They come from the three files: the polygons, the texture containers, the anchors and the portals from
+ * the FTS, the lights from the LLF. The editor shows them as they are; nothing here is computed by the
+ * renderer.
+ */
+export interface MapStatistics {
+  /**
+   * Every polygon of the scene.
+   */
+  readonly polygonCount: number
+  /**
+   * The polygons drawn with a real texture: the ones the invisible (alpha) containers do not cover.
+   */
+  readonly texturedPolygonCount: number
+  /**
+   * The lights of the LLF.
+   */
+  readonly lightCount: number
+  /**
+   * The anchors of the pathfinding graph the FTS stores.
+   */
+  readonly anchorCount: number
+  /**
+   * The portals between the rooms.
+   */
+  readonly portalCount: number
+}
 
 /**
  * A level of the game: its three parsed files and the meshes built from them.
@@ -75,6 +106,23 @@ export class ArxMap {
    */
   get lights(): readonly ArxLight[] {
     return this.llf.lights
+  }
+
+  /**
+   * The numbers of the level, as the statistics widget shows them.
+   *
+   * @remarks
+   * The textured count walks the polygons once, so it is worth reading the getter once and keeping the
+   * result (the widget does it in a computed).
+   */
+  get statistics(): MapStatistics {
+    return {
+      polygonCount: this.fts.polygons.length,
+      texturedPolygonCount: visiblePolygons(this.fts).length,
+      lightCount: this.llf.lights.length,
+      anchorCount: this.fts.anchors.length,
+      portalCount: this.fts.portals.length,
+    }
   }
 
   /**

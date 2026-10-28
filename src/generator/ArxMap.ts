@@ -1,7 +1,8 @@
 import { DLF, FTS, LLF } from 'arx-convert'
-import type { ArxDLF, ArxFTS, ArxLight, ArxLLF, ArxRotation, ArxVector3 } from 'arx-convert/types'
+import type { ArxDLF, ArxFTS, ArxLight, ArxLLF, ArxVector3 } from 'arx-convert/types'
 import { Mesh } from 'three'
 import { unpackArxFile } from './files.ts'
+import { Player } from './Player.ts'
 import { createLevelGeometry, createLevelMaterial } from './meshes.ts'
 
 /**
@@ -37,6 +38,11 @@ export class ArxMap {
   readonly meshes: Mesh[]
 
   /**
+   * The player of the map: where it stands and where it faces.
+   */
+  readonly player: Player
+
+  /**
    * The general description of the level.
    */
   private readonly dlf: ArxDLF
@@ -58,29 +64,6 @@ export class ArxMap {
    */
   get scenePosition(): ArxVector3 {
     return this.fts.header.mScenePosition
-  }
-
-  /**
-   * Where the player enters the level, in the game's coordinate system.
-   *
-   * @remarks
-   * The camera of the editor starts here once it gets its controls; the first round only frames the
-   * whole level, so it does not use it yet.
-   */
-  get playerPosition(): ArxVector3 {
-    return this.dlf.header.player.position
-  }
-
-  /**
-   * The way the player faces when it enters the level: the `angleEdit` of the DLF.
-   *
-   * @remarks
-   * The game turns the player to this angle on a level load and then zeroes the pitch
-   * (`src/core/Core.cpp`: `player.angle.setPitch(0)`), so only the yaw (`b`) survives. The fields are
-   * `a` = pitch, `b` = yaw, `g` = roll.
-   */
-  get playerOrientation(): ArxRotation {
-    return this.dlf.header.player.orientation
   }
 
   /**
@@ -107,6 +90,7 @@ export class ArxMap {
     this.dlf = DLF.load(unpackArxFile(dlf, 'dlf'))
     this.fts = FTS.load(unpackArxFile(fts, 'fts'))
     this.llf = LLF.load(unpackArxFile(llf, 'llf'))
+    this.player = new Player(this.dlf)
 
     const geometry = createLevelGeometry(this.fts)
     geometry.computeBoundingBox()

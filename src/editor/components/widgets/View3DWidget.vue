@@ -210,8 +210,7 @@ async function loadStarterLevel(): Promise<void> {
       canvas: target,
       camera,
       scene: map.scenePosition,
-      playerPosition: map.playerPosition,
-      playerOrientation: map.playerOrientation,
+      player: map.player,
       onPoseChange: (): void => {
         refreshHud()
         requestRender()

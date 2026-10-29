@@ -45,12 +45,14 @@ $surface-overlay:                                hsl(217,  6%, 31%);
 $surface-drag-source:                            hsl(217, 10%, 16%);
 $surface-spotlit:                                hsl(217,  7%, 37%);
 
-// the accents: their hue is the knob, the saturation and the lightness are fixed per role
+// the accents: their hue is the knob, the saturation and the lightness are fixed per role. The marker is
+// the red triangle the game itself uses for the player, so it keeps a hue of its own (0)
 $accent:                                         hsl( 31, 78%, 56%);
 $danger:                                         hsl(  9, 61%, 45%);
 $danger-bright:                                  hsl(  9, 55%, 51%);
 $danger-deep:                                    hsl(  9, 65%, 33%);
 $danger-muted:                                   hsl(  9, 27%, 61%);
+$marker:                                         hsl(  0, 82%, 50%);
 $ok:                                             hsl(102, 36%, 48%);
 $interactive:                                    hsl(211, 65%, 57%);
 $text-on-danger:                                 hsl(  9, 67%, 89%);

@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 import type { Mesh } from 'three'
 import type { ArxVector3 } from 'arx-convert/types'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
+import { cameraStore } from '../cameraStore.ts'
 import { levelStore } from '../../../modules/level/levelStore.ts'
 import type { CameraBounds } from '../cameraBounds.ts'
 import { gameBoundsOf, viewMeshesOf } from '../levelScene.ts'
 import { createViewScene, disposeViewScene, resizeViewScene, type ViewScene } from '../viewScene.ts'
 import type { CameraViewMode } from './cameraAlign.ts'
 import { frameFixedView } from './fixedView.ts'
+import { markerState, type MarkerState } from './cameraMarker.ts'
 
 /**
  * The direction the widget shows the level from.
@@ -25,13 +27,26 @@ const props = defineProps<{
 const host = useTemplateRef<HTMLElement>('host')
 const canvas = useTemplateRef<HTMLCanvasElement>('canvas')
 
+/**
+ * Where the camera marker sits on the canvas, in CSS pixels, and whether it is in front of the camera.
+ *
+ * @remarks
+ * The marker follows the camera of the walkable view, so it is recomputed when that camera reports a pose
+ * (a step, a jump), and when the framing of this view changes (a resize, a level). It is a plain element
+ * over the canvas (not a sprite of the scene), so the geometry never covers it and it stays sharp at every
+ * size.
+ */
+const marker = ref<MarkerState>({ x: 0, y: 0, visible: false, degrees: 0, arrow: false })
+
 let view: ViewScene | undefined
 let shown: Mesh[] = []
+let player: ArxVector3 | undefined
 let bounds: CameraBounds | undefined
 let scenePosition: ArxVector3 | undefined
 let observer: ResizeObserver | undefined
 let frame = 0
 let stopWatching: (() => void) | undefined
+let stopWatchingCamera: (() => void) | undefined
 
 /**
  * Draws the next frame, at most once per animation frame.
@@ -48,6 +63,28 @@ function requestRender(): void {
   frame = requestAnimationFrame(() => {
     frame = 0
     view?.renderer.render(view.scene, view.camera)
+  })
+}
+
+/**
+ * Projects the camera onto the canvas of the framed view.
+ *
+ * @param target The view the marker belongs to.
+ */
+function updateMarker(target: ViewScene): void {
+  if (player === undefined || scenePosition === undefined) {
+    marker.value = { x: 0, y: 0, visible: false, degrees: 0, arrow: false }
+
+    return
+  }
+
+  marker.value = markerState({
+    pose: cameraStore.pose.value,
+    player,
+    scene: scenePosition,
+    camera: target.camera,
+    width: target.renderer.domElement.clientWidth,
+    height: target.renderer.domElement.clientHeight,
   })
 }
 
@@ -70,6 +107,7 @@ function frameView(): void {
     fieldOfView: view.camera.fov,
     aspect: view.camera.aspect,
   })
+  updateMarker(view)
   requestRender()
 }
 
@@ -115,6 +153,7 @@ function showMap(map: ArxMap): void {
   }
 
   scenePosition = map.scenePosition
+  player = map.player.position
   bounds = gameBoundsOf(map.meshes, map.scenePosition)
   frameView()
 }
@@ -132,7 +171,9 @@ function hideMap(): void {
   }
 
   shown = []
+  player = undefined
   bounds = undefined
+  marker.value = { x: 0, y: 0, visible: false, degrees: 0, arrow: false }
 }
 
 onMounted(() => {
@@ -170,11 +211,26 @@ onMounted(() => {
     },
     { immediate: true },
   )
+
+  // the marker follows the camera of the walkable view: a step or a jump moves it in every fixed view,
+  // and the level itself does not have to be drawn again (the dot is a DOM element)
+  stopWatchingCamera = watch(
+    () => {
+      return cameraStore.pose.value
+    },
+    () => {
+      if (view !== undefined) {
+        updateMarker(view)
+      }
+    },
+  )
 })
 
 onBeforeUnmount(() => {
   stopWatching?.()
   stopWatching = undefined
+  stopWatchingCamera?.()
+  stopWatchingCamera = undefined
 
   observer?.disconnect()
   observer = undefined
@@ -194,6 +250,19 @@ onBeforeUnmount(() => {
 <template>
   <div ref="host" class="FixedViewWidget">
     <canvas ref="canvas" class="stage"></canvas>
+    <svg
+      v-if="marker.visible"
+      class="camera-mark"
+      viewBox="0 0 11 16"
+      :style="{
+        left: `${marker.x}px`,
+        top: `${marker.y}px`,
+        transform: `translate(-50%, -50%) rotate(${marker.degrees}deg)`,
+      }"
+      aria-hidden="true"
+    >
+      <polygon points="5.5,1 10,15 1,15" />
+    </svg>
     <div class="direction">{{ mode }}</div>
   </div>
 </template>
@@ -213,6 +282,24 @@ onBeforeUnmount(() => {
     display: block;
     width: 100%;
     height: 100%;
+  }
+
+  // where the camera of the walkable view stands: the red arrowhead the game itself uses for the player,
+  // turned with the way the camera looks. It does not scale with the zoom: it marks a place, not a piece
+  // of geometry. An `svg` keeps the outline a true pixel wide on the slanted sides, too
+  .camera-mark {
+    position: absolute;
+    width: 11px;
+    height: 16px;
+    overflow: visible;
+    pointer-events: none;
+
+    polygon {
+      fill: $marker;
+      stroke: $ink;
+      stroke-width: 1;
+      stroke-linejoin: round;
+    }
   }
 
   .direction {

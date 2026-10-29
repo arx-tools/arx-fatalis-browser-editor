@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { levelStore } from '../../../modules/level/levelStore.ts'
+import WidgetHeading from '../WidgetHeading.vue'
 import { statisticsRows } from './statistics.ts'
+
+/**
+ * The label of the widget, from the widget definition.
+ */
+const props = defineProps<{
+  readonly label: string
+}>()
 
 /**
  * The numbers of the loaded level.
@@ -18,6 +26,7 @@ const rows = computed(() => {
 
 <template>
   <div class="StatisticsWidget">
+    <WidgetHeading :label="props.label" />
     <dl>
       <template v-for="row in rows" :key="row.label">
         <dt>{{ row.label }}</dt>
@@ -29,6 +38,7 @@ const rows = computed(() => {
 
 <style scoped lang="scss">
 @use '../../../palette' as *;
+@use '../infoRows' as *;
 
 .StatisticsWidget {
   height: 100%;
@@ -37,9 +47,10 @@ const rows = computed(() => {
   dl {
     display: grid;
     grid-template-columns: 1fr auto;
-    gap: 4px 12px;
     margin: 0;
     font-size: 13px;
+
+    @include info-rows;
   }
 
   dt {

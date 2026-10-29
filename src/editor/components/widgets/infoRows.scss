@@ -1,0 +1,18 @@
+@use '../../palette' as *;
+
+// The rows of an info widget (a `dl` of label/value pairs): a very faint zebra keeps the eye on the line
+// of a longer list. The pairs are `dt` + `dd`, so every second `dt` and the `dd` after it are the row the
+// stripe covers. Included by the info widgets, so the two lists look the same.
+@mixin info-rows {
+  // the rows are contiguous (no gap on the `dl`), so the stripe of a row is one piece; the space between
+  // the two columns comes from the padding of the cells
+  dt,
+  dd {
+    padding: 2px 6px;
+  }
+
+  dt:nth-of-type(even),
+  dt:nth-of-type(even) + dd {
+    background: rgba($text-strong, 0.03);
+  }
+}

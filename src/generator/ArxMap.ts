@@ -2,8 +2,9 @@ import { DLF, FTS, LLF } from 'arx-convert'
 import type { ArxDLF, ArxFTS, ArxLight, ArxLLF, ArxVector3 } from 'arx-convert/types'
 import { Mesh } from 'three'
 import { unpackArxFile } from './files.ts'
+import { createLevelGeometry, createLevelMaterial } from './meshes.ts'
+import { countPolygonShapes } from './polygonCounts.ts'
 import { Player } from './Player.ts'
-import { createLevelGeometry, createLevelMaterial, visiblePolygons } from './meshes.ts'
 
 /**
  * The numbers the statistics widget shows about a level.
@@ -19,9 +20,13 @@ export interface MapStatistics {
    */
   readonly polygonCount: number
   /**
-   * The polygons drawn with a real texture: the ones the invisible (alpha) containers do not cover.
+   * The polygons without the quad flag: the triangles of the mesh.
    */
-  readonly texturedPolygonCount: number
+  readonly triangleCount: number
+  /**
+   * The polygons with the quad flag.
+   */
+  readonly quadCount: number
   /**
    * The lights of the LLF.
    */
@@ -112,13 +117,17 @@ export class ArxMap {
    * The numbers of the level, as the statistics widget shows them.
    *
    * @remarks
-   * The textured count walks the polygons once, so it is worth reading the getter once and keeping the
-   * result (the widget does it in a computed).
+   * The counts walk the polygons once, so it is worth reading the getter once and keeping the result (the
+   * widget does it in a computed).
    */
   get statistics(): MapStatistics {
+    const { polygons } = this.fts
+    const counts = countPolygonShapes(polygons)
+
     return {
-      polygonCount: this.fts.polygons.length,
-      texturedPolygonCount: visiblePolygons(this.fts).length,
+      polygonCount: polygons.length,
+      triangleCount: counts.triangleCount,
+      quadCount: counts.quadCount,
       lightCount: this.llf.lights.length,
       anchorCount: this.fts.anchors.length,
       portalCount: this.fts.portals.length,

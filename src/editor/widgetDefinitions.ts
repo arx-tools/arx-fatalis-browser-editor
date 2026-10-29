@@ -98,16 +98,16 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
     kind: WIDGET_KINDS.mapStatistics,
     label: 'Map Statistics',
     group: 'info',
-    create: (): Widget => {
-      return new VueWidget(StatisticsWidget)
+    create: (label): Widget => {
+      return new VueWidget(StatisticsWidget, { label })
     },
   },
   {
     kind: WIDGET_KINDS.controls,
     label: 'Keyboard Shortcuts',
     group: 'info',
-    create: (): Widget => {
-      return new VueWidget(HelpWidget)
+    create: (label): Widget => {
+      return new VueWidget(HelpWidget, { label })
     },
   },
 ]

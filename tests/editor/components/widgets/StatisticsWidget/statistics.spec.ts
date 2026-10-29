@@ -11,7 +11,8 @@ import {
  */
 const statistics: MapStatistics = {
   polygonCount: 12_348,
-  texturedPolygonCount: 9812,
+  triangleCount: 2536,
+  quadCount: 9812,
   lightCount: 47,
   anchorCount: 3,
   portalCount: 8,
@@ -42,7 +43,7 @@ void describe('statisticsRows', () => {
   void it('shows a pending value for every row while the level is loading', () => {
     const rows = statisticsRows(undefined)
 
-    assert.equal(rows.length, 5)
+    assert.equal(rows.length, 6)
     assert.deepEqual(
       rows.filter((row) => {
         return row.value !== '…'
@@ -53,9 +54,10 @@ void describe('statisticsRows', () => {
 
   void it('shows the numbers of the loaded level', () => {
     assert.deepEqual(statisticsRows({ statistics }), [
-      { label: 'Polygon count', value: '12 348' },
-      { label: 'Textured polygons', value: '9 812' },
-      { label: 'Light count', value: '47' },
+      { label: 'Triangles', value: '2 536' },
+      { label: 'Quads', value: '9 812' },
+      { label: 'Total polygons', value: '12 348' },
+      { label: 'Lights', value: '47' },
       { label: 'Anchors', value: '3' },
       { label: 'Portals', value: '8' },
     ])

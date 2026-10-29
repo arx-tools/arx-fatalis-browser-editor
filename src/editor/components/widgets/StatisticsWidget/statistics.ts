@@ -65,9 +65,10 @@ export function formatCount(value: number): string {
 export function statisticsRows(map: { readonly statistics: MapStatistics } | undefined): StatisticsRow[] {
   if (map === undefined) {
     return [
-      { label: 'Polygon count', value: PENDING_VALUE },
-      { label: 'Textured polygons', value: PENDING_VALUE },
-      { label: 'Light count', value: PENDING_VALUE },
+      { label: 'Triangles', value: PENDING_VALUE },
+      { label: 'Quads', value: PENDING_VALUE },
+      { label: 'Total polygons', value: PENDING_VALUE },
+      { label: 'Lights', value: PENDING_VALUE },
       { label: 'Anchors', value: PENDING_VALUE },
       { label: 'Portals', value: PENDING_VALUE },
     ]
@@ -76,9 +77,10 @@ export function statisticsRows(map: { readonly statistics: MapStatistics } | und
   const { statistics } = map
 
   return [
-    { label: 'Polygon count', value: formatCount(statistics.polygonCount) },
-    { label: 'Textured polygons', value: formatCount(statistics.texturedPolygonCount) },
-    { label: 'Light count', value: formatCount(statistics.lightCount) },
+    { label: 'Triangles', value: formatCount(statistics.triangleCount) },
+    { label: 'Quads', value: formatCount(statistics.quadCount) },
+    { label: 'Total polygons', value: formatCount(statistics.polygonCount) },
+    { label: 'Lights', value: formatCount(statistics.lightCount) },
     { label: 'Anchors', value: formatCount(statistics.anchorCount) },
     { label: 'Portals', value: formatCount(statistics.portalCount) },
   ]

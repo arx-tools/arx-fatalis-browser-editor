@@ -56,8 +56,14 @@ export interface WidgetDefinition {
   readonly group: WidgetGroup
   /**
    * Creates a new, unparented widget of the kind.
+   *
+   * @remarks
+   * The label comes along, so a widget that shows its own title (the info widgets do) can pass it to the
+   * component instead of spelling the name twice.
+   *
+   * @param label The label of the definition, the same text the dock and the picker show.
    */
-  readonly create: () => Widget
+  readonly create: (label: string) => Widget
 }
 
 /**
@@ -68,7 +74,7 @@ export interface WidgetDefinition {
  * @returns A new, unparented widget.
  */
 export function createWidget(definition: WidgetDefinition): Widget {
-  const widget = definition.create()
+  const widget = definition.create(definition.label)
   widget.title.label = definition.label
   widget.node.dataset.widget = definition.label
   widget.node.dataset.widgetKind = definition.kind

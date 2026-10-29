@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import WidgetHeading from '../WidgetHeading.vue'
+import WidgetHeading from '../../WidgetHeading.vue'
 
 // the placeholder of the key help: the real list is generated from the hotkey table (a later round)
 const hotkeys = [

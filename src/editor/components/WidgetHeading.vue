@@ -20,7 +20,7 @@ defineProps<{
 </template>
 
 <style scoped lang="scss">
-@use '../../palette' as *;
+@use '../palette' as *;
 
 .WidgetHeading {
   margin: 0 0 6px;

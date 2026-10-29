@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { levelStore } from '../../../modules/level/levelStore.ts'
-import WidgetHeading from '../WidgetHeading.vue'
+import WidgetHeading from '../../WidgetHeading.vue'
 import { statisticsRows } from './statistics.ts'
 
 /**

@@ -55,7 +55,7 @@ jobs:
         run: npm run build
 
   e2e:
-    name: e2e (chromium, firefox)
+    name: e2e (chromium)
     runs-on: ubuntu-latest
     needs: check
     steps:
@@ -73,20 +73,16 @@ jobs:
       - name: install
         run: npm ci
 
-      # the same build the runner has locally: the two engines the editor is used in
+      # only chromium here: firefox needs a gl driver of its own on a runner without a gpu, and it has no
+      # rasteriser to fall back on (its webgl2 goes out with "FEATURE_FAILURE_WEBGL_EXHAUSTED_DRIVERS").
+      # The chromium build carries its swiftshader, so it renders the level on the runner as it is. The
+      # firefox half of the suite runs locally, where there is a gpu (or a mesa of the developer's own)
       - name: install the browsers
-        run: npx playwright install --with-deps chromium firefox
-
-      # firefox draws the level with a software gl when there is no gpu, but it has no rasteriser of its own:
-      # the playwright deps do not bring the mesa driver (llvmpipe), and without it firefox runs out of gl
-      # drivers ("FEATURE_FAILURE_WEBGL_EXHAUSTED_DRIVERS") and the level never gets a webgl2 context.
-      # chromium is fine either way, its swiftshader comes in the browser package
-      - name: install the software gl
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1-mesa-dri libglx-mesa0 libegl-mesa0
+        run: npx playwright install --with-deps chromium
 
       # the development server is started by the playwright config (`webServer`), no build is needed
       - name: e2e
-        run: npm run test:e2e
+        run: npm run test:e2e -- --project=chromium
 
       # a failed browser test is debugged from its trace and screenshot, so they are kept (a few days:
       # the artifacts of a green run are empty, `test-results/` only fills up on a failure)

@@ -119,6 +119,26 @@ function createPreview(container: HTMLElement): HTMLDivElement {
 }
 
 /**
+ * Creates the cover that hides the interface from the pointer while a drag is on.
+ *
+ * @remarks
+ * Everything under the pointer reacts to it — a button lights up, a row of the widget picker is
+ * spotlighted, a widget overlay highlights — which is noise during a drag: the cover is a transparent
+ * layer over the whole page that takes every pointer event, so the widgets, the picker and the header keep
+ * their calm state. It is a child of the body (not of the dock), because the picker of the header hangs
+ * over the dock and would keep reacting otherwise. The drag itself listens on the window, so it does not
+ * need the events to reach anything, and the preview and the ghost are drawn above the cover.
+ *
+ * @returns The cover element, invisible until a drag starts.
+ */
+function createCover(): HTMLDivElement {
+  const cover = document.createElement('div')
+  cover.className = 'drop-cover'
+
+  return cover
+}
+
+/**
  * Tells whether two drop targets are the same.
  *
  * @param first The first target, or `null`.
@@ -148,6 +168,7 @@ class DragSession {
   private readonly options: DragOptions
   private readonly ghost: HTMLDivElement
   private readonly preview: HTMLDivElement
+  private readonly cover: HTMLDivElement
   private dragging = false
   private target: DropTarget | null = null
   private settled = false
@@ -163,6 +184,7 @@ class DragSession {
     this.options = options
     this.ghost = createGhost(options.label)
     this.preview = createPreview(options.container)
+    this.cover = createCover()
   }
 
   /**
@@ -202,6 +224,7 @@ class DragSession {
     globalThis.removeEventListener('blur', this.handleBlur, true)
     this.ghost.remove()
     this.preview.remove()
+    this.cover.remove()
     document.body.classList.remove('is-dragging')
 
     if (this.dragging) {
@@ -232,6 +255,8 @@ class DragSession {
       }
 
       this.dragging = true
+      this.cover.classList.add('is-visible')
+      document.body.append(this.cover)
       document.body.append(this.ghost)
       document.body.classList.add('is-dragging')
       exclude?.node.classList.add('is-drag-source')

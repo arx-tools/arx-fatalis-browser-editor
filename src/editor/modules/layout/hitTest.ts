@@ -1,16 +1,27 @@
 import type { DockPanel, Widget } from '@lumino/widgets'
 
 /**
- * How close to the edge of the dock the pointer has to be for the drop to take the whole edge of the
- * dock instead of half of one widget, in pixels.
+ * How deep the hotspot of an edge of the dock reaches into the dock, in pixels.
  *
  * @remarks
- * - this is lumino's own `edges` idea (`DockPanel.IEdges`, its default is 12 px): inside the band the
- * drop target is the *root*, not a widget
- * - without it a layout could only be rebuilt by cutting widgets, which is not what a dock editor
- * should do
+ * - every edge has a hotspot at its middle, and it is the only place where the edge of the dock wins:
+ * **everywhere else the widget under the pointer wins**
+ * - a band along the whole edge (the old 100 px one) swallowed the thin widgets: a 44 px strip at the
+ * top of the dock could not be dropped onto at all, and neither could the half of a narrow column at the
+ * left edge
+ * - the hotspot is wide along the edge ({@link EDGE_HOTSPOT_LENGTH}) and shallow across it, so it is
+ * easy to hit and the widget keeps the rest of its area
  */
-export const EDGE_ZONE = 100
+export const EDGE_HOTSPOT_DEPTH = 100
+
+/**
+ * How wide the hotspot of an edge of the dock is along the edge, in pixels.
+ *
+ * @remarks
+ * The top and the bottom hotspots are `200 × 100`, the left and the right ones are `100 × 200`: twice as
+ * long along the edge as they are deep.
+ */
+export const EDGE_HOTSPOT_LENGTH = 200
 
 /**
  * How far from a widget the pointer may be and still count as over it, in pixels.
@@ -103,9 +114,15 @@ export interface HitTestInput {
    */
   readonly clientY: number
   /**
-   * The width of the edge band of the dock in pixels; defaults to {@link EDGE_ZONE}.
+   * How deep the hotspot of the dock edges reaches into the dock in pixels; defaults to
+   * {@link EDGE_HOTSPOT_DEPTH}.
    */
-  readonly edgeZone?: number
+  readonly hotspotDepth?: number
+  /**
+   * How wide the hotspot of the dock edges is along the edge in pixels; defaults to
+   * {@link EDGE_HOTSPOT_LENGTH}.
+   */
+  readonly hotspotLength?: number
 }
 
 /**
@@ -210,41 +227,64 @@ export function modeAt(rect: ClientRect, clientX: number, clientY: number): Dock
 }
 
 /**
- * Tells which edge of the dock the pointer is close enough to for a root edge drop.
+ * Tells which edge of the dock the pointer is in the hotspot of, for a root edge drop.
  *
  * @remarks
- * - the nearest edge wins, and on a tie the earlier one in lumino's own order (top, right, bottom,
- * left) is kept
+ * - every edge has a hotspot centred on its middle: {@link EDGE_HOTSPOT_LENGTH} long along the edge and
+ * {@link EDGE_HOTSPOT_DEPTH} deep into the dock, so the top and the bottom one is `200 × 100` and the left and
+ * the right one is `100 × 200`
+ * - inside it the edge wins, so a thin widget at the edge keeps everything but the hotspot
+ * - the nearest edge wins, and on a tie the earlier one in lumino's own order (top, right, bottom, left)
+ * is kept
  *
  * @param rect The rectangle of the dock.
  * @param clientX The client X position of the pointer.
  * @param clientY The client Y position of the pointer.
- * @param zone The width of the edge band in pixels.
+ * @param options The size of the hotspot: how deep it reaches into the dock and how wide it is along the
+ * edge, in pixels.
+ * @param options.depth How deep the hotspot reaches into the dock; the default is {@link EDGE_HOTSPOT_DEPTH}.
+ * @param options.length How wide the hotspot is along the edge; the default is
+ * {@link EDGE_HOTSPOT_LENGTH}.
  *
- * @returns The insertion mode of the edge, or `null` when the pointer is outside the band.
+ * @returns The insertion mode of the edge, or `null` when the pointer is outside every hotspot.
  */
-export function edgeZoneAt(
+export function edgeHotspotAt(
   rect: ClientRect,
   clientX: number,
   clientY: number,
-  zone: number,
+  options: { readonly depth?: number; readonly length?: number } = {},
 ): DockPanel.InsertMode | null {
-  const candidates: Array<{ mode: DockPanel.InsertMode; distance: number }> = [
-    { mode: 'split-top', distance: clientY - rect.top },
-    { mode: 'split-right', distance: rect.right - clientX },
-    { mode: 'split-bottom', distance: rect.bottom - clientY },
-    { mode: 'split-left', distance: clientX - rect.left },
+  const depth = options.depth ?? EDGE_HOTSPOT_DEPTH
+  const length = options.length ?? EDGE_HOTSPOT_LENGTH
+  const half = length / 2
+  const halfWidth = rect.width / 2
+  const halfHeight = rect.height / 2
+  const middleX = rect.left + halfWidth
+  const middleY = rect.top + halfHeight
+  const onMiddleX = clientX >= middleX - half && clientX <= middleX + half
+  const onMiddleY = clientY >= middleY - half && clientY <= middleY + half
+  const candidates: Array<{ mode: DockPanel.InsertMode; distance: number; covers: boolean }> = [
+    { mode: 'split-top', distance: clientY - rect.top, covers: onMiddleX },
+    { mode: 'split-right', distance: rect.right - clientX, covers: onMiddleY },
+    { mode: 'split-bottom', distance: rect.bottom - clientY, covers: onMiddleX },
+    { mode: 'split-left', distance: clientX - rect.left, covers: onMiddleY },
   ]
 
-  let nearest = candidates[0]
+  let nearest: { mode: DockPanel.InsertMode; distance: number; covers: boolean } | undefined
 
   for (const candidate of candidates) {
-    if (candidate.distance < nearest.distance) {
+    const isInside = candidate.covers && candidate.distance >= 0 && candidate.distance < depth
+
+    if (!isInside) {
+      continue
+    }
+
+    if (nearest === undefined || candidate.distance < nearest.distance) {
       nearest = candidate
     }
   }
 
-  if (nearest.distance >= zone) {
+  if (nearest === undefined) {
     return null
   }
 
@@ -255,10 +295,10 @@ export function edgeZoneAt(
  * Finds the drop target under the pointer.
  *
  * @remarks
- * Three outcomes, in this order:
+ * Four outcomes, in this order:
  * - an empty dock takes the widget at the root (the whole dock)
- * - inside the edge band of the dock the drop target is the **root**: the dragged widget becomes a
- * full height (or full width) column and no existing widget is cut in half
+ * - inside the hotspot at the middle of an edge of the dock the drop target is the **root**: the dragged
+ * widget becomes a full height (or full width) column and no existing widget is cut in half
  * - otherwise the nearest widget wins and the widget takes the half the pointer is in. The nearest
  * widget is used (not only the one under the pointer), so dropping in the thin gap between two
  * widgets still works; farther than {@link DROP_DISTANCE} from every widget there is no target
@@ -268,7 +308,14 @@ export function edgeZoneAt(
  * @returns The drop target, or `null` when there is none.
  */
 export function hitTestDrop(input: HitTestInput): DropTarget | null {
-  const { dockRect, widgets, clientX, clientY, edgeZone = EDGE_ZONE } = input
+  const {
+    dockRect,
+    widgets,
+    clientX,
+    clientY,
+    hotspotDepth = EDGE_HOTSPOT_DEPTH,
+    hotspotLength = EDGE_HOTSPOT_LENGTH,
+  } = input
 
   if (!isInside(dockRect, clientX, clientY)) {
     return null
@@ -278,7 +325,8 @@ export function hitTestDrop(input: HitTestInput): DropTarget | null {
     return { mode: 'tab-after', ref: null }
   }
 
-  const edge = edgeZoneAt(dockRect, clientX, clientY, edgeZone)
+  // the middle of an edge takes the whole edge (a full column or row), everywhere else the widget wins
+  const edge = edgeHotspotAt(dockRect, clientX, clientY, { depth: hotspotDepth, length: hotspotLength })
 
   if (edge !== null) {
     return { mode: edge, ref: null }

@@ -5,7 +5,7 @@ import { installDom } from '../../../support/dom.ts'
 installDom()
 
 const { Widget } = await import('@lumino/widgets')
-const { DROP_DISTANCE, EDGE_ZONE, ROOT_ZONE_SHARE, edgeZoneAt, hitTestDrop, modeAt, previewBox } =
+const { DROP_DISTANCE, EDGE_HOTSPOT_LENGTH, ROOT_ZONE_SHARE, edgeHotspotAt, hitTestDrop, modeAt, previewBox } =
   await import('../../../../src/editor/modules/layout/hitTest.ts')
 
 /**
@@ -73,23 +73,45 @@ void describe('modeAt', () => {
   })
 })
 
-void describe('edgeZoneAt', () => {
+void describe('edgeHotspotAt', () => {
   const dock = rect({ left: 0, top: 0, width: 1000, height: 600 })
 
-  void it('finds every edge inside the band', () => {
-    assert.equal(edgeZoneAt(dock, 10, 300, EDGE_ZONE), 'split-left')
-    assert.equal(edgeZoneAt(dock, 990, 300, EDGE_ZONE), 'split-right')
-    assert.equal(edgeZoneAt(dock, 500, 10, EDGE_ZONE), 'split-top')
-    assert.equal(edgeZoneAt(dock, 500, 590, EDGE_ZONE), 'split-bottom')
+  void it('finds the middle of every edge', () => {
+    assert.equal(edgeHotspotAt(dock, 10, 300), 'split-left')
+    assert.equal(edgeHotspotAt(dock, 990, 300), 'split-right')
+    assert.equal(edgeHotspotAt(dock, 500, 10), 'split-top')
+    assert.equal(edgeHotspotAt(dock, 500, 590), 'split-bottom')
   })
 
   void it('gives null in the middle of the dock', () => {
-    assert.equal(edgeZoneAt(dock, 500, 300, EDGE_ZONE), null)
+    assert.equal(edgeHotspotAt(dock, 500, 300), null)
+  })
+
+  void it('is twice as long along the edge as it is deep', () => {
+    assert.equal(EDGE_HOTSPOT_LENGTH, 200)
+
+    // the top hotspot of a 1000 px wide dock runs from 400 to 600, 100 px deep
+    assert.equal(edgeHotspotAt(dock, 410, 10), 'split-top')
+    assert.equal(edgeHotspotAt(dock, 590, 90), 'split-top')
+    assert.equal(edgeHotspotAt(dock, 390, 10), null)
+    assert.equal(edgeHotspotAt(dock, 610, 10), null)
+    assert.equal(edgeHotspotAt(dock, 500, 110), null)
+
+    // the left one runs from 200 to 400 down the edge
+    assert.equal(edgeHotspotAt(dock, 10, 210), 'split-left')
+    assert.equal(edgeHotspotAt(dock, 10, 390), 'split-left')
+    assert.equal(edgeHotspotAt(dock, 10, 190), null)
+    assert.equal(edgeHotspotAt(dock, 110, 300), null)
   })
 
   void it('keeps lumino order on a tie', () => {
-    assert.equal(edgeZoneAt(dock, 0, 0, EDGE_ZONE), 'split-top')
-    assert.equal(edgeZoneAt(dock, 1000, 600, EDGE_ZONE), 'split-right')
+    assert.equal(edgeHotspotAt(dock, 500, 0), 'split-top')
+    assert.equal(edgeHotspotAt(dock, 500, 600), 'split-bottom')
+  })
+
+  void it('gives null outside the dock', () => {
+    assert.equal(edgeHotspotAt(dock, 500, -10), null)
+    assert.equal(edgeHotspotAt(dock, -10, 300), null)
   })
 })
 
@@ -113,9 +135,59 @@ void describe('hitTestDrop', () => {
     })
   })
 
-  void it('gives the root edge inside the band', () => {
-    assert.deepEqual(hitTestDrop({ dockRect: dock, widgets, clientX: 20, clientY: 300 }), {
+  void it('gives the root edge inside the hotspot of an edge', () => {
+    assert.deepEqual(hitTestDrop({ dockRect: dock, widgets, clientX: 8, clientY: 300 }), {
       mode: 'split-left',
+      ref: null,
+    })
+  })
+
+  void it('gives the nearest widget in the band away from the hotspot', () => {
+    // 10 px from the top edge, but away from its middle: the widget under the pointer wins
+    const strip = new Widget()
+    const thin = [{ widget: strip, rect: rect({ left: 0, top: 0, width: 1000, height: 52 }) }]
+
+    assert.deepEqual(hitTestDrop({ dockRect: dock, widgets: thin, clientX: 250, clientY: 10 }), {
+      mode: 'split-top',
+      ref: strip,
+    })
+  })
+
+  void it('gives the half of a thin widget outside the hotspot', () => {
+    // a 52 px strip at the top of the dock: only its outer 16 px is the band of the dock
+    const strip = new Widget()
+    const thin = [{ widget: strip, rect: rect({ left: 0, top: 0, width: 1000, height: 52 }) }]
+
+    assert.deepEqual(hitTestDrop({ dockRect: dock, widgets: thin, clientX: 250, clientY: 26 }), {
+      mode: 'split-left',
+      ref: strip,
+    })
+    assert.deepEqual(hitTestDrop({ dockRect: dock, widgets: thin, clientX: 750, clientY: 26 }), {
+      mode: 'split-right',
+      ref: strip,
+    })
+  })
+
+  void it('gives the half of a narrow column outside the hotspot', () => {
+    const column = new Widget()
+    const narrow = [{ widget: column, rect: rect({ left: 0, top: 0, width: 150, height: 600 }) }]
+
+    assert.deepEqual(hitTestDrop({ dockRect: dock, widgets: narrow, clientX: 20, clientY: 450 }), {
+      mode: 'split-left',
+      ref: column,
+    })
+    assert.deepEqual(hitTestDrop({ dockRect: dock, widgets: narrow, clientX: 40, clientY: 420 }), {
+      mode: 'split-left',
+      ref: column,
+    })
+  })
+
+  void it('keeps the root edge over a widget when the pointer is in the hotspot', () => {
+    const big = new Widget()
+    const large = [{ widget: big, rect: rect({ left: 0, top: 0, width: 1000, height: 300 }) }]
+
+    assert.deepEqual(hitTestDrop({ dockRect: dock, widgets: large, clientX: 500, clientY: 8 }), {
+      mode: 'split-top',
       ref: null,
     })
   })

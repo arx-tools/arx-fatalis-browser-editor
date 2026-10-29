@@ -126,9 +126,24 @@ body.is-dragging {
 }
 
 // the preview shows the half (or the edge strip) of the dock where the dragged widget would land
+// the cover of a drag: a transparent layer over the whole page that takes the pointer, so nothing under
+// it lights up — not the widgets, not the widget picker of the header (the drag listens on the window, so
+// it does not need the events). The preview and the ghost are drawn above it.
+.drop-cover {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: none;
+  background: transparent;
+
+  &.is-visible {
+    display: block;
+  }
+}
+
 .drop-preview {
   position: absolute;
-  z-index: 20;
+  z-index: 950;
   display: none;
   box-sizing: border-box;
   background: rgba($accent, 0.18);

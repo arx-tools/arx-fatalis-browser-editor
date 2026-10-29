@@ -1,3 +1,8 @@
 node_modules
 dist
 dist-ssr
+
+# the playwright run: the traces and the screenshots of a failed test, and the reports
+test-results/
+playwright-report/
+blob-report/

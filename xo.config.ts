@@ -74,8 +74,9 @@ const xoConfig: XoConfigItem[] = [
     plugins: {
       'unused-imports': unusedImports,
     },
-    // the vite config is build tooling, it belongs to the node project of the tsconfigs
-    files: ['vite.config.ts'],
+    // the vite config and the playwright config are build tooling, they belong to the node project of
+    // the tsconfigs
+    files: ['vite.config.ts', 'playwright.config.ts'],
     languageOptions: {
       parserOptions: {
         projectService: false,

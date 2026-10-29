@@ -13,8 +13,10 @@
     "preview": "vite preview",
     "lint": "rm -f xo.config.mjs && xo --ignore 'xo.config.mjs'",
     "lint:watch": "nodemon --watch src --watch tests --watch xo.config.ts --watch vite.config.ts --exec \"npm run lint\" --ext ts,vue",
-    "test": "arx-lib-test",
-    "test:coverage": "node --test --experimental-test-coverage --test-reporter=spec 'tests/**/*.spec.ts'",
+    "test": "arx-lib-test 'tests/{editor,generator}/**/*.spec.ts'",
+    "test:coverage": "node --test --experimental-test-coverage --test-reporter=spec 'tests/{editor,generator}/**/*.spec.ts'",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "typecheck": "vue-tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.node.json && tsc -p tsconfig.tests.json && vue-tsc -p tsconfig.json --noEmit"
   },
   "repository": {
@@ -48,6 +50,7 @@
   },
   "devDependencies": {
     "@arx-tools/config": "^0.1.0",
+    "@playwright/test": "1.62.1",
     "@types/color-rgba": "^2.1.3",
     "@types/jsdom": "^30.0.0",
     "@types/node": "^22.20.5",
@@ -60,6 +63,7 @@
     "http-server": "^14.1.1",
     "jsdom": "^30.1.3",
     "nodemon": "^3.1.14",
+    "pre-commit": "^2.0.0",
     "type-fest": "^5.5.0",
     "typescript": "~6.0.2",
     "vite": "^8.0.12",
@@ -70,5 +74,12 @@
   "keywords": [
     "arx-fatalis"
   ],
+  "pre-commit": {
+    "run": [
+      "lint",
+      "typecheck",
+      "test"
+    ]
+  },
   "prettier": "@arx-tools/config/prettier"
 }

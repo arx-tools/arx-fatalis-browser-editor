@@ -31,16 +31,49 @@ The features behind the version: type stripping (22.18), `Array.prototype.toSort
 `.toReversed()` (20.0), `import.meta.dirname` (20.11) and the custom `node:test` reporter of the
 shared [`@arx-tools/config`](https://github.com/arx-tools/config) package (20.1).
 
-| command              | what it does                                                |
-| -------------------- | ----------------------------------------------------------- |
-| `npm ci`             | installs the dependencies                                   |
-| `npm run dev`        | dev server on http://localhost:5173/editor/                 |
-| `npm run lint`       | checks the code against the pre-defined coding guidelines   |
-| `npm run lint:watch` | re-runs the lint when a source, test or config file changes |
-| `npm run typecheck`  | type checks the app, the tooling and the tests (4 projects) |
-| `npm test`           | runs the tests with the built-in runner                     |
-| `npm run build`      | typecheck and build into `dist/`                            |
-| `npm run preview`    | serves the build of `dist/`                                 |
+| command               | what it does                                                |
+| --------------------- | ----------------------------------------------------------- |
+| `npm ci`              | installs the dependencies                                   |
+| `npm run dev`         | dev server on http://localhost:5173/editor/                 |
+| `npm run lint`        | checks the code against the pre-defined coding guidelines   |
+| `npm run lint:watch`  | re-runs the lint when a source, test or config file changes |
+| `npm run typecheck`   | type checks the app, the tooling and the tests (4 projects) |
+| `npm test`            | runs the unit tests with the built-in runner                |
+| `npm run test:e2e`    | runs the browser tests in chromium and firefox              |
+| `npm run test:e2e:ui` | the same, in the playwright ui                              |
+| `npm run build`       | typecheck and build into `dist/`                            |
+| `npm run preview`     | serves the build of `dist/`                                 |
+
+The two test runners do not overlap: `tests/editor` and `tests/generator` are the unit tests of the
+modules (`node:test`, no browser), `tests/e2e` is the playwright suite of the whole page (the dock, the
+layout editor, the widgets). Both are part of the gate.
+
+The browser tests need the engines once, per machine:
+
+```bash
+npx playwright install chromium firefox      # --with-deps as well on a fresh linux box
+```
+
+A commit runs `lint`, `typecheck` and `test` through the [`pre-commit`](https://www.npmjs.com/package/pre-commit)
+package of `package.json` (the same setup the other arx-tools repositories use); the browser tests run on
+the ci, where they are cheap enough (see `.github/workflows/test.yml`).
+
+### Test files
+
+The editor downloads the files of a level from
+[pkware-test-files](https://github.com/arx-tools/pkware-test-files) at runtime. A browser test reads the
+same three files (`fast.fts`, `levelN.dlf`, `levelN.llf`) from a **checkout next to this repository** —
+the way [`node-pkware`](https://github.com/arx-tools/node-pkware) and
+[`arx-convert`](https://github.com/arx-tools/arx-convert) find their test levels:
+
+```bash
+git clone git@github.com:arx-tools/pkware-test-files.git ../pkware-test-files
+```
+
+That keeps a test independent of the network and of what the `main` branch of that repository holds
+today, and it keeps the multi megabyte game files out of this repository. The level files are not
+committed here; the suite reads them from the sibling checkout. (The smoke test of the shell does not
+need them yet — it does not wait for the level; the scenarios that load one do.)
 
 `?levelIdx=N` in the url loads another level; `?lightingCalculatorMode=` (the same key the
 generator's `.env` uses, default `Arx`; `Realistic`, `TextureRainbow`, `MaxBrightness`,

@@ -77,6 +77,13 @@ jobs:
       - name: install the browsers
         run: npx playwright install --with-deps chromium firefox
 
+      # firefox draws the level with a software gl when there is no gpu, but it has no rasteriser of its own:
+      # the playwright deps do not bring the mesa driver (llvmpipe), and without it firefox runs out of gl
+      # drivers ("FEATURE_FAILURE_WEBGL_EXHAUSTED_DRIVERS") and the level never gets a webgl2 context.
+      # chromium is fine either way, its swiftshader comes in the browser package
+      - name: install the software gl
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1-mesa-dri libglx-mesa0 libegl-mesa0
+
       # the development server is started by the playwright config (`webServer`), no build is needed
       - name: e2e
         run: npm run test:e2e

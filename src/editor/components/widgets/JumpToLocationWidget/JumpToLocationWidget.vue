@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { cameraStore } from '../cameraStore.ts'
+import FieldLabel from '../../FieldLabel.vue'
 import { jumpTargets, jumpTo } from './locations.ts'
 
 /**
@@ -36,15 +37,14 @@ function onGo(): void {
 
 <template>
   <div class="JumpToLocationWidget">
-    <div class="field">
-      <label class="caption" for="jump-target">Jump to</label>
+    <FieldLabel class="field" label="Jump to" for="jump-target">
       <div class="row">
         <select id="jump-target" v-model="selectedId" :disabled="readOnly">
           <option v-for="target in targets" :key="target.id" :value="target.id">{{ target.label }}</option>
         </select>
         <button type="button" :disabled="readOnly" @click="onGo">Go</button>
       </div>
-    </div>
+    </FieldLabel>
   </div>
 </template>
 
@@ -63,18 +63,10 @@ function onGo(): void {
   font-size: 13px;
 
   // centred both ways, always: the `margin` with `auto` centres the caption and the row when there is free
-  // space, and falls back to the top left when the widget is too small for them
+  // space, and falls back to the top left when the widget is too small for them (the caption and the two
+  // pixels under it come from the `FieldLabel` component)
   .field {
-    display: inline-flex;
-    flex-direction: column;
-    gap: 2px;
     margin: auto;
-  }
-
-  .caption {
-    color: $text-muted;
-    font-size: 10px;
-    line-height: 1;
   }
 
   .row {

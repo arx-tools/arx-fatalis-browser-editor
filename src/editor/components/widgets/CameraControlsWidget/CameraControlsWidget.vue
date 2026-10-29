@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { WIDGET_KINDS } from '../../../modules/layout/widgetKinds.ts'
 import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
 import { cameraStore } from '../cameraStore.ts'
+import FieldLabel from '../../FieldLabel.vue'
 import {
   cameraFieldGroups,
   cameraFieldLabels,
@@ -151,9 +152,15 @@ function onStep(name: CameraFieldName, direction: 1 | -1): void {
   <div class="CameraControlsWidget">
     <div class="fields">
       <div v-for="group in cameraFieldGroups" :key="group.label" class="group">
-        <label v-for="name in group.fields" :key="name" class="field">
-          <span class="caption">{{ cameraFieldLabels[name] }}</span>
+        <FieldLabel
+          v-for="name in group.fields"
+          :key="name"
+          class="field"
+          :label="cameraFieldLabels[name]"
+          :for="`camera-${name}`"
+        >
           <input
+            :id="`camera-${name}`"
             :value="fields[name]"
             :class="{ invalid: invalid[name] }"
             :disabled="readOnly || name === 'roll'"
@@ -169,7 +176,7 @@ function onStep(name: CameraFieldName, direction: 1 | -1): void {
             @keydown.up.prevent="onStep(name, 1)"
             @keydown.down.prevent="onStep(name, -1)"
           />
-        </label>
+        </FieldLabel>
       </div>
     </div>
   </div>
@@ -216,17 +223,10 @@ function onStep(name: CameraFieldName, direction: 1 | -1): void {
     border-left: 1px solid $border-dark;
   }
 
+  // the caption of a field names a text input, so the whole cell is a text cursor (the cell itself is the
+  // `FieldLabel` component, which brings the caption and the two pixels under it)
   .field {
-    display: inline-flex;
-    flex-direction: column;
-    gap: 2px;
     cursor: text;
-  }
-
-  .caption {
-    color: $text-muted;
-    font-size: 10px;
-    line-height: 1;
   }
 
   // the caption needs the room the input has: a narrow widget wraps the groups, it never squeezes the

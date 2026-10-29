@@ -1,7 +1,13 @@
 import { DockLayout, DockPanel, Widget } from '@lumino/widgets'
 import { computed, ref, shallowRef, type ComputedRef, type Ref } from 'vue'
 import { dockWidgets } from '../layout/dockWidgets.ts'
-import { defaultLayout } from '../layout/layoutPresets.ts'
+import {
+  CUSTOM_PRESET_LABEL,
+  defaultLayout,
+  factoryPreset,
+  factoryPresets,
+  type PresetId,
+} from '../layout/layoutPresets.ts'
 import { LayoutEditor, type MountWidgetOverlay } from '../layout/layoutEditor.ts'
 import {
   collectKinds,
@@ -45,9 +51,17 @@ export interface EditorShell {
    */
   readonly pickerOpen: Ref<boolean>
   /**
-   * Tells whether the layout differs from {@link defaultLayout}: the reset button is shown when it does.
+   * Tells whether the live layout is not the selected factory preset: a modified layout is the custom one.
    */
   readonly isLayoutModified: ComputedRef<boolean>
+  /**
+   * The presets the header offers: the factory ones and, once there is one, the custom slot at the end.
+   */
+  readonly presets: ComputedRef<readonly PresetOption[]>
+  /**
+   * The preset the dropdown shows as selected.
+   */
+  readonly selectedPreset: ComputedRef<PresetId>
   /**
    * The layout editor of the dock.
    */
@@ -80,13 +94,29 @@ export interface EditorShell {
    */
   removeWidgetByKind: (kind: string) => void
   /**
-   * Throws the current layout away and restores the default one.
+   * Puts a preset on the dock.
+   *
+   * @param id The preset to apply: a factory one, or the stored custom layout.
    */
-  resetLayout: () => void
+  applyPreset: (id: string) => void
   /**
    * Disposes the widgets and the dock, so a hot reload does not leave a live shell behind.
    */
   dispose: () => void
+}
+
+/**
+ * One row of the preset dropdown of the header.
+ */
+export interface PresetOption {
+  /**
+   * The identifier the dropdown selects it by.
+   */
+  readonly id: PresetId
+  /**
+   * The name shown in the dropdown.
+   */
+  readonly label: string
 }
 
 /**
@@ -172,10 +202,53 @@ export function createEditorShell(
     deserialize: readLayout,
   })
 
+  /**
+   * The custom slot: the last layout that is not a factory preset.
+   *
+   * @remarks
+   * It is the one level of history of the layout: a change of a factory preset lands here, and the header
+   * offers it back as the `Custom` entry. It is stored, so the dropdown keeps it after a reload.
+   */
+  const customLayout = persistedRef<LayoutNode | undefined>({
+    key: 'layoutCustom',
+    defaultValue: undefined,
+    persistInLocalStorage: true,
+    debounce: 250,
+    deserialize: readLayout,
+  })
+
   // the live tree: it follows the dock synchronously, while the ref above writes it out debounced
   const currentLayout = shallowRef<LayoutNode>(storedLayout.value)
+
+  /**
+   * The preset the header shows as selected.
+   *
+   * @remarks
+   * It is derived from the live layout: the dropdown follows the dock, so a preset that is dragged back to
+   * its own tree selects itself again, and a tree that is not a factory one is the custom slot.
+   */
+  const selectedPreset = computed<PresetId>(() => {
+    const found = factoryPresets.find((preset) => {
+      return layoutEquals(preset.layout, currentLayout.value)
+    })
+
+    return found?.id ?? 'custom'
+  })
+
   const isLayoutModified = computed(() => {
-    return !layoutEquals(currentLayout.value, defaultLayout)
+    return selectedPreset.value === 'custom'
+  })
+
+  const presets = computed<readonly PresetOption[]>(() => {
+    const options = factoryPresets.map((preset): PresetOption => {
+      return { id: preset.id, label: preset.label }
+    })
+
+    if (customLayout.value === undefined) {
+      return options
+    }
+
+    return [...options, { id: 'custom', label: CUSTOM_PRESET_LABEL }]
   })
 
   // the dock changes are lumino's, not vue's: the signal of the dock refreshes the reactive list
@@ -208,6 +281,16 @@ export function createEditorShell(
 
     if (node === null) {
       return
+    }
+
+    // a tree that is not a factory preset is the custom one: the change of the user overwrites the previous
+    // custom layout, while a preset only fills the dock and leaves the slot alone
+    if (
+      factoryPresets.every((preset) => {
+        return !layoutEquals(preset.layout, node)
+      })
+    ) {
+      customLayout.value = node
     }
 
     currentLayout.value = node
@@ -345,11 +428,18 @@ export function createEditorShell(
   }
 
   /**
-   * Throws the current layout away and restores the default one.
+   * Puts a preset on the dock.
+   *
+   * @param id The preset to apply: a factory one, or the stored custom layout.
    */
-  function resetLayout(): void {
-    storedLayout.reset()
-    applyLayout(defaultLayout)
+  function applyPreset(id: string): void {
+    const layout = factoryPreset(id)?.layout ?? customLayout.value
+
+    if (layout === undefined) {
+      return
+    }
+
+    applyLayout(layout)
   }
 
   /**
@@ -372,8 +462,20 @@ export function createEditorShell(
     }
   }
 
-  // the starting layout: the stored one, or the default when there is nothing usable in the storage
+  // the starting layout: the stored one, or the default when there is nothing usable in the storage. The
+  // custom slot has to be there before the dock is filled, because `syncLayout` only writes a tree that is
+  // not a factory preset into it
+  if (
+    customLayout.value === undefined &&
+    factoryPresets.every((preset) => {
+      return !layoutEquals(preset.layout, storedLayout.value)
+    })
+  ) {
+    customLayout.value = storedLayout.value
+  }
+
   applyLayout(storedLayout.value)
+
   dock.layoutModified.connect(syncLayout)
 
   const resizeObserver = new ResizeObserver(() => {
@@ -397,13 +499,15 @@ export function createEditorShell(
     isEditing,
     pickerOpen,
     isLayoutModified,
+    presets,
+    selectedPreset,
     setEditing,
     setPickerOpen: (open: boolean): void => {
       pickerOpen.value = open
     },
     addWidget,
     removeWidgetByKind,
-    resetLayout,
+    applyPreset,
     dispose: (): void => {
       cancelAnimationFrame(firstFit)
       resizeObserver.disconnect()

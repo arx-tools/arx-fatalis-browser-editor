@@ -56,6 +56,38 @@ const definitions: readonly WidgetDefinition[] = [
       return new Widget()
     },
   },
+  {
+    kind: 'top-view',
+    label: 'Top View',
+    group: 'rendering',
+    create: (): LuminoWidget => {
+      return new Widget()
+    },
+  },
+  {
+    kind: 'left-view',
+    label: 'Left View',
+    group: 'rendering',
+    create: (): LuminoWidget => {
+      return new Widget()
+    },
+  },
+  {
+    kind: 'front-view',
+    label: 'Front View',
+    group: 'rendering',
+    create: (): LuminoWidget => {
+      return new Widget()
+    },
+  },
+  {
+    kind: 'jump-to-location',
+    label: 'Jump to Location',
+    group: 'controls',
+    create: (): LuminoWidget => {
+      return new Widget()
+    },
+  },
 ]
 
 /**
@@ -116,7 +148,7 @@ void describe('the layout of the shell', () => {
     shell.dispose()
   })
 
-  void it('shows the reset state after a widget was added', () => {
+  void it('shows the modified state after a widget was added', () => {
     const { shell } = buildShell()
 
     shell.addWidget('camera-controls')
@@ -125,14 +157,108 @@ void describe('the layout of the shell', () => {
     shell.dispose()
   })
 
-  void it('restores the default layout on reset', () => {
+  void it('offers the factory presets, without a custom one at the start', () => {
+    const { shell } = buildShell()
+
+    assert.deepEqual(
+      shell.presets.value.map((preset) => {
+        return preset.label
+      }),
+      ['Default', 'Advanced'],
+    )
+    assert.equal(shell.selectedPreset.value, 'default')
+    shell.dispose()
+  })
+
+  void it('puts the advanced layout on the dock', () => {
+    const { shell } = buildShell()
+
+    shell.applyPreset('advanced')
+
+    assert.equal(shell.selectedPreset.value, 'advanced')
+    assert.equal(shell.isLayoutModified.value, false)
+    assert.deepEqual([...shell.placedKinds.value].toSorted(), [
+      '3d-view',
+      'camera-controls',
+      'controls',
+      'front-view',
+      'jump-to-location',
+      'left-view',
+      'map-statistics',
+      'top-view',
+    ])
+    shell.dispose()
+  })
+
+  void it('gives a custom preset to a modified factory layout', () => {
     const { shell } = buildShell()
 
     shell.addWidget('camera-controls')
-    shell.resetLayout()
 
-    assert.equal(shell.isLayoutModified.value, false)
+    assert.equal(shell.selectedPreset.value, 'custom')
+    assert.deepEqual(
+      shell.presets.value.map((preset) => {
+        return preset.label
+      }),
+      ['Default', 'Advanced', 'Custom'],
+    )
+    shell.dispose()
+  })
+
+  void it('keeps the custom layout when a factory preset is chosen', () => {
+    const { shell } = buildShell()
+
+    shell.addWidget('camera-controls')
+    shell.applyPreset('default')
+
+    assert.equal(shell.selectedPreset.value, 'default')
     assert.deepEqual([...shell.placedKinds.value].toSorted(), ['3d-view', 'controls', 'map-statistics'])
+    // the custom is still there, so switching back brings the modified layout again
+    assert.equal(shell.presets.value.length, 3)
+
+    shell.applyPreset('custom')
+
+    assert.equal(shell.selectedPreset.value, 'custom')
+    assert.equal(shell.placedKinds.value.includes('camera-controls'), true)
+    shell.dispose()
+  })
+
+  void it('replaces the custom layout when a factory preset is modified again', () => {
+    const { shell } = buildShell()
+
+    shell.addWidget('camera-controls')
+    shell.applyPreset('default')
+    shell.addWidget('controls')
+
+    assert.equal(shell.selectedPreset.value, 'custom')
+    assert.equal(shell.presets.value.length, 3)
+    shell.dispose()
+  })
+
+  void it('comes back on the custom preset after a reload', () => {
+    const custom = {
+      type: 'split',
+      orientation: 'vertical',
+      sizes: [0.7, 0.3],
+      children: [
+        { type: 'widget', kind: 'controls' },
+        { type: 'widget', kind: 'camera-controls' },
+      ],
+    }
+
+    localStorage.setItem('layout', JSON.stringify(custom))
+    localStorage.setItem('layoutCustom', JSON.stringify(custom))
+    localStorage.setItem('layoutPreset', 'custom')
+
+    const { shell } = buildShell()
+
+    assert.equal(shell.selectedPreset.value, 'custom')
+    assert.deepEqual(
+      shell.presets.value.map((preset) => {
+        return preset.id
+      }),
+      ['default', 'advanced', 'custom'],
+    )
     shell.dispose()
   })
 

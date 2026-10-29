@@ -138,8 +138,9 @@ async function startDrag(event: PointerEvent, kind: string): Promise<void> {
 .WidgetPicker {
   position: absolute;
   z-index: 50;
-  top: calc(100% + 4px);
-  right: 0;
+  top: 4px;
+  left: 0;
+  transform: translateX(-50%);
   min-width: 170px;
   padding: 4px;
   background: $surface-float;

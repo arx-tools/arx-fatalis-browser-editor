@@ -6,7 +6,7 @@ import { levelStore } from '../../../modules/level/levelStore.ts'
 import { WIDGET_KINDS } from '../../../modules/layout/widgetKinds.ts'
 import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
 import { cameraStore } from '../cameraStore.ts'
-import { viewMeshesOf } from '../levelScene.ts'
+import { addPreviewLights, viewMeshesOf } from '../levelScene.ts'
 import { createViewScene, disposeViewScene, resizeViewScene, type ViewScene } from '../viewScene.ts'
 import { createOrientationGizmo, type OrientationGizmo } from './orientationGizmo.ts'
 import { CameraControls } from './cameraControls.ts'
@@ -181,6 +181,10 @@ function createScene(): void {
   }
 
   view = createViewScene(target)
+
+  // the walkable view shows the level with the preview lights for now (the lighting round replaces them)
+  addPreviewLights(view.scene)
+
   gizmo = createOrientationGizmo(gizmoTarget, view.camera)
   resize()
 }

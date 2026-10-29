@@ -6,7 +6,7 @@ import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { cameraStore } from '../cameraStore.ts'
 import { levelStore } from '../../../modules/level/levelStore.ts'
 import type { CameraBounds } from '../cameraBounds.ts'
-import { gameBoundsOf, viewMeshesOf } from '../levelScene.ts'
+import { addPreviewLights, gameBoundsOf, previewMaterial, viewMeshesOf } from '../levelScene.ts'
 import { createViewScene, disposeViewScene, resizeViewScene, type ViewScene } from '../viewScene.ts'
 import type { CameraViewMode } from './cameraAlign.ts'
 import { frameFixedView } from './fixedView.ts'
@@ -146,7 +146,9 @@ function showMap(map: ArxMap): void {
     return
   }
 
-  shown = viewMeshesOf(map.meshes)
+  // the small views keep the flat, neutral face of the level: their own material, so a later texture or
+  // lighting round can not repaint them (TODO 92)
+  shown = viewMeshesOf(map.meshes, previewMaterial())
 
   for (const mesh of shown) {
     view.scene.add(mesh)
@@ -184,6 +186,7 @@ onMounted(() => {
   }
 
   view = createViewScene(target)
+  addPreviewLights(view.scene)
 
   observer = new ResizeObserver(() => {
     resize()

@@ -1,12 +1,14 @@
 import { PerspectiveCamera, Scene, WebGLRenderer } from 'three'
-import { addPreviewLights, fitCameraToCanvas } from './levelScene.ts'
+import { fitCameraToCanvas } from './levelScene.ts'
 
 /**
  * The renderer, the scene and the camera of one widget that shows the level.
  *
  * @remarks
  * The editor has more than one 3D widget (the walkable view and the six fixed directions), and they all
- * need the same three objects with the same lights, so they are built here instead of in every widget.
+ * need the same three objects, so they are built here instead of in every widget. The **lights are not**
+ * part of it: each widget adds what it wants (both use `addPreviewLights` today), so a later lighting round
+ * can change the walkable view without touching the small ones (TODO 92).
  */
 export interface ViewScene {
   /**
@@ -33,22 +35,22 @@ export interface ViewScene {
 export const FIELD_OF_VIEW = 75
 
 /**
- * Builds the renderer, the scene (with the preview lights) and the camera of a widget.
+ * Builds the renderer, the scene and the camera of a widget.
  *
  * @param canvas The canvas of the widget.
  *
- * @returns The scene the widget draws.
+ * @returns The scene the widget draws, without lights (the widget adds them).
  */
 export function createViewScene(canvas: HTMLCanvasElement): ViewScene {
   const renderer = new WebGLRenderer({ canvas, antialias: true })
 
   renderer.setPixelRatio(window.devicePixelRatio)
 
-  const scene = new Scene()
-
-  addPreviewLights(scene)
-
-  return { renderer, scene, camera: new PerspectiveCamera(FIELD_OF_VIEW, 1, 0.1, 10_000) }
+  return {
+    renderer,
+    scene: new Scene(),
+    camera: new PerspectiveCamera(FIELD_OF_VIEW, 1, 0.1, 10_000),
+  }
 }
 
 /**

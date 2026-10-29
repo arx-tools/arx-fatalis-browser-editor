@@ -16,8 +16,10 @@ import {
   fitCameraToCanvas,
   frameLevel,
   gameBoundsOf,
+  previewMaterial,
   viewMeshesOf,
 } from '../../../../src/editor/components/widgets/levelScene.ts'
+import { createLevelMaterial } from '../../../../src/generator/meshes.ts'
 
 /**
  * The scene position of the test level.
@@ -146,6 +148,19 @@ void describe('viewMeshesOf', () => {
     assert.equal(wrapped?.material, material)
   })
 
+  void it('takes the material it is given, and leaves the map untouched', () => {
+    const geometry = new BufferGeometry()
+    const own = new MeshLambertMaterial()
+    const preview = new MeshLambertMaterial()
+    const original = new Mesh(geometry, own)
+
+    const [wrapped] = viewMeshesOf([original], preview)
+
+    assert.equal(wrapped?.geometry, geometry)
+    assert.equal(wrapped?.material, preview)
+    assert.equal(original.material, own)
+  })
+
   void it('gives a fresh set every time, so every scene has its own', () => {
     const original = meshOf(new Box3(new Vector3(0, 0, 0), new Vector3(1, 1, 1)))
 
@@ -160,5 +175,23 @@ void describe('viewMeshesOf', () => {
     const second = meshOf(new Box3())
 
     assert.equal(viewMeshesOf([first, second]).length, 2)
+  })
+})
+
+void describe('previewMaterial', () => {
+  void it('is a flat neutral material without a texture', () => {
+    const material = previewMaterial()
+
+    assert.equal(material.map, null)
+    assert.equal(material instanceof MeshLambertMaterial, true)
+  })
+
+  void it('is not the material of the level', () => {
+    // the small views keep their own face: a later texture or lighting round changes the store's material
+    assert.notEqual(previewMaterial(), createLevelMaterial())
+  })
+
+  void it('is the same instance for every widget', () => {
+    assert.equal(previewMaterial(), previewMaterial())
   })
 })

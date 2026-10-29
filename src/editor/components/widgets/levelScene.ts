@@ -1,5 +1,15 @@
 import type { ArxVector3 } from 'arx-convert/types'
-import { Box3, Mesh, type PerspectiveCamera, AmbientLight, DirectionalLight, type Scene, Vector3 } from 'three'
+import {
+  Box3,
+  Mesh,
+  MeshLambertMaterial,
+  type PerspectiveCamera,
+  AmbientLight,
+  DirectionalLight,
+  type Material,
+  type Scene,
+  Vector3,
+} from 'three'
 import { Color } from '../../../generator/Color.ts'
 import type { CameraBounds } from './cameraBounds.ts'
 import { worldPositionToGame } from './cameraPose.ts'
@@ -129,11 +139,43 @@ export function gameBoundsOf(meshes: readonly Mesh[], scene: ArxVector3): Camera
  * so every widget builds its own wrappers over the same geometry and material.
  *
  * @param meshes The meshes of the map.
+ * @param material The material of the wrappers; the material of the map when it is left out.
  *
  * @returns New meshes over the same geometries and materials.
  */
-export function viewMeshesOf(meshes: readonly Mesh[]): Mesh[] {
+export function viewMeshesOf(meshes: readonly Mesh[], material?: Material): Mesh[] {
   return meshes.map((mesh) => {
-    return new Mesh(mesh.geometry, mesh.material)
+    return new Mesh(mesh.geometry, material ?? mesh.material)
   })
+}
+
+/**
+ * The flat colour of the fixed views.
+ *
+ * @remarks
+ * It is spelled out here on purpose: the small views are a map of the level, and they keep this neutral
+ * face whatever the walkable view does with textures, polygon flags or lights (TODO 92). The value is the
+ * one the level has today (`MESH_COLOR` of the generator), so the look does not change now — it only stops
+ * following the store later.
+ */
+const PREVIEW_COLOR = '#b8b2a8'
+
+/**
+ * The material of the fixed views.
+ *
+ * @remarks
+ * - it is a **separate instance** from the material of the level: sharing the geometry is fine, sharing the
+ * material would let a later texture or lighting round repaint the small views too
+ * - it lives as long as the editor: the widgets never dispose it (the wrappers of a widget are thrown away
+ * and the material stays for the next one)
+ */
+const previewMaterialInstance = new MeshLambertMaterial({ color: PREVIEW_COLOR })
+
+/**
+ * The material the fixed views draw the level with.
+ *
+ * @returns The flat, neutral material of the small views.
+ */
+export function previewMaterial(): MeshLambertMaterial {
+  return previewMaterialInstance
 }

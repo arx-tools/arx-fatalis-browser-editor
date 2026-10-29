@@ -38,7 +38,7 @@ shared [`@arx-tools/config`](https://github.com/arx-tools/config) package (20.1)
 | `npm run lint`        | checks the code against the pre-defined coding guidelines   |
 | `npm run lint:watch`  | re-runs the lint when a source, test or config file changes |
 | `npm run typecheck`   | type checks the app, the tooling and the tests (4 projects) |
-| `npm test`            | runs the unit tests with the built-in runner                |
+| `npm run test:unit`   | runs the unit tests with the built-in runner                |
 | `npm run test:e2e`    | runs the browser tests in chromium and firefox              |
 | `npm run test:e2e:ui` | the same, in the playwright ui                              |
 | `npm run build`       | typecheck and build into `dist/`                            |

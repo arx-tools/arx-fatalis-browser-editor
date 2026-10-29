@@ -24,7 +24,7 @@ permissions:
 
 jobs:
   check:
-    name: lint, typecheck, test, build
+    name: lint, typecheck, test:unit, build
     runs-on: ubuntu-latest
     steps:
       - name: checkout the editor
@@ -47,8 +47,8 @@ jobs:
       - name: typecheck
         run: npm run typecheck
 
-      - name: test
-        run: npm test
+      - name: test:unit
+        run: npm run test:unit
 
       # the same command the release runs, so a broken build is not found by the tag
       - name: build

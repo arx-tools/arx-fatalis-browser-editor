@@ -13,7 +13,7 @@
     "preview": "vite preview",
     "lint": "rm -f xo.config.mjs && xo --ignore 'xo.config.mjs'",
     "lint:watch": "nodemon --watch src --watch tests --watch xo.config.ts --watch vite.config.ts --exec \"npm run lint\" --ext ts,vue",
-    "test": "arx-lib-test 'tests/{editor,generator}/**/*.spec.ts'",
+    "test:unit": "arx-lib-test 'tests/{editor,generator}/**/*.spec.ts'",
     "test:coverage": "node --test --experimental-test-coverage --test-reporter=spec 'tests/{editor,generator}/**/*.spec.ts'",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
@@ -78,7 +78,8 @@
     "run": [
       "lint",
       "typecheck",
-      "test"
+      "test:unit",
+      "test:e2e"
     ]
   },
   "prettier": "@arx-tools/config/prettier"

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
-import type { Mesh } from 'three'
+import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
+import type { Mesh, Vector3 } from 'three'
 import type { ArxVector3 } from 'arx-convert/types'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { cameraStore } from '../cameraStore.ts'
@@ -9,8 +9,8 @@ import type { CameraBounds } from '../cameraBounds.ts'
 import { addPreviewLights, gameBoundsOf, previewMaterial, viewMeshesOf } from '../levelScene.ts'
 import { createViewScene, disposeViewScene, resizeViewScene, type ViewScene } from '../viewScene.ts'
 import type { CameraViewMode } from './cameraAlign.ts'
-import { frameFixedView } from './fixedView.ts'
-import { markerState, type MarkerState } from './cameraMarker.ts'
+import { MAX_ZOOM, frameFixedView } from './fixedView.ts'
+import { markerPoint, markerState, type MarkerState } from './cameraMarker.ts'
 
 /**
  * The direction the widget shows the level from.
@@ -37,6 +37,32 @@ const canvas = useTemplateRef<HTMLCanvasElement>('canvas')
  * size.
  */
 const marker = ref<MarkerState>({ x: 0, y: 0, visible: false, degrees: 0, arrow: false })
+
+/**
+ * How far this view is zoomed in: `1` is the framed view, the whole level.
+ *
+ * @remarks
+ * Every fixed view has its own zoom, and the wheel of the pointer changes it. Above `1` the camera walks in
+ * along its own line, towards the marker of the walkable camera, so the place we stand stays in the middle
+ * of the small view.
+ */
+const zoom = ref(1)
+
+/**
+ * The zoom as the corner of the view shows it.
+ */
+const zoomLabel = computed(() => {
+  return `${zoom.value.toFixed(1)}×`
+})
+
+/**
+ * How much one pixel of the wheel turns the zoom.
+ *
+ * @remarks
+ * The exponential keeps every step the same size, whatever the current zoom is, and the wheel back is
+ * always the exact inverse of the wheel in.
+ */
+const WHEEL_STEP = 0.0015
 
 let view: ViewScene | undefined
 let shown: Mesh[] = []
@@ -89,6 +115,19 @@ function updateMarker(target: ViewScene): void {
 }
 
 /**
+ * The point the zoomed view looks at: where the camera of the walkable view stands.
+ *
+ * @returns The marker of the walkable camera, or `undefined` while there is nothing to look at.
+ */
+function zoomTarget(): Vector3 | undefined {
+  if (player === undefined || scenePosition === undefined) {
+    return undefined
+  }
+
+  return markerPoint(cameraStore.pose.value, player, scenePosition)
+}
+
+/**
  * Puts the camera to the direction of the widget, for the current size of the canvas.
  *
  * @remarks
@@ -106,9 +145,30 @@ function frameView(): void {
     scene: scenePosition,
     fieldOfView: view.camera.fov,
     aspect: view.camera.aspect,
+    zoom: zoom.value,
+    target: zoomTarget(),
   })
   updateMarker(view)
   requestRender()
+}
+
+/**
+ * Zooms the view with the wheel of the pointer.
+ *
+ * @remarks
+ * The listener is not passive, because the wheel must not scroll the page under the dock, and the zoom is
+ * clamped by the framing of the view: the smallest step is the whole level, the largest one is
+ * {@link MAX_ZOOM}.
+ *
+ * @param event The wheel event of the pointer.
+ */
+function onWheel(event: WheelEvent): void {
+  event.preventDefault()
+
+  const next = zoom.value * Math.exp(-event.deltaY * WHEEL_STEP)
+
+  zoom.value = Math.min(Math.max(next, 1), MAX_ZOOM)
+  frameView()
 }
 
 /**
@@ -194,6 +254,7 @@ onMounted(() => {
 
   if (host.value !== null) {
     observer.observe(host.value)
+    host.value.addEventListener('wheel', onWheel, { passive: false })
   }
 
   resize()
@@ -222,9 +283,18 @@ onMounted(() => {
       return cameraStore.pose.value
     },
     () => {
-      if (view !== undefined) {
-        updateMarker(view)
+      if (view === undefined) {
+        return
       }
+
+      // zoomed in, the view follows the camera: the place we stand stays in the middle of the small view
+      if (zoom.value > 1) {
+        frameView()
+
+        return
+      }
+
+      updateMarker(view)
     },
   )
 })
@@ -234,6 +304,10 @@ onBeforeUnmount(() => {
   stopWatching = undefined
   stopWatchingCamera?.()
   stopWatchingCamera = undefined
+
+  if (host.value !== null) {
+    host.value.removeEventListener('wheel', onWheel)
+  }
 
   observer?.disconnect()
   observer = undefined
@@ -267,6 +341,7 @@ onBeforeUnmount(() => {
       <polygon points="5.5,1 10,15 1,15" />
     </svg>
     <div class="direction">{{ mode }}</div>
+    <div v-if="zoom > 1" class="zoom">{{ zoomLabel }}</div>
   </div>
 </template>
 
@@ -303,6 +378,21 @@ onBeforeUnmount(() => {
       stroke-width: 1;
       stroke-linejoin: round;
     }
+  }
+
+  // how deep the view is zoomed in, in the other corner of the name
+  .zoom {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    padding: 2px 6px;
+    font-family: monospace;
+    font-size: 11px;
+    line-height: 1.4;
+    color: $text;
+    background: rgba($surface-app, 0.72);
+    border-radius: 3px;
+    pointer-events: none;
   }
 
   .direction {

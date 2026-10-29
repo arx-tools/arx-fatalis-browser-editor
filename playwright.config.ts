@@ -54,9 +54,17 @@ export default defineConfig({
   webServer: {
     // the development server, not the preview of the build: it needs no build step and it serves the
     // sources through vite, which is the same path a developer sees
-    command: `npm run dev -- --port ${String(PORT)} --strictPort`,
+    //
+    // `--host 127.0.0.1` is not the default on purpose: the runner may resolve `localhost` to `::1`, and a
+    // vite that listens there never answers the health check (nor the browser) that arrives on 127.0.0.1.
+    // The bind and the two callers name the same address, so the start does not depend on the resolver of
+    // the machine (the first ci run of the e2e died on exactly that, as a 120 second timeout)
+    command: `npm run dev -- --port ${String(PORT)} --strictPort --host 127.0.0.1`,
     url: `http://127.0.0.1:${String(PORT)}/editor/`,
     reuseExistingServer: !isCI,
+    // a start that fails has to say why: the banner and the errors of vite go into the log of the run
+    stdout: 'pipe',
+    stderr: 'pipe',
     timeout: 120_000,
   },
 })

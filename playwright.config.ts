@@ -49,7 +49,24 @@ export default defineConfig({
     // the two engines the editor is used in: the owner browses in firefox, most of the world in a
     // chromium based one
     { name: 'chromium', use: { browserName: 'chromium' } },
-    { name: 'firefox', use: { browserName: 'firefox' } },
+    {
+      name: 'firefox',
+      use: {
+        browserName: 'firefox',
+        // the level needs a WebGL2 context, and a runner has no gpu: firefox would take its own software
+        // renderer for a blocklisted driver and refuse webgl2 ("AllowWebgl2:false restricts context
+        // creation"), which turns into a console error and fails the smoke test. These prefs say that the
+        // software renderer is good enough, on any machine (the first ci run of the e2e died on exactly
+        // that, in firefox only)
+        launchOptions: {
+          firefoxUserPrefs: {
+            'webgl.force-enabled': true,
+            'webgl.disabled': false,
+            'webgl.forbid-software': false,
+          },
+        },
+      },
+    },
   ],
   webServer: {
     // the development server, not the preview of the build: it needs no build step and it serves the

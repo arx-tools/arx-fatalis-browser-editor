@@ -2,6 +2,7 @@ import type { ArxVector3 } from 'arx-convert/types'
 import { PerspectiveCamera, Vector3 } from 'three'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { applyGameAngle, gamePositionToWorld, type CameraPose, type GameAngle } from '../cameraPose.ts'
+import type { CameraViewMode } from './cameraAlign.ts'
 
 /**
  * How long the direction line of the marker is, as a share of the distance of the camera from the marker.
@@ -67,6 +68,10 @@ export interface MarkerInput {
    * The height of the canvas in CSS pixels.
    */
   readonly height: number
+  /**
+   * The direction of the view: the plan views follow the yaw, the side views take the other two axes.
+   */
+  readonly mode: CameraViewMode
 }
 
 /**
@@ -143,6 +148,48 @@ export function projectMarker(
 }
 
 /**
+ * The direction of the marker in a side view, on the canvas.
+ *
+ * @remarks
+ * A side view looks along one of the level's horizontal axes, so the direction the camera looks at has a
+ * depth part the canvas can not show, and projecting it would flip the arrow as the yaw crosses the axis of
+ * the view. The side views therefore take the **other two axes** of the camera: its right for the
+ * horizontal part, its up for the vertical one, both measured on the axes of the view's own camera. The
+ * arrow stays around the up of the canvas (a steep tilt at most), and it turns left and right as the camera
+ * does — without flipping.
+ *
+ * @param pose The pose of the camera of the walkable view.
+ * @param camera The camera of the fixed view: the axes of the canvas.
+ *
+ * @returns The direction on the canvas, in the units of the screen (`x` right, `y` up).
+ */
+function sideDirection(pose: CameraPose, camera: PerspectiveCamera): { x: number; y: number } {
+  const walk = new PerspectiveCamera()
+
+  applyGameAngle(walk, pose.angle)
+  walk.updateMatrixWorld()
+  camera.updateMatrixWorld()
+
+  const right = new Vector3().setFromMatrixColumn(walk.matrixWorld, 0)
+  const up = new Vector3().setFromMatrixColumn(walk.matrixWorld, 1)
+  const rightOfView = new Vector3().setFromMatrixColumn(camera.matrixWorld, 0)
+  const upOfView = new Vector3().setFromMatrixColumn(camera.matrixWorld, 1)
+
+  return { x: right.dot(rightOfView), y: up.dot(upOfView) }
+}
+
+/**
+ * Tells whether the view is a plan one: the top and the bottom look along the vertical axis.
+ *
+ * @param mode The direction of the view.
+ *
+ * @returns `true` for the top and the bottom views.
+ */
+function isPlanView(mode: CameraViewMode): boolean {
+  return mode === 'top' || mode === 'bottom'
+}
+
+/**
  * The direction the camera of the pose looks at, in the space of the meshes.
  *
  * @remarks
@@ -168,9 +215,11 @@ function viewDirection(angle: GameAngle): Vector3 {
  *
  * @remarks
  * - the dot follows the camera of the walkable view (see {@link markerPoint})
- * - the line shows where that camera looks: the direction is projected from the dot, and its length on the
- * screen follows the distance, so a direction that points away from the fixed view collapses and the line
- * is left out
+ * - the **plan** views show where the camera looks: the direction is projected from the dot, and its length
+ * on the screen follows the distance, so a direction that points away from the fixed view collapses and the
+ * arrow is left out
+ * - the **side** views take the other two axes of the camera instead (see {@link sideDirection}), so their
+ * arrow never flips
  *
  * @param input The pose, the level and the camera of the fixed view.
  *
@@ -182,6 +231,13 @@ export function markerState(input: MarkerInput): MarkerState {
 
   if (input.pose === undefined) {
     return { ...placement, degrees: 0, arrow: false }
+  }
+
+  if (!isPlanView(input.mode)) {
+    const side = sideDirection(input.pose, input.camera)
+    const turned = (Math.atan2(side.x, side.y) * 180) / Math.PI
+
+    return { ...placement, degrees: (turned + 360) % 360, arrow: true }
   }
 
   const distance = input.camera.position.distanceTo(point)

@@ -10,7 +10,8 @@ import { addPreviewLights, gameBoundsOf, previewMaterial, viewMeshesOf } from '.
 import { createViewScene, disposeViewScene, resizeViewScene, type ViewScene } from '../viewScene.ts'
 import type { CameraViewMode } from './cameraAlign.ts'
 import { MAX_ZOOM, frameFixedView } from './fixedView.ts'
-import { markerPoint, markerState, type MarkerState } from './cameraMarker.ts'
+import { gridOf, gridOrigin, largestSide } from './grid.ts'
+import { markerPoint, markerState, projectMarker, type MarkerState } from './cameraMarker.ts'
 
 /**
  * The direction the widget shows the level from.
@@ -37,6 +38,26 @@ const canvas = useTemplateRef<HTMLCanvasElement>('canvas')
  * size.
  */
 const marker = ref<MarkerState>({ x: 0, y: 0, visible: false, degrees: 0, arrow: false })
+
+/**
+ * The grid over the view: the size of one cell in CSS pixels, and the offset of its corner.
+ *
+ * @remarks
+ * The grid is a repeating background of the canvas instead of a three `GridHelper`: the plane of a fixed
+ * view is perpendicular to the camera, so a cell of the world projects to a cell of the screen, and the CSS
+ * keeps the lines sharp at every zoom. The cell is a "nice" number of the world (`gridOf`), so a deeper
+ * zoom steps the grid down instead of showing one huge square.
+ */
+const grid = ref({ cell: 0, x: 0, y: 0 })
+
+/**
+ * Tells whether the grid of this view is on.
+ *
+ * @remarks
+ * It starts off: the view shows the level on its own first, and the button in the corner brings the grid in
+ * for a view that needs the measuring aid.
+ */
+const gridVisible = ref(false)
 
 /**
  * How far this view is zoomed in: `1` is the framed view, the whole level.
@@ -111,6 +132,7 @@ function updateMarker(target: ViewScene): void {
     camera: target.camera,
     width: target.renderer.domElement.clientWidth,
     height: target.renderer.domElement.clientHeight,
+    mode: props.mode,
   })
 }
 
@@ -125,6 +147,38 @@ function zoomTarget(): Vector3 | undefined {
   }
 
   return markerPoint(cameraStore.pose.value, player, scenePosition)
+}
+
+/**
+ * Places the grid over the view: the cell of the world in pixels, and where a line of it starts.
+ *
+ * @param target The view the grid belongs to.
+ */
+function updateGrid(target: ViewScene): void {
+  if (bounds === undefined) {
+    grid.value = { cell: 0, x: 0, y: 0 }
+
+    return
+  }
+
+  const height = target.renderer.domElement.clientHeight
+  const point = zoomTarget()
+
+  if (height === 0 || point === undefined) {
+    grid.value = { cell: 0, x: 0, y: 0 }
+
+    return
+  }
+
+  const layout = gridOf(largestSide(bounds) / zoom.value)
+  const distance = target.camera.position.distanceTo(point)
+
+  // a plane at the distance of the target: the same scale for both axes, so the cell stays a square
+  const worldPerPixel = (2 * distance * Math.tan((target.camera.fov * Math.PI) / 360)) / height
+  const cell = layout.cell / worldPerPixel
+  const origin = projectMarker(gridOrigin(point, props.mode, layout.cell), target.camera, height, height)
+
+  grid.value = { cell, x: origin.x, y: origin.y }
 }
 
 /**
@@ -149,6 +203,7 @@ function frameView(): void {
     target: zoomTarget(),
   })
   updateMarker(view)
+  updateGrid(view)
   requestRender()
 }
 
@@ -295,6 +350,7 @@ onMounted(() => {
       }
 
       updateMarker(view)
+      updateGrid(view)
     },
   )
 })
@@ -340,8 +396,29 @@ onBeforeUnmount(() => {
     >
       <polygon points="5.5,1 10,15 1,15" />
     </svg>
+    <div
+      v-if="gridVisible && grid.cell > 0"
+      class="grid"
+      :style="{ backgroundSize: `${grid.cell}px ${grid.cell}px`, backgroundPosition: `${grid.x}px ${grid.y}px` }"
+      aria-hidden="true"
+    ></div>
     <div class="direction">{{ mode }}</div>
-    <div v-if="zoom > 1" class="zoom">{{ zoomLabel }}</div>
+    <div class="tools">
+      <span class="zoom">{{ zoomLabel }}</span>
+      <button
+        class="grid-toggle"
+        :class="{ 'is-on': gridVisible }"
+        type="button"
+        :aria-pressed="gridVisible"
+        :aria-label="gridVisible ? 'Hide grid' : 'Show grid'"
+        v-tooltip="gridVisible ? 'Hide grid' : 'Show grid'"
+        @click="gridVisible = !gridVisible"
+      >
+        <svg class="grid-glyph" viewBox="0 0 10 10" aria-hidden="true">
+          <path d="M3 0V10M7 0V10M0 3H10M0 7H10" stroke="currentColor" stroke-width="1" />
+        </svg>
+      </button>
+    </div>
   </div>
 </template>
 
@@ -380,11 +457,27 @@ onBeforeUnmount(() => {
     }
   }
 
-  // how deep the view is zoomed in, in the other corner of the name
-  .zoom {
+  // the grid of the view: a repeating background, so a cell of the world is a cell of the screen
+  .grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      repeating-linear-gradient(to right, rgba($border-strong, 0.5) 0 1px, transparent 1px 100%),
+      repeating-linear-gradient(to bottom, rgba($border-strong, 0.5) 0 1px, transparent 1px 100%);
+    pointer-events: none;
+  }
+
+  // the tools of the view, in the corner: the zoom and the switch of the grid, right aligned
+  .tools {
     position: absolute;
     top: 6px;
     right: 6px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .zoom {
     padding: 2px 6px;
     font-family: monospace;
     font-size: 11px;
@@ -393,6 +486,42 @@ onBeforeUnmount(() => {
     background: rgba($surface-app, 0.72);
     border-radius: 3px;
     pointer-events: none;
+  }
+
+  // the same size as the buttons of the panel header, so the corners of the shell look alike
+  .grid-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 22px;
+    padding: 0;
+    color: $text-icon;
+    background: rgba($surface-app, 0.72);
+    border: 1px solid $border;
+    border-radius: 4px;
+    cursor: pointer;
+
+    &:hover {
+      background: $surface-panel;
+    }
+
+    // only the lines turn orange: the frame stays the neutral border of every button
+    &.is-on {
+      color: $accent;
+    }
+  }
+
+  // a straightened `#`: two vertical and two horizontal lines, no frame around them
+  .grid-glyph {
+    width: 10px;
+    height: 10px;
+    overflow: visible;
+
+    path {
+      fill: none;
+      stroke-linecap: square;
+    }
   }
 
   .direction {

@@ -120,13 +120,14 @@ void describe('markerState', () => {
       camera: cameraAt(10),
       width: 400,
       height: 200,
+      mode: 'top',
     })
 
     // the spawn is out of this camera's frame, and it has no direction to draw either
     assert.equal(state.arrow, false)
   })
 
-  void it('turns the arrow with the yaw of the camera', () => {
+  void it('turns the arrow of a plan view with the yaw of the camera', () => {
     // the game yaw 90 looks towards +X, which is the right side of a camera on the +Z axis
     const right = markerState({
       pose: poseAt(90),
@@ -135,6 +136,7 @@ void describe('markerState', () => {
       camera: cameraAt(10),
       width: 400,
       height: 200,
+      mode: 'top',
     })
 
     assert.equal(right.arrow, true)
@@ -148,13 +150,14 @@ void describe('markerState', () => {
       camera: cameraAt(10),
       width: 400,
       height: 200,
+      mode: 'top',
     })
 
     assert.equal(left.arrow, true)
     assert.ok(Math.abs(left.degrees - 270) < 1)
   })
 
-  void it('leaves the arrow out when the camera looks along the view', () => {
+  void it('leaves the arrow of a plan view out when the camera looks along the view', () => {
     // the game yaw 0 looks towards +Z, straight at the camera of this fixed view: the line collapses
     const state = markerState({
       pose: poseAt(0),
@@ -163,6 +166,7 @@ void describe('markerState', () => {
       camera: cameraAt(10),
       width: 400,
       height: 200,
+      mode: 'top',
     })
 
     assert.equal(state.arrow, false)
@@ -176,9 +180,83 @@ void describe('markerState', () => {
       camera: cameraAt(10),
       width: 400,
       height: 200,
+      mode: 'top',
     })
 
     assert.equal(Math.round(state.x), 200)
     assert.equal(Math.round(state.y), 100)
+  })
+})
+
+void describe('markerState in a side view', () => {
+  void it('keeps the arrow near the up of the canvas at every yaw', () => {
+    // the side views take the other two axes of the camera, so the arrow never flips: it stays within a
+    // steep tilt of the up of the canvas
+    const yaws = [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330]
+    const far = yaws
+      .map((yaw) => {
+        const state = markerState({
+          pose: poseAt(yaw),
+          player,
+          scene,
+          camera: cameraAt(10),
+          width: 400,
+          height: 200,
+          mode: 'front',
+        })
+
+        return { yaw, state }
+      })
+      .filter(({ state }) => {
+        const tilt = Math.min(state.degrees, 360 - state.degrees)
+
+        return !state.arrow || tilt > 50
+      })
+
+    assert.deepEqual(far, [])
+  })
+
+  void it('turns the arrow as the camera turns', () => {
+    const first = markerState({
+      pose: poseAt(0),
+      player,
+      scene,
+      camera: cameraAt(10),
+      width: 400,
+      height: 200,
+      mode: 'left',
+    })
+    const second = markerState({
+      pose: poseAt(90),
+      player,
+      scene,
+      camera: cameraAt(10),
+      width: 400,
+      height: 200,
+      mode: 'left',
+    })
+
+    assert.equal(first.arrow, true)
+    assert.equal(second.arrow, true)
+    assert.notEqual(first.degrees, second.degrees)
+  })
+
+  void it('gives a direction in every side view', () => {
+    const modes = ['front', 'back', 'left', 'right'] as const
+    const missing = modes.filter((mode) => {
+      const state = markerState({
+        pose: poseAt(45),
+        player,
+        scene,
+        camera: cameraAt(10),
+        width: 400,
+        height: 200,
+        mode,
+      })
+
+      return !state.arrow || !Number.isFinite(state.degrees)
+    })
+
+    assert.deepEqual(missing, [])
   })
 })

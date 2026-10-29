@@ -1,3 +1,4 @@
+import FloatingVue from 'floating-vue'
 import { createApp } from 'vue'
 import WidgetOverlay from './components/WidgetOverlay.vue'
 import type { WidgetOverlayOptions } from './modules/layout/layoutEditor.ts'
@@ -16,6 +17,9 @@ import type { WidgetOverlayOptions } from './modules/layout/layoutEditor.ts'
  */
 export function mountWidgetOverlay(host: HTMLElement, options: WidgetOverlayOptions): () => void {
   const app = createApp(WidgetOverlay, { label: options.label, onRemove: options.onRemove })
+
+  // the overlay is its own app as well, so the tooltip plugin has to come along
+  app.use(FloatingVue)
   app.mount(host)
 
   return () => {

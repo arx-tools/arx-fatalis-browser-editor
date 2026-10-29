@@ -1,4 +1,5 @@
 import { Widget } from '@lumino/widgets'
+import FloatingVue from 'floating-vue'
 import { createApp, type App, type Component } from 'vue'
 
 /**
@@ -29,6 +30,10 @@ export class VueWidget extends Widget {
     this.node.append(content)
 
     this.app = createApp(component, props)
+
+    // a widget is its own Vue app, so the plugins of the shell are not there: without this a `v-tooltip`
+    // of a widget would be a silent no-op
+    this.app.use(FloatingVue)
     this.app.mount(content)
   }
 

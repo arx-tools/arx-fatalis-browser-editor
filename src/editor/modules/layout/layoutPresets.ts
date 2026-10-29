@@ -56,13 +56,33 @@ export const defaultLayout: LayoutNode = {
 }
 
 /**
+ * The height the thin row of {@link advancedLayout} needs, in pixels.
+ *
+ * @remarks
+ * The row holds the camera form and the jump: 44px of content (a 10px caption, the 24px fields and 4px of
+ * padding on both sides). 50px leaves a little air around it, the rest of the column goes to the 3D view.
+ */
+const THIN_ROW_HEIGHT = 50
+
+/**
+ * The share of the middle column that gives {@link THIN_ROW_HEIGHT} in the dock of the window the layout
+ * was tuned on (850px tall: the dock is 814px, and the splitter is not part of the shares).
+ *
+ * @remarks
+ * A lumino split is proportional: it stores shares, not pixels, so the row scales with the window (47px
+ * on a 800px tall window, 53px on 900). It can not be a fixed pixel height: the layout would then stop
+ * matching the preset on every window size, and the header would offer it as a `Custom` one.
+ */
+const THIN_ROW_SHARE = THIN_ROW_HEIGHT / 814
+
+/**
  * The layout for the level work: the small views on the left, the walkable view in the middle with the
  * camera under it, and the numbers on the right.
  *
  * @remarks
  * - the left 20% is a column of three small views: the plan and the two elevations
  * - the middle 60% is the walkable view, with a thin row above it: the camera form and the jump of the
- * location widget (the two one row widgets, so the row stays thin)
+ * location widget (the two one row widgets, so the row stays thin — {@link THIN_ROW_HEIGHT})
  * - the right 20% holds the statistics above the keyboard shortcuts
  */
 export const advancedLayout: LayoutNode = {
@@ -83,7 +103,7 @@ export const advancedLayout: LayoutNode = {
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: [0.07, 0.93],
+      sizes: [THIN_ROW_SHARE, 1 - THIN_ROW_SHARE],
       children: [
         {
           type: 'split',

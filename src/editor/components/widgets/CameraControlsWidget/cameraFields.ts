@@ -20,9 +20,53 @@ export type CameraFieldName = 'pitch' | 'roll' | 'x' | 'y' | 'z' | 'yaw'
 export type CameraFields = Record<CameraFieldName, string>
 
 /**
+ * One group of the form: the fields that belong together.
+ *
+ * @remarks
+ * The group has no caption of its own: the form is one thin row, and a word beside the fields would
+ * not fit in it. The name lives in the `aria-label` and the `title` of the fields instead, so a screen
+ * reader still reads "Position x".
+ */
+export interface CameraFieldGroup {
+  /**
+   * The name of the group, used in the `aria-label` of its fields.
+   */
+  readonly label: string
+  /**
+   * The fields of the group, in the order the form shows them.
+   */
+  readonly fields: readonly CameraFieldName[]
+}
+
+/**
+ * The groups of the form, in the order the form shows them.
+ */
+export const cameraFieldGroups: readonly CameraFieldGroup[] = [
+  { label: 'Position', fields: ['x', 'y', 'z'] },
+  { label: 'Rotation', fields: ['pitch', 'yaw', 'roll'] },
+]
+
+/**
  * The field names in the order the form shows them.
  */
 export const cameraFieldNames: readonly CameraFieldName[] = ['x', 'y', 'z', 'pitch', 'yaw', 'roll']
+
+/**
+ * The caption a field shows above itself.
+ *
+ * @remarks
+ * The caption is short, because the six of them share one row; the full name of a field is its
+ * `aria-label` ("Position x"). The roll is disabled: the editor's camera has no roll, the field only
+ * shows that the form carries one.
+ */
+export const cameraFieldLabels: Record<CameraFieldName, string> = {
+  x: 'X',
+  y: 'Y',
+  z: 'Z',
+  pitch: 'Pitch',
+  yaw: 'Yaw',
+  roll: 'Roll',
+}
 
 /**
  * How much one step of a field changes the value.

@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  cameraFieldGroups,
+  cameraFieldLabels,
   cameraFieldNames,
   emptyFields,
   formatPose,
@@ -33,6 +35,58 @@ const fields: CameraFields = {
   yaw: '270.5',
   roll: '0.00',
 }
+
+void describe('cameraFieldGroups', () => {
+  void it('keeps the order of the fields', () => {
+    const flattened = cameraFieldGroups.flatMap((group) => {
+      return group.fields
+    })
+
+    assert.deepEqual(flattened, [...cameraFieldNames])
+  })
+
+  void it('puts every field into exactly one group', () => {
+    const grouped = cameraFieldGroups.flatMap((group) => {
+      return group.fields
+    })
+
+    assert.deepEqual(grouped.toSorted(), [...cameraFieldNames].toSorted())
+  })
+
+  void it('calls the two groups position and rotation', () => {
+    assert.deepEqual(
+      cameraFieldGroups.map((group) => {
+        return group.label
+      }),
+      ['Position', 'Rotation'],
+    )
+  })
+})
+
+void describe('cameraFieldLabels', () => {
+  void it('has a caption for every field and for nothing else', () => {
+    assert.deepEqual(Object.keys(cameraFieldLabels).toSorted(), [...cameraFieldNames].toSorted())
+  })
+
+  void it('writes a caption, not an empty text', () => {
+    assert.deepEqual(
+      cameraFieldNames.filter((name) => {
+        return cameraFieldLabels[name].trim() === ''
+      }),
+      [],
+    )
+  })
+
+  void it('starts every caption with a capital', () => {
+    // the convention of the editor: a label starts with a capital, an identifier does not
+    assert.deepEqual(
+      cameraFieldNames.filter((name) => {
+        return !/^\p{Uppercase_Letter}/u.test(cameraFieldLabels[name])
+      }),
+      [],
+    )
+  })
+})
 
 void describe('parseField', () => {
   void it('reads a number', () => {

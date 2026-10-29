@@ -36,12 +36,14 @@ function onGo(): void {
 
 <template>
   <div class="JumpToLocationWidget">
-    <div class="row">
-      <label class="label" for="jump-target">Jump to</label>
-      <select id="jump-target" v-model="selectedId" :disabled="readOnly">
-        <option v-for="target in targets" :key="target.id" :value="target.id">{{ target.label }}</option>
-      </select>
-      <button type="button" :disabled="readOnly" @click="onGo">Go</button>
+    <div class="field">
+      <label class="caption" for="jump-target">Jump to</label>
+      <div class="row">
+        <select id="jump-target" v-model="selectedId" :disabled="readOnly">
+          <option v-for="target in targets" :key="target.id" :value="target.id">{{ target.label }}</option>
+        </select>
+        <button type="button" :disabled="readOnly" @click="onGo">Go</button>
+      </div>
     </div>
   </div>
 </template>
@@ -49,23 +51,36 @@ function onGo(): void {
 <style scoped lang="scss">
 @use '../../../palette' as *;
 
-// A jump is one row: the select of the targets and the button that goes there. The widget has no other
-// content, so it can be a thin strip as well (the dock reads the minimum height from `style.scss`).
+// A jump is one thin row: the caption above, under it the select of the targets and the button that goes
+// there. The caption is above and not beside the select, like the fields of the camera form: a word in
+// the row would take the width the target name needs, and the widget has to fit in a strip as well (the
+// dock reads the minimum height from `style.scss`).
 .JumpToLocationWidget {
+  display: flex;
   height: 100%;
-  padding: 8px;
+  padding: 4px;
   overflow: auto;
   font-size: 13px;
+
+  // centred both ways, always: the `margin` with `auto` centres the caption and the row when there is free
+  // space, and falls back to the top left when the widget is too small for them
+  .field {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: auto;
+  }
+
+  .caption {
+    color: $text-muted;
+    font-size: 10px;
+    line-height: 1;
+  }
 
   .row {
     display: flex;
     align-items: center;
-    gap: 8px;
-  }
-
-  .label {
-    color: $text-muted;
-    white-space: nowrap;
+    gap: 6px;
   }
 
   select {
@@ -76,6 +91,7 @@ function onGo(): void {
     background: $surface-panel;
     color: $text;
     font: inherit;
+    line-height: 16px;
   }
 
   button {
@@ -86,6 +102,7 @@ function onGo(): void {
     color: $text;
     font: inherit;
     font-weight: bold;
+    line-height: 16px;
     cursor: pointer;
   }
 

@@ -7,8 +7,9 @@ import {
   type ArxTextureContainer,
   type ArxVector3,
 } from 'arx-convert/types'
-import { Vector3 } from 'three'
+import { Mesh, MeshLambertMaterial, PerspectiveCamera, PlaneGeometry, Raycaster, Vector2, Vector3 } from 'three'
 import {
+  accelerateRaycast,
   arxPolygonsToGeometry,
   arxVector3toVector3,
   createLevelGeometry,
@@ -174,5 +175,33 @@ void describe('createLevelGeometry', () => {
     const geometry = createLevelGeometry(scene([]))
 
     assert.equal(geometry.getAttribute('position').count, 0)
+  })
+})
+
+void describe('accelerateRaycast', () => {
+  void it('builds the BVH of the geometry and swaps the raycast of the mesh', () => {
+    const mesh = new Mesh(new PlaneGeometry(2, 2), new MeshLambertMaterial())
+
+    accelerateRaycast(mesh)
+
+    assert.notEqual(mesh.geometry.boundsTree, undefined)
+    assert.notEqual(mesh.raycast, Mesh.prototype.raycast)
+  })
+
+  void it('still finds the geometry with a ray', () => {
+    const mesh = new Mesh(new PlaneGeometry(2, 2), new MeshLambertMaterial())
+    accelerateRaycast(mesh)
+
+    const camera = new PerspectiveCamera(75, 1, 0.1, 100)
+    camera.position.set(0, 0, 5)
+    camera.lookAt(0, 0, 0)
+    camera.updateProjectionMatrix()
+    camera.updateMatrixWorld()
+
+    const raycaster = new Raycaster()
+    // off the centre: the centre of the plane is the edge the two triangles share, and the ray would hit both
+    raycaster.setFromCamera(new Vector2(0.1, 0.05), camera)
+
+    assert.equal(raycaster.intersectObjects([mesh], false).length, 1)
   })
 })

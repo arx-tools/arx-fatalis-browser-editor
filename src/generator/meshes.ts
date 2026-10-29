@@ -1,6 +1,7 @@
 import type { ArxPolygon, ArxVector3, ArxFTS } from 'arx-convert/types'
 import { isQuad } from 'arx-convert/utils'
-import { BufferAttribute, BufferGeometry, MeshLambertMaterial, Vector2, Vector3 } from 'three'
+import { BufferAttribute, BufferGeometry, MeshLambertMaterial, Vector2, Vector3, type Mesh } from 'three'
+import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh'
 import { Color } from './Color.ts'
 
 /**
@@ -125,6 +126,26 @@ export function createLevelGeometry(fts: ArxFTS): BufferGeometry {
   const offset = arxVector3toVector3(fts.header.mScenePosition)
 
   return arxPolygonsToGeometry(visiblePolygons(fts), offset)
+}
+
+/**
+ * Makes the raycast of a mesh go through a BVH instead of every triangle.
+ *
+ * @remarks
+ * The level is one mesh with tens of thousands of triangles, and every pick (the click of a fixed view) and
+ * every lighting ray would test all of them. `three-mesh-bvh` builds the tree once, and
+ * {@link acceleratedRaycast} walks that. The tree is built **here**, where the mesh is made, so every
+ * consumer gets it without knowing about it: the fixed view picks, and the vertex lighting of the next
+ * round rays.
+ *
+ * The raycast of the mesh is replaced and not the prototype: patching `Mesh.prototype` would touch every
+ * three object of the page, and the generator is a library the level projects use as well.
+ *
+ * @param mesh The mesh to speed up; its geometry has to be built already.
+ */
+export function accelerateRaycast(mesh: Mesh): void {
+  mesh.geometry.boundsTree = new MeshBVH(mesh.geometry)
+  mesh.raycast = acceleratedRaycast
 }
 
 /**

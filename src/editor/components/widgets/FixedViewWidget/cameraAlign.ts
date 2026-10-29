@@ -170,3 +170,61 @@ export function alignPose(mode: CameraViewMode, bounds: CameraBounds, frustum: C
     angle: view.angle,
   }
 }
+
+/**
+ * The size of the frame that shows the whole box from a direction, in the units of the level.
+ */
+export interface FrameSize {
+  /**
+   * The width of the frame, on the screen's horizontal axis.
+   */
+  readonly width: number
+  /**
+   * The height of the frame, on the screen's vertical axis.
+   */
+  readonly height: number
+}
+
+/**
+ * Measures the frame a fixed view needs to show the whole box.
+ *
+ * @remarks
+ * A fixed view is **orthographic** (2026-10-29): a map has no perspective, so a place of the level projects
+ * to the same pixel whatever its depth, and a click on the map is the place it looks like. That is why the
+ * frame is a plain rectangle around the corners of the box, with {@link FRAMING_MARGIN} of a border, grown
+ * to the aspect ratio of the canvas.
+ *
+ * @param mode The view to measure.
+ * @param bounds The box to fit the view to, in the game's coordinates.
+ * @param aspect The aspect ratio of the canvas (width / height).
+ *
+ * @returns The width and the height of the frame.
+ */
+export function frameOf(mode: CameraViewMode, bounds: CameraBounds, aspect: number): FrameSize {
+  const view = VIEWS[mode]
+  const middle = centreOfBounds(bounds)
+  const axis = new Vector3(view.axis.x, view.axis.y, view.axis.z)
+  const up = new Vector3(view.up.x, view.up.y, view.up.z)
+  const right = new Vector3().crossVectors(axis, up)
+  let halfWidth = 0
+  let halfHeight = 0
+
+  for (const corner of cornersOf(bounds)) {
+    const offset = new Vector3(corner.x - middle.x, corner.y - middle.y, corner.z - middle.z)
+
+    halfWidth = Math.max(halfWidth, Math.abs(offset.dot(right)))
+    halfHeight = Math.max(halfHeight, Math.abs(offset.dot(up)))
+  }
+
+  let width = (2 * halfWidth) / FRAMING_MARGIN
+  let height = (2 * halfHeight) / FRAMING_MARGIN
+
+  // the frame follows the canvas: the smaller side grows, so the whole box fits and the pixels are square
+  if (width < height * aspect) {
+    width = height * aspect
+  } else {
+    height = width / aspect
+  }
+
+  return { width, height }
+}

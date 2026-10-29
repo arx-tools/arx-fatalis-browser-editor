@@ -1,5 +1,5 @@
 import type { ArxVector3 } from 'arx-convert/types'
-import { Euler, MathUtils, Vector3, type PerspectiveCamera } from 'three'
+import { Euler, MathUtils, Vector3, type Camera, type PerspectiveCamera } from 'three'
 
 /**
  * The game's camera pitch, in degrees.
@@ -77,7 +77,7 @@ export function worldPositionToGame(world: Vector3, scene: ArxVector3): ArxVecto
  * @param camera The camera to turn.
  * @param angle The angle to set.
  */
-export function applyGameAngle(camera: PerspectiveCamera, angle: GameAngle): void {
+export function applyGameAngle(camera: Camera, angle: GameAngle): void {
   camera.rotation.set(MathUtils.degToRad(-angle.pitch), MathUtils.degToRad(angle.yaw - 180), 0, 'YXZ')
 }
 

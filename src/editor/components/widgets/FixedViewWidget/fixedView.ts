@@ -1,8 +1,8 @@
 import type { ArxVector3 } from 'arx-convert/types'
-import type { PerspectiveCamera, Vector3 } from 'three'
+import type { OrthographicCamera, Vector3 } from 'three'
 import { centreOfBounds, type CameraBounds } from '../cameraBounds.ts'
 import { applyGameAngle, gamePositionToWorld, type CameraPose } from '../cameraPose.ts'
-import { alignPose, frustumOf, type CameraViewMode } from './cameraAlign.ts'
+import { alignPose, frameOf, frustumOf, type CameraViewMode } from './cameraAlign.ts'
 
 /**
  * How far the camera sees, compared to the distance it stands from the level.
@@ -78,18 +78,22 @@ function clampZoom(zoom: number | undefined): number {
 }
 
 /**
- * Puts a camera to a fixed direction of the level and sets its range.
+ * Puts a camera to a fixed direction of the level and sets its frame and range.
  *
  * @remarks
  * This is the whole of a fixed view: there is no pointer lock and no walkable camera, the pose is always
  * the framed one of the direction, and the url's `position`/`rotation` never touch it.
+ *
+ * The camera is **orthographic**: a map has no perspective, so a place of the level projects to the same
+ * pixel whatever its depth — a click on the map is the place it looks like, and the marker of the walkable
+ * camera sits where the camera stands, not where a perspective would put it.
  *
  * @param camera The camera of the widget.
  * @param options The direction, the box of the level and the size of the canvas.
  *
  * @returns The pose the camera was put to, in the game's coordinates.
  */
-export function frameFixedView(camera: PerspectiveCamera, options: FixedViewOptions): CameraPose {
+export function frameFixedView(camera: OrthographicCamera, options: FixedViewOptions): CameraPose {
   const pose = alignPose(options.mode, options.bounds, frustumOf(options.fieldOfView, options.aspect))
   const centre = gamePositionToWorld(centreOfBounds(options.bounds), options.scene)
   const framed = gamePositionToWorld(pose.position, options.scene)
@@ -113,7 +117,16 @@ export function frameFixedView(camera: PerspectiveCamera, options: FixedViewOpti
 
   applyGameAngle(camera, pose.angle)
 
+  const frame = frameOf(options.mode, options.bounds, options.aspect)
   const near = Math.max(camera.position.distanceTo(target) / NEAR_DIVISOR, 0.1)
+
+  // the rectangle of the frame: the whole level at 1×, and the zoom shrinks it around the middle of the
+  // canvas (the camera does not have to move for that, it only has to see less)
+  camera.left = -frame.width / 2
+  camera.right = frame.width / 2
+  camera.top = frame.height / 2
+  camera.bottom = -frame.height / 2
+  camera.zoom = zoom
 
   // the far plane follows the framed distance, not the zoomed one: the level behind the marker has to stay
   // inside the view when the camera walks in

@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
-import type { Mesh, Vector3 } from 'three'
+import { OrthographicCamera, type Mesh, type Vector3 } from 'three'
 import type { ArxVector3 } from 'arx-convert/types'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { cameraStore } from '../cameraStore.ts'
 import { levelStore } from '../../../modules/level/levelStore.ts'
-import type { CameraBounds } from '../cameraBounds.ts'
+import { centreOfBounds, type CameraBounds } from '../cameraBounds.ts'
+import { gamePositionToWorld, worldPositionToGame } from '../cameraPose.ts'
 import { addPreviewLights, gameBoundsOf, previewMaterial, viewMeshesOf } from '../levelScene.ts'
-import { createViewScene, disposeViewScene, resizeViewScene, type ViewScene } from '../viewScene.ts'
+import { FIELD_OF_VIEW, createViewScene, disposeViewScene, resizeViewScene, type ViewScene } from '../viewScene.ts'
 import type { CameraViewMode } from './cameraAlign.ts'
 import { MAX_ZOOM, frameFixedView } from './fixedView.ts'
+import { planePointAt, targetPositionOf } from './fixedViewTarget.ts'
 import { gridOf, gridOrigin, largestSide } from './grid.ts'
 import { markerPoint, markerState, projectMarker, type MarkerState } from './cameraMarker.ts'
 
@@ -37,7 +39,7 @@ const canvas = useTemplateRef<HTMLCanvasElement>('canvas')
  * over the canvas (not a sprite of the scene), so the geometry never covers it and it stays sharp at every
  * size.
  */
-const marker = ref<MarkerState>({ x: 0, y: 0, visible: false, degrees: 0, arrow: false })
+const marker = ref<MarkerState>({ x: 0, y: 0, visible: false, clamped: false, degrees: 0, arrow: false })
 
 /**
  * The grid over the view: the size of one cell in CSS pixels, and the offset of its corner.
@@ -85,13 +87,14 @@ const zoomLabel = computed(() => {
  */
 const WHEEL_STEP = 0.0015
 
-let view: ViewScene | undefined
+let view: ViewScene<OrthographicCamera> | undefined
 let shown: Mesh[] = []
 let player: ArxVector3 | undefined
 let bounds: CameraBounds | undefined
 let scenePosition: ArxVector3 | undefined
 let observer: ResizeObserver | undefined
 let frame = 0
+let pressing = false
 let stopWatching: (() => void) | undefined
 let stopWatchingCamera: (() => void) | undefined
 
@@ -118,9 +121,9 @@ function requestRender(): void {
  *
  * @param target The view the marker belongs to.
  */
-function updateMarker(target: ViewScene): void {
+function updateMarker(target: ViewScene<OrthographicCamera>): void {
   if (player === undefined || scenePosition === undefined) {
-    marker.value = { x: 0, y: 0, visible: false, degrees: 0, arrow: false }
+    marker.value = { x: 0, y: 0, visible: false, clamped: false, degrees: 0, arrow: false }
 
     return
   }
@@ -137,16 +140,31 @@ function updateMarker(target: ViewScene): void {
 }
 
 /**
- * The point the zoomed view looks at: where the camera of the walkable view stands.
+ * The point the view is a window on, in the space of the meshes.
  *
- * @returns The marker of the walkable camera, or `undefined` while there is nothing to look at.
+ * @remarks
+ * The framed (`1×`) view covers the whole level, so it is anchored to the **centre of the level**: it never
+ * moves, and the marker moves inside the window (a click or a step does not shift the picture).
+ *
+ * A **zoomed** view is a magnifier around the camera, so it is anchored to the **marker**: the mesh follows
+ * the camera and the marker stays in the middle of the canvas, which is where a zoomed view is read from.
+ *
+ * @returns The point to frame, or `undefined` while there is nothing to frame.
  */
-function zoomTarget(): Vector3 | undefined {
-  if (player === undefined || scenePosition === undefined) {
+function viewTarget(): Vector3 | undefined {
+  if (zoom.value > 1) {
+    if (player === undefined || scenePosition === undefined) {
+      return undefined
+    }
+
+    return markerPoint(cameraStore.pose.value, player, scenePosition)
+  }
+
+  if (bounds === undefined || scenePosition === undefined) {
     return undefined
   }
 
-  return markerPoint(cameraStore.pose.value, player, scenePosition)
+  return gamePositionToWorld(centreOfBounds(bounds), scenePosition)
 }
 
 /**
@@ -154,7 +172,7 @@ function zoomTarget(): Vector3 | undefined {
  *
  * @param target The view the grid belongs to.
  */
-function updateGrid(target: ViewScene): void {
+function updateGrid(target: ViewScene<OrthographicCamera>): void {
   if (bounds === undefined) {
     grid.value = { cell: 0, x: 0, y: 0 }
 
@@ -162,7 +180,7 @@ function updateGrid(target: ViewScene): void {
   }
 
   const height = target.renderer.domElement.clientHeight
-  const point = zoomTarget()
+  const point = viewTarget()
 
   if (height === 0 || point === undefined) {
     grid.value = { cell: 0, x: 0, y: 0 }
@@ -171,10 +189,9 @@ function updateGrid(target: ViewScene): void {
   }
 
   const layout = gridOf(largestSide(bounds) / zoom.value)
-  const distance = target.camera.position.distanceTo(point)
 
-  // a plane at the distance of the target: the same scale for both axes, so the cell stays a square
-  const worldPerPixel = (2 * distance * Math.tan((target.camera.fov * Math.PI) / 360)) / height
+  // the orthographic camera shows (top - bottom) / zoom units over the height of the canvas, at every depth
+  const worldPerPixel = (target.camera.top - target.camera.bottom) / (target.camera.zoom * height)
   const cell = layout.cell / worldPerPixel
   const origin = projectMarker(gridOrigin(point, props.mode, layout.cell), target.camera, height, height)
 
@@ -193,18 +210,133 @@ function frameView(): void {
     return
   }
 
+  const box = view.renderer.domElement
+  let aspect = 1
+
+  if (box.clientHeight > 0) {
+    aspect = box.clientWidth / box.clientHeight
+  }
+
   frameFixedView(view.camera, {
     mode: props.mode,
     bounds,
     scene: scenePosition,
-    fieldOfView: view.camera.fov,
-    aspect: view.camera.aspect,
+    fieldOfView: FIELD_OF_VIEW,
+    aspect,
     zoom: zoom.value,
-    target: zoomTarget(),
+    target: viewTarget(),
   })
   updateMarker(view)
   updateGrid(view)
   requestRender()
+}
+
+/**
+ * Reads the pointer in the pixels of the canvas.
+ *
+ * @param event The pointer event of the view.
+ *
+ * @returns The distance of the pointer from the top left corner of the canvas, in CSS pixels.
+ */
+function canvasPixel(event: PointerEvent): { x: number; y: number } {
+  const stage = event.currentTarget as HTMLCanvasElement
+  const box = stage.getBoundingClientRect()
+
+  return { x: event.clientX - box.left, y: event.clientY - box.top }
+}
+
+/**
+ * Moves the walkable camera to the place under the pointer, with the angle it has now.
+ *
+ * @remarks
+ * The framed (`1×`) view is a map of the whole level: the pointer is read on the plane of the walkable camera
+ * ({@link planePointAt}), and only the two axes the view shows change ({@link targetPositionOf}) — the marker
+ * lands under the pointer and the height (or the distance from the level) stays. The drag uses the same
+ * mapping, so it follows the pointer smoothly. A zoomed view moves the camera the same way and frames it
+ * again, so the marker lands in the middle of the canvas and the level slides under it.
+ *
+ * @param event The pointer event of the view.
+ */
+function moveToPointer(event: PointerEvent): void {
+  const target = view
+  const pose = cameraStore.pose.value
+
+  // without a 3D view there is nothing to move, and the store would drop the pose anyway
+  if (target === undefined || pose === undefined || scenePosition === undefined || !cameraStore.hasView.value) {
+    return
+  }
+
+  const box = target.renderer.domElement.getBoundingClientRect()
+  const pixel = canvasPixel(event)
+  const place = planePointAt(
+    { x: pixel.x, y: pixel.y, width: box.width, height: box.height },
+    target.camera,
+    gamePositionToWorld(pose.position, scenePosition),
+  )
+
+  if (place === undefined) {
+    return
+  }
+
+  cameraStore.moveCamera({
+    position: targetPositionOf(props.mode, worldPositionToGame(place, scenePosition), pose.position),
+    angle: pose.angle,
+  })
+}
+
+/**
+ * Starts the pointer on the view: a press jumps, and a drag follows the pointer.
+ *
+ * @remarks
+ * The pointer is captured, so a drag that leaves the widget keeps reporting its moves to this view, and the
+ * release always arrives here.
+ *
+ * @param event The pointer event of the view.
+ */
+function onPointerDown(event: PointerEvent): void {
+  pressing = true
+  moveToPointer(event)
+
+  const stage = event.currentTarget as HTMLElement
+  stage.setPointerCapture(event.pointerId)
+}
+
+/**
+ * Follows a dragged pointer.
+ *
+ * @remarks
+ * The drag is a move of the framed (`1×`) view only: zoomed in, every move of the camera reframes the view
+ * around it, so the level would slide under the pointer and the drag would chase its own tail. A click works
+ * in both: it moves the camera to the place under the pointer, and a zoomed view frames the camera again,
+ * which puts the marker back in the middle of the canvas.
+ *
+ * @param event The pointer event of the view.
+ */
+function onPointerMove(event: PointerEvent): void {
+  if (!pressing) {
+    return
+  }
+
+  if (zoom.value > 1) {
+    return
+  }
+
+  moveToPointer(event)
+}
+
+/**
+ * Ends the drag of the pointer.
+ *
+ * @param event The pointer event of the view.
+ */
+function onPointerUp(event: PointerEvent): void {
+  pressing = false
+
+  const stage = event.currentTarget as HTMLElement
+
+  if (stage.hasPointerCapture(event.pointerId)) {
+    stage.releasePointerCapture(event.pointerId)
+  }
 }
 
 /**
@@ -290,7 +422,7 @@ function hideMap(): void {
   shown = []
   player = undefined
   bounds = undefined
-  marker.value = { x: 0, y: 0, visible: false, degrees: 0, arrow: false }
+  marker.value = { x: 0, y: 0, visible: false, clamped: false, degrees: 0, arrow: false }
 }
 
 onMounted(() => {
@@ -300,7 +432,9 @@ onMounted(() => {
     return
   }
 
-  view = createViewScene(target)
+  // a map has no perspective: the level projects to the pixels the way it looks, so a click on the map and
+  // the marker of the camera read the same place at any depth
+  view = createViewScene(target, new OrthographicCamera(-1, 1, 1, -1, 0.1, 10_000))
   addPreviewLights(view.scene)
 
   observer = new ResizeObserver(() => {
@@ -311,6 +445,12 @@ onMounted(() => {
     observer.observe(host.value)
     host.value.addEventListener('wheel', onWheel, { passive: false })
   }
+
+  // the click of a fixed view is the navigation of the walkable one (TODO 85)
+  target.addEventListener('pointerdown', onPointerDown)
+  target.addEventListener('pointermove', onPointerMove)
+  target.addEventListener('pointerup', onPointerUp)
+  target.addEventListener('pointercancel', onPointerUp)
 
   resize()
 
@@ -342,7 +482,9 @@ onMounted(() => {
         return
       }
 
-      // zoomed in, the view follows the camera: the place we stand stays in the middle of the small view
+      // zoomed in, the view is a magnifier around the camera: the mesh is framed again, so the marker stays
+      // in the middle of the canvas. The framed view does not move with the camera: there only the marker
+      // (and the grid around the centre) is updated, which keeps the picture still
       if (zoom.value > 1) {
         frameView()
 
@@ -363,6 +505,15 @@ onBeforeUnmount(() => {
 
   if (host.value !== null) {
     host.value.removeEventListener('wheel', onWheel)
+  }
+
+  const stage = canvas.value
+
+  if (stage !== null) {
+    stage.removeEventListener('pointerdown', onPointerDown)
+    stage.removeEventListener('pointermove', onPointerMove)
+    stage.removeEventListener('pointerup', onPointerUp)
+    stage.removeEventListener('pointercancel', onPointerUp)
   }
 
   observer?.disconnect()
@@ -433,10 +584,12 @@ onBeforeUnmount(() => {
   overflow: hidden;
   background: $surface-widget;
 
+  // the crosshair says the click goes somewhere: both the framed and the zoomed view move the camera
   .stage {
     display: block;
     width: 100%;
     height: 100%;
+    cursor: crosshair;
   }
 
   // where the camera of the walkable view stands: the red arrowhead the game itself uses for the player,

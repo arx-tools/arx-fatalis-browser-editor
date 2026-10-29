@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
-import type { Mesh } from 'three'
+import { PerspectiveCamera, type Mesh } from 'three'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { levelStore } from '../../../modules/level/levelStore.ts'
 import { WIDGET_KINDS } from '../../../modules/layout/widgetKinds.ts'
 import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
 import { cameraStore } from '../cameraStore.ts'
 import { addPreviewLights, viewMeshesOf } from '../levelScene.ts'
-import { createViewScene, disposeViewScene, resizeViewScene, type ViewScene } from '../viewScene.ts'
+import { FIELD_OF_VIEW, createViewScene, disposeViewScene, resizeViewScene, type ViewScene } from '../viewScene.ts'
 import { createOrientationGizmo, type OrientationGizmo } from './orientationGizmo.ts'
 import { CameraControls } from './cameraControls.ts'
 
@@ -59,7 +59,7 @@ const host = useTemplateRef<HTMLElement>('host')
 const canvas = useTemplateRef<HTMLCanvasElement>('canvas')
 const gizmoCanvas = useTemplateRef<HTMLCanvasElement>('gizmoCanvas')
 
-let view: ViewScene | undefined
+let view: ViewScene<PerspectiveCamera> | undefined
 let gizmo: OrientationGizmo | undefined
 let shown: Mesh[] = []
 let controls: CameraControls | undefined
@@ -180,7 +180,7 @@ function createScene(): void {
     return
   }
 
-  view = createViewScene(target)
+  view = createViewScene(target, new PerspectiveCamera(FIELD_OF_VIEW, 1, 0.1, 10_000))
 
   // the walkable view shows the level with the preview lights for now (the lighting round replaces them)
   addPreviewLights(view.scene)

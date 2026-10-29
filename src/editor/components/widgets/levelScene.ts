@@ -138,6 +138,9 @@ export function gameBoundsOf(meshes: readonly Mesh[], scene: ArxVector3): Camera
  * out of the first. The editor has more than one 3D widget (the walkable view and the six directions),
  * so every widget builds its own wrappers over the same geometry and material.
  *
+ * The raycast of the wrapped mesh is kept as well: the level puts a BVH on its geometry (the generator's
+ * `accelerateRaycast`), and the wrapper is the object the ray meets, so it has to walk that tree too.
+ *
  * @param meshes The meshes of the map.
  * @param material The material of the wrappers; the material of the map when it is left out.
  *
@@ -145,7 +148,13 @@ export function gameBoundsOf(meshes: readonly Mesh[], scene: ArxVector3): Camera
  */
 export function viewMeshesOf(meshes: readonly Mesh[], material?: Material): Mesh[] {
   return meshes.map((mesh) => {
-    return new Mesh(mesh.geometry, material ?? mesh.material)
+    const wrapper = new Mesh(mesh.geometry, material ?? mesh.material)
+
+    // the raycast comes along: the level builds a BVH for its geometry once (`accelerateRaycast` in the
+    // generator), and the wrapper is the mesh that gets raycast, so it has to use that path too
+    wrapper.raycast = mesh.raycast
+
+    return wrapper
   })
 }
 

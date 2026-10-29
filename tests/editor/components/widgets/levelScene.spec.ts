@@ -8,6 +8,7 @@ import {
   Mesh,
   MeshLambertMaterial,
   PerspectiveCamera,
+  PlaneGeometry,
   Scene,
   Vector3,
 } from 'three'
@@ -19,7 +20,7 @@ import {
   previewMaterial,
   viewMeshesOf,
 } from '../../../../src/editor/components/widgets/levelScene.ts'
-import { createLevelMaterial } from '../../../../src/generator/meshes.ts'
+import { accelerateRaycast, createLevelMaterial } from '../../../../src/generator/meshes.ts'
 
 /**
  * The scene position of the test level.
@@ -146,6 +147,18 @@ void describe('viewMeshesOf', () => {
     assert.notEqual(wrapped, original)
     assert.equal(wrapped?.geometry, geometry)
     assert.equal(wrapped?.material, material)
+  })
+
+  void it('keeps the raycast of the wrapped mesh, so the BVH of the level comes along', () => {
+    const geometry = new PlaneGeometry(2, 2)
+    const original = new Mesh(geometry, new MeshLambertMaterial())
+
+    accelerateRaycast(original)
+
+    const [wrapped] = viewMeshesOf([original])
+
+    assert.equal(wrapped?.raycast, original.raycast)
+    assert.equal(wrapped?.geometry.boundsTree, geometry.boundsTree)
   })
 
   void it('takes the material it is given, and leaves the map untouched', () => {

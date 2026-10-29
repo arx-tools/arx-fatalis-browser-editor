@@ -1,4 +1,4 @@
-import { PerspectiveCamera, Scene, WebGLRenderer } from 'three'
+import { PerspectiveCamera, Scene, WebGLRenderer, type Camera } from 'three'
 import { fitCameraToCanvas } from './levelScene.ts'
 
 /**
@@ -10,7 +10,7 @@ import { fitCameraToCanvas } from './levelScene.ts'
  * part of it: each widget adds what it wants (both use `addPreviewLights` today), so a later lighting round
  * can change the walkable view without touching the small ones (TODO 92).
  */
-export interface ViewScene {
+export interface ViewScene<TCamera extends Camera = Camera> {
   /**
    * The renderer of the canvas of the widget.
    */
@@ -20,9 +20,10 @@ export interface ViewScene {
    */
   readonly scene: Scene
   /**
-   * The camera of the widget.
+   * The camera of the widget: a perspective one for the walkable view, an orthographic one for the fixed
+   * views (a map has no perspective).
    */
-  readonly camera: PerspectiveCamera
+  readonly camera: TCamera
 }
 
 /**
@@ -38,19 +39,20 @@ export const FIELD_OF_VIEW = 75
  * Builds the renderer, the scene and the camera of a widget.
  *
  * @param canvas The canvas of the widget.
+ * @param camera The camera of the widget: the caller knows whether the view is perspective (the walkable
+ * one) or orthographic (a map of a fixed view).
  *
  * @returns The scene the widget draws, without lights (the widget adds them).
  */
-export function createViewScene(canvas: HTMLCanvasElement): ViewScene {
+export function createViewScene<TCamera extends Camera>(
+  canvas: HTMLCanvasElement,
+  camera: TCamera,
+): ViewScene<TCamera> {
   const renderer = new WebGLRenderer({ canvas, antialias: true })
 
   renderer.setPixelRatio(window.devicePixelRatio)
 
-  return {
-    renderer,
-    scene: new Scene(),
-    camera: new PerspectiveCamera(FIELD_OF_VIEW, 1, 0.1, 10_000),
-  }
+  return { renderer, scene: new Scene(), camera }
 }
 
 /**
@@ -67,7 +69,11 @@ export function createViewScene(canvas: HTMLCanvasElement): ViewScene {
  */
 export function resizeViewScene(view: ViewScene, width: number, height: number): void {
   view.renderer.setSize(width, height, false)
-  fitCameraToCanvas(view.camera, width, height)
+
+  // an orthographic camera has no aspect ratio: its frame is set by the framing of the widget
+  if (view.camera instanceof PerspectiveCamera) {
+    fitCameraToCanvas(view.camera, width, height)
+  }
 }
 
 /**

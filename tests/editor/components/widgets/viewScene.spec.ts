@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { BoxGeometry, Mesh, MeshLambertMaterial, PerspectiveCamera, Scene, type WebGLRenderer } from 'three'
+import {
+  BoxGeometry,
+  Mesh,
+  MeshLambertMaterial,
+  OrthographicCamera,
+  PerspectiveCamera,
+  Scene,
+  type WebGLRenderer,
+} from 'three'
 import {
   type ViewScene,
   disposeViewScene,
@@ -13,7 +21,7 @@ import {
  * @returns The view, its camera and the sizes its renderer was asked to take.
  */
 function buildView(): {
-  view: ViewScene
+  view: ViewScene<PerspectiveCamera>
   sizes: Array<{ width: number; height: number }>
   disposed: { count: number }
 } {
@@ -28,7 +36,7 @@ function buildView(): {
     },
   }
 
-  const view: ViewScene = {
+  const view: ViewScene<PerspectiveCamera> = {
     renderer: renderer as unknown as WebGLRenderer,
     scene: new Scene(),
     camera: new PerspectiveCamera(75, 1, 0.1, 10_000),
@@ -46,12 +54,34 @@ void describe('resizeViewScene', () => {
     assert.deepEqual(sizes, [{ width: 800, height: 400 }])
   })
 
-  void it('fits the camera to the aspect ratio', () => {
+  void it('fits the perspective camera to the aspect ratio', () => {
     const { view } = buildView()
 
     resizeViewScene(view, 800, 400)
 
     assert.equal(view.camera.aspect, 2)
+  })
+
+  void it('leaves an orthographic camera as it is, its frame comes from the framing', () => {
+    const orthographic = new OrthographicCamera(-2, 2, 1, -1, 0.1, 100)
+    const sizes: Array<{ width: number; height: number }> = []
+    const renderer = {
+      setSize: (width: number, height: number): void => {
+        sizes.push({ width, height })
+      },
+      dispose: (): void => {
+        sizes.length = 0
+      },
+    }
+    const view: ViewScene<OrthographicCamera> = {
+      renderer: renderer as unknown as WebGLRenderer,
+      scene: new Scene(),
+      camera: orthographic,
+    }
+
+    resizeViewScene(view, 800, 400)
+
+    assert.deepEqual([orthographic.left, orthographic.right, orthographic.top, orthographic.bottom], [-2, 2, 1, -1])
   })
 })
 

@@ -2,7 +2,7 @@ import { DLF, FTS, LLF } from 'arx-convert'
 import type { ArxDLF, ArxFTS, ArxLight, ArxLLF, ArxVector3 } from 'arx-convert/types'
 import { Mesh } from 'three'
 import { unpackArxFile } from './files.ts'
-import { createLevelGeometry, createLevelMaterial } from './meshes.ts'
+import { accelerateRaycast, createLevelGeometry, createLevelMaterial } from './meshes.ts'
 import { countPolygonShapes } from './polygonCounts.ts'
 import { Player } from './Player.ts'
 
@@ -151,6 +151,11 @@ export class ArxMap {
 
     const geometry = createLevelGeometry(this.fts)
     geometry.computeBoundingBox()
-    this.meshes = [new Mesh(geometry, createLevelMaterial())]
+
+    const mesh = new Mesh(geometry, createLevelMaterial())
+
+    accelerateRaycast(mesh)
+
+    this.meshes = [mesh]
   }
 }

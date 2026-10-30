@@ -272,7 +272,8 @@ void describe('createPolygonSelectionOverlay', () => {
       return child.renderOrder
     })
 
-    assert.deepEqual(orders, [7, 8])
+    // the fill (7) first, then the outline of the cursor (9), with the wireframe of the level between them (8)
+    assert.deepEqual(orders, [7, 9])
   })
 
   void it('takes both out of the scene on dispose', () => {

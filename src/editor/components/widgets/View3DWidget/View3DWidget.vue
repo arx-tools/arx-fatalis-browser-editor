@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
 import type { ArxPolygon } from 'arx-convert/types'
 import { PerspectiveCamera, type Mesh } from 'three'
+import Crosshair from '../../Crosshair.vue'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { levelStore } from '../../../modules/level/levelStore.ts'
@@ -519,6 +520,8 @@ onBeforeUnmount(() => {
 <template>
   <div ref="host" class="View3DWidget">
     <canvas ref="canvas" class="stage"></canvas>
+    <!-- the crosshair marks the middle of the level: while the level loads, the status text is there -->
+    <Crosshair v-if="status === ''" />
     <div class="gizmo" aria-hidden="true">
       <canvas ref="gizmoCanvas"></canvas>
     </div>
@@ -535,6 +538,7 @@ onBeforeUnmount(() => {
 // selectable and stylable, and neither takes the pointer away from the canvas.
 .View3DWidget {
   position: relative;
+
   height: 100%;
   overflow: hidden;
   background: $surface-widget;

@@ -214,7 +214,11 @@ const WIREFRAME_COLOR = Color.white.darken(50)
  * @returns The material of the wireframe lines.
  */
 export function createWireframeMaterial(): LineBasicMaterial {
-  return new LineBasicMaterial({ color: WIREFRAME_COLOR.getHex() })
+  // `transparent` is not about blending (the colour is opaque): three draws the transparent objects after
+  // the opaque ones, which is what puts these lines over the translucent fill of the selection. The
+  // selection's fill has the lower `renderOrder`, so a selected face shows the wireframe in its own grey
+  // instead of a tint of it.
+  return new LineBasicMaterial({ color: WIREFRAME_COLOR.getHex(), transparent: true })
 }
 
 /**

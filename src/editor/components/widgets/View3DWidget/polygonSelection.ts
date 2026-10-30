@@ -242,14 +242,14 @@ export function createPolygonSelectionOverlay(scene: Scene, offset: Vector3): Po
   //
   // `transparent` with a full opacity is not about blending: three draws the transparent objects after the
   // opaque ones, and the fill of the selection is transparent, so this is what puts the outline over the
-  // fill (its `renderOrder` is the higher one)
+  // fill (its `renderOrder` is the highest of the three: above the fill and above the wireframe)
   const outlineMaterial = new LineBasicMaterial({
     color: Color.green.getHex(),
     depthTest: false,
     transparent: true,
   })
   const outline = new LineSegments(new BufferGeometry(), outlineMaterial)
-  outline.renderOrder = 8
+  outline.renderOrder = 9
   // the geometry of the outline is replaced on every frame, and the frustum check of three works on a
   // bounding sphere that such a geometry only gets on demand: it is cheaper to skip the check than to
   // rebuild the sphere for a handful of points

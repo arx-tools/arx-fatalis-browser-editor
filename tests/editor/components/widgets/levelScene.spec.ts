@@ -4,6 +4,8 @@ import {
   AmbientLight,
   Box3,
   BufferGeometry,
+  type LineBasicMaterial,
+  type LineSegments,
   DirectionalLight,
   Mesh,
   MeshLambertMaterial,
@@ -14,6 +16,7 @@ import {
 } from 'three'
 import {
   addPreviewLights,
+  attachWireframe,
   fitCameraToCanvas,
   frameLevel,
   gameBoundsOf,
@@ -206,5 +209,64 @@ void describe('previewMaterial', () => {
 
   void it('is the same instance for every widget', () => {
     assert.equal(previewMaterial(), previewMaterial())
+  })
+})
+
+void describe('attachWireframe', () => {
+  void it('puts nothing into the scene until it is shown', () => {
+    const scene = new Scene()
+
+    attachWireframe(scene, new BufferGeometry())
+
+    assert.equal(scene.children.length, 0)
+  })
+
+  void it('shows and hides the lines', () => {
+    const scene = new Scene()
+    const wireframe = attachWireframe(scene, new BufferGeometry())
+
+    wireframe.setVisible(true)
+    assert.equal(scene.children.length, 1)
+
+    wireframe.setVisible(true)
+    assert.equal(scene.children.length, 1)
+
+    wireframe.setVisible(false)
+    assert.equal(scene.children.length, 0)
+  })
+
+  void it('draws over the mesh, but still writes depth', () => {
+    const scene = new Scene()
+    const wireframe = attachWireframe(scene, new BufferGeometry())
+
+    wireframe.setVisible(true)
+
+    const [lines] = scene.children as LineSegments[]
+    const material = lines.material as LineBasicMaterial
+
+    assert.equal(lines.renderOrder, 5)
+    assert.equal(material.depthWrite, true)
+  })
+
+  void it('frees its material on dispose, and leaves the geometry of the map alone', () => {
+    const scene = new Scene()
+    const geometry = new BufferGeometry()
+    const wireframe = attachWireframe(scene, geometry)
+    let disposed = 0
+
+    wireframe.setVisible(true)
+
+    const [lines] = scene.children as LineSegments[]
+    const { material } = lines as LineSegments<BufferGeometry, LineBasicMaterial>
+
+    material.addEventListener('dispose', () => {
+      disposed = disposed + 1
+    })
+
+    wireframe.dispose()
+
+    assert.equal(disposed, 1)
+    assert.equal(scene.children.length, 0)
+    assert.equal(geometry.getAttribute('position') === undefined, true)
   })
 })

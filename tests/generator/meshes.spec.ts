@@ -11,6 +11,8 @@ import { Mesh, MeshLambertMaterial, PerspectiveCamera, PlaneGeometry, Raycaster,
 import {
   accelerateRaycast,
   arxPolygonsToGeometry,
+  arxPolygonsToWireframeGeometry,
+  createWireframeMaterial,
   arxVector3toVector3,
   createLevelGeometry,
   createLevelMaterial,
@@ -203,5 +205,48 @@ void describe('accelerateRaycast', () => {
     raycaster.setFromCamera(new Vector2(0.1, 0.05), camera)
 
     assert.equal(raycaster.intersectObjects([mesh], false).length, 1)
+  })
+})
+
+void describe('arxPolygonsToWireframeGeometry', () => {
+  void it('gives the perimeter of a triangle, without the diagonal', () => {
+    const geometry = arxPolygonsToWireframeGeometry([polygon(false)], new Vector3(0, 0, 0))
+    const positions = geometry.getAttribute('position')
+
+    // three edges, each with two points
+    assert.equal(positions.count, 6)
+  })
+
+  void it('gives the perimeter of a quad, without the diagonal', () => {
+    const geometry = arxPolygonsToWireframeGeometry([polygon(true)], new Vector3(0, 0, 0))
+    const positions = geometry.getAttribute('position')
+
+    // four edges instead of the two triangles' six: the perimeter is 0-1-3-2
+    assert.equal(positions.count, 8)
+  })
+
+  void it('shifts the points by the scene position, like the mesh', () => {
+    const geometry = arxPolygonsToWireframeGeometry([polygon(false)], new Vector3(10, 20, 30))
+    const first = new Vector3().fromBufferAttribute(geometry.getAttribute('position'), 0)
+
+    // the polygon's first vertex is (0, 0, 0) in the game, which the mesh mirrors and shifts
+    assert.deepEqual([first.x, first.y, first.z], [-10, -20, -30])
+  })
+
+  void it('gives an empty geometry for no polygon', () => {
+    const geometry = arxPolygonsToWireframeGeometry([], new Vector3(0, 0, 0))
+
+    assert.equal(geometry.getAttribute('position').count, 0)
+  })
+})
+
+void describe('createWireframeMaterial', () => {
+  void it('gives a line material, a new one every time', () => {
+    const first = createWireframeMaterial()
+    const second = createWireframeMaterial()
+
+    // the views dispose their own material with the wrapper, so they can not share one
+    assert.notEqual(first, second)
+    assert.equal(first.type, 'LineBasicMaterial')
   })
 })

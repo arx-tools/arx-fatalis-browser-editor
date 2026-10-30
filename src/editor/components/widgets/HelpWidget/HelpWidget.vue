@@ -1,14 +1,9 @@
 <script setup lang="ts">
 import WidgetHeading from '../../WidgetHeading.vue'
 
-// the placeholder of the key help: the real list is generated from the hotkey table (a later round)
-const hotkeys = [
-  { keys: ['F2'], action: 'Selection debug' },
-  { keys: ['M'], action: 'Toggle the mesh' },
-  { keys: ['X'], action: 'Wireframe' },
-  { keys: ['J', 'K', 'L'], action: 'Anchors, portals, lights' },
-  { keys: ['Escape'], action: 'Leave the layout editor' },
-] as const
+// the keys the views really answer today: the rest of the table is not wired to a widget yet, so listing it
+// would promise keys that do nothing (the generated list comes with the widget round that uses them)
+const hotkeys = [{ keys: ['X'], action: 'Wireframe' }] as const
 
 /**
  * The label of the widget, from the widget definition.

@@ -2,6 +2,7 @@
 import { onMounted } from 'vue'
 import Dock from './components/Dock.vue'
 import EditorHeader from './components/EditorHeader.vue'
+import { startLevelDisplay } from './components/widgets/levelDisplay.ts'
 import { levelStore } from './modules/level/levelStore.ts'
 import { provideEditorShell } from './modules/shell/editorShellContext.ts'
 
@@ -13,6 +14,7 @@ provideEditorShell()
 // level is on its way before the dock asks for it.
 onMounted(() => {
   levelStore.startLoading()
+  startLevelDisplay()
 })
 </script>
 

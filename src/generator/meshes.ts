@@ -1,6 +1,14 @@
 import type { ArxPolygon, ArxVector3, ArxFTS } from 'arx-convert/types'
 import { isQuad } from 'arx-convert/utils'
-import { BufferAttribute, BufferGeometry, MeshLambertMaterial, Vector2, Vector3, type Mesh } from 'three'
+import {
+  BufferAttribute,
+  BufferGeometry,
+  LineBasicMaterial,
+  MeshLambertMaterial,
+  Vector2,
+  Vector3,
+  type Mesh,
+} from 'three'
 import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh'
 import { Color } from './Color.ts'
 
@@ -159,4 +167,83 @@ export function accelerateRaycast(mesh: Mesh): void {
  */
 export function createLevelMaterial(): MeshLambertMaterial {
   return new MeshLambertMaterial({ color: MESH_COLOR.getHex() })
+}
+
+/**
+ * The colour of the wireframe.
+ *
+ * @remarks
+ * The flat grey of the mesh, darkened by half: the lines then read on it, and the look is the one the
+ * archived editor had (`createPolygonWireframe` in `src/_old/`).
+ */
+const WIREFRAME_COLOR = Color.white.darken(50)
+
+/**
+ * Builds the material of a wireframe.
+ *
+ * @remarks
+ * A new instance per view: the level meshes share their geometry, and the wireframe is a `LineSegments`
+ * wrapper like them, but a disposed wrapper takes its material with it.
+ *
+ * @returns The material of the wireframe lines.
+ */
+export function createWireframeMaterial(): LineBasicMaterial {
+  return new LineBasicMaterial({ color: WIREFRAME_COLOR.getHex() })
+}
+
+/**
+ * Builds the wireframe of a set of Arx polygons.
+ *
+ * @remarks
+ * The **perimeter of every source polygon** instead of the triangles of the merged geometry: this keeps
+ * the quad edges visible without the diagonal the triangle split introduces, so the wireframe shows the
+ * polygons the level stores (the archived editor did the same in `src/_old/geometry/createWireframe.ts`).
+ *
+ * The stored vertex order is a "Z" (`0, 1, 2, 3`), so the perimeter is `0-1-2` for a triangle and
+ * `0-1-3-2` for a quad: the segments go into the geometry as pairs of points, which is what a
+ * `LineSegments` reads.
+ *
+ * @param polygons The polygons to convert.
+ * @param offset The scene position of the level, already mirrored.
+ *
+ * @returns The segments, ready for a `LineSegments`.
+ */
+export function arxPolygonsToWireframeGeometry(polygons: readonly ArxPolygon[], offset: Vector3): BufferGeometry {
+  const positions: number[] = []
+
+  for (const polygon of polygons) {
+    const vertices = polygon.vertices.map((vertex) => {
+      return arxVector3toVector3(vertex).sub(offset)
+    })
+    let perimeter = [0, 1, 2]
+
+    if (isQuad(polygon)) {
+      perimeter = [0, 1, 3, 2]
+    }
+
+    for (let index = 0; index < perimeter.length; index++) {
+      const from = vertices[perimeter[index]]
+      const to = vertices[perimeter[(index + 1) % perimeter.length]]
+
+      positions.push(from.x, from.y, from.z, to.x, to.y, to.z)
+    }
+  }
+
+  const geometry = new BufferGeometry()
+  geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3))
+
+  return geometry
+}
+
+/**
+ * Builds the wireframe of a level, in the space of its meshes.
+ *
+ * @param fts The scene of the level.
+ *
+ * @returns The segments of the wireframe, ready for a `LineSegments`.
+ */
+export function createWireframeGeometry(fts: ArxFTS): BufferGeometry {
+  const offset = arxVector3toVector3(fts.header.mScenePosition)
+
+  return arxPolygonsToWireframeGeometry(visiblePolygons(fts), offset)
 }

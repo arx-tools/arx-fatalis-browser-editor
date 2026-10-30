@@ -1,8 +1,8 @@
 import { DLF, FTS, LLF } from 'arx-convert'
 import type { ArxDLF, ArxFTS, ArxLight, ArxLLF, ArxVector3 } from 'arx-convert/types'
-import { Mesh } from 'three'
+import { Mesh, type BufferGeometry } from 'three'
 import { unpackArxFile } from './files.ts'
-import { accelerateRaycast, createLevelGeometry, createLevelMaterial } from './meshes.ts'
+import { accelerateRaycast, createLevelGeometry, createLevelMaterial, createWireframeGeometry } from './meshes.ts'
 import { countPolygonShapes } from './polygonCounts.ts'
 import { Player } from './Player.ts'
 
@@ -77,6 +77,16 @@ export class ArxMap {
    * The player of the map: where it stands and where it faces.
    */
   readonly player: Player
+
+  /**
+   * The wireframe of the level: the perimeter of every polygon, in the space of the meshes.
+   *
+   * @remarks
+   * One geometry for every view that draws it, like the geometry of the mesh. It is built with the mesh:
+   * the walk over the polygons is cheap compared to the mesh itself, and the switch only decides whether
+   * a view puts a `LineSegments` over this geometry into its scene.
+   */
+  readonly wireframeGeometry: BufferGeometry
 
   /**
    * The general description of the level.
@@ -157,5 +167,6 @@ export class ArxMap {
     accelerateRaycast(mesh)
 
     this.meshes = [mesh]
+    this.wireframeGeometry = createWireframeGeometry(this.fts)
   }
 }

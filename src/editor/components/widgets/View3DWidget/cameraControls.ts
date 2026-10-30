@@ -3,7 +3,7 @@ import { Euler, MathUtils, Vector3, type PerspectiveCamera } from 'three'
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import type { Player } from '../../../../generator/Player.ts'
-import { isKeyboardActionActive, setPointerLocked, startKeyboard } from '../../../modules/keyboard/keyboard.ts'
+import { isKeyboardActionActive, setPointerLocked } from '../../../modules/keyboard/keyboard.ts'
 import {
   applyGameAngle,
   gamePositionToWorld,
@@ -87,7 +87,6 @@ export class CameraControls {
     this.options = options
     this.controls = new PointerLockControls(options.camera, options.canvas)
 
-    startKeyboard()
     options.canvas.addEventListener('click', this.handleCanvasClick)
     this.controls.addEventListener('change', this.handleCameraChange)
     this.controls.addEventListener('lock', this.handleLock)

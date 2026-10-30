@@ -7,7 +7,15 @@ import { cameraStore } from '../cameraStore.ts'
 import { levelStore } from '../../../modules/level/levelStore.ts'
 import { centreOfBounds, type CameraBounds } from '../cameraBounds.ts'
 import { gamePositionToWorld, worldPositionToGame } from '../cameraPose.ts'
-import { addPreviewLights, gameBoundsOf, previewMaterial, viewMeshesOf } from '../levelScene.ts'
+import {
+  addPreviewLights,
+  attachWireframe,
+  gameBoundsOf,
+  previewMaterial,
+  viewMeshesOf,
+  type LevelWireframe,
+} from '../levelScene.ts'
+import { isWireframeVisible } from '../levelDisplay.ts'
 import { FIELD_OF_VIEW, createViewScene, disposeViewScene, resizeViewScene, type ViewScene } from '../viewScene.ts'
 import type { CameraViewMode } from './cameraAlign.ts'
 import { MAX_ZOOM, frameFixedView } from './fixedView.ts'
@@ -89,6 +97,7 @@ const WHEEL_STEP = 0.0015
 
 let view: ViewScene<OrthographicCamera> | undefined
 let shown: Mesh[] = []
+let wireframe: LevelWireframe | undefined
 let player: ArxVector3 | undefined
 let bounds: CameraBounds | undefined
 let scenePosition: ArxVector3 | undefined
@@ -97,6 +106,7 @@ let frame = 0
 let pressing = false
 let stopWatching: (() => void) | undefined
 let stopWatchingCamera: (() => void) | undefined
+let stopWatchingWireframe: (() => void) | undefined
 
 /**
  * Draws the next frame, at most once per animation frame.
@@ -401,6 +411,10 @@ function showMap(map: ArxMap): void {
     view.scene.add(mesh)
   }
 
+  // the small views draw the same wireframe as the walkable one, from the same geometry
+  wireframe = attachWireframe(view.scene, map.wireframeGeometry)
+  wireframe.setVisible(isWireframeVisible.value)
+
   scenePosition = map.scenePosition
   player = map.player.position
   bounds = gameBoundsOf(map.meshes, map.scenePosition)
@@ -420,6 +434,8 @@ function hideMap(): void {
   }
 
   shown = []
+  wireframe?.dispose()
+  wireframe = undefined
   player = undefined
   bounds = undefined
   marker.value = { x: 0, y: 0, visible: false, clamped: false, degrees: 0, arrow: false }
@@ -497,11 +513,19 @@ onMounted(() => {
   )
 })
 
+// the wireframe is a switch of every view at once: the same ref is read by the walkable view too
+stopWatchingWireframe = watch(isWireframeVisible, (visible) => {
+  wireframe?.setVisible(visible)
+  requestRender()
+})
+
 onBeforeUnmount(() => {
   stopWatching?.()
   stopWatching = undefined
   stopWatchingCamera?.()
   stopWatchingCamera = undefined
+  stopWatchingWireframe?.()
+  stopWatchingWireframe = undefined
 
   if (host.value !== null) {
     host.value.removeEventListener('wheel', onWheel)

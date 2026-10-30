@@ -6,7 +6,8 @@ import { levelStore } from '../../../modules/level/levelStore.ts'
 import { WIDGET_KINDS } from '../../../modules/layout/widgetKinds.ts'
 import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
 import { cameraStore } from '../cameraStore.ts'
-import { addPreviewLights, viewMeshesOf } from '../levelScene.ts'
+import { addPreviewLights, attachWireframe, viewMeshesOf, type LevelWireframe } from '../levelScene.ts'
+import { isWireframeVisible } from '../levelDisplay.ts'
 import { FIELD_OF_VIEW, createViewScene, disposeViewScene, resizeViewScene, type ViewScene } from '../viewScene.ts'
 import { createOrientationGizmo, type OrientationGizmo } from './orientationGizmo.ts'
 import { CameraControls } from './cameraControls.ts'
@@ -62,11 +63,13 @@ const gizmoCanvas = useTemplateRef<HTMLCanvasElement>('gizmoCanvas')
 let view: ViewScene<PerspectiveCamera> | undefined
 let gizmo: OrientationGizmo | undefined
 let shown: Mesh[] = []
+let wireframe: LevelWireframe | undefined
 let controls: CameraControls | undefined
 let observer: ResizeObserver | undefined
 let frame = 0
 let lastFrameAt = 0
 let stopWatching: (() => void) | undefined
+let stopWatchingWireframe: (() => void) | undefined
 
 /**
  * Draws one frame: the scene, then the orientation compass in its own corner.
@@ -207,6 +210,10 @@ function showMap(map: ArxMap): void {
     view.scene.add(mesh)
   }
 
+  // the wireframe is a switch: the view puts it over the mesh only while it is on
+  wireframe = attachWireframe(view.scene, map.wireframeGeometry)
+  wireframe.setVisible(isWireframeVisible.value)
+
   // a level change builds a new camera: the old one has to let the pointer and the listeners go
   controls?.dispose()
 
@@ -259,6 +266,8 @@ function hideMap(): void {
   }
 
   shown = []
+  wireframe?.dispose()
+  wireframe = undefined
 
   cameraStore.setDriver(undefined)
   controls?.dispose()
@@ -294,6 +303,12 @@ onMounted(() => {
     },
     { immediate: true },
   )
+
+  // the wireframe is a switch of every view at once: the same ref is read by the six fixed ones
+  stopWatchingWireframe = watch(isWireframeVisible, (visible) => {
+    wireframe?.setVisible(visible)
+    requestRender()
+  })
 })
 
 // the level is not the widget's: it may have been loaded before this widget was even mounted, and it
@@ -301,6 +316,8 @@ onMounted(() => {
 onBeforeUnmount(() => {
   stopWatching?.()
   stopWatching = undefined
+  stopWatchingWireframe?.()
+  stopWatchingWireframe = undefined
 
   observer?.disconnect()
   observer = undefined

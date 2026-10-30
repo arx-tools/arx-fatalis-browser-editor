@@ -1,16 +1,19 @@
 import type { ArxVector3 } from 'arx-convert/types'
 import {
   Box3,
+  LineSegments,
   Mesh,
   MeshLambertMaterial,
   type PerspectiveCamera,
   AmbientLight,
   DirectionalLight,
+  type BufferGeometry,
   type Material,
   type Scene,
   Vector3,
 } from 'three'
 import { Color } from '../../../generator/Color.ts'
+import { createWireframeMaterial } from '../../../generator/meshes.ts'
 import type { CameraBounds } from './cameraBounds.ts'
 import { worldPositionToGame } from './cameraPose.ts'
 
@@ -187,4 +190,62 @@ const previewMaterialInstance = new MeshLambertMaterial({ color: PREVIEW_COLOR }
  */
 export function previewMaterial(): MeshLambertMaterial {
   return previewMaterialInstance
+}
+
+/**
+ * The wireframe of the level in one scene.
+ *
+ * @remarks
+ * The geometry belongs to the map and is shared by every view, the `LineSegments` wrapper and its
+ * material are the view's own: a wrapper can only stand in one scene, so every widget creates one.
+ */
+export interface LevelWireframe {
+  /**
+   * Shows or hides the wireframe; a call with the state it already has does nothing.
+   *
+   * @param visible Whether the wireframe should be in the scene.
+   */
+  readonly setVisible: (visible: boolean) => void
+  /**
+   * Takes the wireframe out of the scene and frees its material. The geometry stays: it is the map's.
+   */
+  readonly dispose: () => void
+}
+
+/**
+ * Puts the wireframe of the level into a scene, hidden at first.
+ *
+ * @remarks
+ * It draws over the mesh (`renderOrder` 5) but still writes depth, so the lines behind a wall stay
+ * hidden: the same setting the archived editor used.
+ *
+ * @param scene The scene of the widget.
+ * @param geometry The wireframe geometry of the map.
+ *
+ * @returns The handle that shows, hides and disposes it.
+ */
+export function attachWireframe(scene: Scene, geometry: BufferGeometry): LevelWireframe {
+  const lines = new LineSegments(geometry, createWireframeMaterial())
+  lines.renderOrder = 5
+  let visible = false
+
+  return {
+    setVisible: (next: boolean): void => {
+      if (next === visible) {
+        return
+      }
+
+      visible = next
+
+      if (next) {
+        scene.add(lines)
+      } else {
+        scene.remove(lines)
+      }
+    },
+    dispose: (): void => {
+      scene.remove(lines)
+      lines.material.dispose()
+    },
+  }
 }

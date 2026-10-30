@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { Command, Eye, EyeOff, MouseLeft } from 'lucide-vue-next'
-import { computed, type ShallowRef } from 'vue'
+import { Command, Eye, EyeOff, MouseLeft, UndoDot } from 'lucide-vue-next'
+import { computed } from 'vue'
 import { isMacKeyboard } from '../../../modules/keyboard/keyboard.ts'
 import WidgetHeading from '../../WidgetHeading.vue'
-import { isMeshVisible, isWireframeVisible } from '../levelDisplay.ts'
+import { isViewAtDefault, resetViewSwitches, viewSwitches, type ViewSwitch } from '../levelDisplay.ts'
 
 /**
  * One cell of the key column: a key cap with a text, or one with an icon of the library.
@@ -14,7 +14,7 @@ type HelpKey =
 /**
  * A switch the help can flip from its row.
  */
-type HelpToggle = 'mesh' | 'wireframe'
+type HelpToggle = ViewSwitch
 
 /**
  * One row of the key help: the keys of an action, what they do, and the switch behind it.
@@ -50,6 +50,10 @@ interface HelpSection {
    * The rows of the section.
    */
   readonly rows: readonly HelpRow[]
+  /**
+   * Whether the section holds view switches, so its header carries the reset button.
+   */
+  readonly resettable?: boolean
 }
 
 /**
@@ -58,11 +62,11 @@ interface HelpSection {
 const icons = { command: Command, 'mouse-left': MouseLeft }
 
 /**
- * The switches behind the rows that have one, with the word the button uses for them.
+ * The words the buttons use for the switches of the rows.
  */
-const toggles: Record<HelpToggle, { readonly ref: ShallowRef<boolean>; readonly name: string }> = {
-  mesh: { ref: isMeshVisible, name: 'the mesh' },
-  wireframe: { ref: isWireframeVisible, name: 'the wireframe' },
+const switchNames: Record<HelpToggle, string> = {
+  mesh: 'the mesh',
+  wireframe: 'the wireframe',
 }
 
 /**
@@ -89,6 +93,7 @@ const sections = computed<readonly HelpSection[]>(() => {
   return [
     {
       title: 'View',
+      resettable: true,
       rows: [
         { keys: [{ kind: 'text', text: 'M' }], action: 'Mesh', toggle: 'mesh' },
         { keys: [{ kind: 'text', text: 'X' }], action: 'Wireframe', toggle: 'wireframe' },
@@ -122,7 +127,7 @@ const props = defineProps<{
  * @returns Whether the thing it shows is visible.
  */
 function isOn(toggle: HelpToggle): boolean {
-  return toggles[toggle].ref.value
+  return viewSwitches[toggle].ref.value
 }
 
 /**
@@ -131,7 +136,7 @@ function isOn(toggle: HelpToggle): boolean {
  * @param toggle The switch of the row.
  */
 function flip(toggle: HelpToggle): void {
-  toggles[toggle].ref.value = !toggles[toggle].ref.value
+  viewSwitches[toggle].ref.value = !viewSwitches[toggle].ref.value
 }
 
 /**
@@ -143,10 +148,10 @@ function flip(toggle: HelpToggle): void {
  */
 function buttonTitle(toggle: HelpToggle): string {
   if (isOn(toggle)) {
-    return `Hide ${toggles[toggle].name}`
+    return `Hide ${switchNames[toggle]}`
   }
 
-  return `Show ${toggles[toggle].name}`
+  return `Show ${switchNames[toggle]}`
 }
 </script>
 
@@ -154,7 +159,20 @@ function buttonTitle(toggle: HelpToggle): string {
   <div class="HelpWidget">
     <WidgetHeading :label="props.label" />
     <section v-for="section in sections" :key="section.title" class="section">
-      <h3 class="section-title">{{ section.title }}</h3>
+      <div class="section-head">
+        <h3 class="section-title">{{ section.title }}</h3>
+        <button
+          v-if="section.resettable === true"
+          class="reset-view"
+          type="button"
+          :disabled="isViewAtDefault"
+          aria-label="Reset view"
+          v-tooltip="'Reset view'"
+          @click="resetViewSwitches()"
+        >
+          <UndoDot class="reset-icon" />
+        </button>
+      </div>
       <dl>
         <template v-for="row in section.rows" :key="row.action">
           <dt>
@@ -199,16 +217,59 @@ function buttonTitle(toggle: HelpToggle): string {
     margin-top: 13px;
   }
 
-  // the name of a section: the look of the widget title, a size smaller and without the weight
-  .section-title {
+  // the header of a section: the name on the left and, on a section of switches, the reset on the right.
+  // The rule under it belongs to the row, so the button sits on the same line as the names
+  .section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     margin: 0 0 6px;
     padding: 0 6px 5px;
     border-bottom: 1px solid $border-dark;
+  }
+
+  // the name of a section: the look of the widget title, a size smaller and without the weight
+  .section-title {
+    margin: 0;
     color: $text-icon;
     font-size: 11px;
     font-weight: normal;
     text-transform: uppercase;
     letter-spacing: 0.04em;
+  }
+
+  // the reset of the switches: the look of the show/hide buttons of the rows, on the header line
+  .reset-view {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 22px;
+    padding: 0;
+    color: $text-icon;
+    background: rgba($surface-app, 0.72);
+    border: 1px solid $border;
+    border-radius: 4px;
+    cursor: pointer;
+
+    &:hover {
+      color: $text;
+      background: $surface-panel;
+    }
+
+    // at the default state there is nothing to put back: the button is greyed out and does not react
+    &:disabled {
+      color: $text-subtle;
+      background: rgba($surface-app, 0.4);
+      border-color: $border-dark;
+      cursor: default;
+    }
+  }
+
+  .reset-icon {
+    width: 14px;
+    height: 14px;
   }
 
   dl {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { OrthographicCamera, type Mesh, type Vector3 } from 'three'
-import type { ArxVector3 } from 'arx-convert/types'
+import type { ArxPolygon, ArxVector3 } from 'arx-convert/types'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { cameraStore } from '../cameraStore.ts'
 import { levelStore } from '../../../modules/level/levelStore.ts'
@@ -16,6 +16,9 @@ import {
   type LevelWireframe,
 } from '../levelScene.ts'
 import { isMeshVisible, isWireframeVisible } from '../levelDisplay.ts'
+import { selectionStore } from '../../../modules/selection/selectionStore.ts'
+import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
+import { createPolygonSelectionOverlay, type PolygonSelectionOverlay } from '../View3DWidget/polygonSelection.ts'
 import { FIELD_OF_VIEW, createViewScene, disposeViewScene, resizeViewScene, type ViewScene } from '../viewScene.ts'
 import type { CameraViewMode } from './cameraAlign.ts'
 import { MAX_ZOOM, frameFixedView } from './fixedView.ts'
@@ -108,6 +111,17 @@ let stopWatching: (() => void) | undefined
 let stopWatchingCamera: (() => void) | undefined
 let stopWatchingWireframe: (() => void) | undefined
 let stopWatchingMesh: (() => void) | undefined
+let stopWatchingSelection: (() => void) | undefined
+
+/**
+ * The fill of the selection, over the level of the map.
+ *
+ * @remarks
+ * The fixed views show **which** faces are selected, the way the walkable view does: the same yellow fill,
+ * over the surfaces of the map. The selection is one store for the whole editor, so a face selected in the
+ * walkable view is filled here too, and a fill made here shows up there.
+ */
+let selectionOverlay: PolygonSelectionOverlay | undefined
 
 /**
  * Draws the next frame, at most once per animation frame.
@@ -395,6 +409,27 @@ function resize(): void {
 }
 
 /**
+ * The polygons of the selection, as the map holds them.
+ *
+ * @param map The level of the view.
+ *
+ * @returns The selected polygons, in the order of the map.
+ */
+function selectedPolygonsOf(map: ArxMap): ArxPolygon[] {
+  const polygons: ArxPolygon[] = []
+
+  for (const index of selectionStore.polygons.value) {
+    const polygon = map.polygons[index]
+
+    if (polygon !== undefined) {
+      polygons.push(polygon)
+    }
+  }
+
+  return polygons
+}
+
+/**
  * Shows or hides the meshes of the level.
  *
  * @param visible Whether the level's surfaces should be drawn.
@@ -431,6 +466,15 @@ function showMap(map: ArxMap): void {
   wireframe = attachWireframe(view.scene, map.wireframeGeometry)
   wireframe.setVisible(isWireframeVisible.value)
 
+  // the fill of the selection, in the space of the same meshes
+  selectionOverlay = createPolygonSelectionOverlay(view.scene, arxVector3toVector3(map.scenePosition))
+  selectionOverlay.setHighlight(selectedPolygonsOf(map))
+
+  stopWatchingSelection = watch(selectionStore.polygons, () => {
+    selectionOverlay?.setHighlight(selectedPolygonsOf(map))
+    requestRender()
+  })
+
   scenePosition = map.scenePosition
   player = map.player.position
   bounds = gameBoundsOf(map.meshes, map.scenePosition)
@@ -452,6 +496,10 @@ function hideMap(): void {
   shown = []
   wireframe?.dispose()
   wireframe = undefined
+  selectionOverlay?.dispose()
+  selectionOverlay = undefined
+  stopWatchingSelection?.()
+  stopWatchingSelection = undefined
   player = undefined
   bounds = undefined
   marker.value = { x: 0, y: 0, visible: false, clamped: false, degrees: 0, arrow: false }
@@ -535,6 +583,12 @@ stopWatchingWireframe = watch(isWireframeVisible, (visible) => {
   requestRender()
 })
 
+// the mesh is a switch of every view as well: off, the map keeps the wireframe and the marker only
+stopWatchingMesh = watch(isMeshVisible, (visible) => {
+  setMeshVisible(visible)
+  requestRender()
+})
+
 onBeforeUnmount(() => {
   stopWatching?.()
   stopWatching = undefined
@@ -544,6 +598,8 @@ onBeforeUnmount(() => {
   stopWatchingWireframe = undefined
   stopWatchingMesh?.()
   stopWatchingMesh = undefined
+  stopWatchingSelection?.()
+  stopWatchingSelection = undefined
 
   if (host.value !== null) {
     host.value.removeEventListener('wheel', onWheel)

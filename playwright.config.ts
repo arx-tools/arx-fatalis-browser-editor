@@ -15,7 +15,7 @@ import { config as loadEnv } from 'dotenv'
 function portOfTestServer(): number {
   loadEnv({ path: fileURLToPath(new URL('.env', import.meta.url)) })
 
-  return Number(process.env.E2E_PORT ?? 5001)
+  return Number(process.env.E2E_PORT ?? 5557)
 }
 
 /**

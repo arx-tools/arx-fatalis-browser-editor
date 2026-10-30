@@ -34,7 +34,7 @@ shared [`@arx-tools/config`](https://github.com/arx-tools/config) package (20.1)
 | command               | what it does                                                |
 | --------------------- | ----------------------------------------------------------- |
 | `npm ci`              | installs the dependencies                                   |
-| `npm run dev`         | dev server on http://localhost:5000/editor/ (see `.env`)    |
+| `npm run dev`         | dev server on http://localhost:5556/editor/ (see `.env`)    |
 | `npm run lint`        | checks the code against the pre-defined coding guidelines   |
 | `npm run lint:watch`  | re-runs the lint when a source, test or config file changes |
 | `npm run typecheck`   | type checks the app, the tooling and the tests (4 projects) |

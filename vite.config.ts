@@ -41,7 +41,7 @@ export default defineConfig(async () => {
     server: {
       // the port belongs to this project (see `.env`), and it is not a suggestion: a taken port has to fail,
       // a quiet move to the next one would hide the collision the port is there to avoid
-      port: Number(process.env.DEV_PORT ?? 5000),
+      port: Number(process.env.DEV_PORT ?? 5556),
       strictPort: true,
     },
     clearScreen: false,

@@ -12,7 +12,7 @@ import {
   splitPolygons,
 } from './meshes.ts'
 import { countFacesOfTriangles } from './polygonCounts.ts'
-import { triangleToPolygonMap } from './polygons.ts'
+import { triangleToPolygonMap, vertexToPolygonsMap } from './polygons.ts'
 import { Player } from './Player.ts'
 
 /**
@@ -131,6 +131,15 @@ export class ArxMap {
   readonly triangleToPolygon: readonly number[]
 
   /**
+   * The polygons grouped by the positions of their vertices.
+   *
+   * @remarks
+   * The neighbours of a face: the drag of the walkable view and the texture fill both walk these, so they
+   * follow the welds of the mesh and stop where the mesh is not welded. Built once, with the mesh.
+   */
+  readonly vertexToPolygons: ReadonlyMap<string, readonly number[]>
+
+  /**
    * The numbers the statistics widget shows, worked out when the mesh was built.
    */
   private figures: MapStatistics
@@ -221,6 +230,7 @@ export class ArxMap {
     this.polygons = polygons
     this.wireframeGeometry = arxPolygonsToWireframeGeometry(polygons, offset)
     this.triangleToPolygon = triangleToPolygonMap(polygons)
+    this.vertexToPolygons = vertexToPolygonsMap(polygons)
 
     this.figures = {
       faceCount: 0,

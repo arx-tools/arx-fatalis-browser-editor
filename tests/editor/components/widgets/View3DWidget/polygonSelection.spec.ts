@@ -13,13 +13,14 @@ import {
 } from 'three'
 import { Color } from '../../../../../src/generator/Color.ts'
 import { accelerateRaycast, arxPolygonsToGeometry } from '../../../../../src/generator/meshes.ts'
-import { triangleToPolygonMap } from '../../../../../src/generator/polygons.ts'
+import { triangleToPolygonMap, usedVerticesOf } from '../../../../../src/generator/polygons.ts'
 import {
   createPolygonSelectionOverlay,
+  faceToSweep,
   pickPolygon,
+  pickPolygons,
   polygonFillGeometry,
   polygonOutlineGeometry,
-  selectionModeOf,
 } from '../../../../../src/editor/components/widgets/View3DWidget/polygonSelection.ts'
 
 /**
@@ -56,6 +57,27 @@ function polygon(isQuad: boolean): ArxPolygon {
 }
 
 /**
+ * A quad of the test, moved along `x`.
+ *
+ * @param x Where the left edge of the quad sits.
+ *
+ * @returns The same square, with its left edge on `x`.
+ */
+function quadAt(x: number): ArxPolygon {
+  const base = polygon(true)
+
+  return {
+    ...base,
+    vertices: [
+      { ...base.vertices[0], x: base.vertices[0].x + x },
+      { ...base.vertices[1], x: base.vertices[1].x + x },
+      { ...base.vertices[2], x: base.vertices[2].x + x },
+      { ...base.vertices[3], x: base.vertices[3].x + x },
+    ],
+  }
+}
+
+/**
  * The vertices of a geometry, as a flat list.
  *
  * @param geometry The geometry to read.
@@ -65,25 +87,6 @@ function polygon(isQuad: boolean): ArxPolygon {
 function coordinates(geometry: BufferGeometry): number[] {
   return [...((geometry.getAttribute('position').array as Float32Array) ?? [])]
 }
-
-void describe('selectionModeOf', () => {
-  void it('starts a new selection on a plain click', () => {
-    assert.equal(selectionModeOf({ shiftKey: false, ctrlKey: false, metaKey: false }), 'replace')
-  })
-
-  void it('adds on shift', () => {
-    assert.equal(selectionModeOf({ shiftKey: true, ctrlKey: false, metaKey: false }), 'add')
-  })
-
-  void it('removes on ctrl, and on meta too', () => {
-    assert.equal(selectionModeOf({ shiftKey: false, ctrlKey: true, metaKey: false }), 'remove')
-    assert.equal(selectionModeOf({ shiftKey: false, ctrlKey: false, metaKey: true }), 'remove')
-  })
-
-  void it('lets ctrl win over shift', () => {
-    assert.equal(selectionModeOf({ shiftKey: true, ctrlKey: true, metaKey: false }), 'remove')
-  })
-})
 
 void describe('polygonOutlineGeometry', () => {
   void it('gives the perimeter of a quad: four segments', () => {
@@ -211,6 +214,38 @@ void describe('pickPolygon', () => {
     assert.equal(pickPolygon(camera, [first, second], [...triangleToPolygon, 1, 1]), 1)
   })
 
+  void it('reads more than one face of the ray, nearest first', () => {
+    const { camera, meshes, triangleToPolygon } = sceneLookingAtTheFloor()
+    const first = meshes[0]
+
+    // a second floor over the first: the ray meets the nearer one first
+    const second = new Mesh(arxPolygonsToGeometry([polygon(true)], new Vector3(0, 0, 0)), new MeshBasicMaterial())
+
+    second.position.set(0, 2, 0)
+    second.updateMatrixWorld()
+
+    const polygons = pickPolygons(
+      camera,
+      [first, second],
+      [
+        ...triangleToPolygon,
+        ...triangleToPolygon.map(() => {
+          return 1
+        }),
+      ],
+      2,
+    )
+
+    assert.deepEqual(polygons, [1, 0])
+  })
+
+  void it('gives the nearest face only by default', () => {
+    const { camera, meshes, triangleToPolygon } = sceneLookingAtTheFloor()
+
+    assert.deepEqual(pickPolygons(camera, meshes, triangleToPolygon), [0])
+    assert.equal(pickPolygon(camera, meshes, triangleToPolygon), 0)
+  })
+
   void it('reads nothing beyond the far plane of the camera', () => {
     const { camera, meshes, triangleToPolygon } = sceneLookingAtTheFloor()
     camera.far = 1
@@ -285,5 +320,79 @@ void describe('createPolygonSelectionOverlay', () => {
     overlay.dispose()
 
     assert.equal(scene.children.length, 0)
+  })
+})
+
+void describe('faceToSweep', () => {
+  void it('takes the nearest face when nothing is selected yet', () => {
+    const polygons = [quadAt(0), quadAt(10)]
+
+    const chosen = faceToSweep({
+      candidates: [1, 0],
+      polygons,
+      selected: new Set<number>(),
+      vertices: [],
+      mode: 'replace',
+    })
+
+    // nothing is selected, so nothing has to touch: the nearest face is the one the drag starts on
+    assert.equal(chosen, 1)
+  })
+
+  void it('skips a nearer face that does not touch the drag', () => {
+    // the ray meets the far quad 1 first, but only quad 0 (already in the drag) touches quad 3
+    const polygons = [quadAt(0), quadAt(10), quadAt(20), quadAt(10)]
+
+    const chosen = faceToSweep({
+      candidates: [2, 3],
+      polygons,
+      selected: new Set<number>(),
+      vertices: usedVerticesOf(polygons[0]),
+      mode: 'add',
+    })
+
+    assert.equal(chosen, 3)
+  })
+
+  void it('takes nothing when no face touches the drag', () => {
+    const polygons = [quadAt(0), quadAt(40)]
+
+    const chosen = faceToSweep({
+      candidates: [1],
+      polygons,
+      selected: new Set<number>(),
+      vertices: usedVerticesOf(polygons[0]),
+      mode: 'add',
+    })
+
+    assert.equal(chosen, undefined)
+  })
+
+  void it('skips the faces that are selected already', () => {
+    const polygons = [quadAt(0)]
+
+    const chosen = faceToSweep({
+      candidates: [0],
+      polygons,
+      selected: new Set([0]),
+      vertices: usedVerticesOf(polygons[0]),
+      mode: 'add',
+    })
+
+    assert.equal(chosen, undefined)
+  })
+
+  void it('takes the nearest face to remove, touching or not', () => {
+    const polygons = [quadAt(0), quadAt(40)]
+
+    const chosen = faceToSweep({
+      candidates: [1],
+      polygons,
+      selected: new Set([1]),
+      vertices: usedVerticesOf(polygons[0]),
+      mode: 'remove',
+    })
+
+    assert.equal(chosen, 1)
   })
 })

@@ -2,6 +2,53 @@ import { computed, shallowRef, type ComputedRef, type ShallowRef } from 'vue'
 import { onKeyboardAction } from '../keyboard/keyboard.ts'
 
 /**
+ * What a gesture does with the polygons it touches.
+ *
+ * @remarks
+ * A plain click starts a new selection, `Shift` adds to it and `Ctrl` (or `Meta`) takes away from it, the
+ * same reading the archived editor had. The drag of the walkable view and the double click of the texture
+ * fill follow the same three modes.
+ */
+export type SelectionMode = 'add' | 'remove' | 'replace'
+
+/**
+ * The modifiers of a mouse event, as far as the selection cares about them.
+ */
+export interface SelectionModifiers {
+  /**
+   * Whether `Shift` is held down: the click adds to the selection.
+   */
+  readonly shiftKey: boolean
+  /**
+   * Whether `Ctrl` is held down: the click takes away from the selection.
+   */
+  readonly ctrlKey: boolean
+  /**
+   * Whether `Meta` is held down: on the apple keyboards this is the `Ctrl` of the others.
+   */
+  readonly metaKey: boolean
+}
+
+/**
+ * Reads the mode of a click from its modifiers.
+ *
+ * @param event The mouse event of the click.
+ *
+ * @returns The mode the click asks for.
+ */
+export function selectionModeOf(event: SelectionModifiers): SelectionMode {
+  if (event.ctrlKey || event.metaKey) {
+    return 'remove'
+  }
+
+  if (event.shiftKey) {
+    return 'add'
+  }
+
+  return 'replace'
+}
+
+/**
  * The polygons the editor has selected.
  *
  * @remarks
@@ -37,6 +84,13 @@ export interface SelectionStore {
    */
   readonly remove: (polygon: number) => void
   /**
+   * Puts a group of polygons into the selection, or takes them out of it.
+   *
+   * @param polygons The polygons of the gesture.
+   * @param mode Whether the group replaces the selection, adds to it or is removed from it.
+   */
+  readonly selectMany: (polygons: readonly number[], mode: SelectionMode) => void
+  /**
    * Empties the selection.
    */
   readonly clear: () => void
@@ -66,6 +120,25 @@ export function createSelectionStore(): SelectionStore {
     remove: (polygon: number): void => {
       const next = new Set(polygons.value)
       next.delete(polygon)
+      polygons.value = next
+    },
+    selectMany: (group: readonly number[], mode: SelectionMode): void => {
+      if (mode === 'replace') {
+        polygons.value = new Set(group)
+
+        return
+      }
+
+      const next = new Set(polygons.value)
+
+      for (const polygon of group) {
+        if (mode === 'remove') {
+          next.delete(polygon)
+        } else {
+          next.add(polygon)
+        }
+      }
+
       polygons.value = next
     },
     clear: (): void => {

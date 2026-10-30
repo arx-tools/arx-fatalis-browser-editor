@@ -1,4 +1,4 @@
-import type { ArxPolygon } from 'arx-convert/types'
+import type { ArxPolygon, ArxVector3 } from 'arx-convert/types'
 import {
   BufferAttribute,
   BufferGeometry,
@@ -8,94 +8,39 @@ import {
   MeshBasicMaterial,
   Raycaster,
   Vector2,
+  type Intersection,
   type Mesh as ThreeMesh,
   type PerspectiveCamera,
   type Scene,
   type Vector3,
 } from 'three'
 import { Color } from '../../../../generator/Color.ts'
+import type { SelectionMode } from '../../../modules/selection/selectionStore.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
-import { polygonFillTriangles, polygonPerimeter, polygonOfTriangle } from '../../../../generator/polygons.ts'
+import {
+  isTouchingVertices,
+  polygonFillTriangles,
+  polygonPerimeter,
+  polygonOfTriangle,
+} from '../../../../generator/polygons.ts'
 
 /**
- * What a click does with the polygon under the crosshair.
+ * Reads the polygon of one intersection.
  *
- * @remarks
- * A plain click starts a new selection, `Shift` adds to it and `Ctrl` (or `Meta`) takes away from it, the
- * same reading the archived editor had.
- */
-export type SelectionMode = 'add' | 'remove' | 'replace'
-
-/**
- * The modifiers of a mouse event, as far as the selection cares about them.
- */
-export interface SelectionModifiers {
-  /**
-   * Whether `Shift` is held down: the click adds to the selection.
-   */
-  readonly shiftKey: boolean
-  /**
-   * Whether `Ctrl` is held down: the click takes away from the selection.
-   */
-  readonly ctrlKey: boolean
-  /**
-   * Whether `Meta` is held down: on the apple keyboards this is the `Ctrl` of the others.
-   */
-  readonly metaKey: boolean
-}
-
-/**
- * Reads the mode of a click from its modifiers.
- *
- * @param event The mouse event of the click.
- *
- * @returns The mode the click asks for.
- */
-export function selectionModeOf(event: SelectionModifiers): SelectionMode {
-  if (event.ctrlKey || event.metaKey) {
-    return 'remove'
-  }
-
-  if (event.shiftKey) {
-    return 'add'
-  }
-
-  return 'replace'
-}
-
-/**
- * Reads the polygon the camera looks at, in the middle of its view.
- *
- * @remarks
- * The ray goes through the middle of the canvas, which is where the crosshair of the walkable view is.
- * Only the faces turned towards the camera can be hit: the material of the level is front side only, and
- * three skips the faces turned away, so a back face can not be selected (the archived editor only fell back
- * to them when nothing visible was under the crosshair; this one does not).
- *
- * @param camera The camera of the walkable view.
- * @param meshes The meshes of the level in this view.
+ * @param hit The intersection the raycast reported.
+ * @param meshes The meshes of the level, in the order the triangle map was built with.
  * @param triangleToPolygon The triangle map of the level.
  *
- * @returns The polygon index, or `undefined` when the ray hits nothing.
+ * @returns The polygon index, or `undefined` when the hit is not on a face of the map.
  */
-export function pickPolygon(
-  camera: PerspectiveCamera,
+function polygonOfHit(
+  hit: Intersection,
   meshes: readonly ThreeMesh[],
   triangleToPolygon: readonly number[],
 ): number | undefined {
-  camera.updateMatrixWorld()
+  const { face } = hit
 
-  const raycaster = new Raycaster()
-  // the range of the camera, not a generous one: a polygon beyond the far plane is not drawn, so picking
-  // it would outline a surface that is not on the screen
-  raycaster.near = camera.near
-  raycaster.far = camera.far
-  raycaster.setFromCamera(new Vector2(0, 0), camera)
-
-  const hit = raycaster.intersectObjects([...meshes], false)[0]
-  const face = hit?.face
-
-  if (hit === undefined || face === null || face === undefined || typeof face.a !== 'number') {
+  if (face === null || face === undefined || typeof face.a !== 'number') {
     return undefined
   }
 
@@ -118,6 +63,78 @@ export function pickPolygon(
   // vertex, and the geometry is not indexed, so every triangle owns three vertices of its own: the first
   // one divided by three is the triangle's original index.
   return polygonOfTriangle(triangleToPolygon, offset + Math.trunc(face.a / 3))
+}
+
+/**
+ * Reads the polygons the camera looks at, nearest first.
+ *
+ * @remarks
+ * The ray of the level can cross more than one face: a drag wants the nearest few of them, so a face that
+ * does not touch the selection does not hide the one that does. The list holds every face once, in the
+ * order the ray meets them.
+ *
+ * @param camera The camera of the walkable view.
+ * @param meshes The meshes of the level in this view.
+ * @param triangleToPolygon The triangle map of the level.
+ * @param limit How many faces to read at most.
+ *
+ * @returns The polygon indices, nearest first.
+ */
+export function pickPolygons(
+  camera: PerspectiveCamera,
+  meshes: readonly ThreeMesh[],
+  triangleToPolygon: readonly number[],
+  limit = 1,
+): number[] {
+  camera.updateMatrixWorld()
+
+  const raycaster = new Raycaster()
+  // the range of the camera, not a generous one: a polygon beyond the far plane is not drawn, so picking
+  // it would outline a surface that is not on the screen
+  raycaster.near = camera.near
+  raycaster.far = camera.far
+  raycaster.setFromCamera(new Vector2(0, 0), camera)
+
+  const polygons: number[] = []
+
+  for (const hit of raycaster.intersectObjects([...meshes], false)) {
+    const polygon = polygonOfHit(hit, meshes, triangleToPolygon)
+
+    if (polygon === undefined || polygons.includes(polygon)) {
+      continue
+    }
+
+    polygons.push(polygon)
+
+    if (polygons.length >= limit) {
+      break
+    }
+  }
+
+  return polygons
+}
+
+/**
+ * Reads the polygon the camera looks at, in the middle of its view.
+ *
+ * @remarks
+ * The ray goes through the middle of the canvas, which is where the crosshair of the walkable view is.
+ * Only the faces turned towards the camera can be hit: the material of the level is front side only, and
+ * three skips the faces turned away, so a back face can not be selected (the archived editor only fell back
+ * to them when nothing visible was under the crosshair; this one does not).
+ *
+ * @param camera The camera of the walkable view.
+ * @param meshes The meshes of the level in this view.
+ * @param triangleToPolygon The triangle map of the level.
+ *
+ * @returns The polygon index, or `undefined` when the ray hits nothing.
+ */
+export function pickPolygon(
+  camera: PerspectiveCamera,
+  meshes: readonly ThreeMesh[],
+  triangleToPolygon: readonly number[],
+): number | undefined {
+  return pickPolygons(camera, meshes, triangleToPolygon)[0]
 }
 
 /**
@@ -325,4 +342,68 @@ export function createPolygonSelectionOverlay(scene: Scene, offset: Vector3): Po
       fillMaterial.dispose()
     },
   }
+}
+
+/**
+ * What a running drag has to decide on: the faces under the ray, and the state of the gesture.
+ */
+export interface DragSweep {
+  /**
+   * The faces under the ray, nearest first.
+   */
+  readonly candidates: readonly number[]
+  /**
+   * The polygons of the level.
+   */
+  readonly polygons: readonly ArxPolygon[]
+  /**
+   * The faces the selection holds already.
+   */
+  readonly selected: ReadonlySet<number>
+  /**
+   * The vertices of the faces the drag has taken so far.
+   */
+  readonly vertices: readonly ArxVector3[]
+  /**
+   * What the drag does.
+   */
+  readonly mode: SelectionMode
+}
+
+/**
+ * The face a running drag takes from the ray.
+ *
+ * @remarks
+ * A `replace` or `add` drag only takes a face that **touches** the ones it has taken so far: a nearer face
+ * that does not would otherwise hide the one that does (the overlapping polygons of level 8 are the case
+ * that shows it), and a face from the other side of the level must not come along. A face that touches
+ * nothing is not taken at all, so a drag stops at the islands instead of painting them. `remove` takes the
+ * nearest face of all: taking something away does not need a neighbour.
+ *
+ * @param sweep The faces of the ray and the state of the gesture.
+ *
+ * @returns The index of the face to take, or `undefined` when no candidate may join.
+ */
+export function faceToSweep(sweep: DragSweep): number | undefined {
+  for (const index of sweep.candidates) {
+    const polygon = sweep.polygons[index]
+
+    if (polygon === undefined) {
+      continue
+    }
+
+    if (sweep.mode === 'remove') {
+      return index
+    }
+
+    if (sweep.selected.has(index)) {
+      continue
+    }
+
+    if (isTouchingVertices(polygon, sweep.vertices)) {
+      return index
+    }
+  }
+
+  return undefined
 }

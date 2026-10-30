@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
-import type { ArxPolygon } from 'arx-convert/types'
+import type { ArxPolygon, ArxVector3 } from 'arx-convert/types'
 import { PerspectiveCamera, type Mesh } from 'three'
 import Crosshair from '../../Crosshair.vue'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
+import { sameTextureAreaOf, usedVerticesOf } from '../../../../generator/polygons.ts'
 import { levelStore } from '../../../modules/level/levelStore.ts'
 import { WIDGET_KINDS } from '../../../modules/layout/widgetKinds.ts'
 import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
 import { isKeyDown } from '../../../modules/keyboard/keyboard.ts'
-import { selectionStore } from '../../../modules/selection/selectionStore.ts'
+import { selectionModeOf, selectionStore, type SelectionMode } from '../../../modules/selection/selectionStore.ts'
 import { cameraStore } from '../cameraStore.ts'
 import { isMeshVisible, isWireframeVisible } from '../levelDisplay.ts'
 import { addPreviewLights, attachWireframe, viewMeshesOf, type LevelWireframe } from '../levelScene.ts'
@@ -18,10 +19,10 @@ import { CameraControls } from './cameraControls.ts'
 import { createOrientationGizmo, type OrientationGizmo } from './orientationGizmo.ts'
 import {
   createPolygonSelectionOverlay,
+  faceToSweep,
   pickPolygon,
-  selectionModeOf,
+  pickPolygons,
   type PolygonSelectionOverlay,
-  type SelectionMode,
 } from './polygonSelection.ts'
 
 /**
@@ -77,6 +78,31 @@ let gizmo: OrientationGizmo | undefined
 let shown: Mesh[] = []
 let wireframe: LevelWireframe | undefined
 let selection: PolygonSelectionOverlay | undefined
+
+/**
+ * How many faces a drag reads from the ray: enough to find the one that touches the selection under a face
+ * that does not.
+ */
+const CONNECT_CANDIDATES = 24
+
+/**
+ * What a running drag does with the faces it sweeps over.
+ *
+ * @remarks
+ * A press starts it, a release ends it, and every frame in between looks at the face under the crosshair --
+ * the pointer is locked, so the drag is the camera turning, not a rectangle on the screen. The mode is fixed
+ * at the press: the modifiers of that moment decide it, the way a click does.
+ */
+let dragMode: SelectionMode | undefined
+
+/**
+ * The vertices of the faces the drag has taken into the selection: the connection test of the next face.
+ *
+ * @remarks
+ * A face only joins when one of its vertices is close to one of these. Without that rule a drag would paint
+ * every face it sweeps over, however far from the start it lies (the archived editor's `isConnectedToSelection`).
+ */
+let dragVertices: ArxVector3[] = []
 let loadedMap: ArxMap | undefined
 
 let stopWatchingSelection: (() => void) | undefined
@@ -112,6 +138,136 @@ function selectionModeOfKeys(): SelectionMode {
 /**
  * Reads the polygon under the crosshair and outlines it.
  */
+/**
+ * Reads the face a running drag should take.
+ *
+ * @returns The index of the face to take, or `undefined` when no candidate may join.
+ */
+function pickConnectedPolygon(): number | undefined {
+  if (view === undefined || loadedMap === undefined || dragMode === undefined) {
+    return undefined
+  }
+
+  const candidates = pickPolygons(view.camera, shown, loadedMap.triangleToPolygon, CONNECT_CANDIDATES)
+
+  return faceToSweep({
+    candidates,
+    polygons: loadedMap.polygons,
+    selected: selectionStore.polygons.value,
+    vertices: dragVertices,
+    mode: dragMode,
+  })
+}
+
+/**
+ * Selects the face under the crosshair for the running gesture.
+ *
+ * @remarks
+ * A `replace` gesture already dropped the old selection at the press, so every mode is an add here. A face
+ * joins only when it touches the ones this drag has selected so far, so a fast drag does not jump over the
+ * gaps of the mesh and a face from the other side of the level does not come along. `Ctrl` takes faces away,
+ * and there the connection does not matter.
+ */
+function selectUnderCrosshair(): void {
+  if (view === undefined || loadedMap === undefined || dragMode === undefined) {
+    return
+  }
+
+  const index = pickConnectedPolygon()
+
+  if (index === undefined) {
+    return
+  }
+
+  if (dragMode === 'remove') {
+    if (selectionStore.polygons.value.has(index)) {
+      selectionStore.remove(index)
+    }
+
+    return
+  }
+
+  if (selectionStore.polygons.value.has(index)) {
+    return
+  }
+
+  selectionStore.add(index)
+
+  const polygon = loadedMap.polygons[index]
+
+  if (polygon !== undefined) {
+    dragVertices = [...dragVertices, ...usedVerticesOf(polygon)]
+  }
+}
+
+/**
+ * Starts a gesture of the locked view: the faces under the crosshair from here on are selected.
+ *
+ * @remarks
+ * The modifiers decide what the gesture does: no modifier starts a new selection, `Shift` adds the faces and
+ * `Ctrl` (or `Meta`) takes them away. The mode is read once, at the press.
+ *
+ * @param event The mouse event of the press.
+ */
+function onMouseDown(event: MouseEvent): void {
+  if (controls?.isLocked !== true) {
+    return
+  }
+
+  // only the left button selects: the right one is left alone, and the middle one is not a pick either
+  if (event.button !== 0) {
+    return
+  }
+
+  if (view === undefined || loadedMap === undefined) {
+    return
+  }
+
+  dragMode = selectionModeOf(event)
+  dragVertices = []
+
+  if (dragMode === 'replace') {
+    selectionStore.clear()
+  }
+
+  selectUnderCrosshair()
+}
+
+/**
+ * Ends the gesture: the next press starts a new one.
+ *
+ * @param event The mouse event of the release.
+ */
+function onMouseUp(event: MouseEvent): void {
+  if (event.button !== 0) {
+    return
+  }
+
+  dragMode = undefined
+  dragVertices = []
+}
+
+/**
+ * Takes the whole welded area of the texture under the crosshair: the double click of the walkable view.
+ *
+ * @param event The mouse event of the double click.
+ */
+function onDoubleClick(event: MouseEvent): void {
+  if (view === undefined || loadedMap === undefined || controls?.isLocked !== true) {
+    return
+  }
+
+  const index = pickPolygon(view.camera, shown, loadedMap.triangleToPolygon)
+
+  if (index === undefined) {
+    return
+  }
+
+  const area = sameTextureAreaOf(loadedMap.polygons, loadedMap.vertexToPolygons, index)
+
+  selectionStore.selectMany(area, selectionModeOf(event))
+}
+
 function updateCursor(): void {
   if (view === undefined || loadedMap === undefined || selection === undefined) {
     return
@@ -124,7 +280,7 @@ function updateCursor(): void {
     polygon = loadedMap.polygons[index]
   }
 
-  selection.setCursor(polygon, selectionModeOfKeys())
+  selection.setCursor(polygon, dragMode ?? selectionModeOfKeys())
 }
 
 /**
@@ -167,38 +323,17 @@ function updateHighlight(): void {
  *
  * @param event The mouse event of the click.
  */
-function onClick(event: MouseEvent): void {
-  if (controls?.isLocked !== true) {
+/**
+ * Sweeps the faces under the crosshair into the selection while the button is held: the drag of the view.
+ */
+function updateDrag(): void {
+  if (dragMode === undefined) {
     return
   }
 
-  // only the left button selects: the right one is left alone, and the middle one is not a pick either
-  if (event.button !== 0) {
-    return
-  }
-
-  if (view === undefined || loadedMap === undefined) {
-    return
-  }
-
-  const mode = selectionModeOf(event)
-  const polygon = pickPolygon(view.camera, shown, loadedMap.triangleToPolygon)
-
-  if (polygon === undefined) {
-    if (mode === 'replace') {
-      selectionStore.clear()
-    }
-
-    return
-  }
-
-  if (mode === 'add') {
-    selectionStore.add(polygon)
-  } else if (mode === 'remove') {
-    selectionStore.remove(polygon)
-  } else {
-    selectionStore.selectOnly(polygon)
-  }
+  // the pointer is locked, so the mouse does not move the crosshair: the camera turns under it, and the face
+  // under the middle of the canvas changes with the frames. This is the drag of the archived editor.
+  selectUnderCrosshair()
 }
 
 /**
@@ -216,6 +351,7 @@ function drawFrame(): void {
   // the crosshair is the centre of the canvas, so the polygon under it is read here, on every frame that
   // is drawn: a look around moves the outline with the camera
   updateCursor()
+  updateDrag()
 
   view.renderer.render(view.scene, view.camera)
   gizmo?.render()
@@ -476,7 +612,9 @@ onMounted(() => {
     requestRender()
   })
 
-  document.addEventListener('mousedown', onClick)
+  document.addEventListener('mousedown', onMouseDown)
+  document.addEventListener('mouseup', onMouseUp)
+  document.addEventListener('dblclick', onDoubleClick)
 })
 
 // the level is not the widget's: it may have been loaded before this widget was even mounted, and it
@@ -491,7 +629,9 @@ onBeforeUnmount(() => {
   stopWatchingSelection?.()
   stopWatchingSelection = undefined
 
-  document.removeEventListener('mousedown', onClick)
+  document.removeEventListener('mousedown', onMouseDown)
+  document.removeEventListener('mouseup', onMouseUp)
+  document.removeEventListener('dblclick', onDoubleClick)
 
   selection?.dispose()
   selection = undefined

@@ -29,6 +29,10 @@ interface HelpRow {
    */
   readonly action: string
   /**
+   * How the gesture is repeated, if it is: the double click shows it as `× 2` after the key.
+   */
+  readonly suffix?: string
+  /**
    * The switch the row belongs to, if it has one: the row then shows a button that flips it too.
    */
   readonly toggle?: HelpToggle
@@ -94,6 +98,7 @@ const sections = computed<readonly HelpSection[]>(() => {
       title: 'Selection',
       rows: [
         { keys: [leftButton], action: 'Select face(s)' },
+        { keys: [leftButton], suffix: '× 2', action: 'Auto select by texture' },
         { keys: [{ kind: 'text', text: 'Shift' }, leftButton], action: 'Add to selection' },
         { keys: [removeKey, leftButton], action: 'Remove from selection' },
         { keys: [{ kind: 'text', text: 'C' }], action: 'Clear selection' },
@@ -158,6 +163,7 @@ function buttonTitle(toggle: HelpToggle): string {
               <component :is="icons[key.icon]" v-if="key.kind === 'icon'" class="key-icon" />
               <kbd v-else>{{ key.text }}</kbd>
             </template>
+            <span v-if="row.suffix !== undefined" class="suffix">{{ row.suffix }}</span>
           </dt>
           <dd>
             <span class="action">{{ row.action }}</span>
@@ -265,6 +271,12 @@ function buttonTitle(toggle: HelpToggle): string {
 
   // the plus sign between the keys of a combination, not a key itself
   .plus {
+    color: $text-icon;
+    font-size: 12px;
+  }
+
+  // how many times the gesture is made: `× 2` after the key of a double click, not a key itself
+  .suffix {
     color: $text-icon;
     font-size: 12px;
   }

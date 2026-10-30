@@ -10,7 +10,7 @@ import {
  * The numbers of a small test level.
  */
 const statistics: MapStatistics = {
-  polygonCount: 12_348,
+  faceCount: 12_348,
   triangleCount: 2536,
   quadCount: 9812,
   lightCount: 47,

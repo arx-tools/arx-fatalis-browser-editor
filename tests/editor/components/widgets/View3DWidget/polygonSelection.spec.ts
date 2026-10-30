@@ -194,6 +194,23 @@ void describe('pickPolygon', () => {
     assert.equal(pickPolygon(camera, meshes, triangleToPolygon), 0)
   })
 
+  void it('reads the polygon of a later mesh of the level', () => {
+    // the level is more than one mesh: the invisible walls have their own, and the triangle map runs over all
+    // of them, so a hit on the second mesh has to carry the triangles of the first one
+    const { camera, meshes, triangleToPolygon } = sceneLookingAtTheFloor()
+    const first = meshes[0]
+
+    // the first mesh is moved out of the way: the ray finds the second one
+    first.position.set(0, 1000, 0)
+    first.updateMatrixWorld()
+
+    const second = new Mesh(arxPolygonsToGeometry([polygon(true)], new Vector3(0, 0, 0)), new MeshBasicMaterial())
+    second.updateMatrixWorld()
+
+    // the map of the first mesh is the helper's, the second mesh carries the polygon 1
+    assert.equal(pickPolygon(camera, [first, second], [...triangleToPolygon, 1, 1]), 1)
+  })
+
   void it('reads nothing beyond the far plane of the camera', () => {
     const { camera, meshes, triangleToPolygon } = sceneLookingAtTheFloor()
     camera.far = 1

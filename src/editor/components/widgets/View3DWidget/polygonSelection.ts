@@ -92,10 +92,24 @@ export function pickPolygon(
   raycaster.far = camera.far
   raycaster.setFromCamera(new Vector2(0, 0), camera)
 
-  const face = raycaster.intersectObjects([...meshes], false)[0]?.face
+  const hit = raycaster.intersectObjects([...meshes], false)[0]
+  const face = hit?.face
 
-  if (face === null || face === undefined || typeof face.a !== 'number') {
+  if (hit === undefined || face === null || face === undefined || typeof face.a !== 'number') {
     return undefined
+  }
+
+  // the level is more than one mesh (the invisible walls have their own), and the triangle map runs over
+  // all of them in the same order: the triangles of the meshes before the hit one come first
+  let offset = 0
+
+  for (const mesh of meshes) {
+    if (mesh === hit.object) {
+      break
+    }
+
+    const triangles = mesh.geometry.getAttribute('position').count / 3
+    offset = offset + triangles
   }
 
   // NOT `hit.faceIndex`: the BVH the level puts on its geometry reorders the triangles to keep the tree
@@ -103,7 +117,7 @@ export function pickPolygon(
   // was built in (measured on the level: faceIndex 104200 for the triangle 99413). `face.a` is a real
   // vertex, and the geometry is not indexed, so every triangle owns three vertices of its own: the first
   // one divided by three is the triangle's original index.
-  return polygonOfTriangle(triangleToPolygon, Math.trunc(face.a / 3))
+  return polygonOfTriangle(triangleToPolygon, offset + Math.trunc(face.a / 3))
 }
 
 /**

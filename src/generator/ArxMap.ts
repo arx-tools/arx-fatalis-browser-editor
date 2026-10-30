@@ -1,16 +1,18 @@
 import { DLF, FTS, LLF } from 'arx-convert'
 import type { ArxDLF, ArxFTS, ArxLight, ArxLLF, ArxPolygon, ArxVector3 } from 'arx-convert/types'
-import { Mesh, type BufferGeometry } from 'three'
+import { Mesh, type BufferGeometry, type Material, type Vector3 } from 'three'
 import { unpackArxFile } from './files.ts'
 import {
   accelerateRaycast,
-  createLevelGeometry,
+  arxPolygonsToGeometry,
+  arxPolygonsToWireframeGeometry,
+  arxVector3toVector3,
+  createInvisibleMaterial,
   createLevelMaterial,
-  createWireframeGeometry,
-  visiblePolygons,
+  splitPolygons,
 } from './meshes.ts'
+import { countFacesOfTriangles } from './polygonCounts.ts'
 import { triangleToPolygonMap } from './polygons.ts'
-import { countPolygonShapes } from './polygonCounts.ts'
 import { Player } from './Player.ts'
 
 /**
@@ -23,15 +25,15 @@ import { Player } from './Player.ts'
  */
 export interface MapStatistics {
   /**
-   * Every polygon of the scene.
+   * Every face the mesh draws: a triangle or a quad.
    */
-  readonly polygonCount: number
+  readonly faceCount: number
   /**
-   * The polygons without the quad flag: the triangles of the mesh.
+   * The faces that are a single triangle.
    */
   readonly triangleCount: number
   /**
-   * The polygons with the quad flag.
+   * The faces that are a quad.
    */
   readonly quadCount: number
   /**
@@ -81,6 +83,20 @@ export class ArxMap {
   readonly meshes: Mesh[]
 
   /**
+   * The meshes with a real texture.
+   *
+   * @remarks
+   * A view that paints the level with a material of its own (the fixed views keep a flat face) has to leave
+   * the invisible walls alone: painting them would put walls on the map that the game does not draw.
+   */
+  readonly solidMeshes: readonly Mesh[]
+
+  /**
+   * The meshes of the invisible walls, with their own transparent material.
+   */
+  readonly invisibleMeshes: readonly Mesh[]
+
+  /**
    * The player of the map: where it stands and where it faces.
    */
   readonly player: Player
@@ -113,6 +129,11 @@ export class ArxMap {
    * map is the running total of the triangles (see `triangleToPolygonMap`).
    */
   readonly triangleToPolygon: readonly number[]
+
+  /**
+   * The numbers the statistics widget shows, worked out when the mesh was built.
+   */
+  private figures: MapStatistics
 
   /**
    * The general description of the level.
@@ -153,21 +174,16 @@ export class ArxMap {
    * The numbers of the level, as the statistics widget shows them.
    *
    * @remarks
-   * The counts walk the polygons once, so it is worth reading the getter once and keeping the result (the
-   * widget does it in a computed).
+   * Among them the **faces are counted from the mesh**: the triangle map groups the triangles of the geometry
+   * by the face they were built from, so a face with a single triangle is a triangle and one with two of them
+   * is a quad. The file is not counted again — the numbers are worked out when the mesh is built, and
+   * {@link refreshStatistics} is what a later edit calls after it changed the geometry.
+   *
+   * The lights, the anchors and the portals are not part of the mesh: they are the lengths of their lists in
+   * the level files, read once as well.
    */
   get statistics(): MapStatistics {
-    const { polygons } = this.fts
-    const counts = countPolygonShapes(polygons)
-
-    return {
-      polygonCount: polygons.length,
-      triangleCount: counts.triangleCount,
-      quadCount: counts.quadCount,
-      lightCount: this.llf.lights.length,
-      anchorCount: this.fts.anchors.length,
-      portalCount: this.fts.portals.length,
-    }
+    return this.figures
   }
 
   /**
@@ -185,16 +201,73 @@ export class ArxMap {
     this.llf = LLF.load(unpackArxFile(llf, 'llf'))
     this.player = new Player(this.dlf)
 
-    const geometry = createLevelGeometry(this.fts)
+    // the polygons of the file are read once: the geometry, the wireframe, the selection and the statistics
+    // are all built from these two lists, so nothing walks the level again. The invisible walls come second,
+    // and the triangle map follows that order (the pick works out which mesh a hit belongs to)
+    const { solid, invisible } = splitPolygons(this.fts)
+    const offset = arxVector3toVector3(this.fts.header.mScenePosition)
+    const polygons = [...solid, ...invisible]
+
+    const solidMesh = this.buildMesh(solid, offset, createLevelMaterial())
+    const invisibleMesh = this.buildMesh(invisible, offset, createInvisibleMaterial())
+
+    // the walls of an alpha container draw nothing, so they must not take part in the shadows either
+    invisibleMesh.castShadow = false
+    invisibleMesh.receiveShadow = false
+
+    this.solidMeshes = [solidMesh]
+    this.invisibleMeshes = [invisibleMesh]
+    this.meshes = [...this.solidMeshes, ...this.invisibleMeshes]
+    this.polygons = polygons
+    this.wireframeGeometry = arxPolygonsToWireframeGeometry(polygons, offset)
+    this.triangleToPolygon = triangleToPolygonMap(polygons)
+
+    this.figures = {
+      faceCount: 0,
+      triangleCount: 0,
+      quadCount: 0,
+      lightCount: this.llf.lights.length,
+      anchorCount: this.fts.anchors.length,
+      portalCount: this.fts.portals.length,
+    }
+    this.refreshStatistics()
+  }
+
+  /**
+   * Counts the faces of the mesh again.
+   *
+   * @remarks
+   * The editing rounds call it after a delete or an add, so the widget shows what the mesh holds. Everything
+   * but the faces stays: the lights, the anchors and the portals do not come from the mesh.
+   */
+  refreshStatistics(): void {
+    const faces = countFacesOfTriangles(this.triangleToPolygon)
+
+    this.figures = {
+      ...this.figures,
+      faceCount: faces.faceCount,
+      triangleCount: faces.triangleCount,
+      quadCount: faces.quadCount,
+    }
+  }
+
+  /**
+   * Builds a mesh of the level from a list of polygons.
+   *
+   * @param polygons The polygons of this mesh, in the order of the file.
+   * @param offset The scene position of the level, already mirrored.
+   * @param material The material the mesh draws with.
+   *
+   * @returns The mesh, with its bounding box and its BVH.
+   */
+  private buildMesh(polygons: readonly ArxPolygon[], offset: Vector3, material: Material): Mesh {
+    const geometry = arxPolygonsToGeometry(polygons, offset)
     geometry.computeBoundingBox()
 
-    const mesh = new Mesh(geometry, createLevelMaterial())
+    const mesh = new Mesh(geometry, material)
 
     accelerateRaycast(mesh)
 
-    this.meshes = [mesh]
-    this.wireframeGeometry = createWireframeGeometry(this.fts)
-    this.polygons = visiblePolygons(this.fts)
-    this.triangleToPolygon = triangleToPolygonMap(this.polygons)
+    return mesh
   }
 }

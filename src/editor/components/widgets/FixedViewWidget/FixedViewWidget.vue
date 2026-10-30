@@ -405,7 +405,9 @@ function showMap(map: ArxMap): void {
 
   // the small views keep the flat, neutral face of the level: their own material, so a later texture or
   // lighting round can not repaint them (TODO 92)
-  shown = viewMeshesOf(map.meshes, previewMaterial())
+  // the flat material is for the solid polygons: the invisible walls keep their transparent one, so the map
+  // does not show walls the game does not draw
+  shown = [...viewMeshesOf(map.solidMeshes, previewMaterial()), ...viewMeshesOf(map.invisibleMeshes)]
 
   for (const mesh of shown) {
     view.scene.add(mesh)

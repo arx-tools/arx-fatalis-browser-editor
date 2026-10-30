@@ -14,9 +14,8 @@ import {
   arxPolygonsToWireframeGeometry,
   createWireframeMaterial,
   arxVector3toVector3,
-  createLevelGeometry,
   createLevelMaterial,
-  visiblePolygons,
+  splitPolygons,
 } from '../../src/generator/meshes.ts'
 import { Color } from '../../src/generator/Color.ts'
 
@@ -138,17 +137,37 @@ void describe('arxPolygonsToGeometry', () => {
   })
 })
 
-void describe('visiblePolygons', () => {
-  void it('keeps the polygons with a real texture', () => {
+void describe('splitPolygons', () => {
+  void it('keeps the polygons with a real texture as the solid ones', () => {
     const level = scene([polygon(false)])
 
-    assert.equal(visiblePolygons(level).length, 1)
+    assert.deepEqual(splitPolygons(level), { solid: [level.polygons[0]], invisible: [] })
   })
 
-  void it('drops the ones with an alpha container', () => {
+  void it('puts the ones with an alpha container among the invisible walls', () => {
+    // the alpha container is the second one of the test scene: its polygon draws nothing
     const level = scene([polygon(false, 1), polygon(false, 2)], true)
 
-    assert.equal(visiblePolygons(level).length, 1)
+    assert.equal(splitPolygons(level).solid.length, 1)
+    assert.equal(splitPolygons(level).invisible.length, 1)
+  })
+
+  void it('keeps the order of the file in both lists', () => {
+    const level = scene([polygon(false, 2), polygon(false, 1), polygon(false, 2)], true)
+    const split = splitPolygons(level)
+
+    assert.deepEqual(
+      split.invisible.map((each) => {
+        return each.textureContainerId
+      }),
+      [2, 2],
+    )
+    assert.deepEqual(
+      split.solid.map((each) => {
+        return each.textureContainerId
+      }),
+      [1],
+    )
   })
 })
 
@@ -162,21 +181,6 @@ void describe('createLevelMaterial', () => {
 
   void it('gives a new material every time, so a mesh can own its own', () => {
     assert.notEqual(createLevelMaterial(), createLevelMaterial())
-  })
-})
-
-void describe('createLevelGeometry', () => {
-  void it('builds the geometry of the visible polygons', () => {
-    const level = scene([polygon(true), polygon(true, 2)], true)
-    const geometry = createLevelGeometry(level)
-
-    assert.equal(geometry.getAttribute('position').count, 6)
-  })
-
-  void it('gives an empty geometry for an empty scene', () => {
-    const geometry = createLevelGeometry(scene([]))
-
-    assert.equal(geometry.getAttribute('position').count, 0)
   })
 })
 

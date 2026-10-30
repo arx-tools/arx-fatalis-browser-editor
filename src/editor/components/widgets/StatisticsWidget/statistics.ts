@@ -81,7 +81,7 @@ export function statisticsRows(map: { readonly statistics: MapStatistics } | und
   return [
     { label: 'Triangles', value: formatCount(statistics.triangleCount) },
     { label: 'Quads', value: formatCount(statistics.quadCount) },
-    { label: 'Total faces', value: formatCount(statistics.polygonCount) },
+    { label: 'Total faces', value: formatCount(statistics.faceCount) },
     // the selection belongs right under the total: it is the same count, of a part of the level
     { label: 'Selected faces', value: formatCount(selected) },
     { label: 'Lights', value: formatCount(statistics.lightCount) },

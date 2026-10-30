@@ -4,6 +4,7 @@ import {
   BufferAttribute,
   BufferGeometry,
   LineBasicMaterial,
+  MeshBasicMaterial,
   MeshLambertMaterial,
   Vector2,
   Vector3,
@@ -96,20 +97,34 @@ export function arxPolygonsToGeometry(polygons: readonly ArxPolygon[], offset: V
 }
 
 /**
- * The polygons the level shows: the ones with an `alpha.bmp` texture container are invisible walls.
+ * The polygons of a level, split by what the renderer has to do with them.
  *
  * @remarks
- * `ArxLibertatis` hardcodes `#000` of the `alpha.bmp` as a colour key, so those polygons are not drawn
- * in the game either. The first round drops them, because a flat material would turn them into black
- * walls in the middle of the level; the picking round will need them, and then they get their own
- * invisible group.
+ * `ArxLibertatis` hardcodes `#000` of the `alpha.bmp` as a colour key, so those polygons are not drawn in the
+ * game either: they are the **invisible walls** (they close a stairwell, they stop the player from walking
+ * through a doorway). The mesh keeps them, with a material that draws nothing and a mesh that does not cast a
+ * shadow, so the level's shape is complete and a selection can still point at them.
+ */
+export interface LevelPolygons {
+  /**
+   * The polygons with a real texture.
+   */
+  readonly solid: readonly ArxPolygon[]
+  /**
+   * The polygons of an alpha container: the invisible walls.
+   */
+  readonly invisible: readonly ArxPolygon[]
+}
+
+/**
+ * Reads the polygons of a level and splits them into the solid ones and the invisible walls.
  *
  * @param fts The scene of the level.
  *
- * @returns The polygons that should be drawn.
+ * @returns The two lists, in the order of the file.
  */
-export function visiblePolygons(fts: ArxFTS): ArxPolygon[] {
-  const invisible = new Set(
+export function splitPolygons(fts: ArxFTS): LevelPolygons {
+  const invisibleContainers = new Set(
     fts.textureContainers
       .filter((container) => {
         return /alpha/i.test(container.filename)
@@ -119,22 +134,18 @@ export function visiblePolygons(fts: ArxFTS): ArxPolygon[] {
       }),
   )
 
-  return fts.polygons.filter((polygon) => {
-    return !invisible.has(polygon.textureContainerId)
-  })
-}
+  const solid: ArxPolygon[] = []
+  const invisible: ArxPolygon[] = []
 
-/**
- * Builds the geometry of a whole level.
- *
- * @param fts The scene of the level.
- *
- * @returns The geometry of the visible polygons, shifted around the origin.
- */
-export function createLevelGeometry(fts: ArxFTS): BufferGeometry {
-  const offset = arxVector3toVector3(fts.header.mScenePosition)
+  for (const polygon of fts.polygons) {
+    if (invisibleContainers.has(polygon.textureContainerId)) {
+      invisible.push(polygon)
+    } else {
+      solid.push(polygon)
+    }
+  }
 
-  return arxPolygonsToGeometry(visiblePolygons(fts), offset)
+  return { solid, invisible }
 }
 
 /**
@@ -168,6 +179,20 @@ export function accelerateRaycast(mesh: Mesh): void {
  */
 export function createLevelMaterial(): MeshLambertMaterial {
   return new MeshLambertMaterial({ color: MESH_COLOR.getHex() })
+}
+
+/**
+ * Builds the material of the invisible walls of the level.
+ *
+ * @remarks
+ * It draws nothing: the polygons are there for the shape of the level (a wall the player can not walk
+ * through), not for its look. The depth is not written either, because a surface that draws nothing must not
+ * hide what stands behind it; the mesh that carries this material does not cast a shadow for the same reason.
+ *
+ * @returns The material of the alpha polygons.
+ */
+export function createInvisibleMaterial(): MeshBasicMaterial {
+  return new MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
 }
 
 /**
@@ -229,17 +254,4 @@ export function arxPolygonsToWireframeGeometry(polygons: readonly ArxPolygon[], 
   geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3))
 
   return geometry
-}
-
-/**
- * Builds the wireframe of a level, in the space of its meshes.
- *
- * @param fts The scene of the level.
- *
- * @returns The segments of the wireframe, ready for a `LineSegments`.
- */
-export function createWireframeGeometry(fts: ArxFTS): BufferGeometry {
-  const offset = arxVector3toVector3(fts.header.mScenePosition)
-
-  return arxPolygonsToWireframeGeometry(visiblePolygons(fts), offset)
 }

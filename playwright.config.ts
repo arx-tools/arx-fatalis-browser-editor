@@ -1,14 +1,32 @@
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from '@playwright/test'
+import { config as loadEnv } from 'dotenv'
+
+/**
+ * Reads the port of the test server from `.env`, next to this config.
+ *
+ * @remarks
+ * The sample file documents the two ports, and the default here is the same number as the sample: a clone
+ * without a `.env` runs the same way.
+ *
+ * @returns The port the browser tests start their development server on.
+ */
+function portOfTestServer(): number {
+  loadEnv({ path: fileURLToPath(new URL('.env', import.meta.url)) })
+
+  return Number(process.env.E2E_PORT ?? 6001)
+}
 
 /**
  * The port the development server of the tests listens on.
  *
  * @remarks
- * It is not 5173 on purpose: that is the port of the server a developer runs by hand, and the tests
- * should not talk to a page which a hot reload is changing under them.
+ * It is not the port of the developer's server on purpose: the tests start a server of their own, so a hot
+ * reload can not change the page under them. Both ports come from `.env` (the sample file documents them),
+ * and the numbers here are the defaults of a clone without one.
  */
-const PORT = 4173
+const PORT = portOfTestServer()
 
 /**
  * Tells whether the tests run on the continuous integration server.

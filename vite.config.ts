@@ -1,6 +1,8 @@
 import { readFile } from 'node:fs/promises'
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 import vue from '@vitejs/plugin-vue'
+import { config as loadEnv } from 'dotenv'
 import { defineConfig } from 'vite'
 
 /**
@@ -21,6 +23,10 @@ function buildInfo(version: string): string {
 }
 
 export default defineConfig(async () => {
+  // the ports live in `.env`, next to this config (`.env.sample` documents them, and the defaults below are
+  // the same numbers, so a clone without a `.env` works too)
+  loadEnv({ path: fileURLToPath(new URL('.env', import.meta.url)) })
+
   const packageJson = JSON.parse(await readFile(new URL('package.json', import.meta.url), 'utf8')) as {
     version: string
   }
@@ -32,6 +38,12 @@ export default defineConfig(async () => {
     // every build without any ?v= suffix.
     base: '/editor/',
     plugins: [vue()],
+    server: {
+      // the port belongs to this project (see `.env`), and it is not a suggestion: a taken port has to fail,
+      // a quiet move to the next one would hide the collision the port is there to avoid
+      port: Number(process.env.DEV_PORT ?? 6000),
+      strictPort: true,
+    },
     clearScreen: false,
     define: {
       // the header of the shell renders it, so it is a compile time constant instead of a

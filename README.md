@@ -34,7 +34,7 @@ shared [`@arx-tools/config`](https://github.com/arx-tools/config) package (20.1)
 | command               | what it does                                                |
 | --------------------- | ----------------------------------------------------------- |
 | `npm ci`              | installs the dependencies                                   |
-| `npm run dev`         | dev server on http://localhost:5173/editor/                 |
+| `npm run dev`         | dev server on http://localhost:6000/editor/ (see `.env`)    |
 | `npm run lint`        | checks the code against the pre-defined coding guidelines   |
 | `npm run lint:watch`  | re-runs the lint when a source, test or config file changes |
 | `npm run typecheck`   | type checks the app, the tooling and the tests (4 projects) |
@@ -110,9 +110,9 @@ the shell, so the deployed editor can be identified.
 
 `.github/workflows/release.yml` does the release. It needs one secret:
 
-| secret            | what it is                                                                                   |
-| ----------------- | -------------------------------------------------------------------------------------------- |
-| `SITE_REPO_TOKEN` | a personal access token with `contents: read and write` on `arx-tools/arx-tools.github.io`     |
+| secret            | what it is                                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------------ |
+| `SITE_REPO_TOKEN` | a personal access token with `contents: read and write` on `arx-tools/arx-tools.github.io` |
 
 A push made with a personal access token triggers the deploy workflow of the website; the
 `GITHUB_TOKEN` of this repository could neither write into the other repository nor trigger it.

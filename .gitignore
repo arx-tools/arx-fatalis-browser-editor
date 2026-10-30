@@ -6,3 +6,6 @@ dist-ssr
 test-results/
 playwright-report/
 blob-report/
+
+# the local values of the ports (the sample file documents them, `.env` itself is not committed)
+.env

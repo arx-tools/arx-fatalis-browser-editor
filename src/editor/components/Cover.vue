@@ -78,7 +78,12 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div v-if="blurred" class="veil" />
+  <!--
+    TEMPORARILY OFF (2026-10-31): an open devtools window counts as a blur, so the level dimmed under the
+    inspector. The veil is only commented out, not deleted: it comes back when a rule tells the inspector
+    apart from a window in the background. The shield stays on, because it only eats the first click.
+  -->
+  <!-- <div v-if="blurred" class="veil" /> -->
   <div v-if="shielded" class="shield" />
 </template>
 

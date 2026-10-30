@@ -38,6 +38,24 @@ export default defineConfig(async () => {
     // every build without any ?v= suffix.
     base: '/editor/',
     plugins: [vue()],
+    build: {
+      // the level, the dock, vue and three in one chunk is a megabyte the browser takes in one piece, and
+      // every deploy of the editor makes it download the level code again. The split below does not make
+      // the first load smaller (the same code is in it, measured: 4 chunks, 978 KB, 265 KB gzip), it makes
+      // the pieces cacheable: a deploy that touches only the editor's own code leaves the two vendor chunks
+      // in the browser's cache. The biggest piece is three itself (579 KB), hence the raised limit
+      chunkSizeWarningLimit: 600,
+      rolldownOptions: {
+        output: {
+          codeSplitting: {
+            groups: [
+              { name: 'three', test: /node_modules[/\\](?:three|three-mesh-bvh)[/\\]/ },
+              { name: 'vendor', test: /node_modules[/\\]/ },
+            ],
+          },
+        },
+      },
+    },
     server: {
       // the port belongs to this project (see `.env`), and it is not a suggestion: a taken port has to fail,
       // a quiet move to the next one would hide the collision the port is there to avoid

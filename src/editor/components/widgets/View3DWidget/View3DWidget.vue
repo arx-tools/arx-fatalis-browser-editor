@@ -10,7 +10,7 @@ import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
 import { isKeyDown } from '../../../modules/keyboard/keyboard.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import { cameraStore } from '../cameraStore.ts'
-import { isWireframeVisible } from '../levelDisplay.ts'
+import { isMeshVisible, isWireframeVisible } from '../levelDisplay.ts'
 import { addPreviewLights, attachWireframe, viewMeshesOf, type LevelWireframe } from '../levelScene.ts'
 import { FIELD_OF_VIEW, createViewScene, disposeViewScene, resizeViewScene, type ViewScene } from '../viewScene.ts'
 import { CameraControls } from './cameraControls.ts'
@@ -85,6 +85,7 @@ let frame = 0
 let lastFrameAt = 0
 let stopWatching: (() => void) | undefined
 let stopWatchingWireframe: (() => void) | undefined
+let stopWatchingMesh: (() => void) | undefined
 
 /**
  * Reads the mode of the click from the modifiers that are held down.
@@ -325,6 +326,17 @@ function createScene(): void {
 }
 
 /**
+ * Shows or hides the meshes of the level.
+ *
+ * @param visible Whether the level's surfaces should be drawn.
+ */
+function setMeshVisible(visible: boolean): void {
+  for (const mesh of shown) {
+    mesh.visible = visible
+  }
+}
+
+/**
  * Shows a map: the meshes go into the scene and the camera starts from the player of the level.
  *
  * @param map The map the store loaded.
@@ -337,6 +349,7 @@ function showMap(map: ArxMap): void {
   }
 
   shown = viewMeshesOf(map.meshes)
+  setMeshVisible(isMeshVisible.value)
 
   for (const mesh of shown) {
     view.scene.add(mesh)
@@ -450,6 +463,12 @@ onMounted(() => {
     requestRender()
   })
 
+  // the mesh is a switch too: off, the level keeps the wireframe and the overlays only
+  stopWatchingMesh = watch(isMeshVisible, (visible) => {
+    setMeshVisible(visible)
+    requestRender()
+  })
+
   // the selection is shared with the statistics widget: a change draws the fill of the polygons
   stopWatchingSelection = watch(selectionStore.polygons, () => {
     updateHighlight()
@@ -466,6 +485,8 @@ onBeforeUnmount(() => {
   stopWatching = undefined
   stopWatchingWireframe?.()
   stopWatchingWireframe = undefined
+  stopWatchingMesh?.()
+  stopWatchingMesh = undefined
   stopWatchingSelection?.()
   stopWatchingSelection = undefined
 

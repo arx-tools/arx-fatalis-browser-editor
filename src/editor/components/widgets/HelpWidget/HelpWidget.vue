@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { Command, MouseLeft } from 'lucide-vue-next'
-import { computed } from 'vue'
+import { Command, Eye, EyeOff, MouseLeft } from 'lucide-vue-next'
+import { computed, type ShallowRef } from 'vue'
 import { isMacKeyboard } from '../../../modules/keyboard/keyboard.ts'
 import WidgetHeading from '../../WidgetHeading.vue'
+import { isMeshVisible, isWireframeVisible } from '../levelDisplay.ts'
 
 /**
  * One cell of the key column: a key cap with a text, or one with an icon of the library.
@@ -11,7 +12,12 @@ type HelpKey =
   { readonly kind: 'icon'; readonly icon: 'command' | 'mouse-left' } | { readonly kind: 'text'; readonly text: string }
 
 /**
- * One row of the key help: the keys of an action, and what they do.
+ * A switch the help can flip from its row.
+ */
+type HelpToggle = 'mesh' | 'wireframe'
+
+/**
+ * One row of the key help: the keys of an action, what they do, and the switch behind it.
  */
 interface HelpRow {
   /**
@@ -22,6 +28,10 @@ interface HelpRow {
    * What the keys do.
    */
   readonly action: string
+  /**
+   * The switch the row belongs to, if it has one: the row then shows a button that flips it too.
+   */
+  readonly toggle?: HelpToggle
 }
 
 /**
@@ -42,6 +52,14 @@ interface HelpSection {
  * The icons a cell may show, by name.
  */
 const icons = { command: Command, 'mouse-left': MouseLeft }
+
+/**
+ * The switches behind the rows that have one, with the word the button uses for them.
+ */
+const toggles: Record<HelpToggle, { readonly ref: ShallowRef<boolean>; readonly name: string }> = {
+  mesh: { ref: isMeshVisible, name: 'the mesh' },
+  wireframe: { ref: isWireframeVisible, name: 'the wireframe' },
+}
 
 /**
  * The key that takes a face out of the selection: `Ctrl` everywhere, and the `Cmd` of the mac.
@@ -66,8 +84,11 @@ const leftButton: HelpKey = { kind: 'icon', icon: 'mouse-left' }
 const sections = computed<readonly HelpSection[]>(() => {
   return [
     {
-      title: 'General',
-      rows: [{ keys: [{ kind: 'text', text: 'X' }], action: 'Wireframe' }],
+      title: 'View',
+      rows: [
+        { keys: [{ kind: 'text', text: 'M' }], action: 'Mesh', toggle: 'mesh' },
+        { keys: [{ kind: 'text', text: 'X' }], action: 'Wireframe', toggle: 'wireframe' },
+      ],
     },
     {
       title: 'Selection',
@@ -87,6 +108,41 @@ const sections = computed<readonly HelpSection[]>(() => {
 const props = defineProps<{
   readonly label: string
 }>()
+
+/**
+ * Tells whether the switch of a row is on.
+ *
+ * @param toggle The switch of the row.
+ *
+ * @returns Whether the thing it shows is visible.
+ */
+function isOn(toggle: HelpToggle): boolean {
+  return toggles[toggle].ref.value
+}
+
+/**
+ * Flips the switch of a row.
+ *
+ * @param toggle The switch of the row.
+ */
+function flip(toggle: HelpToggle): void {
+  toggles[toggle].ref.value = !toggles[toggle].ref.value
+}
+
+/**
+ * The tooltip of the button of a row: it says what a click does.
+ *
+ * @param toggle The switch of the row.
+ *
+ * @returns The label of the button.
+ */
+function buttonTitle(toggle: HelpToggle): string {
+  if (isOn(toggle)) {
+    return `Hide ${toggles[toggle].name}`
+  }
+
+  return `Show ${toggles[toggle].name}`
+}
 </script>
 
 <template>
@@ -103,7 +159,21 @@ const props = defineProps<{
               <kbd v-else>{{ key.text }}</kbd>
             </template>
           </dt>
-          <dd>{{ row.action }}</dd>
+          <dd>
+            <span class="action">{{ row.action }}</span>
+            <button
+              v-if="row.toggle !== undefined"
+              class="visibility"
+              :class="{ 'is-on': isOn(row.toggle) }"
+              type="button"
+              :aria-pressed="isOn(row.toggle)"
+              :aria-label="buttonTitle(row.toggle)"
+              v-tooltip="buttonTitle(row.toggle)"
+              @click="flip(row.toggle)"
+            >
+              <component :is="isOn(row.toggle) ? Eye : EyeOff" class="visibility-icon" />
+            </button>
+          </dd>
         </template>
       </dl>
     </section>
@@ -158,8 +228,12 @@ const props = defineProps<{
     padding-bottom: 4px;
   }
 
-  // the action sits at the right edge, so the two columns read as a table
+  // the action sits at the right edge, with the switch of the row after it
   dd {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
     margin: 0;
     color: $text-icon;
     text-align: right;
@@ -193,6 +267,35 @@ const props = defineProps<{
   .plus {
     color: $text-icon;
     font-size: 12px;
+  }
+
+  // the switch of a row: the look of the grid button of the fixed views
+  .visibility {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 22px;
+    padding: 0;
+    color: $text-icon;
+    background: rgba($surface-app, 0.72);
+    border: 1px solid $border;
+    border-radius: 4px;
+    cursor: pointer;
+
+    &:hover {
+      background: $surface-panel;
+    }
+
+    // only the eye turns orange: the frame stays the neutral border of every button
+    &.is-on {
+      color: $accent;
+    }
+  }
+
+  .visibility-icon {
+    width: 14px;
+    height: 14px;
   }
 }
 </style>

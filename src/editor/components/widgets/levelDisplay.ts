@@ -16,6 +16,19 @@ export const isWireframeVisible = persistedRef<boolean>({
 })
 
 /**
+ * Whether the mesh of the level is drawn.
+ *
+ * @remarks
+ * The same kind of switch as the wireframe: a view preference in a `persistedRef`, without the url and the
+ * localStorage. Turning it off leaves the wireframe (and the selection's overlays) on the scene, which is the
+ * way to read the shape of a level without the surfaces in the way.
+ */
+export const isMeshVisible = persistedRef<boolean>({
+  key: 'meshVisible',
+  defaultValue: true,
+})
+
+/**
  * Starts the parts of the editor that belong to no widget.
  *
  * @remarks
@@ -26,4 +39,5 @@ export const isWireframeVisible = persistedRef<boolean>({
 export function startLevelDisplay(): void {
   startKeyboard()
   onKeyboardToggle('toggleWireframe', isWireframeVisible)
+  onKeyboardToggle('toggleMesh', isMeshVisible)
 }

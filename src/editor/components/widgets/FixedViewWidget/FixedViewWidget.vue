@@ -15,7 +15,7 @@ import {
   viewMeshesOf,
   type LevelWireframe,
 } from '../levelScene.ts'
-import { isWireframeVisible } from '../levelDisplay.ts'
+import { isMeshVisible, isWireframeVisible } from '../levelDisplay.ts'
 import { FIELD_OF_VIEW, createViewScene, disposeViewScene, resizeViewScene, type ViewScene } from '../viewScene.ts'
 import type { CameraViewMode } from './cameraAlign.ts'
 import { MAX_ZOOM, frameFixedView } from './fixedView.ts'
@@ -107,6 +107,7 @@ let pressing = false
 let stopWatching: (() => void) | undefined
 let stopWatchingCamera: (() => void) | undefined
 let stopWatchingWireframe: (() => void) | undefined
+let stopWatchingMesh: (() => void) | undefined
 
 /**
  * Draws the next frame, at most once per animation frame.
@@ -394,6 +395,17 @@ function resize(): void {
 }
 
 /**
+ * Shows or hides the meshes of the level.
+ *
+ * @param visible Whether the level's surfaces should be drawn.
+ */
+function setMeshVisible(visible: boolean): void {
+  for (const mesh of shown) {
+    mesh.visible = visible
+  }
+}
+
+/**
  * Reads the box of the level and frames the view to it.
  *
  * @param map The map the store loaded.
@@ -408,6 +420,8 @@ function showMap(map: ArxMap): void {
   // the flat material is for the solid polygons: the invisible walls keep their transparent one, so the map
   // does not show walls the game does not draw
   shown = [...viewMeshesOf(map.solidMeshes, previewMaterial()), ...viewMeshesOf(map.invisibleMeshes)]
+
+  setMeshVisible(isMeshVisible.value)
 
   for (const mesh of shown) {
     view.scene.add(mesh)
@@ -528,6 +542,8 @@ onBeforeUnmount(() => {
   stopWatchingCamera = undefined
   stopWatchingWireframe?.()
   stopWatchingWireframe = undefined
+  stopWatchingMesh?.()
+  stopWatchingMesh = undefined
 
   if (host.value !== null) {
     host.value.removeEventListener('wheel', onWheel)

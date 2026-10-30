@@ -1,16 +1,27 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
+import type { ArxPolygon } from 'arx-convert/types'
 import { PerspectiveCamera, type Mesh } from 'three'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
+import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { levelStore } from '../../../modules/level/levelStore.ts'
 import { WIDGET_KINDS } from '../../../modules/layout/widgetKinds.ts'
 import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
+import { isKeyDown } from '../../../modules/keyboard/keyboard.ts'
+import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import { cameraStore } from '../cameraStore.ts'
-import { addPreviewLights, attachWireframe, viewMeshesOf, type LevelWireframe } from '../levelScene.ts'
 import { isWireframeVisible } from '../levelDisplay.ts'
+import { addPreviewLights, attachWireframe, viewMeshesOf, type LevelWireframe } from '../levelScene.ts'
 import { FIELD_OF_VIEW, createViewScene, disposeViewScene, resizeViewScene, type ViewScene } from '../viewScene.ts'
-import { createOrientationGizmo, type OrientationGizmo } from './orientationGizmo.ts'
 import { CameraControls } from './cameraControls.ts'
+import { createOrientationGizmo, type OrientationGizmo } from './orientationGizmo.ts'
+import {
+  createPolygonSelectionOverlay,
+  pickPolygon,
+  selectionModeOf,
+  type PolygonSelectionOverlay,
+  type SelectionMode,
+} from './polygonSelection.ts'
 
 /**
  * What the widget shows over the canvas: the loading state, a failure, or nothing while the level is on.
@@ -64,12 +75,129 @@ let view: ViewScene<PerspectiveCamera> | undefined
 let gizmo: OrientationGizmo | undefined
 let shown: Mesh[] = []
 let wireframe: LevelWireframe | undefined
+let selection: PolygonSelectionOverlay | undefined
+let loadedMap: ArxMap | undefined
+
+let stopWatchingSelection: (() => void) | undefined
 let controls: CameraControls | undefined
 let observer: ResizeObserver | undefined
 let frame = 0
 let lastFrameAt = 0
 let stopWatching: (() => void) | undefined
 let stopWatchingWireframe: (() => void) | undefined
+
+/**
+ * Reads the mode of the click from the modifiers that are held down.
+ *
+ * @remarks
+ * The keys are tracked by the keyboard module, not by the mouse events: under a pointer lock the browser
+ * does not send a move for every key change, and the outline has to colour itself as the modifier changes.
+ *
+ * @returns The mode the next click would have.
+ */
+function selectionModeOfKeys(): SelectionMode {
+  if (isKeyDown('ControlLeft') || isKeyDown('ControlRight') || isKeyDown('MetaLeft') || isKeyDown('MetaRight')) {
+    return 'remove'
+  }
+
+  if (isKeyDown('ShiftLeft') || isKeyDown('ShiftRight')) {
+    return 'add'
+  }
+
+  return 'replace'
+}
+
+/**
+ * Reads the polygon under the crosshair and outlines it.
+ */
+function updateCursor(): void {
+  if (view === undefined || loadedMap === undefined || selection === undefined) {
+    return
+  }
+
+  const index = pickPolygon(view.camera, shown, loadedMap.triangleToPolygon)
+  let polygon: ArxPolygon | undefined
+
+  if (index !== undefined) {
+    polygon = loadedMap.polygons[index]
+  }
+
+  selection.setCursor(polygon, selectionModeOfKeys())
+}
+
+/**
+ * The selected polygons of the loaded map.
+ *
+ * @returns The polygons, in the order of the set.
+ */
+function selectedPolygons(): ArxPolygon[] {
+  const polygons: ArxPolygon[] = []
+
+  if (loadedMap === undefined) {
+    return polygons
+  }
+
+  for (const index of selectionStore.polygons.value) {
+    const polygon = loadedMap.polygons[index]
+
+    if (polygon !== undefined) {
+      polygons.push(polygon)
+    }
+  }
+
+  return polygons
+}
+
+/**
+ * Shows the selection: the fill of the selected polygons.
+ */
+function updateHighlight(): void {
+  selection?.setHighlight(selectedPolygons())
+}
+
+/**
+ * Handles a click of the locked view: it selects the polygon under the crosshair.
+ *
+ * @remarks
+ * The modifiers decide what the click does: no modifier starts a new selection, `Shift` adds the polygon,
+ * `Ctrl` (or `Meta`) takes it away. A click that hits nothing still starts a new, empty selection, so a
+ * plain click on the sky drops what was selected.
+ *
+ * @param event The mouse event of the click.
+ */
+function onClick(event: MouseEvent): void {
+  if (controls?.isLocked !== true) {
+    return
+  }
+
+  // only the left button selects: the right one is left alone, and the middle one is not a pick either
+  if (event.button !== 0) {
+    return
+  }
+
+  if (view === undefined || loadedMap === undefined) {
+    return
+  }
+
+  const mode = selectionModeOf(event)
+  const polygon = pickPolygon(view.camera, shown, loadedMap.triangleToPolygon)
+
+  if (polygon === undefined) {
+    if (mode === 'replace') {
+      selectionStore.clear()
+    }
+
+    return
+  }
+
+  if (mode === 'add') {
+    selectionStore.add(polygon)
+  } else if (mode === 'remove') {
+    selectionStore.remove(polygon)
+  } else {
+    selectionStore.selectOnly(polygon)
+  }
+}
 
 /**
  * Draws one frame: the scene, then the orientation compass in its own corner.
@@ -82,6 +210,10 @@ function drawFrame(): void {
   if (view === undefined) {
     return
   }
+
+  // the crosshair is the centre of the canvas, so the polygon under it is read here, on every frame that
+  // is drawn: a look around moves the outline with the camera
+  updateCursor()
 
   view.renderer.render(view.scene, view.camera)
   gizmo?.render()
@@ -214,6 +346,11 @@ function showMap(map: ArxMap): void {
   wireframe = attachWireframe(view.scene, map.wireframeGeometry)
   wireframe.setVisible(isWireframeVisible.value)
 
+  loadedMap = map
+  selection = createPolygonSelectionOverlay(view.scene, arxVector3toVector3(map.scenePosition))
+  updateHighlight()
+  requestRender()
+
   // a level change builds a new camera: the old one has to let the pointer and the listeners go
   controls?.dispose()
 
@@ -268,6 +405,9 @@ function hideMap(): void {
   shown = []
   wireframe?.dispose()
   wireframe = undefined
+  selection?.dispose()
+  selection = undefined
+  loadedMap = undefined
 
   cameraStore.setDriver(undefined)
   controls?.dispose()
@@ -309,6 +449,14 @@ onMounted(() => {
     wireframe?.setVisible(visible)
     requestRender()
   })
+
+  // the selection is shared with the statistics widget: a change draws the fill of the polygons
+  stopWatchingSelection = watch(selectionStore.polygons, () => {
+    updateHighlight()
+    requestRender()
+  })
+
+  document.addEventListener('mousedown', onClick)
 })
 
 // the level is not the widget's: it may have been loaded before this widget was even mounted, and it
@@ -318,6 +466,13 @@ onBeforeUnmount(() => {
   stopWatching = undefined
   stopWatchingWireframe?.()
   stopWatchingWireframe = undefined
+  stopWatchingSelection?.()
+  stopWatchingSelection = undefined
+
+  document.removeEventListener('mousedown', onClick)
+
+  selection?.dispose()
+  selection = undefined
 
   observer?.disconnect()
   observer = undefined

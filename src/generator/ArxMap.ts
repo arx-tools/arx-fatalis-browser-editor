@@ -1,8 +1,15 @@
 import { DLF, FTS, LLF } from 'arx-convert'
-import type { ArxDLF, ArxFTS, ArxLight, ArxLLF, ArxVector3 } from 'arx-convert/types'
+import type { ArxDLF, ArxFTS, ArxLight, ArxLLF, ArxPolygon, ArxVector3 } from 'arx-convert/types'
 import { Mesh, type BufferGeometry } from 'three'
 import { unpackArxFile } from './files.ts'
-import { accelerateRaycast, createLevelGeometry, createLevelMaterial, createWireframeGeometry } from './meshes.ts'
+import {
+  accelerateRaycast,
+  createLevelGeometry,
+  createLevelMaterial,
+  createWireframeGeometry,
+  visiblePolygons,
+} from './meshes.ts'
+import { triangleToPolygonMap } from './polygons.ts'
 import { countPolygonShapes } from './polygonCounts.ts'
 import { Player } from './Player.ts'
 
@@ -89,6 +96,25 @@ export class ArxMap {
   readonly wireframeGeometry: BufferGeometry
 
   /**
+   * The polygons the mesh was built from, in the order of its triangles.
+   *
+   * @remarks
+   * The invisible ones are left out, exactly like the geometry: the index of a polygon here is the one a
+   * raycast can report through {@link triangleToPolygon}. The selection and the phantom cursor read the
+   * vertices from this list.
+   */
+  readonly polygons: readonly ArxPolygon[]
+
+  /**
+   * The polygon index of every triangle of the mesh.
+   *
+   * @remarks
+   * A quad is one polygon but two triangles, so a raycast hit has to be turned back into a polygon: this
+   * map is the running total of the triangles (see `triangleToPolygonMap`).
+   */
+  readonly triangleToPolygon: readonly number[]
+
+  /**
    * The general description of the level.
    */
   private readonly dlf: ArxDLF
@@ -168,5 +194,7 @@ export class ArxMap {
 
     this.meshes = [mesh]
     this.wireframeGeometry = createWireframeGeometry(this.fts)
+    this.polygons = visiblePolygons(this.fts)
+    this.triangleToPolygon = triangleToPolygonMap(this.polygons)
   }
 }

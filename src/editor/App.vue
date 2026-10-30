@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
+import Cover from './components/Cover.vue'
 import Dock from './components/Dock.vue'
 import EditorHeader from './components/EditorHeader.vue'
 import { startLevelDisplay } from './components/widgets/levelDisplay.ts'
+import { startSelection } from './modules/selection/selectionStore.ts'
 import { levelStore } from './modules/level/levelStore.ts'
 import { provideEditorShell } from './modules/shell/editorShellContext.ts'
 
@@ -15,6 +17,7 @@ provideEditorShell()
 onMounted(() => {
   levelStore.startLoading()
   startLevelDisplay()
+  startSelection()
 })
 </script>
 
@@ -22,6 +25,7 @@ onMounted(() => {
   <div class="App">
     <EditorHeader />
     <Dock />
+    <Cover />
   </div>
 </template>
 

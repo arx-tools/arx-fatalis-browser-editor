@@ -11,6 +11,7 @@ import {
 } from 'three'
 import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh'
 import { Color } from './Color.ts'
+import { polygonPerimeter } from './polygons.ts'
 
 /**
  * The colour of the flat material of the first round.
@@ -199,9 +200,8 @@ export function createWireframeMaterial(): LineBasicMaterial {
  * the quad edges visible without the diagonal the triangle split introduces, so the wireframe shows the
  * polygons the level stores (the archived editor did the same in `src/_old/geometry/createWireframe.ts`).
  *
- * The stored vertex order is a "Z" (`0, 1, 2, 3`), so the perimeter is `0-1-2` for a triangle and
- * `0-1-3-2` for a quad: the segments go into the geometry as pairs of points, which is what a
- * `LineSegments` reads.
+ * The perimeter follows {@link polygonPerimeter} (`0-1-2` for a triangle, `0-1-3-2` for a quad), and
+ * the segments go into the geometry as pairs of points, which is what a `LineSegments` reads.
  *
  * @param polygons The polygons to convert.
  * @param offset The scene position of the level, already mirrored.
@@ -215,11 +215,7 @@ export function arxPolygonsToWireframeGeometry(polygons: readonly ArxPolygon[], 
     const vertices = polygon.vertices.map((vertex) => {
       return arxVector3toVector3(vertex).sub(offset)
     })
-    let perimeter = [0, 1, 2]
-
-    if (isQuad(polygon)) {
-      perimeter = [0, 1, 3, 2]
-    }
+    const perimeter = polygonPerimeter(polygon)
 
     for (let index = 0; index < perimeter.length; index++) {
       const from = vertices[perimeter[index]]

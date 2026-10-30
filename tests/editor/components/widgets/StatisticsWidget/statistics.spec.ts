@@ -43,7 +43,7 @@ void describe('statisticsRows', () => {
   void it('shows a pending value for every row while the level is loading', () => {
     const rows = statisticsRows(undefined)
 
-    assert.equal(rows.length, 6)
+    assert.equal(rows.length, 7)
     assert.deepEqual(
       rows.filter((row) => {
         return row.value !== '…'
@@ -56,7 +56,8 @@ void describe('statisticsRows', () => {
     assert.deepEqual(statisticsRows({ statistics }), [
       { label: 'Triangles', value: '2 536' },
       { label: 'Quads', value: '9 812' },
-      { label: 'Total polygons', value: '12 348' },
+      { label: 'Total faces', value: '12 348' },
+      { label: 'Selected faces', value: '0' },
       { label: 'Lights', value: '47' },
       { label: 'Anchors', value: '3' },
       { label: 'Portals', value: '8' },
@@ -72,5 +73,20 @@ void describe('statisticsRows', () => {
     })
 
     assert.deepEqual(pending, loaded)
+  })
+})
+
+void describe('statisticsRows with a selection', () => {
+  void it('counts the selected faces in the row under the total', () => {
+    const rows = statisticsRows({ statistics }, 42)
+
+    assert.deepEqual(rows[2], { label: 'Total faces', value: '12 348' })
+    assert.deepEqual(rows[3], { label: 'Selected faces', value: '42' })
+  })
+
+  void it('keeps the row while the level is loading', () => {
+    const rows = statisticsRows(undefined, 7)
+
+    assert.deepEqual(rows[3], { label: 'Selected faces', value: '…' })
   })
 })

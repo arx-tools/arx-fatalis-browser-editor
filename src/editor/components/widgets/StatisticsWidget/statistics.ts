@@ -59,15 +59,17 @@ export function formatCount(value: number): string {
  * and the names are testable.
  *
  * @param map The map of the loaded level, or `undefined` while it is loading.
+ * @param selected The number of selected polygons: a quad counts as one.
  *
  * @returns The rows, in the order the widget shows them.
  */
-export function statisticsRows(map: { readonly statistics: MapStatistics } | undefined): StatisticsRow[] {
+export function statisticsRows(map: { readonly statistics: MapStatistics } | undefined, selected = 0): StatisticsRow[] {
   if (map === undefined) {
     return [
       { label: 'Triangles', value: PENDING_VALUE },
       { label: 'Quads', value: PENDING_VALUE },
-      { label: 'Total polygons', value: PENDING_VALUE },
+      { label: 'Total faces', value: PENDING_VALUE },
+      { label: 'Selected faces', value: PENDING_VALUE },
       { label: 'Lights', value: PENDING_VALUE },
       { label: 'Anchors', value: PENDING_VALUE },
       { label: 'Portals', value: PENDING_VALUE },
@@ -79,7 +81,9 @@ export function statisticsRows(map: { readonly statistics: MapStatistics } | und
   return [
     { label: 'Triangles', value: formatCount(statistics.triangleCount) },
     { label: 'Quads', value: formatCount(statistics.quadCount) },
-    { label: 'Total polygons', value: formatCount(statistics.polygonCount) },
+    { label: 'Total faces', value: formatCount(statistics.polygonCount) },
+    // the selection belongs right under the total: it is the same count, of a part of the level
+    { label: 'Selected faces', value: formatCount(selected) },
     { label: 'Lights', value: formatCount(statistics.lightCount) },
     { label: 'Anchors', value: formatCount(statistics.anchorCount) },
     { label: 'Portals', value: formatCount(statistics.portalCount) },

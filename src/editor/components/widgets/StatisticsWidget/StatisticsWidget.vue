@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { levelStore } from '../../../modules/level/levelStore.ts'
+import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import WidgetHeading from '../../WidgetHeading.vue'
 import { statisticsRows } from './statistics.ts'
 
@@ -20,7 +21,8 @@ const props = defineProps<{
  * real counts.
  */
 const rows = computed(() => {
-  return statisticsRows(levelStore.map.value)
+  // the selection is not part of the level: the last row counts the polygons the walkable view picked
+  return statisticsRows(levelStore.map.value, selectionStore.count.value)
 })
 </script>
 

@@ -24,6 +24,7 @@ import {
   pickPolygon,
   pickPolygons,
   type PolygonSelectionOverlay,
+  type SweepResult,
 } from './polygonSelection.ts'
 
 /**
@@ -138,14 +139,11 @@ function selectionModeOfKeys(): SelectionMode {
 }
 
 /**
- * Reads the polygon under the crosshair and outlines it.
- */
-/**
  * Reads the face a running drag should take.
  *
- * @returns The index of the face to take, or `undefined` when no candidate may join.
+ * @returns What the walk over the faces of the ray found, or `undefined` when nothing decides the gesture.
  */
-function pickConnectedPolygon(): number | undefined {
+function pickConnectedPolygon(): SweepResult | undefined {
   if (view === undefined || loadedMap === undefined || dragMode === undefined) {
     return undefined
   }
@@ -169,37 +167,45 @@ function pickConnectedPolygon(): number | undefined {
  * joins only when it touches the ones this drag has selected so far, so a fast drag does not jump over the
  * gaps of the mesh and a face from the other side of the level does not come along. `Ctrl` takes faces away,
  * and there the connection does not matter.
+ *
+ * A face the selection already holds takes nothing: the walk stops on it, because it hides what is behind it.
+ * The drag does not stop with it — its vertices go into `dragVertices`, so the next face on the other side
+ * joins the way it would when a pencil crosses an earlier line on a squared paper.
  */
 function selectUnderCrosshair(): void {
   if (view === undefined || loadedMap === undefined || dragMode === undefined) {
     return
   }
 
-  const index = pickConnectedPolygon()
+  const sweep = pickConnectedPolygon()
 
-  if (index === undefined) {
+  if (sweep === undefined) {
+    return
+  }
+
+  const polygon = loadedMap.polygons[sweep.index]
+
+  if (polygon === undefined) {
+    return
+  }
+
+  // the pencil ran into a face the gesture already holds: nothing changes, but the drawing goes on from here
+  if (dragMode !== 'remove' && sweep.kind === 'cross') {
+    dragVertices = [...dragVertices, ...usedVerticesOf(polygon)]
+
     return
   }
 
   if (dragMode === 'remove') {
-    if (selectionStore.polygons.value.has(index)) {
-      selectionStore.remove(index)
+    if (selectionStore.polygons.value.has(sweep.index)) {
+      selectionStore.remove(sweep.index)
     }
 
     return
   }
 
-  if (selectionStore.polygons.value.has(index)) {
-    return
-  }
-
-  selectionStore.add(index)
-
-  const polygon = loadedMap.polygons[index]
-
-  if (polygon !== undefined) {
-    dragVertices = [...dragVertices, ...usedVerticesOf(polygon)]
-  }
+  selectionStore.add(sweep.index)
+  dragVertices = [...dragVertices, ...usedVerticesOf(polygon)]
 }
 
 /**

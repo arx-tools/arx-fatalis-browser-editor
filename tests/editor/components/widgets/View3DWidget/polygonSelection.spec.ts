@@ -336,7 +336,7 @@ void describe('faceToSweep', () => {
     })
 
     // nothing is selected, so nothing has to touch: the nearest face is the one the drag starts on
-    assert.equal(chosen, 1)
+    assert.deepEqual(chosen, { kind: 'take', index: 1 })
   })
 
   void it('skips a nearer face that does not touch the drag', () => {
@@ -351,7 +351,7 @@ void describe('faceToSweep', () => {
       mode: 'add',
     })
 
-    assert.equal(chosen, 3)
+    assert.deepEqual(chosen, { kind: 'take', index: 3 })
   })
 
   void it('takes nothing when no face touches the drag', () => {
@@ -368,7 +368,7 @@ void describe('faceToSweep', () => {
     assert.equal(chosen, undefined)
   })
 
-  void it('skips the faces that are selected already', () => {
+  void it('stops at a face the selection holds already, and says it crossed it', () => {
     const polygons = [quadAt(0)]
 
     const chosen = faceToSweep({
@@ -379,7 +379,39 @@ void describe('faceToSweep', () => {
       mode: 'add',
     })
 
-    assert.equal(chosen, undefined)
+    // the face is not taken (it is in the selection), but the drag has to know it ran into it: its vertices
+    // let the pencil go on beyond it
+    assert.deepEqual(chosen, { kind: 'cross', index: 0 })
+  })
+
+  void it('does not walk past a selected face to the one behind it', () => {
+    // the bug of 2026-10-31: the crosshair was on a selected face, and the face behind it got selected
+    const polygons = [quadAt(0), quadAt(10)]
+
+    const chosen = faceToSweep({
+      candidates: [0, 1],
+      polygons,
+      selected: new Set([0]),
+      vertices: [],
+      mode: 'add',
+    })
+
+    assert.deepEqual(chosen, { kind: 'cross', index: 0 })
+  })
+
+  void it('does not walk past a selected face in the middle of a drag either', () => {
+    const polygons = [quadAt(0), quadAt(10), quadAt(20)]
+
+    const chosen = faceToSweep({
+      candidates: [1, 2],
+      polygons,
+      selected: new Set([1]),
+      vertices: usedVerticesOf(polygons[0]),
+      mode: 'add',
+    })
+
+    // quad 2 touches the traced quad, but quad 1 hides it: the walk ends on the crossed face
+    assert.deepEqual(chosen, { kind: 'cross', index: 1 })
   })
 
   void it('takes the nearest face to remove, touching or not', () => {
@@ -393,6 +425,7 @@ void describe('faceToSweep', () => {
       mode: 'remove',
     })
 
-    assert.equal(chosen, 1)
+    // taking away the face the selection holds is the point of a remove gesture
+    assert.deepEqual(chosen, { kind: 'take', index: 1 })
   })
 })

@@ -371,20 +371,34 @@ export interface DragSweep {
 }
 
 /**
+ * What the walk over the faces of the ray found.
+ *
+ * @remarks
+ * The two are told apart because a face the selection **already holds** stops the walk (it hides what is behind
+ * it) but must not end the drag: the caller takes its vertices, so the next face beyond it can join the sweep.
+ */
+export type SweepResult = { kind: 'take'; index: number } | { kind: 'cross'; index: number }
+
+/**
  * The face a running drag takes from the ray.
  *
  * @remarks
- * A `replace` or `add` drag only takes a face that **touches** the ones it has taken so far: a nearer face
- * that does not would otherwise hide the one that does (the overlapping polygons of level 8 are the case
- * that shows it), and a face from the other side of the level must not come along. A face that touches
- * nothing is not taken at all, so a drag stops at the islands instead of painting them. `remove` takes the
- * nearest face of all: taking something away does not need a neighbour.
+ * The walk goes down the ray, nearest first, and stops at the first face that decides the gesture. A face the
+ * selection **already holds** stops it with `cross`: that face is in front of whatever lies behind it, so
+ * nothing behind it may be taken — but the drag goes on from there (the caller remembers the vertices of the
+ * crossed face, so the pencil continues on the other side, the way it would on paper). Otherwise a face joins
+ * only when it **touches** the ones the drag has taken so far: a nearer face that does not would hide the one
+ * that does (the overlapping polygons of level 8 are the case that shows it), and a face from the other side of
+ * the level must not come along. A face that touches nothing is not taken at all, so a drag stops at the
+ * islands instead of painting them. With no vertices yet (the first face of a gesture) the touching rule
+ * accepts anything, so a click takes what the crosshair is on. `remove` takes the nearest face of all: taking
+ * something away does not need a neighbour, and a face the selection holds is exactly the one to take.
  *
  * @param sweep The faces of the ray and the state of the gesture.
  *
- * @returns The index of the face to take, or `undefined` when no candidate may join.
+ * @returns The face to take or the one the walk ran into, or `undefined` when no face decides the gesture.
  */
-export function faceToSweep(sweep: DragSweep): number | undefined {
+export function faceToSweep(sweep: DragSweep): SweepResult | undefined {
   for (const index of sweep.candidates) {
     const polygon = sweep.polygons[index]
 
@@ -393,15 +407,15 @@ export function faceToSweep(sweep: DragSweep): number | undefined {
     }
 
     if (sweep.mode === 'remove') {
-      return index
+      return { kind: 'take', index }
     }
 
     if (sweep.selected.has(index)) {
-      continue
+      return { kind: 'cross', index }
     }
 
     if (isTouchingVertices(polygon, sweep.vertices)) {
-      return index
+      return { kind: 'take', index }
     }
   }
 

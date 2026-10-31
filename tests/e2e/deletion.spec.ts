@@ -1,5 +1,15 @@
 import { expect, test, type Response } from '@playwright/test'
-import { clickCrosshair, litPixels, lockPointer, statOf, waitForLevel } from './support/editor.ts'
+import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
+import {
+  clickCrosshair,
+  litPixels,
+  lockPointer,
+  readPose,
+  seedLayout,
+  statOf,
+  waitForLevel,
+  writePose,
+} from './support/editor.ts'
 
 /**
  * The deletion of the selected faces.
@@ -27,6 +37,8 @@ test('a deleted face leaves the rest of the level on the screen', async ({ page,
     }
   })
 
+  // the editor preset: it has the camera form, which is how the test aims the camera again after the lock
+  await seedLayout(page, editorLayout)
   await page.goto('/')
 
   const view = page.locator('[data-widget-kind="3d-view"] canvas').first()
@@ -44,8 +56,12 @@ test('a deleted face leaves the rest of the level on the screen', async ({ page,
   const total = await waitForLevel(page)
   const litBefore = await litPixels(view)
 
-  // take the face under the crosshair, and delete it
+  // take the face under the crosshair, and delete it: the lock click turns the camera, so the aim is written
+  // back into the camera form first (the spawn pose, read before the lock)
+  const spawn = await readPose(page)
+
   await lockPointer(page, view)
+  await writePose(page, spawn)
   await clickCrosshair(view)
 
   await expect

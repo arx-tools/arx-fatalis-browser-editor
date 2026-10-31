@@ -5,7 +5,7 @@ import { installDom } from '../../../support/dom.ts'
 installDom()
 
 const { DockLayout, DockPanel, Widget } = await import('@lumino/widgets')
-const { defaultLayout } = await import('../../../../src/editor/modules/layout/layoutPresets.ts')
+const { editorLayout } = await import('../../../../src/editor/modules/layout/layoutPresets.ts')
 const { collectKinds, toDockConfig, toLayoutNode } = await import('../../../../src/editor/modules/layout/layoutNode.ts')
 const { createWidget, widgetKind } = await import('../../../../src/editor/modules/layout/widgetDefinition.ts')
 
@@ -61,7 +61,7 @@ function buildDock(kinds: string[]): {
   Widget.attach(dock, host)
 
   const widgets = makeWidgets(kinds)
-  const config = toDockConfig(defaultLayout, (kind) => {
+  const config = toDockConfig(editorLayout, (kind) => {
     return widgets.get(kind)
   })
 
@@ -72,8 +72,8 @@ function buildDock(kinds: string[]): {
 }
 
 void describe('toLayoutNode', () => {
-  void it('reads the dock back into the default layout', () => {
-    const { dock } = buildDock(['3d-view', 'map-statistics', 'controls'])
+  void it('reads the dock back into the editor layout', () => {
+    const { dock } = buildDock(collectKinds(editorLayout))
     const { layout } = dock
 
     assert.ok(layout instanceof DockLayout)
@@ -81,7 +81,17 @@ void describe('toLayoutNode', () => {
     const node = toLayoutNode(layout.saveLayout(), kindOf)
 
     assert.ok(node)
-    assert.deepEqual(collectKinds(node).toSorted(), ['3d-view', 'controls', 'map-statistics'])
+    assert.deepEqual(collectKinds(node).toSorted(), [
+      '3d-view',
+      'camera-controls',
+      'controls',
+      'front-view',
+      'jump-to-location',
+      'left-view',
+      'map-statistics',
+      'polygon-inspector',
+      'top-view',
+    ])
     assert.equal(node.type, 'split')
   })
 
@@ -126,9 +136,9 @@ void describe('toLayoutNode', () => {
 })
 
 void describe('toDockConfig', () => {
-  void it('builds the default layout from its tree', () => {
-    const widgets = makeWidgets(['3d-view', 'map-statistics', 'controls'])
-    const config = toDockConfig(defaultLayout, (kind) => {
+  void it('builds the editor layout from its tree', () => {
+    const widgets = makeWidgets(collectKinds(editorLayout))
+    const config = toDockConfig(editorLayout, (kind) => {
       return widgets.get(kind)
     })
 
@@ -136,7 +146,7 @@ void describe('toDockConfig', () => {
     assert.equal(config.main?.type, 'split-area')
 
     const { main } = config
-    const root = defaultLayout as Extract<typeof defaultLayout, { type: 'split' }>
+    const root = editorLayout as Extract<typeof editorLayout, { type: 'split' }>
 
     assert.deepEqual(main.sizes, root.sizes)
     assert.deepEqual(main.children.length, root.children.length)
@@ -144,7 +154,7 @@ void describe('toDockConfig', () => {
 
   void it('gives null for a tree without a live widget', () => {
     assert.equal(
-      toDockConfig(defaultLayout, () => {
+      toDockConfig(editorLayout, () => {
         return undefined
       }),
       null,

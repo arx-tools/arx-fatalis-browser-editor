@@ -28,7 +28,7 @@ const presets = computed(() => {
  * The preset the dropdown shows as selected.
  */
 const selectedPreset = computed(() => {
-  return shell.value?.selectedPreset.value ?? 'default'
+  return shell.value?.selectedPreset.value ?? 'viewer'
 })
 
 /**

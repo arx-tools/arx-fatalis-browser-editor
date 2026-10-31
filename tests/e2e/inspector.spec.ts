@@ -1,30 +1,6 @@
 import { expect, test } from '@playwright/test'
-import { waitForLevel } from './support/editor.ts'
-
-/**
- * The layout the test starts with: the walkable view on the left, the inspector and the statistics on the right.
- *
- * @remarks
- * The editor reads its layout back from the storage, so the test does not have to drag the inspector out of the
- * picker: it writes the layout the way the shell saves it, and the widget is on the dock when the page loads.
- */
-const layout = {
-  type: 'split',
-  orientation: 'horizontal',
-  sizes: [0.6, 0.4],
-  children: [
-    { type: 'widget', kind: '3d-view' },
-    {
-      type: 'split',
-      orientation: 'vertical',
-      sizes: [0.5, 0.5],
-      children: [
-        { type: 'widget', kind: 'polygon-inspector' },
-        { type: 'widget', kind: 'map-statistics' },
-      ],
-    },
-  ],
-}
+import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
+import { seedLayout, waitForLevel } from './support/editor.ts'
 
 /**
  * The polygon inspector: the face under the crosshair of the walkable view.
@@ -38,11 +14,9 @@ const layout = {
 test('the inspector describes the face under the crosshair', async ({ page }) => {
   test.setTimeout(120_000)
 
-  await page.addInitScript((seeded: unknown) => {
-    localStorage.clear()
-    localStorage.setItem('layout', JSON.stringify(seeded))
-  }, layout)
-
+  // the editor preset has the inspector and the statistics on the dock, and the camera form the walkable view
+  // needs for a known aim
+  await seedLayout(page, editorLayout)
   await page.goto('/')
 
   // the level comes first: the statistics stops showing the pending dots

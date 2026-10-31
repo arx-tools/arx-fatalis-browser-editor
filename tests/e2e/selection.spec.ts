@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
-import { clickCrosshair, lockPointer, statOf, waitForLevel } from './support/editor.ts'
+import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
+import { clickCrosshair, lockPointer, readPose, seedLayout, statOf, waitForLevel, writePose } from './support/editor.ts'
 
 /**
  * The selection of the walkable view: what the crosshair is on, and what the gestures do with it.
@@ -23,6 +24,8 @@ test('the face under the crosshair is the one a gesture takes', async ({ page, b
   test.skip(browserName !== 'chromium', 'the pointer lock of the walkable view needs chromium here')
   test.setTimeout(120_000)
 
+  // the editor preset: it has the camera form, which is how the test aims the camera again after the lock
+  await seedLayout(page, editorLayout)
   await page.goto('/')
 
   const view = page.locator('[data-widget-kind="3d-view"] canvas').first()
@@ -30,9 +33,15 @@ test('the face under the crosshair is the one a gesture takes', async ({ page, b
   await expect(view).toBeVisible()
   await waitForLevel(page)
 
+  // the spawn pose of the level, read before the lock: the click that takes the lock also turns the camera
+  const spawn = await readPose(page)
+
   // the pointer lock, and nothing else: the press that asks for it still finds the pointer free
   await lockPointer(page, view)
   expect(await statOf(page, 'Selected faces')).toBe(0)
+
+  // the aim goes back to the spawn: the crosshair sits on a face of the level whatever the click did
+  await writePose(page, spawn)
 
   // a plain click takes the face under the crosshair
   await clickCrosshair(view)

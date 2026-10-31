@@ -6,7 +6,7 @@ import {
   layoutEquals,
   parseLayoutNode,
 } from '../../../../src/editor/modules/layout/layoutNode.ts'
-import { defaultLayout } from '../../../../src/editor/modules/layout/layoutPresets.ts'
+import { editorLayout } from '../../../../src/editor/modules/layout/layoutPresets.ts'
 
 /**
  * A widget leaf of the test trees.
@@ -38,19 +38,39 @@ function split(orientation: 'horizontal' | 'vertical', children: LayoutNode[]): 
   }
 }
 
-void describe('the default preset', () => {
-  void it('gives the 3D view the wider half', () => {
-    const root = defaultLayout as Extract<LayoutNode, { type: 'split' }>
+void describe('the editor preset', () => {
+  void it('puts the small views on the left, the walkable view in the middle and the numbers on the right', () => {
+    const root = editorLayout as Extract<LayoutNode, { type: 'split' }>
 
     assert.equal(root.orientation, 'horizontal')
-    assert.deepEqual(root.sizes, [0.7, 0.3])
-    assert.deepEqual(collectKinds(root), ['3d-view', 'map-statistics', 'controls'])
+    assert.deepEqual(root.sizes, [0.2, 0.6, 0.2])
+    assert.deepEqual(collectKinds(root), [
+      'top-view',
+      'left-view',
+      'front-view',
+      'camera-controls',
+      'jump-to-location',
+      '3d-view',
+      'map-statistics',
+      'polygon-inspector',
+      'controls',
+    ])
   })
 })
 
 void describe('collectKinds', () => {
-  void it('gives the kinds of the default layout', () => {
-    assert.deepEqual(collectKinds(defaultLayout).toSorted(), ['3d-view', 'controls', 'map-statistics'])
+  void it('gives the kinds of the editor layout', () => {
+    assert.deepEqual(collectKinds(editorLayout).toSorted(), [
+      '3d-view',
+      'camera-controls',
+      'controls',
+      'front-view',
+      'jump-to-location',
+      'left-view',
+      'map-statistics',
+      'polygon-inspector',
+      'top-view',
+    ])
   })
 
   void it('keeps the order of the layout', () => {
@@ -73,7 +93,7 @@ void describe('collectKinds', () => {
 
 void describe('layoutEquals', () => {
   void it('accepts the same tree', () => {
-    assert.equal(layoutEquals(defaultLayout, defaultLayout), true)
+    assert.equal(layoutEquals(editorLayout, editorLayout), true)
   })
 
   void it('sees a different kind', () => {
@@ -110,10 +130,10 @@ void describe('layoutEquals', () => {
 
 void describe('parseLayoutNode', () => {
   void it('reads the default layout back', () => {
-    const parsed = parseLayoutNode(structuredClone(defaultLayout))
+    const parsed = parseLayoutNode(structuredClone(editorLayout))
 
     assert.ok(parsed)
-    assert.equal(layoutEquals(parsed, defaultLayout), true)
+    assert.equal(layoutEquals(parsed, editorLayout), true)
   })
 
   void it('rejects everything that is not a layout', () => {

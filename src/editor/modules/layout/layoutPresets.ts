@@ -8,7 +8,7 @@ import { WIDGET_KINDS } from './widgetKinds.ts'
  * `custom` is not a constant: it is the slot the editor stores the last layout that is not a factory one
  * in, so the header can offer it back next to the factory presets.
  */
-export type PresetId = 'advanced' | 'custom' | 'default'
+export type PresetId = 'custom' | 'editor' | 'viewer'
 
 /**
  * One factory preset of the layout.
@@ -29,34 +29,7 @@ export interface FactoryPreset {
 }
 
 /**
- * The layout the editor starts with.
- *
- * @remarks
- * - the 3D view takes 70% of the width: it is the working surface, and it wants the room
- * - the statistics sit above the help on the right 30%
- * - the camera is **not** part of it: it is the free kind of the picker, and a kind that is not in the
- * tree is simply not on the dock
- */
-export const defaultLayout: LayoutNode = {
-  type: 'split',
-  orientation: 'horizontal',
-  sizes: [0.7, 0.3],
-  children: [
-    { type: 'widget', kind: WIDGET_KINDS.view3d },
-    {
-      type: 'split',
-      orientation: 'vertical',
-      sizes: [0.5, 0.5],
-      children: [
-        { type: 'widget', kind: WIDGET_KINDS.mapStatistics },
-        { type: 'widget', kind: WIDGET_KINDS.controls },
-      ],
-    },
-  ],
-}
-
-/**
- * The height the thin row of {@link advancedLayout} needs, in pixels.
+ * The height the thin row of {@link editorLayout} needs, in pixels.
  *
  * @remarks
  * The row holds the camera form and the jump: 44px of content (a 10px caption, the 24px fields and 4px of
@@ -77,15 +50,18 @@ const THIN_ROW_SHARE = THIN_ROW_HEIGHT / 814
 
 /**
  * The layout for the level work: the small views on the left, the walkable view in the middle with the
- * camera under it, and the numbers on the right.
+ * camera above it, and the numbers on the right.
  *
  * @remarks
  * - the left 20% is a column of three small views: the plan and the two elevations
  * - the middle 60% is the walkable view, with a thin row above it: the camera form and the jump of the
  * location widget (the two one row widgets, so the row stays thin — {@link THIN_ROW_HEIGHT})
- * - the right 20% holds the statistics above the keyboard shortcuts
+ * - the right 20% holds the statistics, the inspector and the keyboard shortcuts, one above the other
+ *
+ * The three columns and the three rows are the shares the owner measured on his own window; they are the
+ * plain tenths (0.2 / 0.6 / 0.2, thirds), not the pixels of that window, because a lumino split scales.
  */
-export const advancedLayout: LayoutNode = {
+export const editorLayout: LayoutNode = {
   type: 'split',
   orientation: 'horizontal',
   sizes: [0.2, 0.6, 0.2],
@@ -120,9 +96,10 @@ export const advancedLayout: LayoutNode = {
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: [0.5, 0.5],
+      sizes: [1 / 3, 1 / 3, 1 / 3],
       children: [
         { type: 'widget', kind: WIDGET_KINDS.mapStatistics },
+        { type: 'widget', kind: WIDGET_KINDS.polygonInspector },
         { type: 'widget', kind: WIDGET_KINDS.controls },
       ],
     },
@@ -130,11 +107,52 @@ export const advancedLayout: LayoutNode = {
 }
 
 /**
+ * The layout for looking at a level: the walkable view with a plan and the keys beside it.
+ *
+ * @remarks
+ * - the left 60% is the walkable view, the whole height of the dock: this layout is not for editing, it is
+ * for walking around and reading the number under the crosshair
+ * - the right 40% holds the plan above, so a step in the view can be checked from above, and the keyboard
+ * shortcuts below
+ */
+export const viewerLayout: LayoutNode = {
+  type: 'split',
+  orientation: 'horizontal',
+  sizes: [0.6, 0.4],
+  children: [
+    { type: 'widget', kind: WIDGET_KINDS.view3d },
+    {
+      type: 'split',
+      orientation: 'vertical',
+      sizes: [0.3, 0.7],
+      children: [
+        { type: 'widget', kind: WIDGET_KINDS.topView },
+        { type: 'widget', kind: WIDGET_KINDS.controls },
+      ],
+    },
+  ],
+}
+
+/**
+ * The layout the editor starts with.
+ *
+ * @remarks
+ * It is the **`Viewer`** (2026-10-31, the owner's decision): the editor opens on the walkable view, with the
+ * plan and the keys beside it. The `Editor` preset — the three small views, the camera row and the numbers —
+ * is one click away in the dropdown of the header.
+ */
+export const defaultLayout: LayoutNode = viewerLayout
+
+/**
  * The presets the header offers, in the order of the dropdown.
+ *
+ * @remarks
+ * The order is the one of the header: the `Editor` first (the layout of the level work), the `Viewer` second.
+ * Which of them the editor starts with is {@link defaultLayout}, not this order.
  */
 export const factoryPresets: readonly FactoryPreset[] = [
-  { id: 'default', label: 'Default', layout: defaultLayout },
-  { id: 'advanced', label: 'Advanced', layout: advancedLayout },
+  { id: 'editor', label: 'Editor', layout: editorLayout },
+  { id: 'viewer', label: 'Viewer', layout: viewerLayout },
 ]
 
 /**

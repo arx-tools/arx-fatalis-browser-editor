@@ -88,6 +88,22 @@ const definitions: readonly WidgetDefinition[] = [
       return new Widget()
     },
   },
+  {
+    kind: 'polygon-inspector',
+    label: 'Polygon Inspector',
+    group: 'info',
+    create: (): LuminoWidget => {
+      return new Widget()
+    },
+  },
+  {
+    kind: 'right-view',
+    label: 'Right View',
+    group: 'rendering',
+    create: (): LuminoWidget => {
+      return new Widget()
+    },
+  },
 ]
 
 /**
@@ -133,18 +149,18 @@ void describe('dockWidgets', () => {
           return widget.title.label
         })
         .toSorted(),
-      ['3D View', 'Controls', 'Map Statistics'],
+      ['3D View', 'Controls', 'Top View'],
     )
     shell.dispose()
   })
 })
 
 void describe('the layout of the shell', () => {
-  void it('starts from the default layout', () => {
+  void it('starts from the viewer layout', () => {
     const { shell } = buildShell()
 
     assert.equal(shell.isLayoutModified.value, false)
-    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['3d-view', 'controls', 'map-statistics'])
+    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['3d-view', 'controls', 'top-view'])
     shell.dispose()
   })
 
@@ -164,29 +180,20 @@ void describe('the layout of the shell', () => {
       shell.presets.value.map((preset) => {
         return preset.label
       }),
-      ['Default', 'Advanced'],
+      ['Editor', 'Viewer'],
     )
-    assert.equal(shell.selectedPreset.value, 'default')
+    assert.equal(shell.selectedPreset.value, 'viewer')
     shell.dispose()
   })
 
-  void it('puts the advanced layout on the dock', () => {
+  void it('puts the viewer layout on the dock', () => {
     const { shell } = buildShell()
 
-    shell.applyPreset('advanced')
+    shell.applyPreset('viewer')
 
-    assert.equal(shell.selectedPreset.value, 'advanced')
+    assert.equal(shell.selectedPreset.value, 'viewer')
     assert.equal(shell.isLayoutModified.value, false)
-    assert.deepEqual([...shell.placedKinds.value].toSorted(), [
-      '3d-view',
-      'camera-controls',
-      'controls',
-      'front-view',
-      'jump-to-location',
-      'left-view',
-      'map-statistics',
-      'top-view',
-    ])
+    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['3d-view', 'controls', 'top-view'])
     shell.dispose()
   })
 
@@ -200,7 +207,7 @@ void describe('the layout of the shell', () => {
       shell.presets.value.map((preset) => {
         return preset.label
       }),
-      ['Default', 'Advanced', 'Custom'],
+      ['Editor', 'Viewer', 'Custom'],
     )
     shell.dispose()
   })
@@ -208,18 +215,28 @@ void describe('the layout of the shell', () => {
   void it('keeps the custom layout when a factory preset is chosen', () => {
     const { shell } = buildShell()
 
-    shell.addWidget('camera-controls')
-    shell.applyPreset('default')
+    shell.addWidget('right-view')
+    shell.applyPreset('editor')
 
-    assert.equal(shell.selectedPreset.value, 'default')
-    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['3d-view', 'controls', 'map-statistics'])
+    assert.equal(shell.selectedPreset.value, 'editor')
+    assert.deepEqual([...shell.placedKinds.value].toSorted(), [
+      '3d-view',
+      'camera-controls',
+      'controls',
+      'front-view',
+      'jump-to-location',
+      'left-view',
+      'map-statistics',
+      'polygon-inspector',
+      'top-view',
+    ])
     // the custom is still there, so switching back brings the modified layout again
     assert.equal(shell.presets.value.length, 3)
 
     shell.applyPreset('custom')
 
     assert.equal(shell.selectedPreset.value, 'custom')
-    assert.equal(shell.placedKinds.value.includes('camera-controls'), true)
+    assert.equal(shell.placedKinds.value.includes('right-view'), true)
     shell.dispose()
   })
 
@@ -227,7 +244,7 @@ void describe('the layout of the shell', () => {
     const { shell } = buildShell()
 
     shell.addWidget('camera-controls')
-    shell.applyPreset('default')
+    shell.applyPreset('editor')
     shell.addWidget('controls')
 
     assert.equal(shell.selectedPreset.value, 'custom')
@@ -257,7 +274,7 @@ void describe('the layout of the shell', () => {
       shell.presets.value.map((preset) => {
         return preset.id
       }),
-      ['default', 'advanced', 'custom'],
+      ['editor', 'viewer', 'custom'],
     )
     shell.dispose()
   })
@@ -283,7 +300,7 @@ void describe('the layout of the shell', () => {
     shell.dispose()
   })
 
-  void it('starts from the default when the stored layout has the old kind names', () => {
+  void it('starts from the default when the stored layout has only unknown kinds', () => {
     localStorage.setItem(
       'layout',
       JSON.stringify({
@@ -300,18 +317,18 @@ void describe('the layout of the shell', () => {
     const { shell } = buildShell()
 
     // the kind rename does not keep the old names alive: the unknown kinds drop out and, with nothing
-    // left, the default layout takes over (the editor is not 1.0.0 yet)
-    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['3d-view', 'controls', 'map-statistics'])
+    // left, the default (viewer) layout takes over (the editor is not 1.0.0 yet)
+    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['3d-view', 'controls', 'top-view'])
     assert.equal(shell.isLayoutModified.value, false)
     shell.dispose()
   })
 
-  void it('falls back to the default for a broken storage value', () => {
+  void it('falls back to the default layout for a broken storage value', () => {
     localStorage.setItem('layout', 'not json at all')
 
     const { shell } = buildShell()
 
-    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['3d-view', 'controls', 'map-statistics'])
+    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['3d-view', 'controls', 'top-view'])
     assert.equal(shell.isLayoutModified.value, false)
     shell.dispose()
   })
@@ -425,7 +442,7 @@ void describe('createEditorShell', () => {
   void it('lists the kinds that are on the dock', () => {
     const { shell } = buildShell()
 
-    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['3d-view', 'controls', 'map-statistics'])
+    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['3d-view', 'controls', 'top-view'])
 
     shell.addWidget('controls')
 
@@ -438,12 +455,11 @@ void describe('createEditorShell', () => {
 
     shell.removeWidgetByKind('map-statistics')
 
-    assert.equal(shell.placedKinds.value.includes('map-statistics'), false)
-    assert.equal(dockWidgets(shell.dock).length, 2)
+    assert.equal(dockWidgets(shell.dock).length, 3)
 
     shell.removeWidgetByKind('nope')
 
-    assert.equal(dockWidgets(shell.dock).length, 2)
+    assert.equal(dockWidgets(shell.dock).length, 3)
     shell.dispose()
   })
 

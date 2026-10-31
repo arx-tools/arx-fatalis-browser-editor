@@ -1,4 +1,6 @@
 import { ArxMap } from '../../../generator/ArxMap.ts'
+import { Settings } from '../../../generator/Settings.ts'
+import { levelSeed } from './seed.ts'
 
 /**
  * Where the packed level files are downloaded from.
@@ -94,8 +96,19 @@ export async function fetchLevelFiles(
  *
  * @returns The built map of that level.
  */
-export async function loadLevelMap(level: number = STARTER_LEVEL, fetchImpl: typeof fetch = fetch): Promise<ArxMap> {
+export async function loadOriginalArxLevel(
+  level: number = STARTER_LEVEL,
+  fetchImpl: typeof fetch = fetch,
+): Promise<ArxMap> {
   const files = await fetchLevelFiles(level, fetchImpl)
 
-  return new ArxMap(files.dlf, files.fts, files.llf)
+  // what the level is made with: the seed today, and whatever a level needs later (the lighting mode, the
+  // level it comes from), so this stays the one place to build it
+  const settings = new Settings({ seed: levelSeed.value })
+  const map = new ArxMap(files.dlf, files.fts, files.llf, settings)
+
+  // the level made its own seed when it had none: the ref writes it in the url, so the level comes back
+  levelSeed.value = map.settings.seed
+
+  return map
 }

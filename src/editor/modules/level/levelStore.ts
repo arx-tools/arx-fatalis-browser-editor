@@ -1,7 +1,7 @@
 import { ref, shallowRef, type Ref, type ShallowRef } from 'vue'
 import type { ArxMap } from '../../../generator/ArxMap.ts'
 import type { LoadingStatus } from '../../types.ts'
-import { loadLevelMap } from './levelSource.ts'
+import { loadOriginalArxLevel } from './levelSource.ts'
 
 /**
  * The configuration of {@link createLevelStore}.
@@ -79,7 +79,7 @@ export function createLevelStore(options: LevelStoreOptions = {}): LevelStore {
   const loadMap =
     options.loadMap ??
     (async (): Promise<ArxMap> => {
-      return await loadLevelMap()
+      return await loadOriginalArxLevel()
     })
   const status = ref<LoadingStatus>('idle')
   const map = shallowRef<ArxMap>()

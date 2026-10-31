@@ -12,6 +12,7 @@ import {
   splitPolygons,
 } from './meshes.ts'
 import { countFacesOfTriangles } from './polygonCounts.ts'
+import { Settings } from './Settings.ts'
 import { triangleToPolygonMap, vertexToPolygonsMap } from './polygons.ts'
 import { Player } from './Player.ts'
 
@@ -131,6 +132,15 @@ export class ArxMap {
   readonly triangleToPolygon: readonly number[]
 
   /**
+   * What the level was made with: its seed today.
+   *
+   * @remarks
+   * The level carries it so a link can bring the same level back: the constructor starts the generator from
+   * it (or from a fresh seed, when the caller had none), and the editor puts the seed in the url.
+   */
+  readonly settings: Settings
+
+  /**
    * The polygons grouped by the positions of their vertices.
    *
    * @remarks
@@ -201,10 +211,15 @@ export class ArxMap {
    * @param dlf The packed DLF file: the general description of the level.
    * @param fts The packed FTS file: the scene and the mesh.
    * @param llf The packed LLF file: the lighting of the level.
+   * @param settings What the level is made with: the seed, and whatever a level needs later.
    *
    * @throws When a file is not a valid Arx file of its format.
    */
-  constructor(dlf: ArrayBuffer, fts: ArrayBuffer, llf: ArrayBuffer) {
+  constructor(dlf: ArrayBuffer, fts: ArrayBuffer, llf: ArrayBuffer, settings: Settings = new Settings()) {
+    // the settings first: their constructor starts the generator, so every random number of the level comes
+    // from the seed they carry
+    this.settings = settings
+
     this.dlf = DLF.load(unpackArxFile(dlf, 'dlf'))
     this.fts = FTS.load(unpackArxFile(fts, 'fts'))
     this.llf = LLF.load(unpackArxFile(llf, 'llf'))

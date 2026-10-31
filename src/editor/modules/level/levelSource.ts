@@ -13,13 +13,18 @@ import { levelSeed } from './seed.ts'
 const LEVEL_FILES_BASE_URL = 'https://raw.githubusercontent.com/arx-tools/pkware-test-files/main/arx-fatalis'
 
 /**
- * The level the first 3D round shows.
+ * The level the editor opens today.
  *
  * @remarks
  * Hardcoded on purpose: the level picker is a later round, and one fixed level is enough to see whether
  * the pipeline works.
+ *
+ * The constant itself is temporary. Opening a level rewrites this whole part (where the bytes come from, the
+ * picker, the url), and the constant goes with it. Until then it is the switch of the testing rounds: the
+ * number is changed whenever a round needs another level, so neither 8 nor 11 is a fixed value — whichever
+ * level the current round works on is the right one here.
  */
-export const STARTER_LEVEL = 11
+export const STARTER_LEVEL = 8
 
 /**
  * The names of the three files of a level.

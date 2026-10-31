@@ -6,6 +6,7 @@ import Crosshair from '../../Crosshair.vue'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { sameTextureAreaOf, usedVerticesOf } from '../../../../generator/polygons.ts'
+import { levelRevision } from '../../../modules/level/editing.ts'
 import { levelStore } from '../../../modules/level/levelStore.ts'
 import { WIDGET_KINDS } from '../../../modules/layout/widgetKinds.ts'
 import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
@@ -113,6 +114,7 @@ let lastFrameAt = 0
 let stopWatching: (() => void) | undefined
 let stopWatchingWireframe: (() => void) | undefined
 let stopWatchingMesh: (() => void) | undefined
+let stopWatchingEdit: (() => void) | undefined
 
 /**
  * Reads the mode of the click from the modifiers that are held down.
@@ -600,6 +602,14 @@ onMounted(() => {
     requestRender()
   })
 
+  // an edit changes the polygons, but not the objects this view holds: the level refills its geometry in
+  // place, so the mesh and the wireframe of the scene already draw the new faces. What an edit does need is a
+  // frame: the view draws on demand, so without this the canvas would keep the picture of the level before
+  // the edit (a walk away and back would refresh it, which is exactly what a still picture can not do)
+  stopWatchingEdit = watch(levelRevision, () => {
+    requestRender()
+  })
+
   // the mesh is a switch too: off, the level keeps the wireframe and the overlays only
   stopWatchingMesh = watch(isMeshVisible, (visible) => {
     setMeshVisible(visible)
@@ -626,6 +636,8 @@ onBeforeUnmount(() => {
   stopWatchingWireframe = undefined
   stopWatchingMesh?.()
   stopWatchingMesh = undefined
+  stopWatchingEdit?.()
+  stopWatchingEdit = undefined
   stopWatchingSelection?.()
   stopWatchingSelection = undefined
 

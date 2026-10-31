@@ -4,6 +4,7 @@ import Cover from './components/Cover.vue'
 import Dock from './components/Dock.vue'
 import EditorHeader from './components/EditorHeader.vue'
 import { startLevelDisplay } from './components/widgets/levelDisplay.ts'
+import { startLevelEditing } from './modules/level/editing.ts'
 import { startSelection } from './modules/selection/selectionStore.ts'
 import { levelStore } from './modules/level/levelStore.ts'
 import { provideEditorShell } from './modules/shell/editorShellContext.ts'
@@ -18,6 +19,7 @@ onMounted(() => {
   levelStore.startLoading()
   startLevelDisplay()
   startSelection()
+  startLevelEditing()
 })
 </script>
 

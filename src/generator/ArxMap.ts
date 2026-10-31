@@ -1,6 +1,6 @@
 import { DLF, FTS, LLF } from 'arx-convert'
 import type { ArxDLF, ArxFTS, ArxLight, ArxLLF, ArxPolygon, ArxVector3 } from 'arx-convert/types'
-import { Mesh, type BufferGeometry, type Material, type Vector3 } from 'three'
+import { BufferGeometry, Mesh } from 'three'
 import { unpackArxFile } from './files.ts'
 import {
   accelerateRaycast,
@@ -110,7 +110,7 @@ export class ArxMap {
    * the walk over the polygons is cheap compared to the mesh itself, and the switch only decides whether
    * a view puts a `LineSegments` over this geometry into its scene.
    */
-  readonly wireframeGeometry: BufferGeometry
+  wireframeGeometry: BufferGeometry
 
   /**
    * The polygons the mesh was built from, in the order of its triangles.
@@ -120,7 +120,7 @@ export class ArxMap {
    * raycast can report through {@link triangleToPolygon}. The selection and the phantom cursor read the
    * vertices from this list.
    */
-  readonly polygons: readonly ArxPolygon[]
+  polygons: readonly ArxPolygon[]
 
   /**
    * The polygon index of every triangle of the mesh.
@@ -129,7 +129,7 @@ export class ArxMap {
    * A quad is one polygon but two triangles, so a raycast hit has to be turned back into a polygon: this
    * map is the running total of the triangles (see `triangleToPolygonMap`).
    */
-  readonly triangleToPolygon: readonly number[]
+  triangleToPolygon: readonly number[]
 
   /**
    * What the level was made with: its seed today.
@@ -147,7 +147,7 @@ export class ArxMap {
    * The neighbours of a face: the drag of the walkable view and the texture fill both walk these, so they
    * follow the welds of the mesh and stop where the mesh is not welded. Built once, with the mesh.
    */
-  readonly vertexToPolygons: ReadonlyMap<string, readonly number[]>
+  vertexToPolygons: ReadonlyMap<string, readonly number[]>
 
   /**
    * The numbers the statistics widget shows, worked out when the mesh was built.
@@ -166,6 +166,15 @@ export class ArxMap {
    * The lighting of the level.
    */
   private readonly llf: ArxLLF
+
+  /**
+   * The polygons that came from an alpha container: the walls the game does not draw.
+   *
+   * @remarks
+   * A `WeakSet` on the polygon itself, so an edit that moves the indices around does not have to keep a
+   * second list in step: the object knows which mesh it belongs to.
+   */
+  private readonly invisibleWalls = new WeakSet<ArxPolygon>()
 
   /**
    * The scene position of the level, which is the origin of the mesh's coordinate system.
@@ -229,11 +238,14 @@ export class ArxMap {
     // are all built from these two lists, so nothing walks the level again. The invisible walls come second,
     // and the triangle map follows that order (the pick works out which mesh a hit belongs to)
     const { solid, invisible } = splitPolygons(this.fts)
-    const offset = arxVector3toVector3(this.fts.header.mScenePosition)
     const polygons = [...solid, ...invisible]
 
-    const solidMesh = this.buildMesh(solid, offset, createLevelMaterial())
-    const invisibleMesh = this.buildMesh(invisible, offset, createInvisibleMaterial())
+    for (const polygon of invisible) {
+      this.invisibleWalls.add(polygon)
+    }
+
+    const solidMesh = new Mesh(new BufferGeometry(), createLevelMaterial())
+    const invisibleMesh = new Mesh(new BufferGeometry(), createInvisibleMaterial())
 
     // the walls of an alpha container draw nothing, so they must not take part in the shadows either
     invisibleMesh.castShadow = false
@@ -243,7 +255,7 @@ export class ArxMap {
     this.invisibleMeshes = [invisibleMesh]
     this.meshes = [...this.solidMeshes, ...this.invisibleMeshes]
     this.polygons = polygons
-    this.wireframeGeometry = arxPolygonsToWireframeGeometry(polygons, offset)
+    this.wireframeGeometry = new BufferGeometry()
     this.triangleToPolygon = triangleToPolygonMap(polygons)
     this.vertexToPolygons = vertexToPolygonsMap(polygons)
 
@@ -255,7 +267,9 @@ export class ArxMap {
       anchorCount: this.fts.anchors.length,
       portalCount: this.fts.portals.length,
     }
-    this.refreshStatistics()
+
+    // everything that comes from the polygons is built here, the same way an edit builds it again
+    this.rebuild(polygons, solid, invisible)
   }
 
   /**
@@ -277,22 +291,103 @@ export class ArxMap {
   }
 
   /**
-   * Builds a mesh of the level from a list of polygons.
+   * Takes polygons out of the level.
    *
-   * @param polygons The polygons of this mesh, in the order of the file.
-   * @param offset The scene position of the level, already mirrored.
-   * @param material The material the mesh draws with.
+   * @remarks
+   * The polygons leave for good: the meshes are rebuilt from the ones that stay, and every derived field
+   * follows (the triangle map, the vertex index, the wireframe, the statistics). The **mesh objects stay the
+   * same**: a view puts its meshes into its scene once, so swapping the geometry under them shows the change
+   * without the view being rebuilt. The indices are the ones of {@link polygons} (a selection holds those);
+   * the caller clears the selection afterwards, because a removal moves the indices.
    *
-   * @returns The mesh, with its bounding box and its BVH.
+   * @param indices The polygons to take out.
    */
-  private buildMesh(polygons: readonly ArxPolygon[], offset: Vector3, material: Material): Mesh {
-    const geometry = arxPolygonsToGeometry(polygons, offset)
-    geometry.computeBoundingBox()
+  deletePolygons(indices: Iterable<number>): void {
+    const removed = new Set(indices)
 
-    const mesh = new Mesh(geometry, material)
+    if (removed.size === 0) {
+      return
+    }
 
-    accelerateRaycast(mesh)
+    const solid: ArxPolygon[] = []
+    const invisible: ArxPolygon[] = []
 
-    return mesh
+    for (const [index, polygon] of this.polygons.entries()) {
+      if (removed.has(index)) {
+        continue
+      }
+
+      if (this.invisibleWalls.has(polygon)) {
+        invisible.push(polygon)
+      } else {
+        solid.push(polygon)
+      }
+    }
+
+    if (solid.length + invisible.length === this.polygons.length) {
+      return
+    }
+
+    this.rebuild([...solid, ...invisible], solid, invisible)
+  }
+
+  /**
+   * Rebuilds every field that comes from the polygons.
+   *
+   * @param polygons Every polygon of the level, in the order of the mesh.
+   * @param solid The ones with a real texture.
+   * @param invisible The walls of an alpha container.
+   */
+  private rebuild(
+    polygons: readonly ArxPolygon[],
+    solid: readonly ArxPolygon[],
+    invisible: readonly ArxPolygon[],
+  ): void {
+    const offset = arxVector3toVector3(this.fts.header.mScenePosition)
+
+    this.polygons = polygons
+    this.triangleToPolygon = triangleToPolygonMap(polygons)
+    this.vertexToPolygons = vertexToPolygonsMap(polygons)
+
+    this.refillGeometry(this.wireframeGeometry, arxPolygonsToWireframeGeometry(polygons, offset))
+    this.refillGeometry(this.solidMeshes[0].geometry, arxPolygonsToGeometry(solid, offset))
+    this.refillGeometry(this.invisibleMeshes[0].geometry, arxPolygonsToGeometry(invisible, offset))
+
+    accelerateRaycast(this.solidMeshes[0])
+    accelerateRaycast(this.invisibleMeshes[0])
+
+    this.refreshStatistics()
+  }
+
+  /**
+   * Puts the attributes of one geometry into another, in place.
+   *
+   * @remarks
+   * A view puts the geometry of the level into its scene and keeps it (its mesh wrapper and its line segments
+   * share it), so an edit can not swap the object under them: the index and the attributes are copied into
+   * the same geometry, and every holder draws the new polygons without being told. The BVH of the solid mesh
+   * follows in {@link rebuild}.
+   *
+   * @param target The geometry the views hold.
+   * @param source The geometry of the new polygons.
+   */
+  private refillGeometry(target: BufferGeometry, source: BufferGeometry): void {
+    target.dispose()
+
+    // the index goes first: the BVH puts one on the geometry (it groups the triangles), and an index of the
+    // polygons that were just taken out would draw a mix of the old and the new level
+    target.setIndex(null)
+
+    if (source.index !== null) {
+      target.setIndex(source.index.clone())
+    }
+
+    for (const [name, attribute] of Object.entries(source.attributes)) {
+      target.setAttribute(name, attribute.clone())
+    }
+
+    target.computeBoundingBox()
+    target.computeBoundingSphere()
+    source.dispose()
   }
 }

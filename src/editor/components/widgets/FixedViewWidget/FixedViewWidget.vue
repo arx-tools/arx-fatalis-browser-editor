@@ -4,6 +4,7 @@ import { OrthographicCamera, type Mesh, type Vector3 } from 'three'
 import type { ArxPolygon, ArxVector3 } from 'arx-convert/types'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { cameraStore } from '../cameraStore.ts'
+import { levelRevision } from '../../../modules/level/editing.ts'
 import { levelStore } from '../../../modules/level/levelStore.ts'
 import { centreOfBounds, type CameraBounds } from '../cameraBounds.ts'
 import { gamePositionToWorld, worldPositionToGame } from '../cameraPose.ts'
@@ -111,6 +112,7 @@ let stopWatching: (() => void) | undefined
 let stopWatchingCamera: (() => void) | undefined
 let stopWatchingWireframe: (() => void) | undefined
 let stopWatchingMesh: (() => void) | undefined
+let stopWatchingEdit: (() => void) | undefined
 let stopWatchingSelection: (() => void) | undefined
 
 /**
@@ -500,6 +502,8 @@ function hideMap(): void {
   selectionOverlay = undefined
   stopWatchingSelection?.()
   stopWatchingSelection = undefined
+  stopWatchingEdit?.()
+  stopWatchingEdit = undefined
   player = undefined
   bounds = undefined
   marker.value = { x: 0, y: 0, visible: false, clamped: false, degrees: 0, arrow: false }
@@ -580,6 +584,13 @@ onMounted(() => {
 // the wireframe is a switch of every view at once: the same ref is read by the walkable view too
 stopWatchingWireframe = watch(isWireframeVisible, (visible) => {
   wireframe?.setVisible(visible)
+  requestRender()
+})
+
+// an edit changes the polygons, but not the objects this view holds: the level refills its geometry in place,
+// so the mesh and the wireframe of the scene already draw the new faces. What an edit does need is a frame:
+// the views draw on demand, so without this the canvas would keep the picture of the level before the edit.
+stopWatchingEdit = watch(levelRevision, () => {
   requestRender()
 })
 

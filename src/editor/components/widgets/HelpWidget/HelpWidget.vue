@@ -107,6 +107,7 @@ const sections = computed<readonly HelpSection[]>(() => {
         { keys: [{ kind: 'text', text: 'Shift' }, leftButton], action: 'Add to selection' },
         { keys: [removeKey, leftButton], action: 'Remove from selection' },
         { keys: [{ kind: 'text', text: 'C' }], action: 'Clear selection' },
+        { keys: [{ kind: 'text', text: 'Delete' }], action: 'Delete face(s)' },
       ],
     },
   ]

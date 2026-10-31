@@ -54,6 +54,10 @@ export const WIDGET_KINDS = {
    */
   mapStatistics: 'map-statistics',
   /**
+   * The face under the crosshair of the walkable view.
+   */
+  polygonInspector: 'polygon-inspector',
+  /**
    * The key table of the editor.
    */
   controls: 'controls',

@@ -13,6 +13,7 @@ import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
 import { isKeyDown } from '../../../modules/keyboard/keyboard.ts'
 import { selectionModeOf, selectionStore, type SelectionMode } from '../../../modules/selection/selectionStore.ts'
 import { cameraStore } from '../cameraStore.ts'
+import { crosshairStore } from '../../../modules/crosshair/crosshairStore.ts'
 import { isMeshVisible, isWireframeVisible } from '../levelDisplay.ts'
 import { addPreviewLights, attachWireframe, viewMeshesOf, type LevelWireframe } from '../levelScene.ts'
 import { FIELD_OF_VIEW, createViewScene, disposeViewScene, resizeViewScene, type ViewScene } from '../viewScene.ts'
@@ -288,6 +289,8 @@ function updateCursor(): void {
     polygon = loadedMap.polygons[index]
   }
 
+  // the widgets that describe a face (the inspector) read this, and only a change of the face wakes them up
+  crosshairStore.set(index)
   selection.setCursor(polygon, dragMode ?? selectionModeOfKeys())
 }
 
@@ -567,6 +570,10 @@ function hideMap(): void {
   selection = undefined
   loadedMap = undefined
 
+  // the crosshair store is not cleared here: the dock is rebuilt when the stored layout arrives, and the old
+  // view unmounts after the new one has already picked a face — a write of `undefined` here would hide that
+  // face from the inspector. The widgets read the store together with the level, so an index the level no
+  // longer has reads as nothing anyway, and the next frame of the live view reports the face it is on.
   cameraStore.setDriver(undefined)
   controls?.dispose()
   controls = undefined

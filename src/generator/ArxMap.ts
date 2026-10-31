@@ -168,6 +168,15 @@ export class ArxMap {
   private readonly llf: ArxLLF
 
   /**
+   * The name of every texture the level uses, by the id a polygon points at.
+   *
+   * @remarks
+   * The FTS stores the containers as a list, and a polygon holds an id: the two are looked up here once, so the
+   * inspector can name the texture of a face without walking the list on every frame.
+   */
+  private readonly textureNames: ReadonlyMap<number, string>
+
+  /**
    * The polygons that came from an alpha container: the walls the game does not draw.
    *
    * @remarks
@@ -234,6 +243,14 @@ export class ArxMap {
     this.llf = LLF.load(unpackArxFile(llf, 'llf'))
     this.player = new Player(this.dlf)
 
+    const textureNames = new Map<number, string>()
+
+    for (const container of this.fts.textureContainers) {
+      textureNames.set(container.id, container.filename)
+    }
+
+    this.textureNames = textureNames
+
     // the polygons of the file are read once: the geometry, the wireframe, the selection and the statistics
     // are all built from these two lists, so nothing walks the level again. The invisible walls come second,
     // and the triangle map follows that order (the pick works out which mesh a hit belongs to)
@@ -270,6 +287,21 @@ export class ArxMap {
 
     // everything that comes from the polygons is built here, the same way an edit builds it again
     this.rebuild(polygons, solid, invisible)
+  }
+
+  /**
+   * The name of the texture a polygon draws with.
+   *
+   * @remarks
+   * The name is the one the game reads, relative to `graph/obj3d/textures` (like `[stone]_human_wall1.bmp`),
+   * so it is what the texture round has to resolve against the assets of the level.
+   *
+   * @param textureContainerId The id the polygon points at.
+   *
+   * @returns The file name of the texture, or `undefined` when the level has no container with that id.
+   */
+  textureNameOf(textureContainerId: number): string | undefined {
+    return this.textureNames.get(textureContainerId)
   }
 
   /**

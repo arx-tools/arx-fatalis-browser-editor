@@ -46,23 +46,6 @@ const rows = computed(() => {
   height: 100%;
   padding: 8px;
 
-  dl {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    margin: 0;
-    font-size: 13px;
-
-    @include info-rows;
-  }
-
-  dt {
-    color: $text-muted;
-  }
-
-  dd {
-    margin: 0;
-    color: $text;
-    text-align: right;
-  }
+  @include info-list;
 }
 </style>

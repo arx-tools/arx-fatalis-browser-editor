@@ -16,3 +16,26 @@
     background: rgba($text-strong, 0.03);
   }
 }
+
+// The whole list of an info widget: the label on the left, the value on the right, with the zebra above. The
+// widgets share this one, so a longer list (the inspector) and a shorter one (the statistics) read the same.
+@mixin info-list {
+  dl {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    margin: 0;
+    font-size: 13px;
+
+    @include info-rows;
+  }
+
+  dt {
+    color: $text-muted;
+  }
+
+  dd {
+    margin: 0;
+    color: $text;
+    text-align: right;
+  }
+}

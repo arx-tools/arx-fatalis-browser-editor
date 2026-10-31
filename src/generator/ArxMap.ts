@@ -1,6 +1,7 @@
 import { DLF, FTS, LLF } from 'arx-convert'
 import type { ArxDLF, ArxFTS, ArxLight, ArxLLF, ArxPolygon, ArxVector3 } from 'arx-convert/types'
-import { BufferGeometry, Mesh } from 'three'
+import { BufferAttribute, BufferGeometry, Mesh } from 'three'
+import { isQuad } from 'arx-convert/utils'
 import { unpackArxFile } from './files.ts'
 import {
   accelerateRaycast,
@@ -8,6 +9,7 @@ import {
   arxPolygonsToWireframeGeometry,
   arxVector3toVector3,
   createInvisibleMaterial,
+  copyKeptVertices,
   createLevelMaterial,
   splitPolygons,
 } from './meshes.ts'
@@ -145,14 +147,29 @@ export class ArxMap {
    *
    * @remarks
    * The neighbours of a face: the drag of the walkable view and the texture fill both walk these, so they
-   * follow the welds of the mesh and stop where the mesh is not welded. Built once, with the mesh.
+   * follow the welds of the mesh and stop where the mesh is not welded.
+   *
+   * It is **built on the first read** and dropped on every edit: walking ~70 000 polygons and hashing their
+   * vertices costs about 140 ms on the big level (measured), and a delete does not need it — only the drag and
+   * the double click do. So a delete pays nothing for it, and the first drag after an edit pays it once.
    */
-  vertexToPolygons: ReadonlyMap<string, readonly number[]>
+  get vertexToPolygons(): ReadonlyMap<string, readonly number[]> {
+    const index = this.vertexPolygons ?? vertexToPolygonsMap(this.polygons)
+
+    this.vertexPolygons = index
+
+    return index
+  }
 
   /**
    * The numbers the statistics widget shows, worked out when the mesh was built.
    */
   private figures: MapStatistics
+
+  /**
+   * The vertex index of {@link vertexToPolygons}, until the polygons change.
+   */
+  private vertexPolygons: ReadonlyMap<string, readonly number[]> | undefined
 
   /**
    * The general description of the level.
@@ -274,7 +291,6 @@ export class ArxMap {
     this.polygons = polygons
     this.wireframeGeometry = new BufferGeometry()
     this.triangleToPolygon = triangleToPolygonMap(polygons)
-    this.vertexToPolygons = vertexToPolygonsMap(polygons)
 
     this.figures = {
       faceCount: 0,
@@ -326,11 +342,23 @@ export class ArxMap {
    * Takes polygons out of the level.
    *
    * @remarks
-   * The polygons leave for good: the meshes are rebuilt from the ones that stay, and every derived field
-   * follows (the triangle map, the vertex index, the wireframe, the statistics). The **mesh objects stay the
-   * same**: a view puts its meshes into its scene once, so swapping the geometry under them shows the change
-   * without the view being rebuilt. The indices are the ones of {@link polygons} (a selection holds those);
-   * the caller clears the selection afterwards, because a removal moves the indices.
+   * The polygons leave for good, and every derived field follows: the polygon list, the triangle map, the
+   * wireframe, the geometry of the two meshes and the statistics.
+   *
+   * **The geometry is cut, not rebuilt.** The vertices of the removed polygons are copied out of the buffers of
+   * the meshes (`copyKeptVertices`), which is a memcpy of the kept slices: a rebuild would walk every polygon,
+   * transform its vertices and build new typed arrays, and on the big level (69 817 polygons, 364 899 triangle
+   * indices) that is about 260 ms against a few milliseconds for the cut (measured:
+   * `experiments/browser-editor-delete-cost/`). The **mesh objects stay the same**: a view puts its meshes into
+   * its scene once, so the geometry under it is refilled in place.
+   *
+   * What the cut does not save is the BVH: it groups the triangles, so a shorter triangle list needs a new tree
+   * (`accelerateRaycast` on the meshes that lost a polygon). That is the remaining cost of a delete, about 75 ms
+   * on level 11. The vertex index ({@link vertexToPolygons}) is dropped rather than rebuilt, so the first drag
+   * or double click after an edit builds it again.
+   *
+   * The indices are the ones of {@link polygons} (a selection holds those); the caller clears the selection
+   * afterwards, because a removal moves the indices.
    *
    * @param indices The polygons to take out.
    */
@@ -343,16 +371,54 @@ export class ArxMap {
 
     const solid: ArxPolygon[] = []
     const invisible: ArxPolygon[] = []
+    const solidCounts: number[] = []
+    const solidKept: boolean[] = []
+    const invisibleCounts: number[] = []
+    const invisibleKept: boolean[] = []
+    const wireframeCounts: number[] = []
+    const wireframeKept: boolean[] = []
+    let { faceCount, quadCount, triangleCount } = this.figures
 
+    // one walk over the polygons: which mesh a polygon belongs to, how many vertices it owns in the geometry of
+    // that mesh (3 for a triangle, 6 for a quad) and in the wireframe (two per edge of the perimeter)
     for (const [index, polygon] of this.polygons.entries()) {
-      if (removed.has(index)) {
-        continue
+      const gone = removed.has(index)
+      const quad = isQuad(polygon)
+      let vertices = 3
+      let edges = 6
+
+      if (quad) {
+        vertices = 6
+        edges = 8
       }
 
       if (this.invisibleWalls.has(polygon)) {
-        invisible.push(polygon)
+        invisibleCounts.push(vertices)
+        invisibleKept.push(!gone)
+
+        if (!gone) {
+          invisible.push(polygon)
+        }
       } else {
-        solid.push(polygon)
+        solidCounts.push(vertices)
+        solidKept.push(!gone)
+
+        if (!gone) {
+          solid.push(polygon)
+        }
+      }
+
+      wireframeCounts.push(edges)
+      wireframeKept.push(!gone)
+
+      if (gone) {
+        faceCount = faceCount - 1
+
+        if (quad) {
+          quadCount = quadCount - 1
+        } else {
+          triangleCount = triangleCount - 1
+        }
       }
     }
 
@@ -360,7 +426,49 @@ export class ArxMap {
       return
     }
 
-    this.rebuild([...solid, ...invisible], solid, invisible)
+    this.polygons = [...solid, ...invisible]
+    this.triangleToPolygon = triangleToPolygonMap(this.polygons)
+    this.vertexPolygons = undefined
+    this.figures = { ...this.figures, faceCount, triangleCount, quadCount }
+
+    this.spliceGeometry(this.wireframeGeometry, wireframeCounts, wireframeKept)
+
+    if (solid.length !== solidCounts.length) {
+      this.spliceGeometry(this.solidMeshes[0].geometry, solidCounts, solidKept)
+      accelerateRaycast(this.solidMeshes[0])
+    }
+
+    if (invisible.length !== invisibleCounts.length) {
+      this.spliceGeometry(this.invisibleMeshes[0].geometry, invisibleCounts, invisibleKept)
+      accelerateRaycast(this.invisibleMeshes[0])
+    }
+  }
+
+  /**
+   * Cuts the vertices of the removed polygons out of a geometry, in place.
+   *
+   * @remarks
+   * The holders of the geometry (the mesh wrappers of the views, the line segments of the wireframe) keep the
+   * object, so the attributes are replaced under them. The **index** belongs to the BVH (it groups the triangles
+   * and the tree writes it), and a cut moves every triangle after the removed one: it is dropped here, and the
+   * new tree writes a fresh one in `accelerateRaycast`.
+   *
+   * @param target The geometry the views hold.
+   * @param counts How many vertices every polygon owns in this geometry, in its order.
+   * @param kept Which of the polygons stay.
+   */
+  private spliceGeometry(target: BufferGeometry, counts: readonly number[], kept: readonly boolean[]): void {
+    target.dispose()
+    target.setIndex(null)
+
+    for (const [name, attribute] of Object.entries(target.attributes)) {
+      const vertices = copyKeptVertices(attribute.array as Float32Array, attribute.itemSize, counts, kept)
+
+      target.setAttribute(name, new BufferAttribute(vertices, attribute.itemSize, attribute.normalized))
+    }
+
+    target.computeBoundingBox()
+    target.computeBoundingSphere()
   }
 
   /**
@@ -379,7 +487,7 @@ export class ArxMap {
 
     this.polygons = polygons
     this.triangleToPolygon = triangleToPolygonMap(polygons)
-    this.vertexToPolygons = vertexToPolygonsMap(polygons)
+    this.vertexPolygons = undefined
 
     this.refillGeometry(this.wireframeGeometry, arxPolygonsToWireframeGeometry(polygons, offset))
     this.refillGeometry(this.solidMeshes[0].geometry, arxPolygonsToGeometry(solid, offset))

@@ -11,6 +11,7 @@ import { Mesh, MeshLambertMaterial, PerspectiveCamera, PlaneGeometry, Raycaster,
 import {
   accelerateRaycast,
   arxPolygonsToGeometry,
+  copyKeptVertices,
   arxPolygonsToWireframeGeometry,
   createWireframeMaterial,
   arxVector3toVector3,
@@ -181,6 +182,40 @@ void describe('createLevelMaterial', () => {
 
   void it('gives a new material every time, so a mesh can own its own', () => {
     assert.notEqual(createLevelMaterial(), createLevelMaterial())
+  })
+})
+
+void describe('copyKeptVertices', () => {
+  void it('keeps the vertices of the kept polygons, in their order', () => {
+    // three polygons of two vertices each: the middle one goes, and the copy keeps the two around it
+    const source = new Float32Array([1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6])
+
+    const kept = copyKeptVertices(source, 3, [2, 2, 2], [true, false, true])
+
+    assert.deepEqual([...kept], [1, 1, 1, 2, 2, 2, 5, 5, 5, 6, 6, 6])
+  })
+
+  void it('drops everything when nothing is kept', () => {
+    const kept = copyKeptVertices(new Float32Array([1, 2, 3, 4, 5, 6]), 3, [2], [false])
+
+    assert.equal(kept.length, 0)
+  })
+
+  void it('copies a buffer of another item size, like the uv of a vertex', () => {
+    const source = new Float32Array([1, 1, 2, 2, 3, 3, 4, 4, 5, 5])
+
+    const kept = copyKeptVertices(source, 2, [1, 1, 1, 1, 1], [false, true, true, false, true])
+
+    // the kept vertices are the second, the third and the fifth of the source
+    assert.deepEqual([...kept], [2, 2, 3, 3, 5, 5])
+  })
+
+  void it('keeps a longer run of polygons as one piece', () => {
+    const source = new Float32Array([1, 2, 3, 4, 5, 6, 7, 8, 9])
+
+    const kept = copyKeptVertices(source, 3, [1, 1, 1], [true, true, false])
+
+    assert.deepEqual([...kept], [1, 2, 3, 4, 5, 6])
   })
 })
 

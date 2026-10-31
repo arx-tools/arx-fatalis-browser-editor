@@ -41,6 +41,73 @@ export function arxVector3toVector3(vector: ArxVector3): Vector3 {
 }
 
 /**
+ * The vertices of a buffer that stay when some of its polygons go.
+ *
+ * @remarks
+ * A level is edited by taking polygons out, and the geometry of a mesh is a flat list of the vertices of its
+ * polygons: a polygon owns `3` vertices (a triangle), `6` (a quad) or, in the wireframe, `6`/`8` (two vertices per
+ * edge of the perimeter). So the polygons that stay are a set of slices of the buffer, and copying them is a
+ * memcpy instead of a rebuild: on the big level (level 11, ~370 000 vertices) that is the difference between a
+ * tenth of a second and a few milliseconds (measured: `experiments/browser-editor-delete-cost/`).
+ *
+ * The kept polygons **keep their order**, so the vertex of a triangle stays at the same place divided by three:
+ * that is what the pick reads (`face.a / 3`) and what the triangle map is built on.
+ *
+ * @param source The buffer of the geometry, as it is now.
+ * @param itemSize How many numbers one vertex holds (3 for the position, 2 for the uv).
+ * @param counts How many vertices every polygon of the buffer owns, in the order of the buffer.
+ * @param kept Which of the polygons stay, in the same order.
+ *
+ * @returns The new buffer: the vertices of the kept polygons, in their order.
+ */
+export function copyKeptVertices(
+  source: Float32Array,
+  itemSize: number,
+  counts: readonly number[],
+  kept: readonly boolean[],
+): Float32Array {
+  // the kept polygons come in runs: a delete takes a few out, so the most of the buffer is one or two slices, and
+  // copying them as runs is a handful of `set` calls instead of one per polygon (the polygons of level 11 are
+  // 69 817 slices, and the calls alone cost more than the copy)
+  const runs: Array<{ readonly from: number; readonly count: number }> = []
+  let vertexCount = 0
+  let from = 0
+  let runFrom = 0
+  let runCount = 0
+
+  for (const [index, count] of counts.entries()) {
+    if (kept[index]) {
+      vertexCount = vertexCount + count
+
+      if (runCount === 0) {
+        runFrom = from
+      }
+
+      runCount = runCount + count
+    } else if (runCount > 0) {
+      runs.push({ from: runFrom, count: runCount })
+      runCount = 0
+    }
+
+    from = from + count
+  }
+
+  if (runCount > 0) {
+    runs.push({ from: runFrom, count: runCount })
+  }
+
+  const target = new Float32Array(vertexCount * itemSize)
+  let to = 0
+
+  for (const run of runs) {
+    target.set(source.subarray(run.from * itemSize, (run.from + run.count) * itemSize), to * itemSize)
+    to = to + run.count
+  }
+
+  return target
+}
+
+/**
  * Builds the geometry of a set of Arx polygons.
  *
  * @remarks
@@ -149,6 +216,17 @@ export function splitPolygons(fts: ArxFTS): LevelPolygons {
 }
 
 /**
+ * How many triangles a leaf of the tree holds.
+ *
+ * @remarks
+ * Measured on level 11 (123 617 triangles, `experiments/browser-editor-delete-cost/`): the tree is what a delete
+ * pays for (a cut geometry keeps its triangle order, so the tree is built again), and the default of ten gives
+ * **31,5 ms** to build and **5,96 ms** for 200 rays, while forty gives **22,9 ms** and **1,35 ms** — cheaper to
+ * build *and* faster to walk. Eighty builds a little faster still (20,5 ms) but walks slower (1,91 ms).
+ */
+const MAX_LEAF_SIZE = 40
+
+/**
  * Makes the raycast of a mesh go through a BVH instead of every triangle.
  *
  * @remarks
@@ -164,7 +242,7 @@ export function splitPolygons(fts: ArxFTS): LevelPolygons {
  * @param mesh The mesh to speed up; its geometry has to be built already.
  */
 export function accelerateRaycast(mesh: Mesh): void {
-  mesh.geometry.boundsTree = new MeshBVH(mesh.geometry)
+  mesh.geometry.boundsTree = new MeshBVH(mesh.geometry, { maxLeafSize: MAX_LEAF_SIZE })
   mesh.raycast = acceleratedRaycast
 }
 

@@ -87,7 +87,41 @@ test('a deleted face leaves the rest of the level on the screen', async ({ page,
     })
     .toBe(0)
 
-  // and so does the picture: the level lost a face, not itself
+  // a second one: the indices moved with the first delete, and the geometry is cut again, so this is where a
+  // stale triangle map or a half-cut buffer would show. The face the crosshair was on is gone — the ray finds the
+  // hole now — so the camera turns to another wall of the room through its form first (a click on a fixed view
+  // would go to the locked canvas, the pointer lock is still on)
+  const afterFirst = await statOf(page, 'Total faces')
+  const pose = await readPose(page)
+  const turned = (Number(pose.yaw) + 90) % 360
+
+  await writePose(page, { ...pose, yaw: turned.toFixed(2) })
+
+  await clickCrosshair(view)
+
+  await expect
+    .poll(async () => {
+      return await statOf(page, 'Selected faces')
+    })
+    .toBeGreaterThan(0)
+
+  const secondSelected = (await statOf(page, 'Selected faces')) ?? 0
+
+  await page.keyboard.press('Delete')
+
+  await expect
+    .poll(async () => {
+      return await statOf(page, 'Total faces')
+    })
+    .toBe((afterFirst ?? 0) - secondSelected)
+
+  await expect
+    .poll(async () => {
+      return await statOf(page, 'Selected faces')
+    })
+    .toBe(0)
+
+  // and so does the picture: the level lost two faces, not itself
   const litAfter = await litPixels(view)
 
   expect(litAfter).toBeGreaterThan(litBefore * 0.5)

@@ -26,10 +26,10 @@ test('the shell opens with the default layout', async ({ page }) => {
   // the header is the sign that the shell mounted at all
   await expect(page.getByText('Arx Fatalis Browser Editor')).toBeVisible()
 
-  // the default layout is the viewer: the walkable view, the plan beside it and the keys under the plan
-  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(3)
+  // the default layout is the viewer: the walkable view, the plan and the jump beside it, the keys under them
+  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(4)
 
-  for (const kind of ['3d-view', 'top-view', 'controls']) {
+  for (const kind of ['3d-view', 'top-view', 'jump-to-location', 'controls']) {
     await expect(page.locator(`.lm-DockPanel-widget[data-widget-kind="${kind}"]`)).toBeVisible()
   }
 

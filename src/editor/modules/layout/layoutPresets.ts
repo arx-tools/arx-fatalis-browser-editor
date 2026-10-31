@@ -110,23 +110,24 @@ export const editorLayout: LayoutNode = {
  * The layout for looking at a level: the walkable view with a plan and the keys beside it.
  *
  * @remarks
- * - the left 60% is the walkable view, the whole height of the dock: this layout is not for editing, it is
+ * - the left 70% is the walkable view, the whole height of the dock: this layout is not for editing, it is
  * for walking around and reading the number under the crosshair
- * - the right 40% holds the plan above, so a step in the view can be checked from above, and the keyboard
- * shortcuts below
+ * - the right 30% holds the plan above, so a step in the view can be checked from above, then the jump in a
+ * thin row of its own (the one row widget, so a tenth of the column is enough), then the keyboard shortcuts
  */
 export const viewerLayout: LayoutNode = {
   type: 'split',
   orientation: 'horizontal',
-  sizes: [0.6, 0.4],
+  sizes: [0.7, 0.3],
   children: [
     { type: 'widget', kind: WIDGET_KINDS.view3d },
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: [0.3, 0.7],
+      sizes: [0.3, 0.1, 0.6],
       children: [
         { type: 'widget', kind: WIDGET_KINDS.topView },
+        { type: 'widget', kind: WIDGET_KINDS.jumpToLocation },
         { type: 'widget', kind: WIDGET_KINDS.controls },
       ],
     },

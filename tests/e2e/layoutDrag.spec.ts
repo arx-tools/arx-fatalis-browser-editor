@@ -179,6 +179,8 @@ test('a container border leaves the lock of the jump alone, the camera takes the
 
 test('the own border of the jump writes the new width as its lock', async ({ page }) => {
   const locked = await openWithALockedJump(page)
+  let badge = ''
+  let during = await boxOf(page, 'jump-to-location')
 
   // the border between the camera form and the jump
   await dragBorder(page, {
@@ -186,9 +188,17 @@ test('the own border of the jump writes the new width as its lock', async ({ pag
     y: locked.top + Math.round(locked.height / 2),
     dx: 80,
     dy: 0,
+    during: async () => {
+      during = await boxOf(page, 'jump-to-location')
+      badge = (await page.locator('[data-widget-kind="jump-to-location"] .WidgetOverlay .size').textContent()) ?? ''
+    },
   })
 
   const after = await boxOf(page, 'jump-to-location')
+
+  // the badge of the plate follows the border: while the button is down it already shows the new width
+  expect(during.width).toBe(locked.width - 80)
+  expect(badge).toBe(`${String(during.width)} × ${String(during.height)}`)
 
   expect(after.width).toBe(locked.width - 80)
   expect(after.left).toBe(locked.left + 80)

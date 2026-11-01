@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { formatCount } from '../../../src/editor/modules/format.ts'
+import { formatCount, formatSize } from '../../../src/editor/modules/format.ts'
 
 void describe('formatCount', () => {
   void it('writes a small number as it is', () => {
@@ -20,5 +20,16 @@ void describe('formatCount', () => {
 
   void it('drops the fraction of a count', () => {
     assert.equal(formatCount(1234.7), '1 234')
+  })
+})
+
+void describe('formatSize', () => {
+  void it('writes the two sides of a widget with a multiplication sign', () => {
+    assert.equal(formatSize(354, 200), '354 × 200')
+  })
+
+  void it('rounds the sides to whole pixels', () => {
+    assert.equal(formatSize(354.4, 199.6), '354 × 200')
+    assert.equal(formatSize(0, 0), '0 × 0')
   })
 })

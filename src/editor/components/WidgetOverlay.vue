@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Lock, LockOpen, Trash2 } from 'lucide-vue-next'
-import { ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue'
+import { formatSize } from '../modules/format.ts'
 
 const props = defineProps<{
   /**
@@ -27,6 +28,46 @@ const emit = defineEmits<{
 // the button shows the state it switched to: the plate is not redrawn when the dock is refitted
 const isLocked = ref(props.locked)
 
+// the plate covers the widget, so its box is the box of the widget: the size a lock keeps is what the user reads here
+const plate = useTemplateRef<HTMLElement>('plate')
+const size = ref('')
+
+let observer: ResizeObserver | undefined
+
+/**
+ * Reads the size of the widget the plate covers into the badge.
+ *
+ * @remarks
+ * The box is measured on every frame a resize happens — a border of the dock is dragged, the window changes, a lock
+ * writes a new size — because the number is what the user writes into a preset of the layout, and it has to be the one
+ * on the screen at that moment, not the one the lock asked for before the layout squeezed it.
+ */
+function measure(): void {
+  const box = plate.value?.getBoundingClientRect()
+
+  if (box === undefined) {
+    return
+  }
+
+  size.value = formatSize(box.width, box.height)
+}
+
+onMounted(() => {
+  measure()
+  observer = new ResizeObserver(() => {
+    measure()
+  })
+
+  if (plate.value !== null) {
+    observer.observe(plate.value)
+  }
+})
+
+onBeforeUnmount(() => {
+  observer?.disconnect()
+  observer = undefined
+})
+
 /**
  * Toggles the lock of the widget.
  */
@@ -37,7 +78,8 @@ function toggleLock(): void {
 </script>
 
 <template>
-  <div class="WidgetOverlay">
+  <div ref="plate" class="WidgetOverlay">
+    <span v-if="isLocked" class="size">{{ size }}</span>
     <span class="name">{{ props.label }}</span>
     <button
       class="lock"
@@ -85,6 +127,24 @@ function toggleLock(): void {
   &:hover {
     background: rgba($surface-spotlit, 0.74);
     border-color: rgba($accent, 0.8);
+  }
+
+  // the size of a locked widget, in the top left corner: the user reads it off, drags until it looks right, and writes
+  // the number into a preset. It follows the plate, so a drag of a border updates it on the same frame
+  .size {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    padding: 2px 6px;
+    color: $text-strong;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    background: rgba($surface-widget, 0.88);
+    border: 1px solid rgba($text-strong, 0.24);
+    border-radius: 4px;
+    pointer-events: none;
   }
 
   .name {

@@ -27,6 +27,20 @@ async function heightOf(page: Page, kind: string): Promise<number> {
   })
 }
 
+/**
+ * The size a widget shows in the badge of its plate.
+ *
+ * @param page The page to read.
+ * @param kind The kind of the widget.
+ *
+ * @returns The text of the badge.
+ */
+async function badgeOf(page: Page, kind: string): Promise<string> {
+  const badge = page.locator(`[data-widget-kind="${kind}"] .WidgetOverlay .size`)
+
+  return (await badge.textContent()) ?? ''
+}
+
 test('a locked widget keeps its size, the others take the rest', async ({ page }) => {
   await seedLayout(page, editorLayout)
   await page.goto(editorUrl())
@@ -86,6 +100,33 @@ test('the lock is in the stored layout, so a reload keeps it', async ({ page }) 
     String(locked),
   )
   expect(await heightOf(page, 'map-statistics')).toBe(locked)
+})
+
+test('a locked widget shows its size on the plate, and an unlocked one shows none', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 850 })
+  await seedLayout(page, editorLayout)
+  await page.goto(editorUrl())
+  await waitForLevel(page)
+
+  await page.locator('header button[aria-label="Unlock the layout"]').click()
+
+  // nothing is locked yet: no plate carries a size
+  await expect(page.locator('.WidgetOverlay .size')).toHaveCount(0)
+
+  await page.locator('[data-widget-kind="map-statistics"] button[aria-label="Lock the widget"]').click()
+
+  const width = await page.locator('[data-widget-kind="map-statistics"]').evaluate((node) => {
+    return Math.round(node.getBoundingClientRect().width)
+  })
+  const height = await heightOf(page, 'map-statistics')
+
+  // the number is the box the user sees, which is what a preset has to carry
+  expect(await badgeOf(page, 'map-statistics')).toBe(`${String(width)} × ${String(height)}`)
+  await expect(page.locator('.WidgetOverlay .size')).toHaveCount(1)
+
+  // the lock goes: the badge goes with it
+  await page.locator('[data-widget-kind="map-statistics"] button[aria-label="Unlock the widget"]').click()
+  await expect(page.locator('.WidgetOverlay .size')).toHaveCount(0)
 })
 
 test('a smaller window squeezes the widgets, it does not cut them', async ({ page }) => {

@@ -28,3 +28,20 @@ export function formatCount(value: number): string {
 
   return grouped
 }
+
+/**
+ * Writes the size of a widget the way the plate of the lock shows it, e.g. `354 × 200`.
+ *
+ * @remarks
+ * The sides are whole pixels on purpose: the box of a widget is a float, the user reads the number to write it into a
+ * preset, and a fraction of a pixel there would only be noise. The two sides are separated by a multiplication sign
+ * with spaces around it, so the number reads as a size and not as one long number.
+ *
+ * @param width The width of the widget.
+ * @param height The height of the widget.
+ *
+ * @returns The two sides, rounded and separated.
+ */
+export function formatSize(width: number, height: number): string {
+  return `${Math.round(width).toString()} × ${Math.round(height).toString()}`
+}

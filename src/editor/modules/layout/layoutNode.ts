@@ -173,10 +173,9 @@ export function lockWidgetTo(widget: Widget, box: LockBox | undefined): void {
  * The weight of a size, as lumino's config wants it.
  *
  * @remarks
- * Lumino normalizes the weights to the space it has. A locked child gets its **pixel size as the weight**, which is
- * much larger than the ratios of the flexible ones (those are numbers between 0 and 1): the locked child is given
- * more than it may have, and its `max-height` clamps it back to the size it was locked to, while the rest of the
- * space goes to the others (the sizer redistributes what a child can not take).
+ * The config carries the sizes the pass worked out, so a locked child gets its pixel size as the weight and the
+ * flexible ones the pixels of their share; only a layout without a plan falls back to the ratios. Lumino reads the
+ * weights as shares of the space it has, so the pixels of the plan are what it lays the children out with.
  *
  * @param size The size of the child.
  *
@@ -383,8 +382,8 @@ function lockOfChild(
  * Reads the size of one child of a split.
  *
  * @remarks
- * A lock is not a thing lumino knows about: it lives on the node of the widget (`lockedPxOf`), so the size of a
- * widget is read from there and the ratio from the dock. A child that is itself a split is always flexible.
+ * A lock is not a thing lumino knows about: it lives on the node of the widget ({@link lockedBoxOf}), so the size of
+ * a widget is read from there and the ratio from the dock. A child that is itself a split is always flexible.
  *
  * @param ratio The share the dock gave it.
  * @param area The dock area the child came from, which is where a lock lives.

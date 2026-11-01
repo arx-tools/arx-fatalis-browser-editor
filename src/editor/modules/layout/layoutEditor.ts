@@ -198,9 +198,9 @@ export class LayoutEditor {
    * Locks a widget to the size it has now, or unlocks it.
    *
    * @remarks
-   * The lock is a `max-height` on the node of the widget, which lumino reads as the limit of its size: the widget
-   * keeps the size while the column has room for it. The layout of the dock is refitted, and the owner of the dock is
-   * told, so it can write the new layout down and let the content minimums respect the lock.
+   * The lock is the size the widget has right now, written on its node ({@link lockWidgetTo}): the pass reads it as a
+   * `fixed` size of the layout tree, and works the whole dock out from it. The owner of the dock is told, so it can
+   * write the new layout down and lay the dock out again.
    *
    * @param widget The widget to lock or unlock.
    */

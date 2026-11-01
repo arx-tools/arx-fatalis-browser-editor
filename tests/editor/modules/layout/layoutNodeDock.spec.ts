@@ -304,8 +304,8 @@ void describe('the lock of a widget', () => {
       throw new Error('the test expects a split')
     }
 
-    // the lock is a big weight: the child takes more than it may have, and its max-height clamps it back. The one
-    // flexible child is the only one left, so its ratio is normalized to one
+    // the plan gives the locked child its pixels and the one flexible child the rest of the space; without a plan
+    // the weight of the lock is its size, and the ratio of the only flexible child is normalized to one
     assert.deepEqual(main.sizes, [300, 1])
   })
 })

@@ -1,5 +1,6 @@
 import { DockLayout, DockPanel, Widget } from '@lumino/widgets'
 import { computed, ref, shallowRef, type ComputedRef, type Ref } from 'vue'
+import { watchBorderDrag, type BorderDragWatcher } from '../layout/borderDrag.ts'
 import { MIN_WIDGET_HEIGHT, MIN_WIDGET_WIDTH, planLayout, type WidgetFit } from '../layout/contentFit.ts'
 import { dockWidgets } from '../layout/dockWidgets.ts'
 import {
@@ -188,6 +189,16 @@ export function createEditorShell(
   }
 
   let afterLockChanged: () => void = afterLockChangedPlaceholder
+
+  /**
+   * The watcher of the border drags, or `undefined` before it is built.
+   *
+   * @remarks
+   * The pass must not run while a border is dragged — a rebuild takes the handle away from under the pointer — so the
+   * watcher is asked first, and the drag itself corrects the sizes of the locked widgets by hand. The watcher is built
+   * after the functions it calls, so the field is filled later.
+   */
+  const borderDrag: { watcher?: BorderDragWatcher } = {}
 
   /**
    * The tree the last pass of the sizes applied, or `null` before the first one.
@@ -673,6 +684,12 @@ export function createEditorShell(
    * the rest by their ratios, and everything shrinks when the window has no room — no hole and no overflow.
    */
   function applyManagedSizes(): void {
+    // a drag of a border holds the handle the pointer is on: a rebuild of the dock now would take the drag away, so the
+    // drag itself corrects the sizes of the locked widgets, and the pass runs when it ends
+    if (borderDrag.watcher?.isActive() === true) {
+      return
+    }
+
     const { layout } = dock
 
     if (!(layout instanceof DockLayout)) {
@@ -723,32 +740,6 @@ export function createEditorShell(
     }
 
     appliedTree = toLayoutNode(dock.saveLayout(), kindOf)
-  }
-
-  /**
-   * Rewrites the lock of every locked widget to the size it has right now.
-   *
-   * @remarks
-   * The border of a split is a thing the user drags, and the will of the user is the stronger one: after a drag a
-   * locked widget keeps the size the border gave it, and that becomes its new lock — the size it will keep when the
-   * window changes again. It is the same for a locked and an unlocked layout: the border is draggable in both.
-   */
-  function updateLocksFromDock(): void {
-    for (const widget of dockWidgets(dock)) {
-      const box = lockedBoxOf(widget)
-
-      if (box === undefined) {
-        continue
-      }
-
-      const rect = widget.node.getBoundingClientRect()
-      const width = Math.round(rect.width)
-      const height = Math.round(rect.height)
-
-      if (width !== box.width || height !== box.height) {
-        lockWidgetTo(widget, { width, height })
-      }
-    }
   }
 
   /**
@@ -808,40 +799,27 @@ export function createEditorShell(
     syncLayout()
   }
 
-  /**
-   * Tells whether the user is dragging the border of a split right now.
-   */
-  let isDraggingBorder = false
+  borderDrag.watcher = watchBorderDrag(host, {
+    tree: () => {
+      const { layout } = dock
 
-  // lumino drives the splits with the mouse events, and its handle stops the press before it could bubble: it is caught
-  // on the way down, in the capture phase, or the dock would never see that a border is being dragged
-  document.addEventListener(
-    'mousedown',
-    ({ target }) => {
-      if (target instanceof Element && host.contains(target) && target.closest('.lm-DockPanel-handle') !== null) {
-        isDraggingBorder = true
+      if (!(layout instanceof DockLayout)) {
+        return null
       }
+
+      return toLayoutNode(layout.saveLayout(), kindOf)
     },
-    { capture: true },
-  )
-
-  document.addEventListener(
-    'mouseup',
-    () => {
-      if (!isDraggingBorder) {
-        return
-      }
-
-      isDraggingBorder = false
-
-      // the will of the user is the stronger one: a locked widget keeps the size the border gave it, and that size
-      // becomes its new lock, so it keeps it when the window changes again
-      updateLocksFromDock()
+    widgets: () => {
+      return dockWidgets(dock)
+    },
+    spacing: dock.spacing,
+    onEnded: () => {
+      // the lock of the widgets was written by the watcher: the tree has to be read again, and the sizes of the whole
+      // dock are worked out from the (possibly new) locks
       syncLayout()
-      requestManagedSizesAfterDrag()
+      requestManagedSizes()
     },
-    { capture: true },
-  )
+  })
 
   const resizeObserver = new ResizeObserver(() => {
     requestManagedSizes()
@@ -880,6 +858,7 @@ export function createEditorShell(
       resizeObserver.disconnect()
       document.removeEventListener('keydown', handleKeyDown)
       dock.layoutModified.disconnect(syncLayout)
+      borderDrag.watcher?.dispose()
       setEditing(false)
       pickerOpen.value = false
       editor.dispose()

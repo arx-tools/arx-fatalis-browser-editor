@@ -7,8 +7,9 @@ import { editorUrl, seedLayout, waitForLevel } from './support/editor.ts'
  * space it does not use.
  *
  * @remarks
- * The lock is a `max-height` on the node of the widget, which lumino reads as the limit of its size. The stored layout
- * carries it as a `fixed` size, so it survives a reload.
+ * The lock lives on the node of the widget (the size it keeps), and the pass works the whole dock out from it. The
+ * stored layout carries it as a `fixed` size, so it survives a reload. The borders are the other half of this story:
+ * see `layoutDrag.spec.ts` for what a drag does to a lock.
  */
 test.setTimeout(120_000)
 

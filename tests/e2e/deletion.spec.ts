@@ -2,6 +2,7 @@ import { expect, test, type Response } from '@playwright/test'
 import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
 import {
   clickCrosshair,
+  editorUrl,
   litPixels,
   lockPointer,
   readPose,
@@ -39,7 +40,7 @@ test('a deleted face leaves the rest of the level on the screen', async ({ page,
 
   // the editor preset: it has the camera form, which is how the test aims the camera again after the lock
   await seedLayout(page, editorLayout)
-  await page.goto('/')
+  await page.goto(editorUrl())
 
   const view = page.locator('[data-widget-kind="3d-view"] canvas').first()
 

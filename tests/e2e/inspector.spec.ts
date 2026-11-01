@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
-import { seedLayout, waitForLevel } from './support/editor.ts'
+import { editorUrl, seedLayout, waitForLevel } from './support/editor.ts'
 
 /**
  * The polygon inspector: the face under the crosshair of the walkable view.
@@ -17,7 +17,7 @@ test('the inspector describes the face under the crosshair', async ({ page }) =>
   // the editor preset has the inspector and the statistics on the dock, and the camera form the walkable view
   // needs for a known aim
   await seedLayout(page, editorLayout)
-  await page.goto('/')
+  await page.goto(editorUrl())
 
   // the level comes first: the statistics stops showing the pending dots
   await waitForLevel(page)

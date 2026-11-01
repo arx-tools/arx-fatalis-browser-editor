@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import type { LayoutNode } from '../../src/editor/modules/layout/layoutNode.ts'
 import { WIDGET_KINDS } from '../../src/editor/modules/layout/widgetKinds.ts'
-import { seedLayout, waitForLevel } from './support/editor.ts'
+import { editorUrl, seedLayout, waitForLevel } from './support/editor.ts'
 
 /**
  * The six directions of the fixed views.
@@ -246,7 +246,7 @@ async function openTheViews(page: Page): Promise<void> {
   test.setTimeout(120_000)
 
   await seedLayout(page, fixedViewsLayout)
-  await page.goto('/')
+  await page.goto(editorUrl())
   await waitForLevel(page)
 
   // the fixed views need the level and a pose: the marker of the top view is the sign of both

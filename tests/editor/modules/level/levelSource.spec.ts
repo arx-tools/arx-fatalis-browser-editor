@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { fetchLevelFiles, levelFileNames, levelFileUrls } from '../../../../src/editor/modules/level/levelSource.ts'
+import {
+  fetchLevelFiles,
+  levelFileNames,
+  levelFileUrls,
+  loadStarterLevel,
+  ORIGINAL_LEVEL_PARAMETER,
+  originalLevelFromUrl,
+  starterLevelSource,
+} from '../../../../src/editor/modules/level/levelSource.ts'
+import type { UrlAdapter } from '../../../../src/editor/modules/persistedRef/url.ts'
 
 /**
  * A fake fetch which answers with the bytes of the url.
@@ -68,5 +77,79 @@ void describe('fetchLevelFiles', () => {
     const { fetchImpl } = fakeFetch(true)
 
     await assert.rejects(fetchLevelFiles(11, fetchImpl), /Failed to download/u)
+  })
+})
+
+/**
+ * A url the test gives to the level reader.
+ *
+ * @param search The query string, without the leading `?`.
+ *
+ * @returns The adapter the reader asks for its parameters.
+ */
+function urlOf(search: string): UrlAdapter {
+  return {
+    read: (): string => {
+      return search
+    },
+    write: (): void => {
+      // the reader never writes: the level of the url is an input, not a value the editor keeps there
+      throw new Error('the level reader must not write the url')
+    },
+  }
+}
+
+void describe('originalLevelFromUrl', () => {
+  void it('reads the level the url asks for', () => {
+    assert.equal(originalLevelFromUrl(urlOf(`${ORIGINAL_LEVEL_PARAMETER}=8`)), 8)
+    // the parameter sits between the others of the editor (the seed, the camera, the switches)
+    assert.equal(originalLevelFromUrl(urlOf(`seed=1&${ORIGINAL_LEVEL_PARAMETER}=11&position=1,2,3`)), 11)
+    // the original levels are numbered from 0
+    assert.equal(originalLevelFromUrl(urlOf(`${ORIGINAL_LEVEL_PARAMETER}=0`)), 0)
+  })
+
+  void it('ignores a url that names no level', () => {
+    assert.equal(originalLevelFromUrl(urlOf('')), undefined)
+    assert.equal(originalLevelFromUrl(urlOf('seed=1')), undefined)
+  })
+
+  void it('ignores a level which is not a whole number', () => {
+    // a mistyped link is not a reason to fail a load
+    assert.equal(originalLevelFromUrl(urlOf(`${ORIGINAL_LEVEL_PARAMETER}=eleven`)), undefined)
+    assert.equal(originalLevelFromUrl(urlOf(`${ORIGINAL_LEVEL_PARAMETER}=1.5`)), undefined)
+    assert.equal(originalLevelFromUrl(urlOf(`${ORIGINAL_LEVEL_PARAMETER}=`)), undefined)
+    assert.equal(originalLevelFromUrl(urlOf(`${ORIGINAL_LEVEL_PARAMETER}=-1`)), undefined)
+  })
+
+  void it('has no url to read in node', () => {
+    assert.equal(originalLevelFromUrl(undefined), undefined)
+  })
+})
+
+void describe('starterLevelSource', () => {
+  void it('opens a blank level when the url names no level', () => {
+    // the editor starts from a floor to build on, not from a level of the game
+    assert.equal(starterLevelSource(urlOf('')).label, 'Blank level')
+    assert.equal(starterLevelSource(urlOf('seed=1&position=1,2,3')).label, 'Blank level')
+  })
+
+  void it('opens the original level the url names', () => {
+    assert.equal(starterLevelSource(urlOf(`${ORIGINAL_LEVEL_PARAMETER}=8`)).label, 'Level 8')
+  })
+
+  void it('builds the flat floor of the blank level', async () => {
+    const map = await loadStarterLevel(fetch, urlOf(''))
+
+    // the Flat preset: 11×11 tiles of 100×100
+    assert.equal(map.statistics.faceCount, 121)
+  })
+
+  void it('falls back to a blank level when the original one does not load', async () => {
+    const { fetchImpl, calls } = fakeFetch(true)
+    const map = await loadStarterLevel(fetchImpl, urlOf(`${ORIGINAL_LEVEL_PARAMETER}=8`))
+
+    // it tried the three files of the level of the url, and the editor still has something to show
+    assert.equal(calls.length, 3)
+    assert.equal(map.statistics.faceCount, 121)
   })
 })

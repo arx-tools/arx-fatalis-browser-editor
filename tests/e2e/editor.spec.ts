@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { editorUrl } from './support/editor.ts'
 
 /**
  * The smoke test of the shell: the editor opens in a real browser, the dock is built and the browser
@@ -21,7 +22,7 @@ test('the shell opens with the default layout', async ({ page }) => {
     consoleErrors.push(String(error))
   })
 
-  await page.goto('/')
+  await page.goto(editorUrl())
 
   // the header is the sign that the shell mounted at all
   await expect(page.getByText('Arx Fatalis Browser Editor')).toBeVisible()

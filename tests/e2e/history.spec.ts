@@ -1,6 +1,15 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
-import { clickCrosshair, lockPointer, readPose, seedLayout, statOf, waitForLevel, writePose } from './support/editor.ts'
+import {
+  clickCrosshair,
+  editorUrl,
+  lockPointer,
+  readPose,
+  seedLayout,
+  statOf,
+  waitForLevel,
+  writePose,
+} from './support/editor.ts'
 
 /**
  * The undo and the redo of the editor: the delete is a step of the history, the keys walk it, and the help shows
@@ -56,7 +65,7 @@ function historyButtonOf(page: Page, word: string): Locator {
  */
 async function openTheEditor(page: Page): Promise<void> {
   await seedLayout(page, editorLayout)
-  await page.goto('/')
+  await page.goto(editorUrl())
   await waitForLevel(page)
 }
 

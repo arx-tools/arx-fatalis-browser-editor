@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 import type { LayoutNode } from '../../../src/editor/modules/layout/layoutNode.ts'
+import { ORIGINAL_LEVEL_PARAMETER } from '../../../src/editor/modules/level/levelSource.ts'
 
 /**
  * Starts the page with the given layout on the dock.
@@ -13,6 +14,32 @@ import type { LayoutNode } from '../../../src/editor/modules/layout/layoutNode.t
  * @param page The page to prepare.
  * @param layout The tree to put into the storage: the presets are exported by the editor, so a test can name
  * the one it wants instead of spelling it out.
+ */
+/**
+ * The original level the e2e opens.
+ *
+ * @remarks
+ * The editor starts with the level the owner of the project is looking at (it is a temporary constant), and that one
+ * can be a big level: level 1 is 58 963 faces, level 8 is 1 277, and the whole run is about twice as fast on the
+ * small one (measured: 1.8 minutes against 50 seconds). Nothing in a spec depends on which level it is — the numbers
+ * are read from the page — so the tests ask for the small one through the url.
+ */
+export const E2E_LEVEL = 8
+
+/**
+ * The url the e2e opens: the editor, on the level of {@link E2E_LEVEL}.
+ *
+ * @returns The url of the editor, without the host.
+ */
+export function editorUrl(): string {
+  return `/?${ORIGINAL_LEVEL_PARAMETER}=${String(E2E_LEVEL)}`
+}
+
+/**
+ * Puts a layout into the storage the editor reads at start.
+ *
+ * @param page The page to prepare.
+ * @param layout The tree the editor should start with.
  */
 export async function seedLayout(page: Page, layout: LayoutNode): Promise<void> {
   await page.addInitScript((seeded: unknown) => {

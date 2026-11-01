@@ -1,6 +1,15 @@
 import { expect, test } from '@playwright/test'
 import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
-import { clickCrosshair, lockPointer, readPose, seedLayout, statOf, waitForLevel, writePose } from './support/editor.ts'
+import {
+  clickCrosshair,
+  editorUrl,
+  lockPointer,
+  readPose,
+  seedLayout,
+  statOf,
+  waitForLevel,
+  writePose,
+} from './support/editor.ts'
 
 /**
  * The selection of the walkable view: what the crosshair is on, and what the gestures do with it.
@@ -26,7 +35,7 @@ test('the face under the crosshair is the one a gesture takes', async ({ page, b
 
   // the editor preset: it has the camera form, which is how the test aims the camera again after the lock
   await seedLayout(page, editorLayout)
-  await page.goto('/')
+  await page.goto(editorUrl())
 
   const view = page.locator('[data-widget-kind="3d-view"] canvas').first()
 

@@ -1,6 +1,7 @@
 import { ArxMap } from '../../../generator/ArxMap.ts'
 import { Settings } from '../../../generator/Settings.ts'
-import { createBlankLevelFiles, type NewLevelPreset } from './blankLevel.ts'
+import { getUrlAdapter, readUrlValue, type UrlAdapter } from '../persistedRef/url.ts'
+import { createBlankLevelFiles, FLAT_PRESET, type NewLevelPreset } from './blankLevel.ts'
 import { levelSeed } from './seed.ts'
 
 /**
@@ -58,18 +59,49 @@ export interface LevelSource {
 const LEVEL_FILES_BASE_URL = 'https://raw.githubusercontent.com/arx-tools/pkware-test-files/main/arx-fatalis'
 
 /**
- * The level the editor opens today.
+ * The url parameter that opens one of the original levels of the game.
  *
  * @remarks
- * Hardcoded on purpose: the level picker is a later round, and one fixed level is enough to see whether
- * the pipeline works.
+ * The url is the **api** of the editor: everything the editor can do with the level is a parameter of it, and a
+ * link is the whole state. This one is the level itself, beside the seed, the camera pose and the visibility
+ * switches — so a test (and a person) can open level 8 without touching the code.
  *
- * The constant itself is temporary. Opening a level rewrites this whole part (where the bytes come from, the
- * picker, the url), and the constant goes with it. Until then it is the switch of the testing rounds: the
- * number is changed whenever a round needs another level, so neither 8 nor 11 is a fixed value — whichever
- * level the current round works on is the right one here.
+ * It is not called `level` because a level is not only a number here: the editor opens a level from one of three
+ * sources ({@link LevelSource}), and this parameter is the **original game level** of one of them.
  */
-export const STARTER_LEVEL = 1
+export const ORIGINAL_LEVEL_PARAMETER = 'fromOriginalArxLevel'
+
+/**
+ * The original level the url asks for.
+ *
+ * @remarks
+ * The original levels of the game are numbered from 0, so a value that is not a whole number in that range is
+ * ignored (the editor opens a blank level then): a mistyped link is not a reason to fail a load.
+ *
+ * @param url The query string to read, the one of the page by default.
+ *
+ * @returns The level of the url, or undefined when it says nothing usable.
+ */
+export function originalLevelFromUrl(url: UrlAdapter | undefined = getUrlAdapter(undefined)): number | undefined {
+  if (url === undefined) {
+    return undefined
+  }
+
+  const raw = readUrlValue(url, ORIGINAL_LEVEL_PARAMETER)
+
+  // an empty parameter (`?fromOriginalArxLevel=`) is not level 0: it says nothing
+  if (raw === undefined || raw.trim() === '') {
+    return undefined
+  }
+
+  const level = Number(raw)
+
+  if (!Number.isSafeInteger(level) || level < 0) {
+    return undefined
+  }
+
+  return level
+}
 
 /**
  * The names of the three files of a level.
@@ -202,9 +234,54 @@ export async function loadLevel(source: LevelSource, fetchImpl?: typeof fetch): 
  *
  * @returns The built map of that level.
  */
-export async function loadOriginalArxLevel(
-  level: number = STARTER_LEVEL,
-  fetchImpl: typeof fetch = fetch,
-): Promise<ArxMap> {
+export async function loadOriginalArxLevel(level: number, fetchImpl: typeof fetch = fetch): Promise<ArxMap> {
   return await loadLevel(createOriginalLevelSource(level), fetchImpl)
+}
+
+/**
+ * Where the editor takes the level it opens from: the original level of the url, or a blank one.
+ *
+ * @remarks
+ * The editor opens **no level by default**: with nothing in the url it starts from a blank level of the `Flat`
+ * preset, which is a floor to build on rather than a level of the game to look at. A link that names an original
+ * level opens that one — the url is the api, and this is the parameter of it which chooses what is loaded.
+ *
+ * @param url The query string to read, the one of the page by default.
+ *
+ * @returns The source of the level of the session.
+ */
+export function starterLevelSource(url: UrlAdapter | undefined = getUrlAdapter(undefined)): LevelSource {
+  const level = originalLevelFromUrl(url)
+
+  if (level === undefined) {
+    return createBlankLevelSource(FLAT_PRESET)
+  }
+
+  return createOriginalLevelSource(level)
+}
+
+/**
+ * Builds the level the editor opens.
+ *
+ * @remarks
+ * A level of the game that does not load is **not an error**: the editor opens a blank one instead, so a link with
+ * a level that is not on the server (or a download that fails) still gives something to work with. The user is not
+ * told about it yet — the toast of the persistence problems (TODO 66) will carry that message.
+ *
+ * @param fetchImpl The fetch to use; the tests pass a fake one.
+ * @param url The query string to read, the one of the page by default.
+ *
+ * @returns The built map of the level of the session.
+ */
+export async function loadStarterLevel(
+  fetchImpl: typeof fetch = fetch,
+  url: UrlAdapter | undefined = getUrlAdapter(undefined),
+): Promise<ArxMap> {
+  const source = starterLevelSource(url)
+
+  try {
+    return await loadLevel(source, fetchImpl)
+  } catch {
+    return await loadLevel(createBlankLevelSource(FLAT_PRESET))
+  }
 }

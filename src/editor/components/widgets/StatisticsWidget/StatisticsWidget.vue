@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { shallowRef, watch } from 'vue'
+import { levelRevision } from '../../../modules/level/editing.ts'
 import { levelStore } from '../../../modules/level/levelStore.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import WidgetHeading from '../../WidgetHeading.vue'
@@ -16,14 +17,32 @@ const props = defineProps<{
  * The numbers of the loaded level.
  *
  * @remarks
- * They come from the three files of the level (the FTS holds the polygons, the anchors and the portals, the
- * LLF the lights), so the widget follows the level store: it shows `…` until the level is parsed, then the
- * real counts.
+ * They come from the three files of the level (the FTS holds the polygons, the anchors and the portals, the LLF
+ * the lights), so the widget follows the level store: it shows `…` until the level is parsed, then the real counts.
+ *
+ * The counts of the faces are worked out **once**, when the mesh is built, and an edit changes them in place: the
+ * revision of the level is the signal that they moved. It is watched with the selection (the last row counts the
+ * faces the walkable view picked) and the map, so a delete and an undo both land on the widget.
  */
-const rows = computed(() => {
-  // the selection is not part of the level: the last row counts the polygons the walkable view picked
-  return statisticsRows(levelStore.map.value, selectionStore.count.value)
-})
+const rows = shallowRef(statisticsRows(levelStore.map.value, selectionStore.count.value))
+
+watch(
+  [
+    (): number | undefined => {
+      return levelStore.map.value?.statistics.faceCount
+    },
+    (): number => {
+      return selectionStore.count.value
+    },
+    (): number => {
+      return levelRevision.value
+    },
+  ],
+  () => {
+    rows.value = statisticsRows(levelStore.map.value, selectionStore.count.value)
+  },
+  { immediate: true },
+)
 </script>
 
 <template>

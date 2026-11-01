@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { Command, Eye, EyeOff, MouseLeft, UndoDot } from 'lucide-vue-next'
+import { Command, Eye, EyeOff, MouseLeft, Redo2, Undo2, UndoDot } from 'lucide-vue-next'
 import { computed } from 'vue'
+import { history } from '../../../modules/history/history.ts'
 import { isMacKeyboard } from '../../../modules/keyboard/keyboard.ts'
 import WidgetHeading from '../../WidgetHeading.vue'
 import { isViewAtDefault, resetViewSwitches, viewSwitches, type ViewSwitch } from '../levelDisplay.ts'
@@ -36,6 +37,14 @@ interface HelpRow {
    * The switch the row belongs to, if it has one: the row then shows a button that flips it too.
    */
   readonly toggle?: HelpToggle
+  /**
+   * The history command the row runs, if it has one: the row then shows an undo or a redo button.
+   *
+   * @remarks
+   * The button is disabled when the step it would take is not there (the beginning or the end of the history), so
+   * the widget shows what can be done, the same way the eye of the view rows shows what is on.
+   */
+  readonly button?: 'redo' | 'undo'
 }
 
 /**
@@ -87,6 +96,15 @@ if (isMacKeyboard()) {
  */
 const leftButton: HelpKey = { kind: 'icon', icon: 'mouse-left' }
 
+/**
+ * The modifier of a shortcut: `Ctrl` everywhere, and the `Cmd` of the mac.
+ */
+let primaryKey: HelpKey = { kind: 'text', text: 'Ctrl' }
+
+if (isMacKeyboard()) {
+  primaryKey = { kind: 'icon', icon: 'command' }
+}
+
 // The keys the views really answer today: the rest of the table is not wired to a widget yet, so listing it
 // would promise keys that do nothing (the generated list comes with the widget round that uses them).
 const sections = computed<readonly HelpSection[]>(() => {
@@ -97,6 +115,13 @@ const sections = computed<readonly HelpSection[]>(() => {
       rows: [
         { keys: [{ kind: 'text', text: 'M' }], action: 'Mesh', toggle: 'mesh' },
         { keys: [{ kind: 'text', text: 'X' }], action: 'Wireframe', toggle: 'wireframe' },
+      ],
+    },
+    {
+      title: 'History',
+      rows: [
+        { keys: [primaryKey, { kind: 'text', text: 'Z' }], action: 'Undo', button: 'undo' },
+        { keys: [primaryKey, { kind: 'text', text: 'Y' }], action: 'Redo', button: 'redo' },
       ],
     },
     {
@@ -147,6 +172,51 @@ function flip(toggle: HelpToggle): void {
  *
  * @returns The label of the button.
  */
+/**
+ * Tells whether the button of a row can be pressed.
+ *
+ * @param button The step the row runs.
+ *
+ * @returns False when the history has nothing on that side, so the button is disabled.
+ */
+function isButtonEnabled(button: 'redo' | 'undo'): boolean {
+  if (button === 'undo') {
+    return history.canUndo.value
+  }
+
+  return history.canRedo.value
+}
+
+/**
+ * The label of the button of a row.
+ *
+ * @param button The step the row runs.
+ *
+ * @returns What the button does, for the screen reader and the tooltip.
+ */
+function buttonLabel(button: 'redo' | 'undo'): string {
+  if (button === 'undo') {
+    return 'Undo'
+  }
+
+  return 'Redo'
+}
+
+/**
+ * Runs the step of a row: the undo or the redo of the history.
+ *
+ * @param button The step the row runs.
+ */
+function runHistory(button: 'redo' | 'undo'): void {
+  if (button === 'undo') {
+    history.undo()
+
+    return
+  }
+
+  history.redo()
+}
+
 function buttonTitle(toggle: HelpToggle): string {
   if (isOn(toggle)) {
     return `Hide ${switchNames[toggle]}`
@@ -186,6 +256,17 @@ function buttonTitle(toggle: HelpToggle): string {
           </dt>
           <dd>
             <span class="action">{{ row.action }}</span>
+            <button
+              v-if="row.button !== undefined"
+              class="history-button"
+              type="button"
+              :disabled="!isButtonEnabled(row.button)"
+              :aria-label="buttonLabel(row.button)"
+              v-tooltip="buttonLabel(row.button)"
+              @click="runHistory(row.button)"
+            >
+              <component :is="row.button === 'undo' ? Undo2 : Redo2" class="history-icon" />
+            </button>
             <button
               v-if="row.toggle !== undefined"
               class="visibility"
@@ -368,6 +449,37 @@ function buttonTitle(toggle: HelpToggle): string {
   }
 
   .visibility-icon {
+    width: 14px;
+    height: 14px;
+  }
+
+  // the undo and the redo of the history: the frame of the visibility button, and it goes quiet where there is
+  // nothing to take back or make again
+  .history-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 22px;
+    padding: 0;
+    color: $text-icon;
+    background: rgba($surface-app, 0.72);
+    border: 1px solid $border;
+    border-radius: 4px;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background: $surface-panel;
+      color: $text;
+    }
+
+    &:disabled {
+      color: $border;
+      cursor: default;
+    }
+  }
+
+  .history-icon {
     width: 14px;
     height: 14px;
   }

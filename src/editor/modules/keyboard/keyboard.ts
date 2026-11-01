@@ -177,6 +177,11 @@ export function isKeyboardActionActive(id: KeyboardActionId): boolean {
   const combos = getKeyboardBindings()[id] ?? []
 
   return combos.some((combo) => {
+    // only a physical key is held: the character a key types is not tracked, and a hold action is a key code
+    if (combo.code === undefined) {
+      return false
+    }
+
     return pressedCodes.has(combo.code)
   })
 }

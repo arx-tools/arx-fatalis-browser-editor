@@ -11,7 +11,8 @@ import { Mesh, MeshLambertMaterial, PerspectiveCamera, PlaneGeometry, Raycaster,
 import {
   accelerateRaycast,
   arxPolygonsToGeometry,
-  copyKeptVertices,
+  copyVertexSegments,
+  keptRuns,
   arxPolygonsToWireframeGeometry,
   createWireframeMaterial,
   arxVector3toVector3,
@@ -185,37 +186,56 @@ void describe('createLevelMaterial', () => {
   })
 })
 
-void describe('copyKeptVertices', () => {
-  void it('keeps the vertices of the kept polygons, in their order', () => {
-    // three polygons of two vertices each: the middle one goes, and the copy keeps the two around it
-    const source = new Float32Array([1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6])
-
-    const kept = copyKeptVertices(source, 3, [2, 2, 2], [true, false, true])
-
-    assert.deepEqual([...kept], [1, 1, 1, 2, 2, 2, 5, 5, 5, 6, 6, 6])
+void describe('keptRuns', () => {
+  void it('keeps the runs of the polygons that stay, in their order', () => {
+    // three polygons of two vertices each: the middle one goes, and the two around it are one run each
+    assert.deepEqual(keptRuns([2, 2, 2], [true, false, true]), [
+      { from: 0, count: 2 },
+      { from: 4, count: 2 },
+    ])
   })
 
-  void it('drops everything when nothing is kept', () => {
-    const kept = copyKeptVertices(new Float32Array([1, 2, 3, 4, 5, 6]), 3, [2], [false])
+  void it('joins the polygons next to each other into one run', () => {
+    assert.deepEqual(keptRuns([6, 3, 6], [true, true, false]), [{ from: 0, count: 9 }])
+  })
+
+  void it('gives no run when nothing is kept', () => {
+    assert.deepEqual(keptRuns([3, 3], [false, false]), [])
+  })
+
+  void it('keeps the last polygon of the buffer', () => {
+    assert.deepEqual(keptRuns([3, 6], [false, true]), [{ from: 3, count: 6 }])
+  })
+})
+
+void describe('copyVertexSegments', () => {
+  void it('copies the slices into one buffer, in the order of the segments', () => {
+    const first = new Float32Array([1, 1, 1, 2, 2, 2, 3, 3, 3])
+    const second = new Float32Array([4, 4, 4, 5, 5, 5])
+
+    const kept = copyVertexSegments(
+      [
+        { source: first, from: 2, count: 1 },
+        { source: second, from: 0, count: 2 },
+      ],
+      3,
+    )
+
+    assert.deepEqual([...kept], [3, 3, 3, 4, 4, 4, 5, 5, 5])
+  })
+
+  void it('takes the item size of the buffer, like the two numbers of a uv', () => {
+    const source = new Float32Array([1, 1, 2, 2, 3, 3])
+
+    const kept = copyVertexSegments([{ source, from: 1, count: 2 }], 2)
+
+    assert.deepEqual([...kept], [2, 2, 3, 3])
+  })
+
+  void it('gives an empty buffer when there is no slice', () => {
+    const kept = copyVertexSegments([], 3)
 
     assert.equal(kept.length, 0)
-  })
-
-  void it('copies a buffer of another item size, like the uv of a vertex', () => {
-    const source = new Float32Array([1, 1, 2, 2, 3, 3, 4, 4, 5, 5])
-
-    const kept = copyKeptVertices(source, 2, [1, 1, 1, 1, 1], [false, true, true, false, true])
-
-    // the kept vertices are the second, the third and the fifth of the source
-    assert.deepEqual([...kept], [2, 2, 3, 3, 5, 5])
-  })
-
-  void it('keeps a longer run of polygons as one piece', () => {
-    const source = new Float32Array([1, 2, 3, 4, 5, 6, 7, 8, 9])
-
-    const kept = copyKeptVertices(source, 3, [1, 1, 1], [true, true, false])
-
-    assert.deepEqual([...kept], [1, 2, 3, 4, 5, 6])
   })
 })
 

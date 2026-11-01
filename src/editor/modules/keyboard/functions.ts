@@ -16,12 +16,17 @@ export type KeyboardModifierInput = KeyboardModifier | 'primary'
  * A key with the modifiers which have to be held with it.
  *
  * @remarks
- * - `mods` is the exact set: a combo without `mods` does not fire while Shift is held, so
- * `Shift+F2` and `F2` are two different combos
- * - `code` is the physical key (`KeyboardEvent.code`), so the layout of the keyboard does not matter
+ * - `mods` is the exact set: a combo without `mods` does not fire while Shift is held, so `Shift+F2` and `F2`
+ * are two different combos
+ * - **exactly one** of `code` and `key` is set. `code` is the **physical key** (`KeyboardEvent.code`, named after
+ * the US layout), so a hotkey like `M` follows the same key wherever it sits. `key` is the **character** the key
+ * types (`KeyboardEvent.key`, lower case), so a hotkey like `Ctrl+Z` follows the **label** on the key — and that
+ * is what a shortcut like undo needs: the Hungarian keyboard is QWERTZ, so the key labelled `Z` sits where a US
+ * keyboard has `Y` (its `code` is `KeyY`, its `key` is `z`), and a user presses the label, not the position.
  */
 export type KeyCombo = {
-  code: string
+  code?: string
+  key?: string
   mods?: KeyboardModifier[]
 }
 
@@ -29,17 +34,22 @@ export type KeyCombo = {
  * A combo as the action table writes it, `primary` included.
  */
 export type KeyComboInput = {
-  code: string
+  code?: string
+  key?: string
   mods?: KeyboardModifierInput[]
 }
 
 /**
  * The part of a keyboard event the matching needs.
+ *
+ * @remarks
+ * `key` is optional so a test can build an event of a combo that is matched by its physical key only.
  */
 export type KeyboardEventLike = {
   altKey: boolean
   code: string
   ctrlKey: boolean
+  key?: string
   metaKey: boolean
   shiftKey: boolean
 }
@@ -107,6 +117,16 @@ const keyLabels: Record<string, string> = {
 /**
  * Tells whether the platform of the browser is macOS, where `Cmd` is the primary modifier.
  *
+ * @remarks
+ * There is no `os.platform()` in the browser — `darwin` is node (`node:os`) — so the platform of the machine arrives
+ * as the navigator's own string, and two of them say the same thing in different words: `navigator.platform` gives
+ * `MacIntel`, `Win32` or `Linux x86_64`, while `navigator.userAgentData.platform` (chromium only, and only in a
+ * secure context) gives `macOS`, `Windows` or `Linux`. The caller prefers the second and falls back to the first.
+ *
+ * The phone and the tablet of apple report `iPhone` and `iPad` (and an iPadOS 13+ in its desktop mode reports
+ * `MacIntel`): the editor is a desktop tool and is not made for them, but `Cmd` is the right modifier there as well,
+ * so they are read as a mac and nothing has to change if it ever opens on one.
+ *
  * @param platform The platform string of the navigator.
  * @returns True for macOS, iOS and iPadOS.
  */
@@ -163,7 +183,15 @@ export function resolveModifiers(mods: KeyboardModifierInput[] | undefined, isMa
  */
 export function resolveKeys(keys: KeyComboInput[], isMac: boolean): KeyCombo[] {
   return keys.map((key) => {
-    return { code: key.code, mods: resolveModifiers(key.mods, isMac) }
+    const mods = resolveModifiers(key.mods, isMac)
+
+    // the shape of the table is kept: a code combo carries a code, a character combo carries the character, and
+    // neither carries an `undefined` of the other one (the tests and the saved bindings compare them as they are)
+    if (key.key === undefined) {
+      return { code: key.code, mods }
+    }
+
+    return { key: key.key, mods }
   })
 }
 
@@ -203,11 +231,24 @@ export function pressedModifiers(event: KeyboardEventLike): KeyboardModifier[] {
  * @returns True when the event is that combo.
  */
 export function matchesCombo(event: KeyboardEventLike, combo: KeyCombo): boolean {
-  if (event.code !== combo.code) {
+  // the label on the key, not the position of the key: the Hungarian layout is QWERTZ, so the key labelled Z is a
+  // `KeyY` on the US layout the codes are named after (and vice versa)
+  const typed = combo.key
+
+  if (typed === undefined) {
+    if (event.code !== combo.code) {
+      return false
+    }
+  } else if (event.key?.toLowerCase() !== typed) {
     return false
   }
 
-  const ownModifier = getModifierOfKey(combo.code)
+  let ownModifier: KeyboardModifier | undefined
+
+  if (combo.code !== undefined) {
+    ownModifier = getModifierOfKey(combo.code)
+  }
+
   const wanted = (combo.mods ?? []).filter((mod) => {
     return mod !== ownModifier
   })
@@ -293,7 +334,14 @@ export function getKeyLabel(code: string): string {
  * @returns The readable form, for example `Ctrl+Shift+F2`, `⌘M` or `Shift+F2`.
  */
 export function formatCombo(combo: KeyCombo, isMac: boolean): string {
-  const label = getKeyLabel(combo.code)
+  let label = combo.key
+
+  if (label === undefined) {
+    label = getKeyLabel(combo.code ?? '')
+  } else {
+    label = label.toUpperCase()
+  }
+
   const mods = combo.mods ?? []
 
   if (isMac) {
@@ -322,7 +370,13 @@ export function formatCombo(combo: KeyCombo, isMac: boolean): string {
 export function getComboId(combo: KeyCombo): string {
   const mods = resolveModifiers(combo.mods, false)
 
-  return [...mods, combo.code.toLowerCase()].join('+')
+  // the character is marked apart from the physical key: `Ctrl+Z` as a label and `Ctrl+Z` as the US position are
+  // two different combos, and only one of them is meant
+  if (combo.key === undefined) {
+    return [...mods, (combo.code ?? '').toLowerCase()].join('+')
+  }
+
+  return [...mods, `char:${combo.key}`].join('+')
 }
 
 /**

@@ -9,9 +9,11 @@ import {
   arxPolygonsToWireframeGeometry,
   arxVector3toVector3,
   createInvisibleMaterial,
-  copyKeptVertices,
+  copyVertexSegments,
   createLevelMaterial,
+  keptRuns,
   splitPolygons,
+  type VertexSegment,
 } from './meshes.ts'
 import { countFacesOfTriangles } from './polygonCounts.ts'
 import { Settings } from './Settings.ts'
@@ -51,6 +53,38 @@ export interface MapStatistics {
    * The portals between the rooms.
    */
   readonly portalCount: number
+}
+
+/**
+ * A polygon that goes back into the level, at the index it was taken from.
+ */
+export interface PolygonInsertion {
+  /**
+   * Where the polygon belongs in {@link ArxMap.polygons}.
+   */
+  readonly index: number
+  /**
+   * The polygon itself, as it was before it was taken out.
+   */
+  readonly polygon: ArxPolygon
+}
+
+/**
+ * A slice of a geometry: the part a new one takes over from it.
+ */
+interface GeometrySlice {
+  /**
+   * The geometry to read.
+   */
+  readonly geometry: BufferGeometry
+  /**
+   * Where the slice starts, in vertices.
+   */
+  readonly from: number
+  /**
+   * How many vertices it holds.
+   */
+  readonly count: number
 }
 
 /**
@@ -339,31 +373,50 @@ export class ArxMap {
   }
 
   /**
-   * Takes polygons out of the level.
+   * Takes polygons out of the level, by their place in the list.
+   *
+   * @param indices The polygons to take out.
+   */
+  deletePolygons(indices: Iterable<number>): void {
+    const polygons: ArxPolygon[] = []
+
+    for (const index of indices) {
+      const polygon = this.polygons[index]
+
+      if (polygon !== undefined) {
+        polygons.push(polygon)
+      }
+    }
+
+    this.removePolygons(polygons)
+  }
+
+  /**
+   * Takes polygons out of the level, by identity.
    *
    * @remarks
    * The polygons leave for good, and every derived field follows: the polygon list, the triangle map, the
    * wireframe, the geometry of the two meshes and the statistics.
    *
    * **The geometry is cut, not rebuilt.** The vertices of the removed polygons are copied out of the buffers of
-   * the meshes (`copyKeptVertices`), which is a memcpy of the kept slices: a rebuild would walk every polygon,
-   * transform its vertices and build new typed arrays, and on the big level (69 817 polygons, 364 899 triangle
-   * indices) that is about 260 ms against a few milliseconds for the cut (measured:
-   * `experiments/browser-editor-delete-cost/`). The **mesh objects stay the same**: a view puts its meshes into
-   * its scene once, so the geometry under it is refilled in place.
+   * the meshes (`keptRuns` + `copyVertexSegments`), which is a memcpy of the kept slices: a rebuild would walk every
+   * polygon, transform its vertices and build new typed arrays, and on the big level (69 817 polygons, 364 899
+   * triangle indices) that is about 260 ms against a few milliseconds for the cut (measured:
+   * `experiments/browser-editor-delete-cost/`). The **mesh objects stay the same**: a view puts its meshes into its
+   * scene once, so the geometry under it is refilled in place.
    *
    * What the cut does not save is the BVH: it groups the triangles, so a shorter triangle list needs a new tree
-   * (`accelerateRaycast` on the meshes that lost a polygon). That is the remaining cost of a delete, about 75 ms
-   * on level 11. The vertex index ({@link vertexToPolygons}) is dropped rather than rebuilt, so the first drag
-   * or double click after an edit builds it again.
+   * (`accelerateRaycast` on the meshes that lost a polygon). That is the remaining cost of a delete. The vertex
+   * index ({@link vertexToPolygons}) is dropped rather than rebuilt, so the first drag or double click after an
+   * edit builds it again.
    *
-   * The indices are the ones of {@link polygons} (a selection holds those); the caller clears the selection
-   * afterwards, because a removal moves the indices.
+   * The indices are the ones of {@link polygons}, and a removal moves them: {@link insertPolygons} is the inverse,
+   * and it puts the polygons back at the places they were taken from.
    *
-   * @param indices The polygons to take out.
+   * @param polygons The polygons to take out, as they are in {@link polygons}.
    */
-  deletePolygons(indices: Iterable<number>): void {
-    const removed = new Set(indices)
+  removePolygons(polygons: readonly ArxPolygon[]): void {
+    const removed = new Set(polygons)
 
     if (removed.size === 0) {
       return
@@ -381,8 +434,8 @@ export class ArxMap {
 
     // one walk over the polygons: which mesh a polygon belongs to, how many vertices it owns in the geometry of
     // that mesh (3 for a triangle, 6 for a quad) and in the wireframe (two per edge of the perimeter)
-    for (const [index, polygon] of this.polygons.entries()) {
-      const gone = removed.has(index)
+    for (const polygon of this.polygons) {
+      const gone = removed.has(polygon)
       const quad = isQuad(polygon)
       let vertices = 3
       let edges = 6
@@ -431,40 +484,260 @@ export class ArxMap {
     this.vertexPolygons = undefined
     this.figures = { ...this.figures, faceCount, triangleCount, quadCount }
 
-    this.spliceGeometry(this.wireframeGeometry, wireframeCounts, wireframeKept)
+    this.refillGeometry(this.wireframeGeometry, this.slicesOf(this.wireframeGeometry, wireframeCounts, wireframeKept))
 
     if (solid.length !== solidCounts.length) {
-      this.spliceGeometry(this.solidMeshes[0].geometry, solidCounts, solidKept)
+      this.refillGeometry(
+        this.solidMeshes[0].geometry,
+        this.slicesOf(this.solidMeshes[0].geometry, solidCounts, solidKept),
+      )
       accelerateRaycast(this.solidMeshes[0])
     }
 
     if (invisible.length !== invisibleCounts.length) {
-      this.spliceGeometry(this.invisibleMeshes[0].geometry, invisibleCounts, invisibleKept)
+      this.refillGeometry(
+        this.invisibleMeshes[0].geometry,
+        this.slicesOf(this.invisibleMeshes[0].geometry, invisibleCounts, invisibleKept),
+      )
       accelerateRaycast(this.invisibleMeshes[0])
     }
   }
 
   /**
-   * Cuts the vertices of the removed polygons out of a geometry, in place.
+   * Puts polygons back, at the places they were taken from.
+   *
+   * @remarks
+   * It is the inverse of {@link removePolygons}: the records say which polygon goes back at which index of the list,
+   * so the order of the level is the one it had. The geometry is **spliced** the same way the cut works — the kept
+   * vertices come from the live buffers, the restored polygons from a small geometry built for them (they are the
+   * only ones rebuilt, so an undo of a few faces is cheap), and the two are interleaved in the order of the list.
+   *
+   * The vertices of the restored polygons keep their place divided by three, so the pick and the triangle map stay
+   * right; the BVHs of the meshes that got a polygon are built again, because a longer triangle list needs a new
+   * tree.
+   *
+   * @param insertions The polygons and the indices they go back to.
+   *
+   * @throws When the records do not fit the level (an index past the end of the list): the history of one level is
+   * not the history of another, so it is cleared on a load and this should not happen.
+   */
+  insertPolygons(insertions: readonly PolygonInsertion[]): void {
+    if (insertions.length === 0) {
+      return
+    }
+
+    const byIndex = new Map<number, ArxPolygon>()
+
+    for (const insertion of insertions) {
+      byIndex.set(insertion.index, insertion.polygon)
+    }
+
+    const next: ArxPolygon[] = []
+    let from = 0
+
+    for (let index = 0; index < this.polygons.length + insertions.length; index = index + 1) {
+      const inserted = byIndex.get(index)
+
+      if (inserted !== undefined) {
+        next.push(inserted)
+
+        continue
+      }
+
+      const kept = this.polygons[from]
+
+      if (kept === undefined) {
+        throw new Error('the insertion does not fit the level')
+      }
+
+      next.push(kept)
+      from = from + 1
+    }
+
+    const restored = new Set(
+      insertions.map((insertion) => {
+        return insertion.polygon
+      }),
+    )
+    const offset = arxVector3toVector3(this.fts.header.mScenePosition)
+    const restoredSolid = next.filter((polygon) => {
+      return restored.has(polygon) && !this.invisibleWalls.has(polygon)
+    })
+    const restoredInvisible = next.filter((polygon) => {
+      return restored.has(polygon) && this.invisibleWalls.has(polygon)
+    })
+    const solidBuilt = arxPolygonsToGeometry(restoredSolid, offset)
+    const invisibleBuilt = arxPolygonsToGeometry(restoredInvisible, offset)
+    const wireframeBuilt = arxPolygonsToWireframeGeometry(
+      next.filter((polygon) => {
+        return restored.has(polygon)
+      }),
+      offset,
+    )
+
+    const solidSlices: GeometrySlice[] = []
+    const invisibleSlices: GeometrySlice[] = []
+    const wireframeSlices: GeometrySlice[] = []
+    let solidLive = 0
+    let invisibleLive = 0
+    let wireframeLive = 0
+    let solidRestored = 0
+    let invisibleRestored = 0
+    let wireframeRestored = 0
+    let faces = 0
+    let quads = 0
+    let triangles = 0
+
+    for (const polygon of next) {
+      const quad = isQuad(polygon)
+      let vertices = 3
+      let edges = 6
+
+      if (quad) {
+        vertices = 6
+        edges = 8
+      }
+
+      if (this.invisibleWalls.has(polygon)) {
+        if (restored.has(polygon)) {
+          this.pushSlice(invisibleSlices, invisibleBuilt, invisibleRestored, vertices)
+          invisibleRestored = invisibleRestored + vertices
+        } else {
+          this.pushSlice(invisibleSlices, this.invisibleMeshes[0].geometry, invisibleLive, vertices)
+          invisibleLive = invisibleLive + vertices
+        }
+      } else if (restored.has(polygon)) {
+        this.pushSlice(solidSlices, solidBuilt, solidRestored, vertices)
+        solidRestored = solidRestored + vertices
+      } else {
+        this.pushSlice(solidSlices, this.solidMeshes[0].geometry, solidLive, vertices)
+        solidLive = solidLive + vertices
+      }
+
+      if (restored.has(polygon)) {
+        this.pushSlice(wireframeSlices, wireframeBuilt, wireframeRestored, edges)
+        wireframeRestored = wireframeRestored + edges
+        faces = faces + 1
+
+        if (quad) {
+          quads = quads + 1
+        } else {
+          triangles = triangles + 1
+        }
+      } else {
+        this.pushSlice(wireframeSlices, this.wireframeGeometry, wireframeLive, edges)
+        wireframeLive = wireframeLive + edges
+      }
+    }
+
+    this.polygons = next
+    this.triangleToPolygon = triangleToPolygonMap(next)
+    this.vertexPolygons = undefined
+    this.figures = {
+      ...this.figures,
+      faceCount: this.figures.faceCount + faces,
+      quadCount: this.figures.quadCount + quads,
+      triangleCount: this.figures.triangleCount + triangles,
+    }
+
+    this.refillGeometry(this.wireframeGeometry, wireframeSlices)
+
+    if (restoredSolid.length > 0) {
+      this.refillGeometry(this.solidMeshes[0].geometry, solidSlices)
+      accelerateRaycast(this.solidMeshes[0])
+    }
+
+    if (restoredInvisible.length > 0) {
+      this.refillGeometry(this.invisibleMeshes[0].geometry, invisibleSlices)
+      accelerateRaycast(this.invisibleMeshes[0])
+    }
+  }
+
+  /**
+   * The slices of a buffer that stay when some of its polygons go.
+   *
+   * @param geometry The geometry the slices are read from.
+   * @param counts How many vertices every polygon owns in this geometry.
+   * @param kept Which of the polygons stay.
+   *
+   * @returns One slice per kept run.
+   */
+  private slicesOf(geometry: BufferGeometry, counts: readonly number[], kept: readonly boolean[]): GeometrySlice[] {
+    return keptRuns(counts, kept).map((run): GeometrySlice => {
+      return { geometry, from: run.from, count: run.count }
+    })
+  }
+
+  /**
+   * Adds a slice to a geometry, joining it to the previous one when the two are next to each other.
+   *
+   * @remarks
+   * The insert walks the whole list, and the polygons that were already there come in long runs: joining them keeps
+   * the number of the copies low (one per run, not one per polygon).
+   *
+   * @param slices The list to add to.
+   * @param geometry The geometry the slice reads.
+   * @param from Where the slice starts, in vertices.
+   * @param count How many vertices it holds.
+   */
+  private pushSlice(slices: GeometrySlice[], geometry: BufferGeometry, from: number, count: number): void {
+    const last = slices.at(-1)
+
+    if (last?.geometry === geometry && last.from + last.count === from) {
+      slices[slices.length - 1] = { geometry, from: last.from, count: last.count + count }
+
+      return
+    }
+
+    slices.push({ geometry, from, count })
+  }
+
+  /**
+   * Builds a geometry from slices of other geometries, in place.
    *
    * @remarks
    * The holders of the geometry (the mesh wrappers of the views, the line segments of the wireframe) keep the
-   * object, so the attributes are replaced under them. The **index** belongs to the BVH (it groups the triangles
-   * and the tree writes it), and a cut moves every triangle after the removed one: it is dropped here, and the
-   * new tree writes a fresh one in `accelerateRaycast`.
+   * object, so the attributes are replaced under them. The **index** belongs to the BVH (it groups the triangles and
+   * the tree writes it), and a splice moves the triangles after the change: it is dropped here, and the new tree
+   * writes a fresh one in `accelerateRaycast`.
+   *
+   * The attributes follow the **first slice**: a mesh has one layout (position, normal, uv), and the slices of the
+   * same mesh are the same. A cut reads the slices from the target itself, so its attributes are read one by one, an
+   * attribute that was not replaced yet still holding the old vertices.
    *
    * @param target The geometry the views hold.
-   * @param counts How many vertices every polygon owns in this geometry, in its order.
-   * @param kept Which of the polygons stay.
+   * @param slices What the new attributes are made of.
    */
-  private spliceGeometry(target: BufferGeometry, counts: readonly number[], kept: readonly boolean[]): void {
+  private refillGeometry(target: BufferGeometry, slices: readonly GeometrySlice[]): void {
+    const [first] = slices
+
+    // no slice means no polygon left: the geometry keeps its layout and gets empty buffers
+    if (first === undefined) {
+      for (const [name, attribute] of Object.entries(target.attributes)) {
+        target.setAttribute(name, new BufferAttribute(new Float32Array(0), attribute.itemSize, attribute.normalized))
+      }
+
+      target.computeBoundingBox()
+      target.computeBoundingSphere()
+
+      return
+    }
+
+    const names = Object.keys(first.geometry.attributes)
+
     target.dispose()
     target.setIndex(null)
 
-    for (const [name, attribute] of Object.entries(target.attributes)) {
-      const vertices = copyKeptVertices(attribute.array as Float32Array, attribute.itemSize, counts, kept)
+    for (const name of names) {
+      const reference = first.geometry.getAttribute(name)
+      const segments = slices.map((slice): VertexSegment => {
+        return { source: slice.geometry.getAttribute(name).array as Float32Array, from: slice.from, count: slice.count }
+      })
 
-      target.setAttribute(name, new BufferAttribute(vertices, attribute.itemSize, attribute.normalized))
+      target.setAttribute(
+        name,
+        new BufferAttribute(copyVertexSegments(segments, reference.itemSize), reference.itemSize, reference.normalized),
+      )
     }
 
     target.computeBoundingBox()
@@ -472,7 +745,7 @@ export class ArxMap {
   }
 
   /**
-   * Rebuilds every field that comes from the polygons.
+   * Rebuilds every field that comes from the polygons, on the first build of the level.
    *
    * @param polygons Every polygon of the level, in the order of the mesh.
    * @param solid The ones with a real texture.
@@ -489,9 +762,9 @@ export class ArxMap {
     this.triangleToPolygon = triangleToPolygonMap(polygons)
     this.vertexPolygons = undefined
 
-    this.refillGeometry(this.wireframeGeometry, arxPolygonsToWireframeGeometry(polygons, offset))
-    this.refillGeometry(this.solidMeshes[0].geometry, arxPolygonsToGeometry(solid, offset))
-    this.refillGeometry(this.invisibleMeshes[0].geometry, arxPolygonsToGeometry(invisible, offset))
+    this.refillFromGeometry(this.wireframeGeometry, arxPolygonsToWireframeGeometry(polygons, offset))
+    this.refillFromGeometry(this.solidMeshes[0].geometry, arxPolygonsToGeometry(solid, offset))
+    this.refillFromGeometry(this.invisibleMeshes[0].geometry, arxPolygonsToGeometry(invisible, offset))
 
     accelerateRaycast(this.solidMeshes[0])
     accelerateRaycast(this.invisibleMeshes[0])
@@ -500,34 +773,20 @@ export class ArxMap {
   }
 
   /**
-   * Puts the attributes of one geometry into another, in place.
+   * Refills a geometry the views hold from a geometry built next to it.
    *
    * @remarks
-   * A view puts the geometry of the level into its scene and keeps it (its mesh wrapper and its line segments
-   * share it), so an edit can not swap the object under them: the index and the attributes are copied into
-   * the same geometry, and every holder draws the new polygons without being told. The BVH of the solid mesh
-   * follows in {@link rebuild}.
+   * The first build of the level works this way (the polygons are converted once), and a cut or an undo works with
+   * the slices of {@link refillGeometry}. Both keep the **object** of the geometry: a view puts it into its scene
+   * once, so the vertices change under it and every holder draws the new polygons without being told.
    *
    * @param target The geometry the views hold.
-   * @param source The geometry of the new polygons.
+   * @param source The geometry that was built for the same polygons.
    */
-  private refillGeometry(target: BufferGeometry, source: BufferGeometry): void {
-    target.dispose()
+  private refillFromGeometry(target: BufferGeometry, source: BufferGeometry): void {
+    const position = source.getAttribute('position')
 
-    // the index goes first: the BVH puts one on the geometry (it groups the triangles), and an index of the
-    // polygons that were just taken out would draw a mix of the old and the new level
-    target.setIndex(null)
-
-    if (source.index !== null) {
-      target.setIndex(source.index.clone())
-    }
-
-    for (const [name, attribute] of Object.entries(source.attributes)) {
-      target.setAttribute(name, attribute.clone())
-    }
-
-    target.computeBoundingBox()
-    target.computeBoundingSphere()
+    this.refillGeometry(target, [{ geometry: source, from: 0, count: position.count }])
     source.dispose()
   }
 }

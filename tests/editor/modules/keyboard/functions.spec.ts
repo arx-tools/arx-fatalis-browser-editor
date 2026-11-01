@@ -209,3 +209,51 @@ void describe('isEditableTarget', () => {
     assert.equal(isEditableTarget({ tagName: 'INPUT', isContentEditable: false }), true)
   })
 })
+
+void describe('matchesCombo with a character', () => {
+  void it('matches the label on the key, whatever the physical position is', () => {
+    // a Hungarian keyboard is QWERTZ: the key labelled Z reports `key: 'z'` with the code of the US `Y`
+    const combo = { key: 'z', mods: ['ctrl' as const] }
+
+    assert.equal(
+      matchesCombo({ altKey: false, code: 'KeyY', ctrlKey: true, key: 'z', metaKey: false, shiftKey: false }, combo),
+      true,
+    )
+    assert.equal(
+      matchesCombo({ altKey: false, code: 'KeyZ', ctrlKey: true, key: 'z', metaKey: false, shiftKey: false }, combo),
+      true,
+    )
+  })
+
+  void it('does not match another character, or the same one without the modifier', () => {
+    const combo = { key: 'y', mods: ['ctrl' as const] }
+
+    assert.equal(
+      matchesCombo({ altKey: false, code: 'KeyY', ctrlKey: true, key: 'z', metaKey: false, shiftKey: false }, combo),
+      false,
+    )
+    assert.equal(
+      matchesCombo({ altKey: false, code: 'KeyZ', ctrlKey: false, key: 'y', metaKey: false, shiftKey: false }, combo),
+      false,
+    )
+  })
+
+  void it('reads a shifted character too, so the same key with Shift is another combo', () => {
+    const combo = { key: 'z', mods: ['ctrl' as const, 'shift' as const] }
+
+    assert.equal(
+      matchesCombo({ altKey: false, code: 'KeyZ', ctrlKey: true, key: 'Z', metaKey: false, shiftKey: true }, combo),
+      true,
+    )
+  })
+
+  void it('keeps the character out of the path of a code combo', () => {
+    const combo = { code: 'KeyZ' }
+
+    // a code combo follows the physical key: the character of the event does not matter
+    assert.equal(
+      matchesCombo({ altKey: false, code: 'KeyZ', ctrlKey: false, key: 'y', metaKey: false, shiftKey: false }, combo),
+      true,
+    )
+  })
+})

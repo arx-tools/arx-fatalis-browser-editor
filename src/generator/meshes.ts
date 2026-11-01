@@ -41,44 +41,54 @@ export function arxVector3toVector3(vector: ArxVector3): Vector3 {
 }
 
 /**
- * The vertices of a buffer that stay when some of its polygons go.
+ * A slice of a buffer, counted in vertices.
+ */
+export interface VertexRun {
+  /**
+   * Where the slice starts, in vertices.
+   */
+  readonly from: number
+  /**
+   * How many vertices it holds.
+   */
+  readonly count: number
+}
+
+/**
+ * A slice of a buffer, with the buffer it comes from.
+ */
+export interface VertexSegment extends VertexRun {
+  /**
+   * The buffer to read.
+   */
+  readonly source: Float32Array
+}
+
+/**
+ * The runs of a buffer that stay when some of its polygons go.
  *
  * @remarks
  * A level is edited by taking polygons out, and the geometry of a mesh is a flat list of the vertices of its
  * polygons: a polygon owns `3` vertices (a triangle), `6` (a quad) or, in the wireframe, `6`/`8` (two vertices per
- * edge of the perimeter). So the polygons that stay are a set of slices of the buffer, and copying them is a
- * memcpy instead of a rebuild: on the big level (level 11, ~370 000 vertices) that is the difference between a
- * tenth of a second and a few milliseconds (measured: `experiments/browser-editor-delete-cost/`).
+ * edge of the perimeter). The kept polygons are therefore a few **runs** of the buffer — a delete takes a few out,
+ * so the most of it is one or two runs, and copying them is a handful of `set` calls instead of one per polygon.
  *
- * The kept polygons **keep their order**, so the vertex of a triangle stays at the same place divided by three:
- * that is what the pick reads (`face.a / 3`) and what the triangle map is built on.
+ * The kept polygons **keep their order**, so a triangle stays at the same place divided by three: that is what the
+ * pick reads (`face.a / 3`) and what the triangle map is built on.
  *
- * @param source The buffer of the geometry, as it is now.
- * @param itemSize How many numbers one vertex holds (3 for the position, 2 for the uv).
  * @param counts How many vertices every polygon of the buffer owns, in the order of the buffer.
  * @param kept Which of the polygons stay, in the same order.
  *
- * @returns The new buffer: the vertices of the kept polygons, in their order.
+ * @returns The runs to copy, in the order of the buffer.
  */
-export function copyKeptVertices(
-  source: Float32Array,
-  itemSize: number,
-  counts: readonly number[],
-  kept: readonly boolean[],
-): Float32Array {
-  // the kept polygons come in runs: a delete takes a few out, so the most of the buffer is one or two slices, and
-  // copying them as runs is a handful of `set` calls instead of one per polygon (the polygons of level 11 are
-  // 69 817 slices, and the calls alone cost more than the copy)
-  const runs: Array<{ readonly from: number; readonly count: number }> = []
-  let vertexCount = 0
+export function keptRuns(counts: readonly number[], kept: readonly boolean[]): VertexRun[] {
+  const runs: VertexRun[] = []
   let from = 0
   let runFrom = 0
   let runCount = 0
 
   for (const [index, count] of counts.entries()) {
     if (kept[index]) {
-      vertexCount = vertexCount + count
-
       if (runCount === 0) {
         runFrom = from
       }
@@ -96,12 +106,38 @@ export function copyKeptVertices(
     runs.push({ from: runFrom, count: runCount })
   }
 
+  return runs
+}
+
+/**
+ * Copies slices of buffers into one buffer.
+ *
+ * @remarks
+ * It is the write side of {@link keptRuns} — and of an undo: a step that puts polygons back takes the kept runs from
+ * the live geometry and the polygons themselves from a geometry built for them, and the two are interleaved by the
+ * order of the segments.
+ *
+ * @param segments The slices to copy, in the order they go into the new buffer.
+ * @param itemSize How many numbers one vertex holds (3 for the position, 2 for the uv).
+ *
+ * @returns The new buffer.
+ */
+export function copyVertexSegments(segments: readonly VertexSegment[], itemSize: number): Float32Array {
+  let vertexCount = 0
+
+  for (const segment of segments) {
+    vertexCount = vertexCount + segment.count
+  }
+
   const target = new Float32Array(vertexCount * itemSize)
   let to = 0
 
-  for (const run of runs) {
-    target.set(source.subarray(run.from * itemSize, (run.from + run.count) * itemSize), to * itemSize)
-    to = to + run.count
+  for (const segment of segments) {
+    target.set(
+      segment.source.subarray(segment.from * itemSize, (segment.from + segment.count) * itemSize),
+      to * itemSize,
+    )
+    to = to + segment.count
   }
 
   return target

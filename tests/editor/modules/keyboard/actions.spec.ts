@@ -11,7 +11,7 @@ import { getComboId, resolveKeys, type KeyboardMode } from '../../../../src/edit
 /**
  * The groups the help panel knows.
  */
-const groups = new Set<KeyboardGroup>(['camera', 'developer', 'movement', 'overlay', 'selection', 'view'])
+const groups = new Set<KeyboardGroup>(['camera', 'developer', 'history', 'movement', 'overlay', 'selection', 'view'])
 
 /**
  * The modes the dispatcher knows.

@@ -26,12 +26,14 @@ export type KeyboardActionId =
   | 'toggleMesh'
   | 'togglePortals'
   | 'toggleWireframe'
+  | 'redo'
+  | 'undo'
   | 'unlockPointer'
 
 /**
  * The group an action belongs to in the help panel.
  */
-export type KeyboardGroup = 'camera' | 'developer' | 'movement' | 'overlay' | 'selection' | 'view'
+export type KeyboardGroup = 'camera' | 'developer' | 'history' | 'movement' | 'overlay' | 'selection' | 'view'
 
 /**
  * One row of the action table: what it is called, where it lives and which combos fire it.
@@ -133,6 +135,25 @@ export const keyboardActions: readonly KeyboardAction[] = [
     group: 'selection',
     keys: [{ code: 'Delete' }],
     modes: ['editor', 'pointerLocked'],
+  },
+  {
+    id: 'undo',
+    label: 'Undo',
+    group: 'history',
+    // the character, not the physical key: on the Hungarian (QWERTZ) layout the key labelled Z sits where a US
+    // keyboard has Y, and the user presses the label
+    keys: [{ key: 'z', mods: ['primary'] }],
+  },
+  {
+    id: 'redo',
+    label: 'Redo',
+    group: 'history',
+    // `Ctrl+Y` is what the help shows; `Ctrl+Shift+Z` is the alias every other editor has, so it works too and
+    // the help does not promise it
+    keys: [
+      { key: 'y', mods: ['primary'] },
+      { key: 'z', mods: ['primary', 'shift'] },
+    ],
   },
   {
     id: 'openCameraDialog',

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { shallowRef, watch } from 'vue'
 import { crosshairStore } from '../../../modules/crosshair/crosshairStore.ts'
+import { levelRevision } from '../../../modules/level/editing.ts'
 import { levelStore } from '../../../modules/level/levelStore.ts'
 import WidgetHeading from '../../WidgetHeading.vue'
 import { inspectorRows } from './polygonInspector.ts'
@@ -19,23 +20,47 @@ const props = defineProps<{
  * The face comes from the walkable view over the crosshair store, and the level from the level store: the two
  * have to meet, because the index alone says nothing without the polygons of the map. An index the level no
  * longer has (an edit moved them) reads as nothing under the crosshair.
+ *
+ * The **revision** of the level is watched too: an edit changes the polygons under the same index (a delete moves
+ * them, an undo puts them back), and the crosshair keeps reporting the same number, so without it the widget would
+ * describe the face that was there before the edit.
  */
-const rows = computed(() => {
-  const map = levelStore.map.value
-  const index = crosshairStore.polygon.value
+const rows = shallowRef(inspectorRows(undefined))
 
-  if (map === undefined || index === undefined) {
-    return inspectorRows(undefined)
-  }
+watch(
+  [
+    (): number => {
+      return levelRevision.value
+    },
+    (): number | undefined => {
+      return crosshairStore.polygon.value
+    },
+    (): unknown => {
+      return levelStore.map.value
+    },
+  ],
+  () => {
+    const map = levelStore.map.value
+    const index = crosshairStore.polygon.value
 
-  const polygon = map.polygons[index]
+    if (map === undefined || index === undefined) {
+      rows.value = inspectorRows(undefined)
 
-  if (polygon === undefined) {
-    return inspectorRows(undefined)
-  }
+      return
+    }
 
-  return inspectorRows({ index, polygon, textureName: map.textureNameOf(polygon.textureContainerId) })
-})
+    const polygon = map.polygons[index]
+
+    if (polygon === undefined) {
+      rows.value = inspectorRows(undefined)
+
+      return
+    }
+
+    rows.value = inspectorRows({ index, polygon, textureName: map.textureNameOf(polygon.textureContainerId) })
+  },
+  { immediate: true },
+)
 </script>
 
 <template>

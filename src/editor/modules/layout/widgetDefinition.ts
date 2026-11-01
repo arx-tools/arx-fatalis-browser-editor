@@ -55,6 +55,16 @@ export interface WidgetDefinition {
    */
   readonly group: WidgetGroup
   /**
+   * Whether the widget is content: its rows and fields decide how tall it wants to be.
+   *
+   * @remarks
+   * A **view** (the walkable one, the six fixed ones) is not content: it is a canvas without a natural height, it
+   * fills the space it is given, and it is what grows when the window does. The **lists and forms** (the statistics,
+   * the inspector, the key table, the camera form, the jump row) are content: they want as much height as their rows
+   * take, and the layout gives them a minimum of it when there is room (see `contentFit.ts`).
+   */
+  readonly contentSized?: boolean
+  /**
    * Creates a new, unparented widget of the kind.
    *
    * @remarks

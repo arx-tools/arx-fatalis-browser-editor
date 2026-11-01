@@ -1,5 +1,6 @@
 import { DockLayout, DockPanel, Widget } from '@lumino/widgets'
 import { computed, ref, shallowRef, type ComputedRef, type Ref } from 'vue'
+import { planMins } from '../layout/contentFit.ts'
 import { dockWidgets } from '../layout/dockWidgets.ts'
 import {
   CUSTOM_PRESET_LABEL,
@@ -478,7 +479,81 @@ export function createEditorShell(
 
   dock.layoutModified.connect(syncLayout)
 
+  /**
+   * Reads how high the content of a widget kind wants to be.
+   *
+   * @remarks
+   * A widget that is not content (a view) has no natural height: the plan leaves it without a minimum, so it fills
+   * whatever the column has left. The height of a list is measured with its content element taken off its box for the
+   * length of the measure: the element fills the widget with `height: 100%`, so without this its own height would be
+   * what it already got, and the widget could never grow or shrink again.
+   *
+   * @param kind The kind of the widget.
+   *
+   * @returns The height its content wants, or `undefined` for a view.
+   */
+  function measureContent(kind: string): number | undefined {
+    const definition = definitions.find((candidate) => {
+      return candidate.kind === kind
+    })
+
+    if (definition?.contentSized !== true) {
+      return undefined
+    }
+
+    const widget = dockWidgets(dock).find((candidate) => {
+      return widgetKind(candidate) === kind
+    })
+    const content = widget?.node.querySelector<HTMLElement>('.VueWidget-content')
+
+    if (content === null || content === undefined) {
+      return undefined
+    }
+
+    const previous = content.style.height
+    content.style.height = 'auto'
+    const height = content.scrollHeight
+    content.style.height = previous
+
+    return height
+  }
+
+  /**
+   * Gives the widgets of every column the minimum height their content asks for.
+   *
+   * @remarks
+   * It runs before every fit of the dock: the plan walks the tree of the layout, measures the content of the lists, and
+   * writes the heights onto the widget nodes, where lumino reads them (`LayoutItem.fit()` takes the limits from the
+   * css of the node). A widget whose minimum did not change is left alone, so a fit does not turn into a loop.
+   */
+  function applyContentMins(): void {
+    const tree = toLayoutNode(dock.saveLayout(), kindOf)
+
+    if (tree === null) {
+      return
+    }
+
+    const available = dock.node.getBoundingClientRect().height
+
+    for (const { kind, min } of planMins(tree, measureContent, available)) {
+      const widget = dockWidgets(dock).find((candidate) => {
+        return widgetKind(candidate) === kind
+      })
+
+      if (widget === undefined) {
+        continue
+      }
+
+      const value = `${min.toString()}px`
+
+      if (widget.node.style.minHeight !== value) {
+        widget.node.style.minHeight = value
+      }
+    }
+  }
+
   const resizeObserver = new ResizeObserver(() => {
+    applyContentMins()
     dock.fit()
   })
   resizeObserver.observe(host)
@@ -487,6 +562,7 @@ export function createEditorShell(
 
   // the first layout pass: the widgets get their real size here (after the browser laid the host out)
   const firstFit = requestAnimationFrame(() => {
+    applyContentMins()
     dock.fit()
   })
 

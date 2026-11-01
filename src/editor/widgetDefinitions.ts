@@ -82,6 +82,7 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
   {
     kind: WIDGET_KINDS.cameraControls,
     label: 'Camera Controls',
+    contentSized: true,
     group: 'controls',
     create: (): Widget => {
       return new VueWidget(CameraControlsWidget)
@@ -90,6 +91,7 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
   {
     kind: WIDGET_KINDS.jumpToLocation,
     label: 'Jump to Location',
+    contentSized: true,
     group: 'controls',
     create: (): Widget => {
       return new VueWidget(JumpToLocationWidget)
@@ -98,6 +100,7 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
   {
     kind: WIDGET_KINDS.mapStatistics,
     label: 'Map Statistics',
+    contentSized: true,
     group: 'info',
     create: (label): Widget => {
       return new VueWidget(MapStatisticsWidget, { label })
@@ -106,6 +109,7 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
   {
     kind: WIDGET_KINDS.polygonInspector,
     label: 'Polygon Inspector',
+    contentSized: true,
     group: 'info',
     create: (label): Widget => {
       return new VueWidget(PolygonInspectorWidget, { label })
@@ -114,6 +118,7 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
   {
     kind: WIDGET_KINDS.keyboardShortcuts,
     label: 'Keyboard Shortcuts',
+    contentSized: true,
     group: 'info',
     create: (label): Widget => {
       return new VueWidget(KeyboardShortcutsWidget, { label })

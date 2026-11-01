@@ -49,12 +49,14 @@ function polygon(isQuad: boolean, container = 1): ArxPolygon {
     flags = ArxPolygonFlags.Quad
   }
 
+  // the corners of a quad are not a loop: a-b is one edge of it and c-d is the opposite one (the perimeter is
+  // a, b, d, c), which is how the game stores them
   return {
     vertices: [
       { x: 0, y: 0, z: 0, u: 0, v: 0 },
       { x: 10, y: 0, z: 0, u: 1, v: 0 },
-      { x: 10, y: 0, z: 10, u: 1, v: 1 },
       { x: 0, y: 0, z: 10, u: 0, v: 1 },
+      { x: 10, y: 0, z: 10, u: 1, v: 1 },
     ],
     textureContainerId: container,
     norm: position(0, 1, 0),
@@ -112,6 +114,43 @@ void describe('arxVector3toVector3', () => {
   })
 })
 
+/**
+ * Subtracts two products, in the order a cross product needs them.
+ *
+ * @param one The first factor of the first product.
+ * @param other The second factor of the first product.
+ * @param third The first factor of the second product.
+ * @param fourth The second factor of the second product.
+ *
+ * @returns `one * other - third * fourth`.
+ */
+function productDifference(one: number, other: number, third: number, fourth: number): number {
+  const left = one * other
+  const right = third * fourth
+
+  return left - right
+}
+
+/**
+ * Reads the direction a triangle turns to, from the flat positions of a geometry.
+ *
+ * @param flat The positions of the geometry, three numbers for a vertex.
+ * @param start Where the triangle starts in the list.
+ *
+ * @returns The cross product of its two edges.
+ */
+function windingOf(flat: readonly number[], start: number): number[] {
+  const [a, b, c] = [flat.slice(start, start + 3), flat.slice(start + 3, start + 6), flat.slice(start + 6, start + 9)]
+  const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]]
+  const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]]
+
+  return [
+    productDifference(u[1], v[2], u[2], v[1]),
+    productDifference(u[2], v[0], u[0], v[2]),
+    productDifference(u[0], v[1], u[1], v[0]),
+  ]
+}
+
 void describe('arxPolygonsToGeometry', () => {
   void it('splits a triangle into one triangle', () => {
     const geometry = arxPolygonsToGeometry([polygon(false)], new Vector3())
@@ -128,8 +167,21 @@ void describe('arxPolygonsToGeometry', () => {
     assert.equal(geometry.getAttribute('position').count, 6)
 
     // the first triangle is a, b, c, the second one is c, b, d
-    assert.deepEqual(positions.slice(0, 9), [0, 0, 0, -10, 0, 0, -10, 0, 10])
-    assert.deepEqual(positions.slice(9), [-10, 0, 10, -10, 0, 0, 0, 0, 10])
+    assert.deepEqual(positions.slice(0, 9), [0, 0, 0, -10, 0, 0, 0, 0, 10])
+    assert.deepEqual(positions.slice(9), [0, 0, 10, -10, 0, 0, -10, 0, 10])
+  })
+
+  void it('turns both triangles of a quad the same way', () => {
+    const geometry = arxPolygonsToGeometry([polygon(true)], new Vector3())
+    const flat = roundedPositions(geometry)
+    const [first, second] = [windingOf(flat, 0), windingOf(flat, 9)]
+    const third = first[2] * second[2]
+    const along = productDifference(first[0], second[0], -first[1], second[1]) + third
+
+    // the winding is what the back side culling of the material reads: when the two halves of a quad turn against
+    // each other, one of them is dropped and the quad shows as a triangle (a blank level's floor did exactly that
+    // with its corners written as a loop instead of an a-b, c-d pair)
+    assert.ok(along > 0, 'the two halves turn together')
   })
 
   void it('shifts the geometry by the offset', () => {

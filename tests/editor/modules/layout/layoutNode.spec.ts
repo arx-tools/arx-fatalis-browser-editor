@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
-  type LayoutNode,
   collectKinds,
+  flexSizes,
   layoutEquals,
   parseLayoutNode,
+  type LayoutNode,
 } from '../../../../src/editor/modules/layout/layoutNode.ts'
 import { editorLayout } from '../../../../src/editor/modules/layout/layoutPresets.ts'
 
@@ -31,9 +32,11 @@ function split(orientation: 'horizontal' | 'vertical', children: LayoutNode[]): 
   return {
     type: 'split',
     orientation,
-    sizes: children.map(() => {
-      return 1 / children.length
-    }),
+    sizes: flexSizes(
+      ...children.map(() => {
+        return 1 / children.length
+      }),
+    ),
     children,
   }
 }
@@ -43,7 +46,7 @@ void describe('the editor preset', () => {
     const root = editorLayout as Extract<LayoutNode, { type: 'split' }>
 
     assert.equal(root.orientation, 'horizontal')
-    assert.deepEqual(root.sizes, [0.2, 0.6, 0.2])
+    assert.deepEqual(root.sizes, flexSizes(0.2, 0.6, 0.2))
     assert.deepEqual(collectKinds(root), [
       'top-view',
       'left-view',
@@ -115,14 +118,14 @@ void describe('layoutEquals', () => {
 
   void it('allows a rounding difference in the sizes', () => {
     const first = split('horizontal', [widget('help'), widget('camera')])
-    const second = { ...first, sizes: [0.5001, 0.4999] }
+    const second = { ...first, sizes: flexSizes(0.5001, 0.4999) }
 
     assert.equal(layoutEquals(first, second), true)
   })
 
   void it('sees a real size change', () => {
     const first = split('horizontal', [widget('help'), widget('camera')])
-    const second = { ...first, sizes: [0.7, 0.3] }
+    const second = { ...first, sizes: flexSizes(0.7, 0.3) }
 
     assert.equal(layoutEquals(first, second), false)
   })
@@ -151,7 +154,7 @@ void describe('parseLayoutNode', () => {
     const parsed = parseLayoutNode({
       type: 'split',
       orientation: 'horizontal',
-      sizes: [0.5, 0.5],
+      sizes: flexSizes(0.5, 0.5),
       children: [widget('help'), { type: 'nonsense' }],
     })
 
@@ -162,12 +165,12 @@ void describe('parseLayoutNode', () => {
     const parsed = parseLayoutNode({
       type: 'split',
       orientation: 'horizontal',
-      sizes: [0.1, 0.1, 0.8],
+      sizes: flexSizes(0.1, 0.1, 0.8),
       children: [widget('help'), widget('camera'), { type: 'nonsense' }],
     })
 
     assert.ok(parsed)
     assert.equal(parsed.type, 'split')
-    assert.deepEqual(parsed.sizes, [0.5, 0.5])
+    assert.deepEqual(parsed.sizes, flexSizes(0.5, 0.5))
   })
 })

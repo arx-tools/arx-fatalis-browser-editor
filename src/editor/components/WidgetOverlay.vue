@@ -1,11 +1,16 @@
 <script setup lang="ts">
-import { Trash2 } from 'lucide-vue-next'
+import { Lock, LockOpen, Trash2 } from 'lucide-vue-next'
+import { ref } from 'vue'
 
 const props = defineProps<{
   /**
    * The name of the widget, shown on the plate.
    */
   label: string
+  /**
+   * Whether the widget is locked to its size when the plate is drawn.
+   */
+  locked: boolean
 }>()
 
 const emit = defineEmits<{
@@ -13,12 +18,39 @@ const emit = defineEmits<{
    * The trash of the plate was clicked: the widget has to be removed from the dock.
    */
   remove: []
+  /**
+   * The lock of the plate was clicked: the widget has to keep its size, or stop keeping it.
+   */
+  toggleLock: []
 }>()
+
+// the button shows the state it switched to: the plate is not redrawn when the dock is refitted
+const isLocked = ref(props.locked)
+
+/**
+ * Toggles the lock of the widget.
+ */
+function toggleLock(): void {
+  isLocked.value = !isLocked.value
+  emit('toggleLock')
+}
 </script>
 
 <template>
   <div class="WidgetOverlay">
     <span class="name">{{ props.label }}</span>
+    <button
+      class="lock"
+      :class="{ 'is-on': isLocked }"
+      type="button"
+      v-tooltip="isLocked ? 'Let the widget follow the layout again' : 'Keep the size of the widget'"
+      :aria-label="isLocked ? 'Unlock the widget' : 'Lock the widget'"
+      :aria-pressed="isLocked"
+      @pointerdown.stop
+      @click="toggleLock()"
+    >
+      <component :is="isLocked ? Lock : LockOpen" :size="14" />
+    </button>
     <button
       class="trash"
       type="button"
@@ -69,9 +101,40 @@ const emit = defineEmits<{
     pointer-events: none;
   }
 
+  // the lock sits left of the trash, the same size and the same frame: the two are the buttons of the plate
+  .lock,
   .trash {
     position: absolute;
     top: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .lock {
+    right: 38px;
+    color: $text;
+    background: rgba($surface-widget, 0.88);
+    border: 1px solid rgba($text-strong, 0.24);
+
+    &:hover {
+      color: $text-strong;
+      border-color: rgba($accent, 0.8);
+    }
+
+    &.is-on {
+      color: $text-strong;
+      background: rgba($accent, 0.32);
+      border-color: rgba($accent, 0.8);
+    }
+  }
+
+  .trash {
     right: 6px;
     display: inline-flex;
     align-items: center;

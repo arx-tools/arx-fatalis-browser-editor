@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import type { LayoutNode } from '../../src/editor/modules/layout/layoutNode.ts'
+import { flexSizes, type LayoutNode } from '../../src/editor/modules/layout/layoutNode.ts'
 import { WIDGET_KINDS } from '../../src/editor/modules/layout/widgetKinds.ts'
 import { editorUrl, seedLayout, waitForLevel } from './support/editor.ts'
 
@@ -26,12 +26,12 @@ const VIEWS = [
 const fixedViewsLayout: LayoutNode = {
   type: 'split',
   orientation: 'horizontal',
-  sizes: [0.5, 0.5],
+  sizes: flexSizes(0.5, 0.5),
   children: [
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: [0.6, 0.2, 0.2],
+      sizes: flexSizes(0.6, 0.2, 0.2),
       children: [
         { type: 'widget', kind: WIDGET_KINDS.view3d },
         { type: 'widget', kind: WIDGET_KINDS.mapStatistics },
@@ -41,12 +41,12 @@ const fixedViewsLayout: LayoutNode = {
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: [1 / 3, 1 / 3, 1 / 3],
+      sizes: flexSizes(1 / 3, 1 / 3, 1 / 3),
       children: [
         {
           type: 'split',
           orientation: 'horizontal',
-          sizes: [0.5, 0.5],
+          sizes: flexSizes(0.5, 0.5),
           children: [
             { type: 'widget', kind: WIDGET_KINDS.topView },
             { type: 'widget', kind: WIDGET_KINDS.bottomView },
@@ -55,7 +55,7 @@ const fixedViewsLayout: LayoutNode = {
         {
           type: 'split',
           orientation: 'horizontal',
-          sizes: [0.5, 0.5],
+          sizes: flexSizes(0.5, 0.5),
           children: [
             { type: 'widget', kind: WIDGET_KINDS.frontView },
             { type: 'widget', kind: WIDGET_KINDS.backView },
@@ -64,7 +64,7 @@ const fixedViewsLayout: LayoutNode = {
         {
           type: 'split',
           orientation: 'horizontal',
-          sizes: [0.5, 0.5],
+          sizes: flexSizes(0.5, 0.5),
           children: [
             { type: 'widget', kind: WIDGET_KINDS.leftView },
             { type: 'widget', kind: WIDGET_KINDS.rightView },

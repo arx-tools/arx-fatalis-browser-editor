@@ -16,7 +16,12 @@ import type { WidgetOverlayOptions } from './modules/layout/layoutEditor.ts'
  * @returns The teardown of the overlay.
  */
 export function mountWidgetOverlay(host: HTMLElement, options: WidgetOverlayOptions): () => void {
-  const app = createApp(WidgetOverlay, { label: options.label, onRemove: options.onRemove })
+  const app = createApp(WidgetOverlay, {
+    label: options.label,
+    locked: options.locked,
+    onRemove: options.onRemove,
+    onToggleLock: options.onToggleLock,
+  })
 
   // the overlay is its own app as well, so the tooltip plugin has to come along
   app.use(FloatingVue)

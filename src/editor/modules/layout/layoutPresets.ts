@@ -1,4 +1,4 @@
-import type { LayoutNode } from './layoutNode.ts'
+import { flexSizes, type LayoutNode } from './layoutNode.ts'
 import { WIDGET_KINDS } from './widgetKinds.ts'
 
 /**
@@ -64,12 +64,12 @@ const THIN_ROW_SHARE = THIN_ROW_HEIGHT / 814
 export const editorLayout: LayoutNode = {
   type: 'split',
   orientation: 'horizontal',
-  sizes: [0.2, 0.6, 0.2],
+  sizes: flexSizes(0.2, 0.6, 0.2),
   children: [
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: [1 / 3, 1 / 3, 1 / 3],
+      sizes: flexSizes(1 / 3, 1 / 3, 1 / 3),
       children: [
         { type: 'widget', kind: WIDGET_KINDS.topView },
         { type: 'widget', kind: WIDGET_KINDS.leftView },
@@ -79,12 +79,12 @@ export const editorLayout: LayoutNode = {
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: [THIN_ROW_SHARE, 1 - THIN_ROW_SHARE],
+      sizes: flexSizes(THIN_ROW_SHARE, 1 - THIN_ROW_SHARE),
       children: [
         {
           type: 'split',
           orientation: 'horizontal',
-          sizes: [0.6, 0.4],
+          sizes: flexSizes(0.6, 0.4),
           children: [
             { type: 'widget', kind: WIDGET_KINDS.cameraControls },
             { type: 'widget', kind: WIDGET_KINDS.jumpToLocation },
@@ -96,7 +96,7 @@ export const editorLayout: LayoutNode = {
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: [1 / 3, 1 / 3, 1 / 3],
+      sizes: flexSizes(1 / 3, 1 / 3, 1 / 3),
       children: [
         { type: 'widget', kind: WIDGET_KINDS.mapStatistics },
         { type: 'widget', kind: WIDGET_KINDS.polygonInspector },
@@ -118,13 +118,13 @@ export const editorLayout: LayoutNode = {
 export const viewerLayout: LayoutNode = {
   type: 'split',
   orientation: 'horizontal',
-  sizes: [0.7, 0.3],
+  sizes: flexSizes(0.7, 0.3),
   children: [
     { type: 'widget', kind: WIDGET_KINDS.view3d },
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: [0.3, 0.1, 0.6],
+      sizes: flexSizes(0.3, 0.1, 0.6),
       children: [
         { type: 'widget', kind: WIDGET_KINDS.topView },
         { type: 'widget', kind: WIDGET_KINDS.jumpToLocation },

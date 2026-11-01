@@ -35,6 +35,33 @@ import type { DockLayout, Widget } from '@lumino/widgets'
 export type LayoutNode = LayoutNodeSplit | LayoutNodeWidget
 
 /**
+ * The size of one child of a split.
+ *
+ * @remarks
+ * An `auto` child is flexible: its `ratio` is its share of the space the flexible children get, so it follows the
+ * window (the `flex: 1` of a flexbox) — that is the size of a widget nobody locked. A `fixed` widget is **locked** to
+ * a pixel size: it keeps that size while the column has room for it, and it shrinks when it has not (the alternative
+ * would be a window that scrolls, which the owner did not want).
+ *
+ * The size **is** the lock: a widget with an `auto` size is not locked, and no other field says it is.
+ */
+export type ChildSize =
+  { readonly kind: 'auto'; readonly ratio: number } | { readonly kind: 'fixed'; readonly px: number }
+
+/**
+ * Builds the sizes of a split from plain shares, so a flexible split stays short to write.
+ *
+ * @param ratios The share of every child, in their order.
+ *
+ * @returns A size per share, all of them flexible (nothing is locked).
+ */
+export function flexSizes(...ratios: number[]): ChildSize[] {
+  return ratios.map((ratio) => {
+    return { kind: 'auto', ratio }
+  })
+}
+
+/**
  * A split area: its children follow each other along the orientation, and `sizes` gives their shares.
  */
 export interface LayoutNodeSplit {
@@ -47,9 +74,9 @@ export interface LayoutNodeSplit {
    */
   readonly orientation: 'horizontal' | 'vertical'
   /**
-   * The relative sizes of the children, in the order of `children`.
+   * The size of every child, in the order of `children`.
    */
-  readonly sizes: readonly number[]
+  readonly sizes: readonly ChildSize[]
   /**
    * The children of the split, at least two of them.
    */
@@ -68,6 +95,99 @@ export interface LayoutNodeWidget {
    * The identifier of the widget kind.
    */
   readonly kind: string
+}
+
+/**
+ * The size a widget is locked to, if it is locked at all.
+ *
+ * @remarks
+ * The lock is the **box** of the widget: a locked widget keeps both its width and its height, so a column of the dock
+ * can not grow wider around it either. It lives on the node of the widget (as two attributes), and the saved layout
+ * reads it back from there: the size of a widget is a `fixed` size in the tree, so nothing else has to remember that
+ * it was locked.
+ */
+export interface LockBox {
+  /**
+   * The width the widget keeps.
+   */
+  readonly width: number
+  /**
+   * The height the widget keeps.
+   */
+  readonly height: number
+}
+
+/**
+ * Tells whether a number can be a side of a lock.
+ *
+ * @param px The number to check.
+ *
+ * @returns True when it is a whole positive number of pixels.
+ */
+function isLockSize(px: number): boolean {
+  return Number.isSafeInteger(px) && px > 0
+}
+
+/**
+ * Reads the size a widget is locked to.
+ *
+ * @param widget The widget to read.
+ *
+ * @returns The box it keeps, or `undefined` when it is free to follow the layout.
+ */
+export function lockedBoxOf(widget: Widget): LockBox | undefined {
+  const width = Number(widget.node.dataset.lockedWidth)
+  const height = Number(widget.node.dataset.lockedHeight)
+
+  if (!isLockSize(width) || !isLockSize(height)) {
+    return undefined
+  }
+
+  return { width, height }
+}
+
+/**
+ * Locks a widget to a size, or unlocks it.
+ *
+ * @remarks
+ * The lock is written on the node only: the sizes of the dock are worked out from the tree (`contentFit.ts` gives
+ * every child of a split its size, and the lock is a `fixed` size there), so a css limit would be a second, partial
+ * mechanism that leaves a hole in the column.
+ *
+ * @param widget The widget to change.
+ * @param box The size to lock it to, or `undefined` to free it.
+ */
+export function lockWidgetTo(widget: Widget, box: LockBox | undefined): void {
+  if (box === undefined) {
+    delete widget.node.dataset.lockedWidth
+    delete widget.node.dataset.lockedHeight
+
+    return
+  }
+
+  widget.node.dataset.lockedWidth = box.width.toString()
+  widget.node.dataset.lockedHeight = box.height.toString()
+}
+
+/**
+ * The weight of a size, as lumino's config wants it.
+ *
+ * @remarks
+ * Lumino normalizes the weights to the space it has. A locked child gets its **pixel size as the weight**, which is
+ * much larger than the ratios of the flexible ones (those are numbers between 0 and 1): the locked child is given
+ * more than it may have, and its `max-height` clamps it back to the size it was locked to, while the rest of the
+ * space goes to the others (the sizer redistributes what a child can not take).
+ *
+ * @param size The size of the child.
+ *
+ * @returns The number to put into the config.
+ */
+export function weightOf(size: ChildSize): number {
+  if (size.kind === 'fixed') {
+    return size.px
+  }
+
+  return size.ratio
 }
 
 /**
@@ -97,6 +217,38 @@ export function collectKinds(node: LayoutNode): string[] {
 }
 
 /**
+ * Tells whether two child sizes are the same.
+ *
+ * @param first The size the editor has now.
+ * @param second The size it is compared against.
+ *
+ * @returns True when both are the same kind, with the same ratio (up to the rounding) or the same pixel size.
+ */
+function sizeEquals(first: ChildSize, second: ChildSize | undefined): boolean {
+  if (second?.kind !== first.kind) {
+    return false
+  }
+
+  if (first.kind === 'fixed' && second.kind === 'fixed') {
+    return first.px === second.px
+  }
+
+  // both are auto here
+  let ratio = 0
+  let other = 0
+
+  if (first.kind === 'auto') {
+    ratio = first.ratio
+  }
+
+  if (second.kind === 'auto') {
+    other = second.ratio
+  }
+
+  return Math.abs(ratio - other) <= SIZE_EPSILON
+}
+
+/**
  * Tells whether two layouts are the same tree with the same sizes.
  *
  * @remarks
@@ -118,7 +270,7 @@ export function layoutEquals(first: LayoutNode, second: LayoutNode): boolean {
   }
 
   const sameSizes = first.sizes.every((size, index) => {
-    return Math.abs(size - (second.sizes[index] ?? 0)) <= SIZE_EPSILON
+    return sizeEquals(size, second.sizes[index])
   })
 
   if (!sameSizes) {
@@ -140,25 +292,122 @@ export function layoutEquals(first: LayoutNode, second: LayoutNode): boolean {
  * @param sizes The sizes of the original children.
  * @param kept The indexes of the children that are kept.
  *
- * @returns The sizes of the kept children, normalized to one.
+ * @returns The sizes of the kept children: the **flexible** ratios normalized to one, the locks untouched.
  */
-function pickSizes(sizes: readonly number[], kept: readonly number[]): number[] {
+function pickSizes(sizes: readonly ChildSize[], kept: readonly number[]): ChildSize[] {
   const picked = kept.map((index) => {
-    return sizes[index] ?? 0
+    return sizes[index] ?? { kind: 'auto' as const, ratio: 0 }
   })
-  const total = picked.reduce((sum, size) => {
-    return sum + size
-  }, 0)
+  let total = 0
 
-  if (total <= 0) {
-    return picked.map(() => {
-      return 1 / picked.length
-    })
+  for (const size of picked) {
+    if (size.kind === 'auto') {
+      total = total + size.ratio
+    }
   }
 
-  return picked.map((size) => {
-    return size / total
+  const flexible = picked.filter((size) => {
+    return size.kind === 'auto'
   })
+  const numberOfFlexible = flexible.length
+
+  return picked.map((size): ChildSize => {
+    if (size.kind === 'fixed') {
+      return size
+    }
+
+    if (numberOfFlexible === 0 || total <= 0) {
+      return { kind: 'auto', ratio: 1 / picked.length }
+    }
+
+    // the ratios are the shares of the space the locks leave: a locked child takes its pixels out of the space first,
+    // so it must not count in the sum the flexible ones are normalized against, or every pass would add a little to
+    // the flexible children and the layout would grow on its own
+    return { kind: 'auto', ratio: size.ratio / total }
+  })
+}
+
+/**
+ * Finds the lock that decides the size of a child of a split, along the axis of the split.
+ *
+ * @remarks
+ * A widget carries its own lock, and the two sides of it do not reach the same nodes. The side **across** a split is
+ * the size of the split itself: the height of the jump row is the height of the jump widget, so a locked jump fixes the
+ * row. The side **along** a split is only shared by the children of the split: a widget's own width is its width in
+ * its split, and it says nothing about the width of the column around it.
+ *
+ * That is why the walk stops at a split of the same orientation: the children of a horizontal split cut up the width
+ * between themselves, so a widget inside one of them does not speak for the width of the parent. The walk goes over
+ * the **areas** of the dock, not over the tree, because the areas are what hold the live widgets.
+ *
+ * @param area The area of the dock the child came from.
+ * @param orientation The axis of the split the child is in.
+ *
+ * @returns The lock box, or `undefined` when nothing in the child is locked.
+ */
+function lockOfChild(
+  area: DockLayout.AreaConfig | undefined,
+  orientation: 'horizontal' | 'vertical',
+): LockBox | undefined {
+  if (area === undefined) {
+    return undefined
+  }
+
+  if (area.type === 'tab-area') {
+    const widget = area.widgets[0]
+
+    if (widget === undefined) {
+      return undefined
+    }
+
+    return lockedBoxOf(widget)
+  }
+
+  // the children of this split share the width (or the height) of it, they do not take it from each other
+  if (area.orientation === orientation) {
+    return undefined
+  }
+
+  for (const child of area.children) {
+    const box = lockOfChild(child, orientation)
+
+    if (box !== undefined) {
+      return box
+    }
+  }
+
+  return undefined
+}
+
+/**
+ * Reads the size of one child of a split.
+ *
+ * @remarks
+ * A lock is not a thing lumino knows about: it lives on the node of the widget (`lockedPxOf`), so the size of a
+ * widget is read from there and the ratio from the dock. A child that is itself a split is always flexible.
+ *
+ * @param ratio The share the dock gave it.
+ * @param area The dock area the child came from, which is where a lock lives.
+ * @param orientation The axis of the split the child is in: a lock keeps both sides, this picks the one that matters.
+ *
+ * @returns The size spec of that child.
+ */
+function sizeOfChild(
+  ratio: number,
+  area: DockLayout.AreaConfig | undefined,
+  orientation: 'horizontal' | 'vertical',
+): ChildSize {
+  const box = lockOfChild(area, orientation)
+
+  if (box === undefined) {
+    return { kind: 'auto', ratio }
+  }
+
+  if (orientation === 'vertical') {
+    return { kind: 'fixed', px: box.height }
+  }
+
+  return { kind: 'fixed', px: box.width }
 }
 
 /**
@@ -220,7 +469,52 @@ export function toLayoutNode(
     return children[0]
   }
 
-  return { type: 'split', orientation: main.orientation, sizes: pickSizes(main.sizes, kept), children }
+  const raw = children.map((_, position) => {
+    return sizeOfChild(main.sizes[kept[position] ?? 0] ?? 0, main.children[kept[position] ?? 0], main.orientation)
+  })
+
+  // a widget that got locked between two passes turns its share into pixels: the shares of the others grow to the whole
+  // space the locks leave, or the layout would add the difference to them on every pass
+  const sizes = pickSizes(
+    raw,
+    children.map((_, index) => {
+      return index
+    }),
+  )
+
+  return { type: 'split', orientation: main.orientation, sizes, children }
+}
+
+/**
+ * Works out the weight of every kept child of a split.
+ *
+ * @param node The split to read.
+ * @param kept The indexes of the children that survived.
+ * @param sizes The planned pixels, when the caller has a plan.
+ *
+ * @returns One weight per kept child, in their order.
+ */
+function weightsOf(
+  node: LayoutNodeSplit,
+  kept: readonly number[],
+  sizes: ReadonlyMap<LayoutNode, number> | undefined,
+): number[] {
+  const picked = pickSizes(node.sizes, kept)
+  const weights: number[] = []
+
+  for (const [position, index] of kept.entries()) {
+    const child = node.children[index]
+
+    if (sizes !== undefined && child !== undefined) {
+      weights.push(sizes.get(child) ?? 0)
+
+      continue
+    }
+
+    weights.push(weightOf(picked[position] ?? { kind: 'auto', ratio: 1 }))
+  }
+
+  return weights
 }
 
 /**
@@ -233,12 +527,14 @@ export function toLayoutNode(
  *
  * @param node The node to build from.
  * @param widgetOf Finds the live widget of a kind.
+ * @param sizes The planned pixel size of every child of a split, when the caller has a plan.
  *
  * @returns The config for `restoreLayout`, or `null` when the tree can not be built.
  */
 export function toDockConfig(
   node: LayoutNode,
   widgetOf: (kind: string) => Widget | undefined,
+  sizes?: ReadonlyMap<LayoutNode, number>,
 ): DockLayout.ILayoutConfig | null {
   if (node.type === 'widget') {
     const widget = widgetOf(node.kind)
@@ -254,7 +550,7 @@ export function toDockConfig(
   const kept: number[] = []
 
   for (const [index, child] of node.children.entries()) {
-    const area = toDockConfig(child, widgetOf)?.main
+    const area = toDockConfig(child, widgetOf, sizes)?.main
 
     if (area === null || area === undefined) {
       continue
@@ -276,10 +572,39 @@ export function toDockConfig(
     main: {
       type: 'split-area',
       orientation: node.orientation,
-      sizes: pickSizes(node.sizes, kept),
+      sizes: weightsOf(node, kept, sizes),
       children,
     },
   }
+}
+
+/**
+ * Reads one size of a split from an unknown value.
+ *
+ * @remarks
+ * The old shape of the storage was a bare number: a layout saved with it is **not** migrated (the editor is not
+ * 1.0.0 yet), so a bare number makes the whole layout unknown, and the default takes over.
+ *
+ * @param value The value to read.
+ *
+ * @returns The size, or `null` when the value is not one.
+ */
+function isChildSize(value: unknown): value is ChildSize {
+  if (typeof value !== 'object' || value === null) {
+    return false
+  }
+
+  const candidate = value as Record<string, unknown>
+
+  if (candidate.kind === 'fixed') {
+    return typeof candidate.px === 'number' && Number.isSafeInteger(candidate.px) && candidate.px > 0
+  }
+
+  if (candidate.kind === 'auto') {
+    return typeof candidate.ratio === 'number' && Number.isFinite(candidate.ratio) && candidate.ratio > 0
+  }
+
+  return false
 }
 
 /**
@@ -339,8 +664,8 @@ export function parseLayoutNode(value: unknown): LayoutNode | null {
     return null
   }
 
-  const sizes = candidate.sizes.filter((size): size is number => {
-    return typeof size === 'number' && Number.isFinite(size) && size > 0
+  const sizes = candidate.sizes.filter((size): size is ChildSize => {
+    return isChildSize(size)
   })
 
   return {

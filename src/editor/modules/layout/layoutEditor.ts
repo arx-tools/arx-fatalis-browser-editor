@@ -1,5 +1,6 @@
 import type { DockPanel, Widget } from '@lumino/widgets'
 import { dragWidget } from './dragDrop.ts'
+import { lockWidgetTo, lockedBoxOf } from './layoutNode.ts'
 import { placeWidget } from './placement.ts'
 import { widgetKind } from './widgetDefinition.ts'
 
@@ -15,6 +16,14 @@ export interface WidgetOverlayOptions {
    * Called when the trash of the plate is clicked.
    */
   readonly onRemove: () => void
+  /**
+   * Whether the widget is locked to its size right now.
+   */
+  readonly locked: boolean
+  /**
+   * Called when the lock of the plate is clicked.
+   */
+  readonly onToggleLock: () => void
 }
 
 /**
@@ -57,6 +66,7 @@ export class LayoutEditor {
   private readonly dock: DockPanel
   private readonly container: HTMLElement
   private readonly mountOverlay: MountWidgetOverlay
+  private readonly onLockChanged: ((widget: Widget) => void) | undefined
   private readonly widgets = new Set<Widget>()
   private readonly overlays = new Map<Widget, Overlay>()
   private unlocked = false
@@ -68,11 +78,18 @@ export class LayoutEditor {
    * @param container The host element of the dock (the mode class lives here, because the dock node
    * itself is created by lumino).
    * @param mountOverlay Mounts the overlay of a widget into an element and returns its teardown.
+   * @param onLockChanged Called after a widget was locked or unlocked, so the owner can write the layout down.
    */
-  constructor(dock: DockPanel, container: HTMLElement, mountOverlay: MountWidgetOverlay) {
+  constructor(
+    dock: DockPanel,
+    container: HTMLElement,
+    mountOverlay: MountWidgetOverlay,
+    onLockChanged?: (widget: Widget) => void,
+  ) {
     this.dock = dock
     this.container = container
     this.mountOverlay = mountOverlay
+    this.onLockChanged = onLockChanged
   }
 
   /**
@@ -178,6 +195,29 @@ export class LayoutEditor {
   }
 
   /**
+   * Locks a widget to the size it has now, or unlocks it.
+   *
+   * @remarks
+   * The lock is a `max-height` on the node of the widget, which lumino reads as the limit of its size: the widget
+   * keeps the size while the column has room for it. The layout of the dock is refitted, and the owner of the dock is
+   * told, so it can write the new layout down and let the content minimums respect the lock.
+   *
+   * @param widget The widget to lock or unlock.
+   */
+  private toggleLock(widget: Widget): void {
+    if (lockedBoxOf(widget) === undefined) {
+      const box = widget.node.getBoundingClientRect()
+
+      lockWidgetTo(widget, { width: Math.round(box.width), height: Math.round(box.height) })
+    } else {
+      lockWidgetTo(widget, undefined)
+    }
+
+    this.dock.fit()
+    this.onLockChanged?.(widget)
+  }
+
+  /**
    * Mounts the overlay of a widget, if the edit mode is on and the widget is on the dock.
    *
    * @param widget The widget to decorate.
@@ -193,8 +233,12 @@ export class LayoutEditor {
 
     const unmount = this.mountOverlay(host, {
       label: widget.title.label,
+      locked: lockedBoxOf(widget) !== undefined,
       onRemove: () => {
         this.removeWidget(widget)
+      },
+      onToggleLock: () => {
+        this.toggleLock(widget)
       },
     })
 

@@ -9,6 +9,7 @@ installDom()
 
 // the dom has to be in place before these modules load (vue and lumino read the document on import)
 const { DockLayout, Widget } = await import('@lumino/widgets')
+const { flexSizes } = await import('../../../../src/editor/modules/layout/layoutNode.ts')
 const { dockWidgets } = await import('../../../../src/editor/modules/layout/dockWidgets.ts')
 const { clearPersistedRefRegistry } = await import('../../../../src/editor/modules/persistedRef/persistedRef.ts')
 const { createEditorShell } = await import('../../../../src/editor/modules/shell/createEditorShell.ts')
@@ -266,7 +267,7 @@ void describe('the layout of the shell', () => {
     const custom = {
       type: 'split',
       orientation: 'vertical',
-      sizes: [0.7, 0.3],
+      sizes: flexSizes(0.7, 0.3),
       children: [
         { type: 'widget', kind: 'keyboard-shortcuts' },
         { type: 'widget', kind: 'camera-controls' },
@@ -295,7 +296,7 @@ void describe('the layout of the shell', () => {
       JSON.stringify({
         type: 'split',
         orientation: 'vertical',
-        sizes: [0.7, 0.3],
+        sizes: flexSizes(0.7, 0.3),
         children: [
           { type: 'widget', kind: 'keyboard-shortcuts' },
           { type: 'widget', kind: 'camera-controls' },
@@ -316,7 +317,7 @@ void describe('the layout of the shell', () => {
       JSON.stringify({
         type: 'split',
         orientation: 'vertical',
-        sizes: [0.7, 0.3],
+        sizes: flexSizes(0.7, 0.3),
         children: [
           { type: 'widget', kind: 'help' },
           { type: 'widget', kind: 'view3d' },
@@ -359,7 +360,7 @@ void describe('the layout of the shell', () => {
       JSON.stringify({
         type: 'split',
         orientation: 'horizontal',
-        sizes: [0.5, 0.5],
+        sizes: flexSizes(0.5, 0.5),
         children: [
           { type: 'widget', kind: 'keyboard-shortcuts' },
           { type: 'widget', kind: 'nonsense' },

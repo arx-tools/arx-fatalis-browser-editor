@@ -24,10 +24,13 @@ body {
   height: 100%;
 }
 
-// a widget can not be dragged to zero: lumino reads these limits from the css (`Widget.fit`)
+// a widget can not be dragged to zero: lumino reads these limits from the css (`Widget.fit`), and it adds them up
+// on the node of the dock (a split is at least the sum of its children), so a small window can not squeeze the layout
+// below them. The heights are the floor of the plan (`contentFit.ts`) and the widths are a floor of their own: both
+// are small enough for a narrow window, and a widget that gets less than that is a widget that has to be made wider.
 .lm-DockPanel-widget {
-  min-width: 160px;
-  min-height: 120px;
+  min-width: 80px;
+  min-height: 40px;
 }
 
 // the camera form and the jump row fit in one line, so they can be squeezed into a thin strip above or

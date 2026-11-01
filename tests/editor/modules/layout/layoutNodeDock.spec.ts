@@ -6,7 +6,8 @@ installDom()
 
 const { DockLayout, DockPanel, Widget } = await import('@lumino/widgets')
 const { editorLayout } = await import('../../../../src/editor/modules/layout/layoutPresets.ts')
-const { collectKinds, toDockConfig, toLayoutNode } = await import('../../../../src/editor/modules/layout/layoutNode.ts')
+const { collectKinds, flexSizes, lockedBoxOf, lockWidgetTo, toDockConfig, toLayoutNode } =
+  await import('../../../../src/editor/modules/layout/layoutNode.ts')
 const { createWidget, widgetKind } = await import('../../../../src/editor/modules/layout/widgetDefinition.ts')
 
 /**
@@ -148,7 +149,17 @@ void describe('toDockConfig', () => {
     const { main } = config
     const root = editorLayout as Extract<typeof editorLayout, { type: 'split' }>
 
-    assert.deepEqual(main.sizes, root.sizes)
+    // the tree holds the size of every child, the config holds the weight of it: the ratios themselves here
+    assert.deepEqual(
+      main.sizes,
+      root.sizes.map((size) => {
+        if (size.kind === 'auto') {
+          return size.ratio
+        }
+
+        return size.px
+      }),
+    )
     assert.deepEqual(main.children.length, root.children.length)
   })
 
@@ -166,7 +177,7 @@ void describe('toDockConfig', () => {
     const node = {
       type: 'split' as const,
       orientation: 'horizontal' as const,
-      sizes: [0.5, 0.5],
+      sizes: flexSizes(0.5, 0.5),
       children: [
         { type: 'widget' as const, kind: 'help' },
         { type: 'widget' as const, kind: 'camera' },
@@ -185,7 +196,7 @@ void describe('toDockConfig', () => {
     const node = {
       type: 'split' as const,
       orientation: 'vertical' as const,
-      sizes: [0.3, 0.7],
+      sizes: flexSizes(0.3, 0.7),
       children: [
         { type: 'widget' as const, kind: 'statistics' },
         { type: 'widget' as const, kind: 'help' },
@@ -204,5 +215,277 @@ void describe('toDockConfig', () => {
     const splitMain = main
 
     assert.equal(splitMain.orientation, 'vertical')
+  })
+})
+
+void describe('the lock of a widget', () => {
+  void it('keeps a pixel size on the node, where the layout reads it', () => {
+    const widget = new Widget()
+
+    assert.equal(lockedBoxOf(widget), undefined)
+
+    lockWidgetTo(widget, { width: 400, height: 300 })
+
+    // the two sides of the box are on the node, and the layout reads them back from there
+    assert.equal(widget.node.dataset.lockedWidth, '400')
+    assert.equal(widget.node.dataset.lockedHeight, '300')
+    assert.deepEqual(lockedBoxOf(widget), { width: 400, height: 300 })
+
+    lockWidgetTo(widget, undefined)
+
+    assert.equal(widget.node.dataset.lockedWidth, undefined)
+    assert.equal(widget.node.dataset.lockedHeight, undefined)
+    assert.equal(lockedBoxOf(widget), undefined)
+  })
+
+  void it('reads a locked widget back as a fixed size', () => {
+    const widgets = makeWidgets(['a', 'b'])
+    const locked = widgets.get('a')
+    const free = widgets.get('b')
+
+    if (locked === undefined || free === undefined) {
+      throw new Error('the test needs its two widgets')
+    }
+
+    lockWidgetTo(locked, { width: 400, height: 300 })
+
+    const node = toLayoutNode(
+      {
+        main: {
+          type: 'split-area',
+          orientation: 'vertical',
+          sizes: [0.5, 0.5],
+          children: [
+            { type: 'tab-area', widgets: [locked], currentIndex: 0 },
+            { type: 'tab-area', widgets: [free], currentIndex: 0 },
+          ],
+        },
+      },
+      widgetKind,
+    )
+
+    assert.deepEqual(node, {
+      type: 'split',
+      orientation: 'vertical',
+      sizes: [
+        { kind: 'fixed', px: 300 },
+        { kind: 'auto', ratio: 1 },
+      ],
+      children: [
+        { type: 'widget', kind: 'a' },
+        { type: 'widget', kind: 'b' },
+      ],
+    })
+  })
+
+  void it('gives a fixed size its pixels as the weight of the config', () => {
+    const widgets = makeWidgets(['a', 'b'])
+    const config = toDockConfig(
+      {
+        type: 'split',
+        orientation: 'vertical',
+        sizes: [
+          { kind: 'fixed', px: 300 },
+          { kind: 'auto', ratio: 0.4 },
+        ],
+        children: [
+          { type: 'widget', kind: 'a' },
+          { type: 'widget', kind: 'b' },
+        ],
+      },
+      (kind) => {
+        return widgets.get(kind)
+      },
+    )
+
+    const main = config?.main
+
+    if (main?.type !== 'split-area') {
+      throw new Error('the test expects a split')
+    }
+
+    // the lock is a big weight: the child takes more than it may have, and its max-height clamps it back. The one
+    // flexible child is the only one left, so its ratio is normalized to one
+    assert.deepEqual(main.sizes, [300, 1])
+  })
+})
+
+void describe('the lock of a widget in a column', () => {
+  void it('fixes the width of the column and the height of the widget', () => {
+    const widgets = makeWidgets(['stats', 'other', 'third'])
+    const stats = widgets.get('stats')
+    const other = widgets.get('other')
+    const third = widgets.get('third')
+
+    if (stats === undefined || other === undefined || third === undefined) {
+      throw new Error('the test needs its widgets')
+    }
+
+    lockWidgetTo(stats, { width: 400, height: 300 })
+
+    const node = toLayoutNode(
+      {
+        main: {
+          type: 'split-area',
+          orientation: 'horizontal',
+          sizes: [0.5, 0.5],
+          children: [
+            {
+              type: 'split-area',
+              orientation: 'vertical',
+              sizes: [0.5, 0.5],
+              children: [
+                { type: 'tab-area', widgets: [stats], currentIndex: 0 },
+                { type: 'tab-area', widgets: [other], currentIndex: 0 },
+              ],
+            },
+            { type: 'tab-area', widgets: [third], currentIndex: 0 },
+          ],
+        },
+      },
+      widgetKind,
+    )
+
+    // the width of the column comes from the lock of the widget inside it, the height from the widget itself
+    assert.equal(node?.type, 'split')
+
+    if (node?.type !== 'split') {
+      throw new Error('the test expects a split')
+    }
+
+    assert.deepEqual(node.sizes[0], { kind: 'fixed', px: 400 })
+    assert.deepEqual(node.sizes[1], { kind: 'auto', ratio: 1 })
+
+    const [column] = node.children
+
+    assert.equal(column?.type, 'split')
+
+    if (column?.type !== 'split') {
+      throw new Error('the test expects a column')
+    }
+
+    assert.deepEqual(column.sizes[0], { kind: 'fixed', px: 300 })
+  })
+})
+
+void describe('the lock of a widget inside a row', () => {
+  void it('fixes the size of the row and its own width, and not the width of the column', () => {
+    const widgets = makeWidgets(['camera', 'jump', 'view', 'stats'])
+    const camera = widgets.get('camera')
+    const jump = widgets.get('jump')
+    const view = widgets.get('view')
+    const stats = widgets.get('stats')
+
+    if (camera === undefined || jump === undefined || view === undefined || stats === undefined) {
+      throw new Error('the test needs its widgets')
+    }
+
+    lockWidgetTo(jump, { width: 375, height: 51 })
+
+    const node = toLayoutNode(
+      {
+        main: {
+          type: 'split-area',
+          orientation: 'horizontal',
+          sizes: [0.6, 0.4],
+          children: [
+            {
+              type: 'split-area',
+              orientation: 'vertical',
+              sizes: [0.06, 0.94],
+              children: [
+                {
+                  type: 'split-area',
+                  orientation: 'horizontal',
+                  sizes: [0.6, 0.4],
+                  children: [
+                    { type: 'tab-area', widgets: [camera], currentIndex: 0 },
+                    { type: 'tab-area', widgets: [jump], currentIndex: 0 },
+                  ],
+                },
+                { type: 'tab-area', widgets: [view], currentIndex: 0 },
+              ],
+            },
+            { type: 'tab-area', widgets: [stats], currentIndex: 0 },
+          ],
+        },
+      },
+      widgetKind,
+    )
+
+    if (node?.type !== 'split') {
+      throw new Error('the test expects a split')
+    }
+
+    // the width of the middle column is not the width of the row inside it
+    assert.deepEqual(node.sizes[0], { kind: 'auto', ratio: 0.6 })
+
+    const [column] = node.children
+
+    if (column?.type !== 'split') {
+      throw new Error('the test expects a column')
+    }
+
+    // the height of the row is the height of the jump, and the view below it takes the rest
+    assert.deepEqual(column.sizes[0], { kind: 'fixed', px: 51 })
+    assert.deepEqual(column.sizes[1], { kind: 'auto', ratio: 1 })
+
+    const [row] = column.children
+
+    if (row?.type !== 'split') {
+      throw new Error('the test expects a row')
+    }
+
+    // and inside the row the jump keeps its own width
+    assert.deepEqual(row.sizes[1], { kind: 'fixed', px: 375 })
+  })
+})
+
+void describe('the shares of a split with a lock', () => {
+  void it('grows the shares of the free children to the space the lock leaves', () => {
+    const widgets = makeWidgets(['left', 'middle', 'right'])
+    const left = widgets.get('left')
+    const middle = widgets.get('middle')
+    const right = widgets.get('right')
+
+    if (left === undefined || middle === undefined || right === undefined) {
+      throw new Error('the test needs its widgets')
+    }
+
+    // the right column is locked between two passes: its share is pixels now, so the other two share the rest
+    lockWidgetTo(right, { width: 314, height: 300 })
+
+    const node = toLayoutNode(
+      {
+        main: {
+          type: 'split-area',
+          orientation: 'horizontal',
+          sizes: [0.2, 0.6, 0.2],
+          children: [
+            { type: 'tab-area', widgets: [left], currentIndex: 0 },
+            { type: 'tab-area', widgets: [middle], currentIndex: 0 },
+            { type: 'tab-area', widgets: [right], currentIndex: 0 },
+          ],
+        },
+      },
+      widgetKind,
+    )
+
+    if (node?.type !== 'split') {
+      throw new Error('the test expects a split')
+    }
+
+    assert.deepEqual(node.sizes[0], { kind: 'auto', ratio: 0.25 })
+    const middleSize = node.sizes[1]
+
+    // the sum of the two is one, up to the rounding of the division
+    assert.equal(middleSize?.kind, 'auto')
+
+    if (middleSize?.kind !== 'auto') {
+      throw new Error('the test expects a share')
+    }
+
+    assert.ok(Math.abs(middleSize.ratio - 0.75) < 1e-9)
+    assert.deepEqual(node.sizes[2], { kind: 'fixed', px: 314 })
   })
 })

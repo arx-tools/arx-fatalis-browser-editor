@@ -43,6 +43,12 @@ export function editorUrl(): string {
  */
 export async function seedLayout(page: Page, layout: LayoutNode): Promise<void> {
   await page.addInitScript((seeded: unknown) => {
+    // a navigation (a reload included) runs this script again: the layout of the editor is only seeded when there is
+    // none, so a test that reloads keeps what the editor wrote in the first round
+    if (localStorage.getItem('layout') !== null) {
+      return
+    }
+
     localStorage.clear()
     localStorage.setItem('layout', JSON.stringify(seeded))
   }, layout)

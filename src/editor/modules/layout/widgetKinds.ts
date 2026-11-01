@@ -8,7 +8,8 @@
  * ({@link ../layout/widgetPresence.ts}). So the names are written here once, and the name says what the
  * widget is (`camera-controls`, not `camera`).
  *
- * The kinds were renamed on 2026-10-28. A layout that was saved under the old names is **not** migrated:
+ * The kinds were renamed on 2026-10-28, and again on 2026-10-31 (`controls` became `keyboard-shortcuts`, so the
+ * name of the kind is the name of the widget). A layout that was saved under the old names is **not** migrated:
  * its kinds are unknown, so they drop out and the default layout takes over (the editor is not 1.0.0 yet,
  * a stale localStorage value does not have to be kept alive).
  */
@@ -60,5 +61,5 @@ export const WIDGET_KINDS = {
   /**
    * The key table of the editor.
    */
-  controls: 'controls',
+  keyboardShortcuts: 'keyboard-shortcuts',
 } as const

@@ -25,7 +25,7 @@ import type { DockLayout, Widget } from '@lumino/widgets'
  *       sizes: [0.5, 0.5],
  *       children: [
  *         { type: 'widget', kind: 'map-statistics' },
- *         { type: 'widget', kind: 'controls' },
+ *         { type: 'widget', kind: 'keyboard-shortcuts' },
  *       ],
  *     },
  *   ],

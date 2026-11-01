@@ -53,7 +53,7 @@ void describe('the editor preset', () => {
       '3d-view',
       'map-statistics',
       'polygon-inspector',
-      'controls',
+      'keyboard-shortcuts',
     ])
   })
 })
@@ -63,9 +63,9 @@ void describe('collectKinds', () => {
     assert.deepEqual(collectKinds(editorLayout).toSorted(), [
       '3d-view',
       'camera-controls',
-      'controls',
       'front-view',
       'jump-to-location',
+      'keyboard-shortcuts',
       'left-view',
       'map-statistics',
       'polygon-inspector',

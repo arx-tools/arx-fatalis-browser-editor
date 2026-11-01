@@ -41,7 +41,7 @@ const definitions: readonly WidgetDefinition[] = [
     },
   },
   {
-    kind: 'controls',
+    kind: 'keyboard-shortcuts',
     label: 'Controls',
     group: 'info',
     create: (): LuminoWidget => {
@@ -160,7 +160,12 @@ void describe('the layout of the shell', () => {
     const { shell } = buildShell()
 
     assert.equal(shell.isLayoutModified.value, false)
-    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['3d-view', 'controls', 'jump-to-location', 'top-view'])
+    assert.deepEqual([...shell.placedKinds.value].toSorted(), [
+      '3d-view',
+      'jump-to-location',
+      'keyboard-shortcuts',
+      'top-view',
+    ])
     shell.dispose()
   })
 
@@ -193,7 +198,12 @@ void describe('the layout of the shell', () => {
 
     assert.equal(shell.selectedPreset.value, 'viewer')
     assert.equal(shell.isLayoutModified.value, false)
-    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['3d-view', 'controls', 'jump-to-location', 'top-view'])
+    assert.deepEqual([...shell.placedKinds.value].toSorted(), [
+      '3d-view',
+      'jump-to-location',
+      'keyboard-shortcuts',
+      'top-view',
+    ])
     shell.dispose()
   })
 
@@ -222,9 +232,9 @@ void describe('the layout of the shell', () => {
     assert.deepEqual([...shell.placedKinds.value].toSorted(), [
       '3d-view',
       'camera-controls',
-      'controls',
       'front-view',
       'jump-to-location',
+      'keyboard-shortcuts',
       'left-view',
       'map-statistics',
       'polygon-inspector',
@@ -245,7 +255,7 @@ void describe('the layout of the shell', () => {
 
     shell.addWidget('camera-controls')
     shell.applyPreset('editor')
-    shell.addWidget('controls')
+    shell.addWidget('keyboard-shortcuts')
 
     assert.equal(shell.selectedPreset.value, 'custom')
     assert.equal(shell.presets.value.length, 3)
@@ -258,7 +268,7 @@ void describe('the layout of the shell', () => {
       orientation: 'vertical',
       sizes: [0.7, 0.3],
       children: [
-        { type: 'widget', kind: 'controls' },
+        { type: 'widget', kind: 'keyboard-shortcuts' },
         { type: 'widget', kind: 'camera-controls' },
       ],
     }
@@ -287,7 +297,7 @@ void describe('the layout of the shell', () => {
         orientation: 'vertical',
         sizes: [0.7, 0.3],
         children: [
-          { type: 'widget', kind: 'controls' },
+          { type: 'widget', kind: 'keyboard-shortcuts' },
           { type: 'widget', kind: 'camera-controls' },
         ],
       }),
@@ -295,7 +305,7 @@ void describe('the layout of the shell', () => {
 
     const { shell } = buildShell()
 
-    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['camera-controls', 'controls'])
+    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['camera-controls', 'keyboard-shortcuts'])
     assert.equal(shell.isLayoutModified.value, true)
     shell.dispose()
   })
@@ -318,7 +328,12 @@ void describe('the layout of the shell', () => {
 
     // the kind rename does not keep the old names alive: the unknown kinds drop out and, with nothing
     // left, the default (viewer) layout takes over (the editor is not 1.0.0 yet)
-    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['3d-view', 'controls', 'jump-to-location', 'top-view'])
+    assert.deepEqual([...shell.placedKinds.value].toSorted(), [
+      '3d-view',
+      'jump-to-location',
+      'keyboard-shortcuts',
+      'top-view',
+    ])
     assert.equal(shell.isLayoutModified.value, false)
     shell.dispose()
   })
@@ -328,7 +343,12 @@ void describe('the layout of the shell', () => {
 
     const { shell } = buildShell()
 
-    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['3d-view', 'controls', 'jump-to-location', 'top-view'])
+    assert.deepEqual([...shell.placedKinds.value].toSorted(), [
+      '3d-view',
+      'jump-to-location',
+      'keyboard-shortcuts',
+      'top-view',
+    ])
     assert.equal(shell.isLayoutModified.value, false)
     shell.dispose()
   })
@@ -341,7 +361,7 @@ void describe('the layout of the shell', () => {
         orientation: 'horizontal',
         sizes: [0.5, 0.5],
         children: [
-          { type: 'widget', kind: 'controls' },
+          { type: 'widget', kind: 'keyboard-shortcuts' },
           { type: 'widget', kind: 'nonsense' },
         ],
       }),
@@ -349,7 +369,7 @@ void describe('the layout of the shell', () => {
 
     const { shell } = buildShell()
 
-    assert.deepEqual([...shell.placedKinds.value], ['controls'])
+    assert.deepEqual([...shell.placedKinds.value], ['keyboard-shortcuts'])
     shell.dispose()
   })
 })
@@ -415,7 +435,7 @@ void describe('the edit mode of the shell', () => {
     const { shell, host } = buildShell()
 
     shell.setEditing(true)
-    shell.addWidget('controls')
+    shell.addWidget('keyboard-shortcuts')
 
     assert.equal(host.querySelectorAll('.WidgetOverlay-host').length, 5)
     shell.dispose()
@@ -442,9 +462,14 @@ void describe('createEditorShell', () => {
   void it('lists the kinds that are on the dock', () => {
     const { shell } = buildShell()
 
-    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['3d-view', 'controls', 'jump-to-location', 'top-view'])
+    assert.deepEqual([...shell.placedKinds.value].toSorted(), [
+      '3d-view',
+      'jump-to-location',
+      'keyboard-shortcuts',
+      'top-view',
+    ])
 
-    shell.addWidget('controls')
+    shell.addWidget('keyboard-shortcuts')
 
     assert.equal(shell.placedKinds.value.length, 5)
     shell.dispose()
@@ -465,7 +490,7 @@ void describe('createEditorShell', () => {
 
   void it('adds a widget of a known kind', () => {
     const { shell } = buildShell()
-    const widget = shell.addWidget('controls')
+    const widget = shell.addWidget('keyboard-shortcuts')
 
     assert.equal(dockWidgets(shell.dock).length, 5)
     assert.equal(widget.title.label, 'Controls')

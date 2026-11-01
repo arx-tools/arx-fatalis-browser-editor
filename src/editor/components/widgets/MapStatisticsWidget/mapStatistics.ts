@@ -33,7 +33,10 @@ const PENDING_VALUE = '…'
  *
  * @returns The rows, in the order the widget shows them.
  */
-export function statisticsRows(map: { readonly statistics: MapStatistics } | undefined, selected = 0): StatisticsRow[] {
+export function mapStatisticsRows(
+  map: { readonly statistics: MapStatistics } | undefined,
+  selected = 0,
+): StatisticsRow[] {
   if (map === undefined) {
     return [
       { label: 'Triangles', value: PENDING_VALUE },

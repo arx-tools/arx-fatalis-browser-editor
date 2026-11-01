@@ -227,7 +227,7 @@ function buttonTitle(toggle: HelpToggle): string {
 </script>
 
 <template>
-  <div class="HelpWidget">
+  <div class="KeyboardShortcutsWidget">
     <WidgetHeading :label="props.label" />
     <section v-for="section in sections" :key="section.title" class="section">
       <div class="section-head">
@@ -290,7 +290,7 @@ function buttonTitle(toggle: HelpToggle): string {
 @use '../../../palette' as *;
 @use '../infoRows' as *;
 
-.HelpWidget {
+.KeyboardShortcutsWidget {
   height: 100%;
   padding: 8px;
 

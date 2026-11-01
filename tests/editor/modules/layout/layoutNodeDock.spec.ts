@@ -84,9 +84,9 @@ void describe('toLayoutNode', () => {
     assert.deepEqual(collectKinds(node).toSorted(), [
       '3d-view',
       'camera-controls',
-      'controls',
       'front-view',
       'jump-to-location',
+      'keyboard-shortcuts',
       'left-view',
       'map-statistics',
       'polygon-inspector',

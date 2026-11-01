@@ -4,7 +4,7 @@ import { levelRevision } from '../../../modules/level/editing.ts'
 import { levelStore } from '../../../modules/level/levelStore.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import WidgetHeading from '../../WidgetHeading.vue'
-import { statisticsRows } from './statistics.ts'
+import { mapStatisticsRows } from './mapStatistics.ts'
 
 /**
  * The label of the widget, from the widget definition.
@@ -24,7 +24,7 @@ const props = defineProps<{
  * revision of the level is the signal that they moved. It is watched with the selection (the last row counts the
  * faces the walkable view picked) and the map, so a delete and an undo both land on the widget.
  */
-const rows = shallowRef(statisticsRows(levelStore.map.value, selectionStore.count.value))
+const rows = shallowRef(mapStatisticsRows(levelStore.map.value, selectionStore.count.value))
 
 watch(
   [
@@ -39,14 +39,14 @@ watch(
     },
   ],
   () => {
-    rows.value = statisticsRows(levelStore.map.value, selectionStore.count.value)
+    rows.value = mapStatisticsRows(levelStore.map.value, selectionStore.count.value)
   },
   { immediate: true },
 )
 </script>
 
 <template>
-  <div class="StatisticsWidget">
+  <div class="MapStatisticsWidget">
     <WidgetHeading :label="props.label" />
     <dl>
       <template v-for="row in rows" :key="row.label">
@@ -61,7 +61,7 @@ watch(
 @use '../../../palette' as *;
 @use '../infoRows' as *;
 
-.StatisticsWidget {
+.MapStatisticsWidget {
   height: 100%;
   padding: 8px;
 

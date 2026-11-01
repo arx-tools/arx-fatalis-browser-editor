@@ -1,10 +1,10 @@
 import type { Widget } from '@lumino/widgets'
 import CameraControlsWidget from './components/widgets/CameraControlsWidget/CameraControlsWidget.vue'
 import FixedViewWidget from './components/widgets/FixedViewWidget/FixedViewWidget.vue'
-import HelpWidget from './components/widgets/HelpWidget/HelpWidget.vue'
+import KeyboardShortcutsWidget from './components/widgets/KeyboardShortcutsWidget/KeyboardShortcutsWidget.vue'
 import JumpToLocationWidget from './components/widgets/JumpToLocationWidget/JumpToLocationWidget.vue'
 import PolygonInspectorWidget from './components/widgets/PolygonInspectorWidget/PolygonInspectorWidget.vue'
-import StatisticsWidget from './components/widgets/StatisticsWidget/StatisticsWidget.vue'
+import MapStatisticsWidget from './components/widgets/MapStatisticsWidget/MapStatisticsWidget.vue'
 import View3DWidget from './components/widgets/View3DWidget/View3DWidget.vue'
 import type { CameraViewMode } from './components/widgets/FixedViewWidget/cameraAlign.ts'
 import { WIDGET_KINDS } from './modules/layout/widgetKinds.ts'
@@ -100,7 +100,7 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
     label: 'Map Statistics',
     group: 'info',
     create: (label): Widget => {
-      return new VueWidget(StatisticsWidget, { label })
+      return new VueWidget(MapStatisticsWidget, { label })
     },
   },
   {
@@ -112,11 +112,11 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
     },
   },
   {
-    kind: WIDGET_KINDS.controls,
+    kind: WIDGET_KINDS.keyboardShortcuts,
     label: 'Keyboard Shortcuts',
     group: 'info',
     create: (label): Widget => {
-      return new VueWidget(HelpWidget, { label })
+      return new VueWidget(KeyboardShortcutsWidget, { label })
     },
   },
 ]

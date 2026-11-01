@@ -100,7 +100,7 @@ export const editorLayout: LayoutNode = {
       children: [
         { type: 'widget', kind: WIDGET_KINDS.mapStatistics },
         { type: 'widget', kind: WIDGET_KINDS.polygonInspector },
-        { type: 'widget', kind: WIDGET_KINDS.controls },
+        { type: 'widget', kind: WIDGET_KINDS.keyboardShortcuts },
       ],
     },
   ],
@@ -128,7 +128,7 @@ export const viewerLayout: LayoutNode = {
       children: [
         { type: 'widget', kind: WIDGET_KINDS.topView },
         { type: 'widget', kind: WIDGET_KINDS.jumpToLocation },
-        { type: 'widget', kind: WIDGET_KINDS.controls },
+        { type: 'widget', kind: WIDGET_KINDS.keyboardShortcuts },
       ],
     },
   ],

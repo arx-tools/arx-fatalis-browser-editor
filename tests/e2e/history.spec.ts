@@ -33,7 +33,7 @@ async function facesOf(page: Page): Promise<number | undefined> {
  * @returns The section node.
  */
 function sectionOf(page: Page, title: string): Locator {
-  return page.locator('[data-widget-kind="controls"] section', { hasText: title }).first()
+  return page.locator('[data-widget-kind="keyboard-shortcuts"] section', { hasText: title }).first()
 }
 
 /**
@@ -46,7 +46,7 @@ function sectionOf(page: Page, title: string): Locator {
  * @returns The button of that word, ready to be clicked.
  */
 function historyButtonOf(page: Page, word: string): Locator {
-  return page.locator(`[data-widget-kind="controls"] button[aria-label="${word}"]`)
+  return page.locator(`[data-widget-kind="keyboard-shortcuts"] button[aria-label="${word}"]`)
 }
 
 /**
@@ -138,7 +138,7 @@ test('the redo follows the label on the key, not the position of a US keyboard',
 
   // a Hungarian keyboard is QWERTZ: the key labelled Z sits where a US keyboard has Y, so the browser reports
   // `key: 'z'` with `code: 'KeyY'`. The editor has to follow the label, so this is the undo.
-  await page.locator('[data-widget-kind="controls"]').evaluate((element) => {
+  await page.locator('[data-widget-kind="keyboard-shortcuts"]').evaluate((element) => {
     element.ownerDocument.defaultView?.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'z', code: 'KeyY', ctrlKey: true, bubbles: true, cancelable: true }),
     )

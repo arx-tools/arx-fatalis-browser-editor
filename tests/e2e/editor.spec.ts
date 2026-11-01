@@ -29,7 +29,7 @@ test('the shell opens with the default layout', async ({ page }) => {
   // the default layout is the viewer: the walkable view, the plan and the jump beside it, the keys under them
   await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(4)
 
-  for (const kind of ['3d-view', 'top-view', 'jump-to-location', 'controls']) {
+  for (const kind of ['3d-view', 'top-view', 'jump-to-location', 'keyboard-shortcuts']) {
     await expect(page.locator(`.lm-DockPanel-widget[data-widget-kind="${kind}"]`)).toBeVisible()
   }
 

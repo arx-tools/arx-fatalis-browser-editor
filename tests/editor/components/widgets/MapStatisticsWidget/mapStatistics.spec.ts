@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { MapStatistics } from '../../../../../src/generator/ArxMap.ts'
-import { statisticsRows } from '../../../../../src/editor/components/widgets/StatisticsWidget/statistics.ts'
+import { mapStatisticsRows } from '../../../../../src/editor/components/widgets/MapStatisticsWidget/mapStatistics.ts'
 
 /**
  * The numbers of a small test level.
@@ -15,9 +15,9 @@ const statistics: MapStatistics = {
   portalCount: 8,
 }
 
-void describe('statisticsRows', () => {
+void describe('mapStatisticsRows', () => {
   void it('shows a pending value for every row while the level is loading', () => {
-    const rows = statisticsRows(undefined)
+    const rows = mapStatisticsRows(undefined)
 
     assert.equal(rows.length, 7)
     assert.deepEqual(
@@ -29,7 +29,7 @@ void describe('statisticsRows', () => {
   })
 
   void it('shows the numbers of the loaded level', () => {
-    assert.deepEqual(statisticsRows({ statistics }), [
+    assert.deepEqual(mapStatisticsRows({ statistics }), [
       { label: 'Triangles', value: '2 536' },
       { label: 'Quads', value: '9 812' },
       { label: 'Total faces', value: '12 348' },
@@ -41,10 +41,10 @@ void describe('statisticsRows', () => {
   })
 
   void it('keeps the labels of the loading state', () => {
-    const pending = statisticsRows(undefined).map((row) => {
+    const pending = mapStatisticsRows(undefined).map((row) => {
       return row.label
     })
-    const loaded = statisticsRows({ statistics }).map((row) => {
+    const loaded = mapStatisticsRows({ statistics }).map((row) => {
       return row.label
     })
 
@@ -52,16 +52,16 @@ void describe('statisticsRows', () => {
   })
 })
 
-void describe('statisticsRows with a selection', () => {
+void describe('mapStatisticsRows with a selection', () => {
   void it('counts the selected faces in the row under the total', () => {
-    const rows = statisticsRows({ statistics }, 42)
+    const rows = mapStatisticsRows({ statistics }, 42)
 
     assert.deepEqual(rows[2], { label: 'Total faces', value: '12 348' })
     assert.deepEqual(rows[3], { label: 'Selected faces', value: '42' })
   })
 
   void it('keeps the row while the level is loading', () => {
-    const rows = statisticsRows(undefined, 7)
+    const rows = mapStatisticsRows(undefined, 7)
 
     assert.deepEqual(rows[3], { label: 'Selected faces', value: '…' })
   })

@@ -1,4 +1,5 @@
 import { computed, shallowRef, type ComputedRef, type ShallowRef } from 'vue'
+import type { HistoryRecord } from './records.ts'
 
 /**
  * How many steps the history keeps, the oldest falling out.
@@ -27,6 +28,15 @@ export interface HistoryCommand {
    * What the step is called, for the notes and a later panel: `Delete 3 face(s)`.
    */
   readonly label: string
+  /**
+   * The step the way a JSON can hold it, so the history can be written down later.
+   *
+   * @remarks
+   * The two forms describe the same step and are made together ({@link commandOf} builds both from the record), so
+   * what the editor can undo is exactly what it can store — a step that can not be written down would be lost on a
+   * reload without anyone noticing.
+   */
+  readonly record: HistoryRecord
   /**
    * Does the change.
    *
@@ -60,6 +70,25 @@ export interface History {
    * Whether there is a step to make again.
    */
   readonly canRedo: ComputedRef<boolean>
+  /**
+   * Every step that can be taken back, in the shape a JSON can hold.
+   *
+   * @remarks
+   * The persistence reads this (and the compaction of it, if the stored form is the net result instead of the steps).
+   */
+  readonly records: ComputedRef<readonly HistoryRecord[]>
+  /**
+   * Whether the level differs from the one that was loaded.
+   *
+   * @remarks
+   * It is worked out from the stack: all the steps taken back means the level is the one of the files again. It is
+   * the signal of a later export (`Save` asks before it throws the work away), and the persistence can show "there is
+   * something to keep" from the same place.
+   *
+   * A **save** would need a marker in the stack (the steps before the save are not unsaved work any more); there is
+   * no save yet, so the simple form is enough.
+   */
+  readonly edited: ComputedRef<boolean>
   /**
    * Does a change and puts it on the stack.
    *
@@ -100,6 +129,14 @@ export function createHistory(): History {
     }),
     canRedo: computed(() => {
       return redoStack.value.length > 0
+    }),
+    records: computed(() => {
+      return undoStack.value.map((command) => {
+        return command.record
+      })
+    }),
+    edited: computed(() => {
+      return undoStack.value.length > 0
     }),
     run: (command: HistoryCommand): void => {
       command.apply()

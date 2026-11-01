@@ -1,6 +1,6 @@
 import { shallowRef, watch, type ShallowRef } from 'vue'
-import type { ArxMap, PolygonInsertion } from '../../../generator/ArxMap.ts'
 import { history, type HistoryCommand } from '../history/history.ts'
+import { commandOf, createDeleteFacesRecord } from '../history/records.ts'
 import { onKeyboardAction } from '../keyboard/keyboard.ts'
 import { selectionStore } from '../selection/selectionStore.ts'
 import { levelStore } from './levelStore.ts'
@@ -16,32 +16,28 @@ import { levelStore } from './levelStore.ts'
 export const levelRevision: ShallowRef<number> = shallowRef(0)
 
 /**
- * Builds the step of a delete: the polygons go out on `apply`, and back at their places on `revert`.
+ * Wraps a step, so the views follow what it does.
  *
  * @remarks
- * The step takes the polygons **as they are now** (`{ index, polygon }` for every removed face), because the
- * indices of the level move with every removal: the polygon objects are what the level can be given back, and the
- * index is where they belong. It also bumps {@link levelRevision}, so the views rebuild what they derived from the
- * polygons — that is the one place an edit and its undo reach the views.
+ * The map is a plain object, so the views that draw something *derived* from it (the wireframe, the statistics, the
+ * inspector) have nothing reactive to follow: {@link levelRevision} is that signal, and it is bumped here, in the one
+ * place a step and its undo both pass through. It is the only reason a step is wrapped: the command itself knows
+ * nothing about the views.
  *
- * @param map The level the step changes.
- * @param insertions The faces it takes out, with the indices they go back to.
+ * @param command The step to wrap.
  *
- * @returns The command to run through the history.
+ * @returns The same step, with the revision bumped on both halves.
  */
-function createDeleteCommand(map: ArxMap, insertions: readonly PolygonInsertion[]): HistoryCommand {
+function withRevision(command: HistoryCommand): HistoryCommand {
   return {
-    label: `Delete ${String(insertions.length)} face(s)`,
+    label: command.label,
+    record: command.record,
     apply: (): void => {
-      map.removePolygons(
-        insertions.map((insertion) => {
-          return insertion.polygon
-        }),
-      )
+      command.apply()
       levelRevision.value = levelRevision.value + 1
     },
     revert: (): void => {
-      map.insertPolygons(insertions)
+      command.revert()
       levelRevision.value = levelRevision.value + 1
     },
   }
@@ -64,21 +60,13 @@ export function deleteSelectedPolygons(): void {
     return
   }
 
-  const insertions: PolygonInsertion[] = []
+  const command = commandOf(createDeleteFacesRecord(indices), map)
 
-  for (const index of indices) {
-    const polygon = map.polygons[index]
-
-    if (polygon !== undefined) {
-      insertions.push({ index, polygon })
-    }
-  }
-
-  if (insertions.length === 0) {
+  if (command === undefined) {
     return
   }
 
-  history.run(createDeleteCommand(map, insertions))
+  history.run(withRevision(command))
   selectionStore.clear()
 }
 

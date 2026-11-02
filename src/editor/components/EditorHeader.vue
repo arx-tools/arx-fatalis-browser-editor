@@ -13,6 +13,7 @@ const buildInfo = BUILD_INFO
     <div class="brand">
       <span class="title">Arx Fatalis Browser Editor</span>
       <span class="version">{{ buildInfo }}</span>
+      <span class="dot" aria-hidden="true">·</span>
       <a
         class="source"
         href="https://github.com/arx-tools/arx-fatalis-browser-editor"
@@ -24,6 +25,16 @@ const buildInfo = BUILD_INFO
         <svg class="source-mark" viewBox="0 0 24 24" aria-hidden="true">
           <path :d="siGithub.path" fill="currentColor" />
         </svg>
+      </a>
+      <span class="dot" aria-hidden="true">·</span>
+      <a
+        class="support"
+        href="https://github.com/sponsors/meszaros-lajos-gyorgy"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Support the project on GitHub Sponsors"
+      >
+        <span class="support-text">Don't hate, donate!</span>
       </a>
     </div>
 
@@ -66,7 +77,8 @@ const buildInfo = BUILD_INFO
 
     // the mark of the source: it reads as a part of the version line, so it takes its colour, and it lights
     // up to the colour of the title when the pointer is over it
-    .source {
+    .source,
+    .support {
       display: inline-flex;
       align-items: center;
       color: $text-subtle;
@@ -78,6 +90,22 @@ const buildInfo = BUILD_INFO
 
       &:hover {
         color: $text;
+      }
+    }
+
+    // the separator between the version, the source and the tip jar: it is a plain dot, so it reads as a
+    // quiet divider and not as a link
+    .dot {
+      color: $text-subtle;
+    }
+
+    // the way to the tip jar: a quiet line of text, the same weight as the version next to it, so the
+    // header keeps the title as the loud one
+    .support {
+      white-space: nowrap;
+
+      .support-text {
+        font-size: 11px;
       }
     }
 

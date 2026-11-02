@@ -1,7 +1,7 @@
 import { ref, shallowRef, type Ref, type ShallowRef } from 'vue'
 import type { ArxMap } from '../../../generator/ArxMap.ts'
 import type { LoadingStatus } from '../../types.ts'
-import { loadStarterLevel } from './levelSource.ts'
+import { loadLevel, loadStarterLevel, type LevelSource } from './levelSource.ts'
 
 /**
  * The configuration of {@link createLevelStore}.
@@ -43,7 +43,7 @@ export interface LevelStore {
    */
   readonly error: Ref<string | undefined>
   /**
-   * Starts the load.
+   * Starts the load of the level the editor opens with.
    *
    * @remarks
    * It is idempotent: the second call does nothing while the first one is still running, and it does
@@ -51,6 +51,17 @@ export interface LevelStore {
    * and {@link LevelStore.error}.
    */
   startLoading: () => void
+  /**
+   * Loads another level, over the one on the screen.
+   *
+   * @remarks
+   * The store holds **one** map and the widgets follow it, so a new level replaces the old one: the history and the
+   * selection belong to the level that is going away, and they are dropped by the editing module when the map
+   * changes. A failure keeps the error of the source, so an unusable zip says why.
+   *
+   * @param source Where the files of the new level come from.
+   */
+  openLevel: (source: LevelSource) => Promise<void>
 }
 
 /**
@@ -88,13 +99,15 @@ export function createLevelStore(options: LevelStoreOptions = {}): LevelStore {
   let pending: Promise<void> | undefined
 
   /**
-   * Runs the load once and writes the outcome into the state.
+   * Runs a load and writes the outcome into the state.
+   *
+   * @param build The step that produces the map.
    */
-  async function load(): Promise<void> {
+  async function load(build: () => ArxMap | Promise<ArxMap>): Promise<void> {
     status.value = 'loading'
 
     try {
-      map.value = await loadMap()
+      map.value = await build()
       error.value = undefined
       status.value = 'ready'
     } catch (error_) {
@@ -112,7 +125,15 @@ export function createLevelStore(options: LevelStoreOptions = {}): LevelStore {
         return
       }
 
-      pending = load()
+      pending = load(loadMap)
+    },
+    openLevel: async (source: LevelSource): Promise<void> => {
+      // one level at a time: a load that is already running finishes first, so the two do not race for the map
+      await pending
+      pending = load(async (): Promise<ArxMap> => {
+        return await loadLevel(source)
+      })
+      await pending
     },
   }
 }

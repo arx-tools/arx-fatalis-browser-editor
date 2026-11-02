@@ -108,7 +108,9 @@ export function startLevelEditing(): void {
       return levelStore.map.value
     },
     () => {
+      // the steps and the selection are indices of the old map: a new level makes both meaningless
       history.clear()
+      selectionStore.clear()
     },
   )
 }

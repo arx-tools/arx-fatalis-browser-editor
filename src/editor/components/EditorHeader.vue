@@ -2,6 +2,7 @@
 // the mark of the source: the brand icons of lucide are deprecated, so this one comes from Simple Icons,
 // which is what the lucide docs point at (https://simpleicons.org/?q=github)
 import { siGithub } from 'simple-icons'
+import LevelSelector from './LevelSelector.vue'
 import WidgetManager from './WidgetManager.vue'
 
 // the version, the commit and the build date of this build (see `vite.config.ts`)
@@ -38,6 +39,10 @@ const buildInfo = BUILD_INFO
       </a>
     </div>
 
+    <div class="levels">
+      <LevelSelector />
+    </div>
+
     <WidgetManager />
   </header>
 </template>
@@ -48,12 +53,22 @@ const buildInfo = BUILD_INFO
 // The header is scoped: the root class is the component name, the nested names stay short, and the
 // nesting only follows the elements of this component.
 .EditorHeader {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 4px 10px;
   border-bottom: 1px solid $border-dark;
   background: $surface-float;
+
+  // the level of the document sits in the middle of the header: it is what the editor shows, and the widget tools on
+  // the right are about the view of it. The box is out of the row of the flex, so the middle is the middle of the
+  // header and not the middle of the space the brand leaves
+  .levels {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+  }
 
   // the brand takes the free space, so the widget manager ends up on the right side
   .brand {

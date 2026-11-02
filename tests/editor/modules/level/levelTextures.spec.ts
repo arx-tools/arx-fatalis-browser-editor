@@ -2,10 +2,11 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ArxPolygon } from 'arx-convert/types'
 import JSZip from 'jszip'
-import { Texture, type Material, type MeshLambertMaterial } from 'three'
+import { BufferAttribute, Texture, type Material, type MeshLambertMaterial } from 'three'
 import { ArxMap } from '../../../../src/generator/ArxMap.ts'
 import { createBlankLevelFiles, MINIMAL_PRESET } from '../../../../src/editor/modules/level/blankLevel.ts'
 import {
+  drawnRunsOf,
   faceRunsOf,
   findTextureFiles,
   paintLevelTextures,
@@ -188,6 +189,23 @@ void describe('the paint of a level', () => {
     }
 
     assert.deepEqual((first as MeshLambertMaterial).map, missing)
+  })
+
+  void it('covers the whole index with the groups, in the order the geometry draws', () => {
+    const map = blankMap()
+    const textures = new Map([['jorge-[stone].jpg', new Texture()]])
+
+    paintLevelTextures(map, textures)
+
+    const index = map.solidMeshes[0]?.geometry.getIndex() ?? new BufferAttribute(new Float32Array(0), 1)
+
+    // the picking builds a BVH, and its tree writes an index: the groups have to be in that order, not the plain one
+    assert.equal(index.count > 0, true)
+
+    const runs = drawnRunsOf(map, index, new Map([['jorge-[stone].jpg', 1]]))
+
+    // every face of the blank level stands on the same texture, so one run covers the whole index from its first place
+    assert.deepEqual(runs, [{ start: 0, count: index.count, index: 1 }])
   })
 
   void it('puts the flat material back and drops the groups', () => {

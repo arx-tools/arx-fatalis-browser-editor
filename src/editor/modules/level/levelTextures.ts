@@ -1,12 +1,21 @@
 import type { ArxPolygon } from 'arx-convert/types'
 import { isQuad } from 'arx-convert/utils'
 import JSZip from 'jszip'
-import { MeshLambertMaterial, RepeatWrapping, SRGBColorSpace, Texture, type Material, type Mesh } from 'three'
+import {
+  MeshLambertMaterial,
+  RepeatWrapping,
+  SRGBColorSpace,
+  Texture,
+  type BufferAttribute,
+  type Material,
+  type Mesh,
+} from 'three'
 import { watch } from 'vue'
 import type { ArxMap } from '../../../generator/ArxMap.ts'
 import { BLANK_LEVEL_TEXTURE, GENERATOR_ASSETS } from '../../../generator/assets.ts'
 import { createLevelMaterial } from '../../../generator/meshes.ts'
 import { levelRevision } from './editing.ts'
+import { fetchGameTexture, gameTexturesFromUrl } from './gameTextures.ts'
 import { levelStore } from './levelStore.ts'
 
 /**
@@ -22,17 +31,36 @@ import { levelStore } from './levelStore.ts'
  */
 
 /**
- * The MIME type of a texture, by its extension.
+ * The MIME type of a texture.
  *
  * @remarks
  * The blob needs a type: a blob without one is not a document every browser decodes an image from, and the game's
  * textures are BMP, JPG and PNG files.
  *
+ * The **bytes** say it first, because a level may name a texture without its extension (`[glass]_windows2`) while the
+ * file is a `.jpg`: the name is only the fallback.
+ *
  * @param name The name the level calls the texture.
+ * @param bytes The bytes of the file.
  *
  * @returns The MIME type, `application/octet-stream` for a name with no known extension.
  */
-function mimeTypeOf(name: string): string {
+function mimeTypeOf(name: string, bytes: ArrayBuffer): string {
+  const head = new Uint8Array(bytes, 0, Math.min(bytes.byteLength, 3))
+
+  // the magic of the three formats of the game: JPEG (FF D8 FF), PNG (89 50 4E 47), BMP (42 4D)
+  if (head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff) {
+    return 'image/jpeg'
+  }
+
+  if (head[0] === 0x89 && head[1] === 0x50 && head[2] === 0x4e) {
+    return 'image/png'
+  }
+
+  if (head[0] === 0x42 && head[1] === 0x4d) {
+    return 'image/bmp'
+  }
+
   const lower = name.toLowerCase()
 
   if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
@@ -49,6 +77,17 @@ function mimeTypeOf(name: string): string {
 
   return 'application/octet-stream'
 }
+
+/**
+ * The anisotropic filtering the textures of a level ask for.
+ *
+ * @remarks
+ * A level is looked at along the floor and the walls, at a grazing angle where an unfiltered texture turns into a
+ * shimmer of noise (a wall of bricks reads as a mess). The hardware filters along the direction of the view up to a
+ * limit of its own, and three clamps the value to that limit, so a number that is high enough for every card asks for
+ * the best a machine has.
+ */
+const ANISOTROPY = 16
 
 /**
  * Reads the name of a file of a zip path.
@@ -199,12 +238,13 @@ export async function decodeTextures(files: ReadonlyMap<string, ArrayBuffer>): P
 
   for (const [name, bytes] of files) {
     try {
-      const bitmap = await createImageBitmap(new Blob([bytes], { type: mimeTypeOf(name) }))
+      const bitmap = await createImageBitmap(new Blob([bytes], { type: mimeTypeOf(name, bytes) }))
       const texture = new Texture(bitmap)
 
       texture.colorSpace = SRGBColorSpace
       texture.wrapS = RepeatWrapping
       texture.wrapT = RepeatWrapping
+      texture.anisotropy = ANISOTROPY
       texture.needsUpdate = true
       textures.set(name, texture)
     } catch {
@@ -257,6 +297,7 @@ export async function loadMissingTexture(): Promise<Texture> {
   texture.colorSpace = SRGBColorSpace
   texture.wrapS = RepeatWrapping
   texture.wrapT = RepeatWrapping
+  texture.anisotropy = ANISOTROPY
   texture.needsUpdate = true
   missingTexture = texture
 
@@ -318,6 +359,70 @@ export function faceRunsOf(
     }
 
     start = start + count
+  }
+
+  return runs
+}
+
+/**
+ * One run of the faces of a level that share a texture, with the material it draws with.
+ */
+export interface DrawnRun {
+  /**
+   * The first index of the run in the index buffer of the geometry.
+   */
+  readonly start: number
+  /**
+   * How many indices the run holds: three per triangle.
+   */
+  readonly count: number
+  /**
+   * The material the run draws with.
+   */
+  readonly index: number
+}
+
+/**
+ * Reads the runs of the faces of a level in the order the geometry draws them.
+ *
+ * @remarks
+ * The mesh of the level is picked with a BVH, and the tree writes an **index** into the geometry: the triangles of the
+ * index buffer are not in the order of the polygons (the tree groups them for its own walk). A group of the geometry is
+ * a range of that buffer, so the runs have to be read there: every triangle of the buffer names its polygon through
+ * {@link ArxMap.triangleToPolygon}, and the polygon names its texture.
+ *
+ * @param map The map the geometry belongs to.
+ * @param index The index of the geometry.
+ * @param indexOfName The material of a texture, by the name the level calls it.
+ *
+ * @returns The runs, in the order of the index buffer.
+ */
+export function drawnRunsOf(map: ArxMap, index: BufferAttribute, indexOfName: ReadonlyMap<string, number>): DrawnRun[] {
+  const runs: DrawnRun[] = []
+
+  for (let triangle = 0; triangle < index.count / 3; triangle = triangle + 1) {
+    // the first vertex of the triangle is the start of its polygon in the plain order: three vertices per triangle
+    const plain = index.getX(triangle * 3) / 3
+    const polygon = map.polygons[map.triangleToPolygon[plain] ?? -1]
+    let name: string | undefined
+
+    if (polygon !== undefined) {
+      name = map.textureNameOf(polygon.textureContainerId)
+    }
+
+    let material = 0
+
+    if (name !== undefined) {
+      material = indexOfName.get(name) ?? 0
+    }
+
+    const last = runs.at(-1)
+
+    if (last?.index === material) {
+      runs[runs.length - 1] = { start: last.start, count: last.count + 3, index: material }
+    } else {
+      runs.push({ start: triangle * 3, count: 3, index: material })
+    }
   }
 
   return runs
@@ -470,25 +575,36 @@ export function paintLevelTextures(map: ArxMap, textures: ReadonlyMap<string, Te
   }
 
   const { geometry } = mesh
-  const runs = faceRunsOf(polygons, (polygon) => {
-    return map.textureNameOf(polygon.textureContainerId)
-  })
+
+  // the groups follow the order the geometry **draws**: the picking builds a BVH on the mesh and its tree writes an
+  // index, which reorders the triangles (`ArxMap.refillGeometry` says the index belongs to the BVH). A group of the
+  // plain vertex order would cut the faces in the wrong places — the material of a neighbour on half of them.
+  const index = geometry.getIndex()
 
   geometry.clearGroups()
 
-  for (const run of runs) {
-    let index = 0
-    let named: number | undefined
+  if (index === null) {
+    // a geometry the picking has not indexed yet: the polygons are in the order of the vertices
+    for (const run of faceRunsOf(polygons, (polygon) => {
+      return map.textureNameOf(polygon.textureContainerId)
+    })) {
+      let material = 0
+      let named: number | undefined
 
-    if (run.name !== undefined) {
-      named = indexOfName.get(run.name)
+      if (run.name !== undefined) {
+        named = indexOfName.get(run.name)
+      }
+
+      if (named !== undefined) {
+        material = named
+      }
+
+      geometry.addGroup(run.start, run.count, material)
     }
-
-    if (named !== undefined) {
-      index = named
+  } else {
+    for (const run of drawnRunsOf(map, index, indexOfName)) {
+      geometry.addGroup(run.start, run.count, run.index)
     }
-
-    geometry.addGroup(run.start, run.count, index)
   }
 
   if (started?.mesh !== mesh) {
@@ -558,14 +674,38 @@ export async function paintZipLevel(map: ArxMap, data: ArrayBuffer | undefined):
 
   const names = textureNamesOf(map)
   const files = await findTextureFiles(data, names)
+  const inZip = files.size
+
+  // the textures the zip does not have are the ones of the game itself: their folder may be named in the url
+  const folder = gameTexturesFromUrl()
+
+  if (folder !== undefined) {
+    for (const name of names) {
+      if (files.has(name)) {
+        continue
+      }
+
+      try {
+        const bytes = await fetchGameTexture(folder, name)
+
+        if (bytes !== undefined) {
+          files.set(name, bytes)
+        }
+      } catch {
+        // a folder that can not be read leaves the texture flat, the level is still complete
+      }
+    }
+  }
+
   const textures = await decodeTextures(files)
-  // the textures of the game are not in the zip: the placeholder of the generator stands in for them
+  // the containers left without a texture take the placeholder of the generator
   const missing = await loadMissingTexture()
   const painted = paintZipTextures(map, textures, missing)
+  const fromGame = files.size - inZip
 
-  // the user has to know what the zip brought: the containers it does not have are the textures of the game
+  // the user has to know what came from where: the rest of the containers is what the placeholder stands in for
   console.info(
-    `Textures of the zip: ${String(painted)} of ${String(names.length)} painted, ${String(files.size)} found.`,
+    `Textures: ${String(painted)} of ${String(names.length)} painted, ${String(inZip)} from the zip, ${String(fromGame)} from the game.`,
   )
 }
 

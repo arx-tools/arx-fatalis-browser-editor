@@ -352,13 +352,180 @@ export async function readLevelFromZip(data: ArrayBuffer, label: string): Promis
  *
  * @returns The source, which needs no network.
  */
-export function createZipLevelSource(name: string, data: ArrayBuffer): LevelSource {
+export interface ZipLevelSource extends LevelSource {
+  /**
+   * The bytes of the zip, once it is loaded.
+   *
+   * @remarks
+   * The textures of the level are in the same zip, and the editor paints them on the map **before** the views get it
+   * (`levelStore.openLevel`'s prepare step), so the bytes are kept here instead of downloading the zip twice.
+   *
+   * @returns The bytes, or `undefined` when the zip has not been read yet.
+   */
+  readonly data: () => ArrayBuffer | undefined
+}
+
+/**
+ * The source of a level from a zip the editor already has.
+ *
+ * @param name The name of the zip, for the messages.
+ * @param data The bytes of the zip.
+ *
+ * @returns The source, which reads the level out of the bytes it was given.
+ */
+export function createZipLevelSource(name: string, data: ArrayBuffer): ZipLevelSource {
   return {
     label: name,
+    data: (): ArrayBuffer => {
+      return data
+    },
     load: async (): Promise<LevelFiles> => {
       const level = await readLevelFromZip(data, name)
 
       return level.files
     },
   }
+}
+
+/**
+ * The route the development server serves a zip of the disk on.
+ *
+ * @remarks
+ * The page can not read a `file://` url: the browser forbids it to a page that came from http. The development server
+ * of the editor can read the disk, so it serves the file under this route (see `vite.config.ts`), and the editor asks
+ * for it there. The shipped editor has no server: a zip of the disk is chosen in the picker of the header there.
+ */
+const LOCAL_ZIP_ROUTE = '/__local-zip'
+
+/**
+ * The path of a `file://` url.
+ *
+ * @param value The value of the parameter, which may be a file url.
+ *
+ * @returns The path of the file the url names, or `undefined` when it is not a file url.
+ */
+function pathOfFileUrl(value: string): string | undefined {
+  if (!value.startsWith('file://')) {
+    return undefined
+  }
+
+  try {
+    return decodeURIComponent(new URL(value).pathname)
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * The url the page should download the zip of the `fromZip` parameter from.
+ *
+ * @remarks
+ * The value may be a url the browser can fetch (`https://…/level.zip`, or a path relative to the page), a `file://`
+ * url, or an absolute path (`/home/lali/maps/level.zip`). The last two are read by the development server, which
+ * serves the file under {@link LOCAL_ZIP_ROUTE}.
+ *
+ * A `file://` url is an error **outside** the development server: the shipped editor has no server to read the disk of
+ * the user with. A plain absolute path is read as a file only on the development server; outside it is a path of the
+ * site itself (`/editor/level.zip`), so it is fetched as a url.
+ *
+ * @param value The value of the parameter.
+ * @param isDev Whether the editor runs on the development server.
+ *
+ * @returns The url to fetch.
+ *
+ * @throws When the value names a file of the disk and the editor has no server to read it with.
+ */
+export function zipFetchUrl(value: string, isDev: boolean): string {
+  const filePath = pathOfFileUrl(value)
+  let local = filePath
+
+  if (local === undefined && isDev && value.startsWith('/')) {
+    local = value
+  }
+
+  if (local === undefined) {
+    if (filePath !== undefined) {
+      throw new Error(`The editor can not read ${value}: a file of the disk needs its development server.`)
+    }
+
+    return value
+  }
+
+  if (!isDev) {
+    throw new Error(`The editor can not read ${local}: a file of the disk needs its development server.`)
+  }
+
+  return `${LOCAL_ZIP_ROUTE}?path=${encodeURIComponent(local)}`
+}
+
+/**
+ * Whether the editor runs on its development server.
+ *
+ * @remarks
+ * The route of the local zips is a plugin of that server only, and the tests of the sources run in node, where
+ * `import.meta.env` is not there at all.
+ */
+const IS_DEVELOPMENT = (import.meta as { env?: { DEV?: boolean } }).env?.DEV === true
+
+/**
+ * The name of the zip, for the messages.
+ *
+ * @param value The value of the `fromZip` parameter.
+ *
+ * @returns The last part of its path.
+ */
+function fileNameOf(value: string): string {
+  const path = pathOfFileUrl(value) ?? value.split(/[#?]/u, 1)[0] ?? value
+
+  return path.split('/').at(-1) ?? 'level.zip'
+}
+
+/**
+ * The source of a level from the url of a zip.
+ *
+ * @remarks
+ * The `fromZip` parameter of the url (`?fromZip=file:///home/lali/maps/level.zip`): the editor downloads the zip and
+ * opens the level in it, so a hand test is one url instead of a file picker. The textures of the zip are painted on
+ * the level the same way the picker paints them.
+ *
+ * @param url The url of the zip, or the path of a file of the disk on the development server.
+ * @param isDev Whether the editor runs on the development server (the tests pass it in; the app takes the build's).
+ *
+ * @returns The source, which downloads the zip when the level is loaded.
+ */
+export function createZipUrlLevelSource(url: string, isDev = IS_DEVELOPMENT): ZipLevelSource {
+  let data: ArrayBuffer | undefined
+
+  const name = fileNameOf(url)
+
+  return {
+    label: name,
+    data: (): ArrayBuffer | undefined => {
+      return data
+    },
+    load: async (fetchImpl: typeof fetch = fetch): Promise<LevelFiles> => {
+      const response = await fetchImpl(zipFetchUrl(url, isDev))
+
+      if (!response.ok) {
+        throw new Error(`Failed to download ${url}: ${String(response.status)} ${response.statusText}`)
+      }
+
+      data = await response.arrayBuffer()
+
+      const level = await readLevelFromZip(data, name)
+
+      return level.files
+    },
+  }
+}
+
+/**
+ * Tells whether a source is a zip.
+ *
+ * @param source The source of a level.
+ *
+ * @returns True for the sources of {@link ZipLevelSource}.
+ */
+export function isZipLevelSource(source: LevelSource): source is ZipLevelSource {
+  return 'data' in source
 }

@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import JSZip from 'jszip'
-import { createZipLevelSource, readLevelFromZip } from '../../../../src/editor/modules/level/zipSource.ts'
+import {
+  createZipLevelSource,
+  createZipUrlLevelSource,
+  readLevelFromZip,
+  zipFetchUrl,
+} from '../../../../src/editor/modules/level/zipSource.ts'
 
 /**
  * Builds a zip in memory.
@@ -194,5 +199,74 @@ void describe('createZipLevelSource', () => {
     assert.equal(textOf(files.fts), 'fts-a')
     assert.equal(textOf(files.dlf), 'dlf-a')
     assert.equal(textOf(files.llf), 'llf-a')
+  })
+})
+
+void describe('zipFetchUrl', () => {
+  void it('takes a url the browser can fetch as it is', () => {
+    assert.equal(zipFetchUrl('https://example.com/x.zip', true), 'https://example.com/x.zip')
+    assert.equal(zipFetchUrl('https://example.com/x.zip', false), 'https://example.com/x.zip')
+    assert.equal(zipFetchUrl('levels/x.zip', true), 'levels/x.zip')
+  })
+
+  void it('asks the development server for a file of the disk', () => {
+    // the browser can not read a file url of a page served over http: the server of the editor serves it instead
+    assert.equal(zipFetchUrl('file:///home/lali/maps/x.zip', true), '/__local-zip?path=%2Fhome%2Flali%2Fmaps%2Fx.zip')
+    assert.equal(zipFetchUrl('/home/lali/maps/x.zip', true), '/__local-zip?path=%2Fhome%2Flali%2Fmaps%2Fx.zip')
+  })
+
+  void it('says why a file url can not be read without the development server', () => {
+    assert.throws(() => {
+      return zipFetchUrl('file:///home/lali/maps/x.zip', false)
+    }, /needs its development server/u)
+    // a plain path of the site is a url there: only a file url names a file for sure
+    assert.equal(zipFetchUrl('/editor/maps/x.zip', false), '/editor/maps/x.zip')
+  })
+})
+
+void describe('createZipUrlLevelSource', () => {
+  void it('downloads the zip and reads the level out of it', async () => {
+    const data = await zipOf(installedLevel('level8', '8'))
+    // the development server serves the files of the disk; the tests take that side, node has no dev server
+    const source = createZipUrlLevelSource('file:///home/lali/x.zip', true)
+    const calls: string[] = []
+
+    async function fetchImpl(input: string | URL | Request): Promise<Response> {
+      // the test asks for the url the source built, and it builds strings
+      if (typeof input === 'string') {
+        calls.push(input)
+      }
+
+      await Promise.resolve()
+
+      return new Response(data)
+    }
+
+    assert.equal(source.label, 'x.zip')
+    assert.equal(source.data(), undefined)
+
+    const files = await source.load(fetchImpl)
+
+    assert.deepEqual(calls, ['/__local-zip?path=%2Fhome%2Flali%2Fx.zip'])
+    assert.deepEqual([textOf(files.dlf), textOf(files.fts), textOf(files.llf)], ['dlf-8', 'fts-8', 'llf-8'])
+    assert.equal(source.data()?.byteLength, data.byteLength)
+  })
+
+  void it('says why a download failed', async () => {
+    const source = createZipUrlLevelSource('https://example.com/x.zip')
+
+    async function fetchImpl(): Promise<Response> {
+      await Promise.resolve()
+
+      return new Response(null, { status: 404, statusText: 'Not Found' })
+    }
+
+    await assert.rejects(
+      (async (): Promise<unknown> => {
+        return await source.load(fetchImpl)
+      })(),
+      /Failed to download https:\/\/example\.com\/x\.zip: 404 Not Found/u,
+    )
+    assert.equal(source.data(), undefined)
   })
 })

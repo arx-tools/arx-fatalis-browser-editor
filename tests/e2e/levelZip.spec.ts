@@ -1,4 +1,5 @@
 import type { Buffer } from 'node:buffer'
+import { writeFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
 import JSZip from 'jszip'
 import { createBlankLevelFiles, MINIMAL_PRESET } from '../../src/editor/modules/level/blankLevel.ts'
@@ -100,4 +101,33 @@ test('a zip without a level says what it is missing', async ({ page }) => {
 
   // the walkable view carries the failure of the load: a zip without a scene is not a level
   await expect(page.locator('[data-widget-kind="3d-view"] .status')).toContainText('no-scene.zip has no .fts file')
+})
+
+test('a zip opens from the url, without the picker', async ({ page }, testInfo) => {
+  // the `fromZip` parameter: a hand test is one url, the editor downloads the zip itself
+  const zipPath = testInfo.outputPath('url-level.zip')
+
+  await writeFile(zipPath, await zipOfABlankLevel())
+
+  await seedLayout(page, editorLayout)
+  await page.goto(`/?fromZip=${encodeURIComponent(zipPath)}`)
+  await waitForLevel(page)
+
+  // the zip holds the minimal blank level, so the editor opens its one face and not the 121 of the blank level
+  await expect
+    .poll(
+      async () => {
+        return await statOf(page, 'Total faces')
+      },
+      { timeout: 30_000 },
+    )
+    .toBe(1)
+})
+
+test('a zip of the url that is not there says what happened', async ({ page }) => {
+  await seedLayout(page, editorLayout)
+  await page.goto(`/?fromZip=${encodeURIComponent('/no/such/level.zip')}`)
+
+  // a zip that does not load is not a silent blank level: the walkable view carries the failure
+  await expect(page.locator('[data-widget-kind="3d-view"] .status')).toContainText('404')
 })

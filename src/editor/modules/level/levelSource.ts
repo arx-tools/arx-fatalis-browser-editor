@@ -2,6 +2,7 @@ import { ArxMap } from '../../../generator/ArxMap.ts'
 import { Settings } from '../../../generator/Settings.ts'
 import { getUrlAdapter, readUrlValue, type UrlAdapter } from '../persistedRef/url.ts'
 import { createBlankLevelFiles, FLAT_PRESET, type NewLevelPreset } from './blankLevel.ts'
+import { createZipUrlLevelSource } from './zipSource.ts'
 import { levelSeed } from './seed.ts'
 
 /**
@@ -101,6 +102,37 @@ export function originalLevelFromUrl(url: UrlAdapter | undefined = getUrlAdapter
   }
 
   return level
+}
+
+/**
+ * The url parameter that opens a level from a zip.
+ *
+ * @remarks
+ * The sibling of {@link ORIGINAL_LEVEL_PARAMETER}: the level of the session is not one of the game's own, but a zip
+ * somewhere the browser (or the development server) can read. A hand test is one url then: paste the path of the zip
+ * in the address bar, and the editor opens it.
+ */
+export const ZIP_URL_PARAMETER = 'fromZip'
+
+/**
+ * The url of the zip the url asks for.
+ *
+ * @param url The query string to read, the one of the page by default.
+ *
+ * @returns The url of the zip, or undefined when the url says nothing usable.
+ */
+export function zipUrlFromUrl(url: UrlAdapter | undefined = getUrlAdapter(undefined)): string | undefined {
+  if (url === undefined) {
+    return undefined
+  }
+
+  const raw = readUrlValue(url, ZIP_URL_PARAMETER)
+
+  if (raw === undefined || raw.trim() === '') {
+    return undefined
+  }
+
+  return raw.trim()
 }
 
 /**
@@ -239,18 +271,26 @@ export async function loadOriginalArxLevel(level: number, fetchImpl: typeof fetc
 }
 
 /**
- * Where the editor takes the level it opens from: the original level of the url, or a blank one.
+ * Where the editor takes the level it opens from: the zip of the url, the original level of the url, or a blank one.
  *
  * @remarks
  * The editor opens **no level by default**: with nothing in the url it starts from a blank level of the `Flat`
  * preset, which is a floor to build on rather than a level of the game to look at. A link that names an original
- * level opens that one — the url is the api, and this is the parameter of it which chooses what is loaded.
+ * level opens that one — the url is the api, and this is the parameter of it which chooses what is loaded. The zip
+ * comes first: it is the most specific thing a link can name, and the two parameters together are a mistake the zip
+ * side wins.
  *
  * @param url The query string to read, the one of the page by default.
  *
  * @returns The source of the level of the session.
  */
 export function starterLevelSource(url: UrlAdapter | undefined = getUrlAdapter(undefined)): LevelSource {
+  const zipUrl = zipUrlFromUrl(url)
+
+  if (zipUrl !== undefined) {
+    return createZipUrlLevelSource(zipUrl)
+  }
+
   const level = originalLevelFromUrl(url)
 
   if (level === undefined) {

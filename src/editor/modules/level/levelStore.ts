@@ -60,8 +60,9 @@ export interface LevelStore {
    * changes. A failure keeps the error of the source, so an unusable zip says why.
    *
    * @param source Where the files of the new level come from.
+   * @param prepare A step that runs on the map before the views get it.
    */
-  openLevel: (source: LevelSource) => Promise<void>
+  openLevel: (source: LevelSource, prepare?: (map: ArxMap) => Promise<void>) => Promise<void>
 }
 
 /**
@@ -127,11 +128,17 @@ export function createLevelStore(options: LevelStoreOptions = {}): LevelStore {
 
       pending = load(loadMap)
     },
-    openLevel: async (source: LevelSource): Promise<void> => {
+    openLevel: async (source: LevelSource, prepare?: (map: ArxMap) => Promise<void>): Promise<void> => {
       // one level at a time: a load that is already running finishes first, so the two do not race for the map
       await pending
       pending = load(async (): Promise<ArxMap> => {
-        return await loadLevel(source)
+        const map = await loadLevel(source)
+
+        // the views wrap the meshes of the map as soon as it is published, and a wrapper keeps the material it found
+        // then: what the level is painted with has to be on the map before that
+        await prepare?.(map)
+
+        return map
       })
       await pending
     },

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { FolderOpen } from 'lucide-vue-next'
 import { nextTick, useTemplateRef } from 'vue'
+import { paintZipLevel } from '../modules/level/levelTextures.ts'
 import { levelStore } from '../modules/level/levelStore.ts'
 import { createZipLevelSource } from '../modules/level/zipSource.ts'
 import { cameraStore } from './widgets/cameraStore.ts'
@@ -33,25 +34,32 @@ async function loadZip(event: Event): Promise<void> {
     return
   }
 
-  const file = input.files?.[0]
+  const file = input.files?.item(0)
 
   // the input keeps its value otherwise, so the same zip could not be opened twice
   input.value = ''
 
-  if (file === undefined) {
+  if (file === null || file === undefined) {
     return
   }
 
   const data = await file.arrayBuffer()
 
-  await levelStore.openLevel(createZipLevelSource(file.name, data))
+  // the textures of the zip are painted on the level before the views get it (see `openLevel`'s prepare step)
+  const source = createZipLevelSource(file.name, data)
+
+  await levelStore.openLevel(source, async (map): Promise<void> => {
+    await paintZipLevel(map, source.data())
+  })
+
+  if (levelStore.status.value !== 'ready') {
+    return
+  }
 
   // the new level has its own player: the camera goes there, so the view opens on something instead of the place the
   // previous level left it at. The tick lets the walkable view rebuild itself around the new map first
-  if (levelStore.status.value === 'ready') {
-    await nextTick()
-    cameraStore.moveToSpawn()
-  }
+  await nextTick()
+  cameraStore.moveToSpawn()
 }
 </script>
 

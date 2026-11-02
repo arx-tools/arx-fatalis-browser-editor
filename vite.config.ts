@@ -1,9 +1,60 @@
+import { createReadStream } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import vue from '@vitejs/plugin-vue'
 import { config as loadEnv } from 'dotenv'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
+
+/**
+ * The route the page asks a zip of the disk from, on the development server.
+ *
+ * @remarks
+ * The browser can not read a `file://` url of a page served over http, so `?fromZip=file:///…` (or a plain path)
+ * can not be fetched by the editor itself. The development server can read the disk, so it serves the file: the
+ * editor asks for it here, and the response is the bytes of the zip.
+ *
+ * It is a **development** route (`apply: 'serve'`): the shipped editor has no server behind it, and a zip of the
+ * disk is chosen there in the picker of the header. It only answers a request of the machine it runs on and only a
+ * file that ends with `.zip`, so a server bound to a network address does not become a file reader.
+ *
+ * @returns The plugin that adds the route to the server.
+ */
+function localZipRoute(): Plugin {
+  return {
+    name: 'arx-local-zip',
+    apply: 'serve',
+    configureServer(server): void {
+      server.middlewares.use('/__local-zip', (request, response) => {
+        const address = request.socket.remoteAddress ?? ''
+        const local = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(address)
+        const requested = new URL(request.url ?? '/', 'http://localhost').searchParams.get('path') ?? ''
+
+        if (!local) {
+          response.statusCode = 403
+          response.end('The local zip route is for the machine of the server.')
+
+          return
+        }
+
+        if (!requested.toLowerCase().endsWith('.zip')) {
+          response.statusCode = 400
+          response.end('The local zip route serves .zip files.')
+
+          return
+        }
+
+        response.setHeader('Content-Type', 'application/zip')
+        createReadStream(requested)
+          .on('error', () => {
+            response.statusCode = 404
+            response.end(`No such file: ${requested}`)
+          })
+          .pipe(response)
+      })
+    },
+  }
+}
 
 /**
  * The version, the commit and the build date of this build, so the deployed editor can be told apart
@@ -37,7 +88,7 @@ export default defineConfig(async () => {
     // /editor/, and the hashed file names of the assets make the browser fetch a new one after
     // every build without any ?v= suffix.
     base: '/editor/',
-    plugins: [vue()],
+    plugins: [vue(), localZipRoute()],
     build: {
       // the level, the dock, vue and three in one chunk is a megabyte the browser takes in one piece, and
       // every deploy of the editor makes it download the level code again. The split below does not make

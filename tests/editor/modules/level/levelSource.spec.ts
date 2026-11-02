@@ -8,7 +8,10 @@ import {
   ORIGINAL_LEVEL_PARAMETER,
   originalLevelFromUrl,
   starterLevelSource,
+  ZIP_URL_PARAMETER,
+  zipUrlFromUrl,
 } from '../../../../src/editor/modules/level/levelSource.ts'
+import { isZipLevelSource } from '../../../../src/editor/modules/level/zipSource.ts'
 import type { UrlAdapter } from '../../../../src/editor/modules/persistedRef/url.ts'
 
 /**
@@ -126,11 +129,43 @@ void describe('originalLevelFromUrl', () => {
   })
 })
 
+void describe('zipUrlFromUrl', () => {
+  void it('reads the url of the zip', () => {
+    assert.equal(
+      zipUrlFromUrl(urlOf(`${ZIP_URL_PARAMETER}=file:///home/lali/maps/x.zip`)),
+      'file:///home/lali/maps/x.zip',
+    )
+    assert.equal(zipUrlFromUrl(urlOf(`${ZIP_URL_PARAMETER}=https://example.com/x.zip`)), 'https://example.com/x.zip')
+  })
+
+  void it('says nothing when the parameter is missing or empty', () => {
+    assert.equal(zipUrlFromUrl(urlOf('')), undefined)
+    assert.equal(zipUrlFromUrl(urlOf('seed=1')), undefined)
+    // an empty parameter is not a path: it says nothing, like the level parameter
+    assert.equal(zipUrlFromUrl(urlOf(`${ZIP_URL_PARAMETER}=`)), undefined)
+    assert.equal(zipUrlFromUrl(urlOf(`${ZIP_URL_PARAMETER}=   `)), undefined)
+    assert.equal(zipUrlFromUrl(undefined), undefined)
+  })
+
+  void it('trims the value', () => {
+    assert.equal(zipUrlFromUrl(urlOf(`${ZIP_URL_PARAMETER}=%20file:///a.zip%20`)), 'file:///a.zip')
+  })
+})
+
 void describe('starterLevelSource', () => {
   void it('opens a blank level when the url names no level', () => {
     // the editor starts from a floor to build on, not from a level of the game
     assert.equal(starterLevelSource(urlOf('')).label, 'Blank level')
     assert.equal(starterLevelSource(urlOf('seed=1&position=1,2,3')).label, 'Blank level')
+  })
+
+  void it('opens the zip the url names', () => {
+    const source = starterLevelSource(urlOf(`${ZIP_URL_PARAMETER}=file:///home/lali/maps/lalees.zip`))
+
+    assert.equal(source.label, 'lalees.zip')
+    assert.equal(isZipLevelSource(source), true)
+    // the zip wins over the level parameter: it is the more specific thing a link can name
+    assert.equal(starterLevelSource(urlOf(`${ZIP_URL_PARAMETER}=/a.zip&${ORIGINAL_LEVEL_PARAMETER}=8`)).label, 'a.zip')
   })
 
   void it('opens the original level the url names', () => {

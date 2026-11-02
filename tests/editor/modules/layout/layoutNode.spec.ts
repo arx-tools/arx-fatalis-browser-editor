@@ -7,7 +7,7 @@ import {
   parseLayoutNode,
   type LayoutNode,
 } from '../../../../src/editor/modules/layout/layoutNode.ts'
-import { editorLayout } from '../../../../src/editor/modules/layout/layoutPresets.ts'
+import { editorLayout, viewerLayout } from '../../../../src/editor/modules/layout/layoutPresets.ts'
 
 /**
  * A widget leaf of the test trees.
@@ -41,12 +41,70 @@ function split(orientation: 'horizontal' | 'vertical', children: LayoutNode[]): 
   }
 }
 
+/**
+ * Reads the box a preset locks a widget to.
+ *
+ * @remarks
+ * The two sides of a lock live on two levels of the tree (the width on a horizontal split, the height on a vertical
+ * one), so the walk carries both down to the leaf, the way the shell puts the lock back on the node of the widget.
+ *
+ * @param tree The preset to read.
+ * @param kind The kind of the widget to look for.
+ *
+ * @returns The box the widget is locked to, or `undefined` when it is free.
+ */
+function lockOfKind(tree: LayoutNode, kind: string): { width: number; height: number } | undefined {
+  /**
+   * Walks one node of the tree with the sides its ancestors have fixed.
+   *
+   * @param node The node to walk.
+   * @param width The width the ancestors fixed, or `undefined`.
+   * @param height The height the ancestors fixed, or `undefined`.
+   *
+   * @returns The lock of the widget, or `undefined` when nothing under the node is locked.
+   */
+  function walk(
+    node: LayoutNode,
+    width: number | undefined,
+    height: number | undefined,
+  ): { width: number; height: number } | undefined {
+    if (node.type === 'widget') {
+      if (width === undefined || height === undefined || node.kind !== kind) {
+        return undefined
+      }
+
+      return { width, height }
+    }
+
+    for (const [index, child] of node.children.entries()) {
+      const size = node.sizes[index]
+      let nextWidth = width
+      let nextHeight = height
+
+      if (size?.kind === 'fixed' && node.orientation === 'horizontal') {
+        nextWidth = size.px
+      } else if (size?.kind === 'fixed') {
+        nextHeight = size.px
+      }
+
+      const found = walk(child, nextWidth, nextHeight)
+
+      if (found !== undefined) {
+        return found
+      }
+    }
+
+    return undefined
+  }
+
+  return walk(tree, undefined, undefined)
+}
+
 void describe('the editor preset', () => {
   void it('puts the small views on the left, the walkable view in the middle and the numbers on the right', () => {
     const root = editorLayout as Extract<LayoutNode, { type: 'split' }>
 
     assert.equal(root.orientation, 'horizontal')
-    assert.deepEqual(root.sizes, flexSizes(0.2, 0.6, 0.2))
     assert.deepEqual(collectKinds(root), [
       'top-view',
       'left-view',
@@ -58,6 +116,33 @@ void describe('the editor preset', () => {
       'polygon-inspector',
       'keyboard-shortcuts',
     ])
+  })
+
+  void it('locks the widgets to the sizes the owner measured off the plate', () => {
+    assert.deepEqual(lockOfKind(editorLayout, 'top-view'), { width: 350, height: 350 })
+    assert.deepEqual(lockOfKind(editorLayout, 'jump-to-location'), { width: 200, height: 50 })
+    assert.deepEqual(lockOfKind(editorLayout, 'map-statistics'), { width: 350, height: 210 })
+    assert.deepEqual(lockOfKind(editorLayout, 'polygon-inspector'), { width: 350, height: 190 })
+  })
+
+  void it('leaves the widgets the owner did not size free', () => {
+    const locks = ['camera-controls', '3d-view', 'left-view', 'front-view', 'keyboard-shortcuts'].map((kind) => {
+      return lockOfKind(editorLayout, kind)
+    })
+
+    assert.deepEqual(locks, [undefined, undefined, undefined, undefined, undefined])
+  })
+})
+
+void describe('the viewer preset', () => {
+  void it('locks the plan and the jump to the sizes the owner measured off the plate', () => {
+    assert.deepEqual(lockOfKind(viewerLayout, 'top-view'), { width: 350, height: 285 })
+    assert.deepEqual(lockOfKind(viewerLayout, 'jump-to-location'), { width: 350, height: 80 })
+  })
+
+  void it('leaves the walkable view and the keys free', () => {
+    assert.equal(lockOfKind(viewerLayout, '3d-view'), undefined)
+    assert.equal(lockOfKind(viewerLayout, 'keyboard-shortcuts'), undefined)
   })
 })
 

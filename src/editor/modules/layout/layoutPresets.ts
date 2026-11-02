@@ -1,4 +1,4 @@
-import { flexSizes, type LayoutNode } from './layoutNode.ts'
+import type { ChildSize, LayoutNode } from './layoutNode.ts'
 import { WIDGET_KINDS } from './widgetKinds.ts'
 
 /**
@@ -29,47 +29,72 @@ export interface FactoryPreset {
 }
 
 /**
- * The height the thin row of {@link editorLayout} needs, in pixels.
+ * The height of the thin row of {@link editorLayout}, in pixels.
  *
  * @remarks
  * The row holds the camera form and the jump: 44px of content (a 10px caption, the 24px fields and 4px of
- * padding on both sides). 50px leaves a little air around it, the rest of the column goes to the 3D view.
+ * padding on both sides). 50px leaves a little air around it, and the row is **locked** to it through the lock of
+ * the jump (the height of a widget in a row is the height of the row).
  */
 const THIN_ROW_HEIGHT = 50
 
 /**
- * The share of the middle column that gives {@link THIN_ROW_HEIGHT} in the dock of the window the layout
- * was tuned on (850px tall: the dock is 814px, and the splitter is not part of the shares).
+ * A child of a split that follows the layout, as a share of the space the locks leave.
  *
  * @remarks
- * A lumino split is proportional: it stores shares, not pixels, so the row scales with the window (47px
- * on a 800px tall window, 53px on 900). It can not be a fixed pixel height: the layout would then stop
- * matching the preset on every window size, and the header would offer it as a `Custom` one.
+ * The ratio is the share of the space the locks leave, and the free children of a split share it between themselves:
+ * the tree the dock is read back from normalizes them to **one**, so a preset writes them that way too, or the header
+ * would take the preset for a modified layout (`layoutEquals`).
+ *
+ * @param ratio The share of the free space.
+ *
+ * @returns The size spec of a free child.
  */
-const THIN_ROW_SHARE = THIN_ROW_HEIGHT / 814
+function auto(ratio: number): ChildSize {
+  return { kind: 'auto', ratio }
+}
+
+/**
+ * A child of a split that keeps a pixel size along the axis of the split.
+ *
+ * @remarks
+ * The size is the **lock** of the widget, and it is not one number but the axis of the split it sits in: a child of a
+ * horizontal split is locked to a width, a child of a vertical one to a height. A widget locked to a box therefore has
+ * a `fixed` size on **two** levels of the tree — the width on the horizontal split and the height on the vertical one —
+ * and the pass reads the two sides back as one box (`applyLocks`). The presets below are spelled out with both, so a
+ * widget comes back locked where the owner measured it (the sizes on the badge of the plate, 2026-11-01).
+ *
+ * @param px The size along the axis of the split.
+ *
+ * @returns The size spec of a locked child.
+ */
+function fixed(px: number): ChildSize {
+  return { kind: 'fixed', px }
+}
 
 /**
  * The layout for the level work: the small views on the left, the walkable view in the middle with the
  * camera above it, and the numbers on the right.
  *
  * @remarks
- * - the left 20% is a column of three small views: the plan and the two elevations
- * - the middle 60% is the walkable view, with a thin row above it: the camera form and the jump of the
- * location widget (the two one row widgets, so the row stays thin — {@link THIN_ROW_HEIGHT})
- * - the right 20% holds the statistics, the inspector and the keyboard shortcuts, one above the other
+ * The left column is locked to 350 wide, and its first view (the plan) to 350 high: the two elevations under it share
+ * the rest. The middle column holds the thin row above the walkable view, with the jump of the row locked to 200 wide
+ * and the row to 50 high, so the camera form takes the rest of the row. The right column is locked to 350 wide, the
+ * statistics to 210 and the inspector to 190 high, and the keyboard shortcuts take what is left.
  *
- * The three columns and the three rows are the shares the owner measured on his own window; they are the
- * plain tenths (0.2 / 0.6 / 0.2, thirds), not the pixels of that window, because a lumino split scales.
+ * The locks are the sizes the owner read off the badge of the plate in the edit mode (2026-11-01): they are the
+ * widgets he wants where he put them, and the rest of the layout stays flexible around them. The jump was 290 wide in
+ * the first round and the owner took it down to 200 the same day.
  */
 export const editorLayout: LayoutNode = {
   type: 'split',
   orientation: 'horizontal',
-  sizes: flexSizes(0.2, 0.6, 0.2),
+  sizes: [fixed(350), auto(1), fixed(350)],
   children: [
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: flexSizes(1 / 3, 1 / 3, 1 / 3),
+      sizes: [fixed(350), auto(0.5), auto(0.5)],
       children: [
         { type: 'widget', kind: WIDGET_KINDS.topView },
         { type: 'widget', kind: WIDGET_KINDS.leftView },
@@ -79,12 +104,12 @@ export const editorLayout: LayoutNode = {
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: flexSizes(THIN_ROW_SHARE, 1 - THIN_ROW_SHARE),
+      sizes: [fixed(THIN_ROW_HEIGHT), auto(1)],
       children: [
         {
           type: 'split',
           orientation: 'horizontal',
-          sizes: flexSizes(0.6, 0.4),
+          sizes: [auto(1), fixed(200)],
           children: [
             { type: 'widget', kind: WIDGET_KINDS.cameraControls },
             { type: 'widget', kind: WIDGET_KINDS.jumpToLocation },
@@ -96,7 +121,7 @@ export const editorLayout: LayoutNode = {
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: flexSizes(1 / 3, 1 / 3, 1 / 3),
+      sizes: [fixed(210), fixed(190), auto(1)],
       children: [
         { type: 'widget', kind: WIDGET_KINDS.mapStatistics },
         { type: 'widget', kind: WIDGET_KINDS.polygonInspector },
@@ -112,19 +137,21 @@ export const editorLayout: LayoutNode = {
  * @remarks
  * - the left 70% is the walkable view, the whole height of the dock: this layout is not for editing, it is
  * for walking around and reading the number under the crosshair
- * - the right 30% holds the plan above, so a step in the view can be checked from above, then the jump in a
- * thin row of its own (the one row widget, so a tenth of the column is enough), then the keyboard shortcuts
+ * - the right column is locked to 350 wide (the plan and the jump), the plan to 285 high and the jump to 80: the plan
+ * sits above, the jump under it, and the keyboard shortcuts take the rest of the column
+ *
+ * The locks are the sizes the owner read off the badge of the plate (2026-11-01).
  */
 export const viewerLayout: LayoutNode = {
   type: 'split',
   orientation: 'horizontal',
-  sizes: flexSizes(0.7, 0.3),
+  sizes: [auto(1), fixed(350)],
   children: [
     { type: 'widget', kind: WIDGET_KINDS.view3d },
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: flexSizes(0.3, 0.1, 0.6),
+      sizes: [fixed(285), fixed(80), auto(1)],
       children: [
         { type: 'widget', kind: WIDGET_KINDS.topView },
         { type: 'widget', kind: WIDGET_KINDS.jumpToLocation },

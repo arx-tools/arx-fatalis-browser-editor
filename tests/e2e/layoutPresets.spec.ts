@@ -1,0 +1,144 @@
+import { expect, test, type Page } from '@playwright/test'
+import { editorUrl } from './support/editor.ts'
+
+/**
+ * The factory presets carry the sizes the owner measured.
+ *
+ * @remarks
+ * The lock of a widget is a box, and a preset spells it on two levels of the tree: the width on the horizontal split
+ * the widget sits in and the height on the vertical one. These tests are the acceptance of the numbers (2026-11-01):
+ * the viewer comes with the plan at 350 x 285 and the jump at 350 x 80, and the editor with the plan at 350 x 350, the
+ * jump at 200 x 50, the statistics at 350 x 210 and the inspector at 350 x 190. The widgets the owner did not size stay
+ * free, and the header has to keep the name of the preset after the locks are applied — a layout that comes back
+ * differently from the preset would show up as `Custom`.
+ */
+test.setTimeout(120_000)
+
+/**
+ * The box of a widget on the dock, in whole pixels.
+ */
+interface Box {
+  readonly left: number
+  readonly top: number
+  readonly width: number
+  readonly height: number
+}
+
+/**
+ * Reads the box of a widget.
+ *
+ * @param page The page to read.
+ * @param kind The kind of the widget.
+ *
+ * @returns The box of its node.
+ */
+async function boxOf(page: Page, kind: string): Promise<Box> {
+  return await page.locator(`.lm-DockPanel-widget[data-widget-kind="${kind}"]`).evaluate((node) => {
+    const box = node.getBoundingClientRect()
+
+    return {
+      left: Math.round(box.left),
+      top: Math.round(box.top),
+      width: Math.round(box.width),
+      height: Math.round(box.height),
+    }
+  })
+}
+
+/**
+ * Reads the name of the preset the header shows.
+ *
+ * @param page The page to read.
+ *
+ * @returns The label of the preset button.
+ */
+async function presetName(page: Page): Promise<string> {
+  return (await page.locator('header button[aria-label="Presets"] .name').textContent()) ?? ''
+}
+
+test('the default layout is the viewer, with the plan and the jump of the owner locked', async ({ page }) => {
+  await page.setViewportSize({ width: 1631, height: 850 })
+  await page.goto(editorUrl())
+
+  // the shell builds the dock before the level is downloaded, which is all this test needs
+  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(4)
+  await expect(page.locator('[data-widget-kind="top-view"]')).toBeVisible()
+  await page.waitForTimeout(600)
+
+  expect(await presetName(page)).toBe('Viewer')
+
+  const plan = await boxOf(page, 'top-view')
+  const jump = await boxOf(page, 'jump-to-location')
+
+  expect(plan.width).toBe(350)
+  expect(plan.height).toBe(285)
+  expect(jump.width).toBe(350)
+  expect(jump.height).toBe(80)
+  expect(await page.locator('[data-widget-kind="top-view"]').getAttribute('data-locked-width')).toBe('350')
+  expect(await page.locator('[data-widget-kind="jump-to-location"]').getAttribute('data-locked-height')).toBe('80')
+
+  // the two follow each other, and the walkable view takes what the locked column does not
+  expect(jump.top).toBe(plan.top + plan.height + 4)
+
+  const view = await boxOf(page, '3d-view')
+
+  expect(view.width).toBeGreaterThan(350)
+  expect(view.left + view.width + 4).toBe(plan.left)
+
+  // the keys are free: they keep what the two locked widgets leave
+  const keys = await boxOf(page, 'keyboard-shortcuts')
+
+  expect(await page.locator('[data-widget-kind="keyboard-shortcuts"]').getAttribute('data-locked-height')).toBeNull()
+  expect(keys.top).toBe(jump.top + jump.height + 4)
+})
+
+test('the editor preset comes with the four sizes the owner measured', async ({ page }) => {
+  await page.setViewportSize({ width: 1631, height: 850 })
+  await page.goto(editorUrl())
+
+  await page.locator('header button[aria-label="Presets"]').click()
+  await page.locator('.preset-menu .preset-row', { hasText: 'Editor' }).click()
+
+  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(9)
+  await page.waitForTimeout(800)
+
+  expect(await presetName(page)).toBe('Editor')
+
+  const plan = await boxOf(page, 'top-view')
+  const jump = await boxOf(page, 'jump-to-location')
+  const statistics = await boxOf(page, 'map-statistics')
+  const inspector = await boxOf(page, 'polygon-inspector')
+
+  expect(plan.width).toBe(350)
+  expect(plan.height).toBe(350)
+  expect(jump.width).toBe(200)
+  expect(jump.height).toBe(50)
+  expect(statistics.width).toBe(350)
+  expect(statistics.height).toBe(210)
+  expect(inspector.width).toBe(350)
+  expect(inspector.height).toBe(190)
+
+  // the camera form and the keys are free, and they fill what the locks leave
+  const camera = await boxOf(page, 'camera-controls')
+
+  expect(camera.top).toBe(jump.top)
+  expect(camera.width).toBeGreaterThan(80)
+
+  const keys = await boxOf(page, 'keyboard-shortcuts')
+
+  expect(keys.height).toBeGreaterThan(190)
+  expect(keys.top).toBe(inspector.top + inspector.height + 4)
+
+  // a taller window: the locks hold, the free widgets take the room, and the header keeps the name of the preset
+  await page.setViewportSize({ width: 1631, height: 1100 })
+  await page.waitForTimeout(800)
+
+  const planAfter = await boxOf(page, 'top-view')
+  const statisticsAfter = await boxOf(page, 'map-statistics')
+  const keysAfter = await boxOf(page, 'keyboard-shortcuts')
+
+  expect(await presetName(page)).toBe('Editor')
+  expect(planAfter.height).toBe(350)
+  expect(statisticsAfter.height).toBe(210)
+  expect(keysAfter.height).toBeGreaterThan(keys.height)
+})

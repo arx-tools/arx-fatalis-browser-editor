@@ -362,245 +362,6 @@ export function createEditorShell(
   }
 
   /**
-   * Creates the widgets of the tree, decorates them for the edit mode and rebuilds the dock from them.
-   *
-   * @remarks
-   * A kind that is no longer in the registry is dropped with its share; when nothing is left, the
-   * default layout takes over, so the screen is never empty.
-   *
-   * @param node The tree to build.
-   * @param fallback `false` when the default layout is already being applied (no second fallback).
-   */
-  /**
-   * Writes the locks of a layout tree onto the widgets.
-   *
-   * @remarks
-   * A lock lives on the node of the widget, and the widgets of a rebuilt dock are new: the tree is what remembers the
-   * locks between two runs, so it is read back here. A widget that is not in a fixed size of the tree is not locked,
-   * so a layout that comes from the storage or from a preset can not keep a lock of an earlier one.
-   *
-   * @param node The tree the dock was built from.
-   */
-  function applyLocks(node: LayoutNode): void {
-    /**
-     * Walks the tree, writing the box of every locked widget onto its node.
-     *
-     * @remarks
-     * The two sides of a lock live on two levels of the tree: the width of a column is the size of the split that
-     * holds it (a locked widget inside a vertical split fixes the width of that split, because the split can not grow
-     * past what its children may take), and the height of the widget is its own size in that split. Walking down and
-     * carrying the two sides is what puts the box back together after a reload.
-     *
-     * @param current The node to walk.
-     * @param box The sides the ancestors have already fixed.
-     */
-    function collect(current: LayoutNode, box: LockBox): void {
-      if (current.type === 'widget') {
-        const widget = dockWidgets(dock).find((candidate) => {
-          return widgetKind(candidate) === current.kind
-        })
-
-        if (widget !== undefined && box.width > 0 && box.height > 0) {
-          lockWidgetTo(widget, box)
-        }
-
-        return
-      }
-
-      for (const [index, child] of current.children.entries()) {
-        const size = current.sizes[index]
-        let fixed: number | undefined
-
-        if (size?.kind === 'fixed') {
-          fixed = size.px
-        }
-
-        let next: LockBox = { width: box.width, height: box.height }
-
-        if (fixed !== undefined && current.orientation === 'horizontal') {
-          next = { width: fixed, height: box.height }
-        } else if (fixed !== undefined) {
-          next = { width: box.width, height: fixed }
-        }
-
-        collect(child, next)
-      }
-    }
-
-    collect(node, { width: 0, height: 0 })
-  }
-
-  function applyLayout(node: LayoutNode, fallback = true): void {
-    clearDock()
-
-    const widgets = new Map<string, Widget>()
-
-    for (const kind of collectKinds(node)) {
-      const definition = definitions.find((candidate) => {
-        return candidate.kind === kind
-      })
-
-      if (definition === undefined) {
-        continue
-      }
-
-      const widget = createWidget(definition)
-      editor.decorate(widget)
-      widgets.set(kind, widget)
-    }
-
-    const config = toDockConfig(node, (kind) => {
-      return widgets.get(kind)
-    })
-
-    const main = config?.main
-
-    if (main === null || main === undefined) {
-      for (const widget of widgets.values()) {
-        editor.undecorate(widget)
-        widget.dispose()
-      }
-
-      if (fallback) {
-        applyLayout(defaultLayout, false)
-      }
-
-      return
-    }
-
-    isRebuilding = true
-
-    try {
-      dock.restoreLayout({ main })
-    } finally {
-      isRebuilding = false
-    }
-
-    applyLocks(node)
-
-    // the echo of this rebuild is not a change of the user either: without this the locks of the tree would be
-    // overwritten by the sizes of the preset before the first pass of the sizes has applied them
-    appliedTree = toLayoutNode(dock.saveLayout(), kindOf)
-
-    // a widget that ended up nowhere (the tree changed under it) is thrown away, not left alive
-    const live = dockWidgets(dock)
-
-    for (const widget of widgets.values()) {
-      if (!live.includes(widget)) {
-        editor.undecorate(widget)
-        widget.dispose()
-      }
-    }
-
-    syncLayout()
-  }
-
-  /**
-   * Creates a widget of the kind, decorates it for the edit mode and puts it into the dock.
-   *
-   * @param kind The identifier of the widget kind.
-   * @param options Where the widget goes (a lumino insertion mode and a reference widget).
-   *
-   * @returns The new widget.
-   *
-   * @throws When the kind is not in the widget registry.
-   */
-  function addWidget(kind: string, options?: DockPanel.IAddOptions): Widget {
-    const definition = definitions.find((candidate) => {
-      return candidate.kind === kind
-    })
-
-    if (definition === undefined) {
-      throw new Error(`Unknown widget kind: ${kind}`)
-    }
-
-    const widget = createWidget(definition)
-    editor.decorate(widget)
-
-    // a new widget never lands in a tab area: lumino's default mode is `tab-after`, which would hide the
-    // widget behind a tab (and the layout tree could not store it), so the default is a new column
-    dock.addWidget(widget, options ?? { mode: 'split-right', ref: null })
-    syncLayout()
-
-    return widget
-  }
-
-  /**
-   * Removes the widget of a kind from the dock.
-   *
-   * @param kind The identifier of the widget kind.
-   */
-  function removeWidgetByKind(kind: string): void {
-    const widget = dockWidgets(dock).find((candidate) => {
-      return widgetKind(candidate) === kind
-    })
-
-    if (widget !== undefined) {
-      editor.removeWidget(widget)
-      syncLayout()
-    }
-  }
-
-  /**
-   * Turns the edit mode on or off.
-   *
-   * @param editing `true` for edit mode (open lock), `false` for the normal, locked layout.
-   */
-  function setEditing(editing: boolean): void {
-    isEditing.value = editing
-    editor.setUnlocked(editing)
-  }
-
-  /**
-   * Puts a preset on the dock.
-   *
-   * @param id The preset to apply: a factory one, or the stored custom layout.
-   */
-  function applyPreset(id: string): void {
-    const layout = factoryPreset(id)?.layout ?? customLayout.value
-
-    if (layout === undefined) {
-      return
-    }
-
-    applyLayout(layout)
-  }
-
-  /**
-   * Handles the escape key: the popup closes first, the edit mode only after that.
-   *
-   * @param event The keydown event of the document.
-   */
-  function handleKeyDown(event: KeyboardEvent): void {
-    if (event.key !== 'Escape') {
-      return
-    }
-
-    if (pickerOpen.value) {
-      pickerOpen.value = false
-      return
-    }
-
-    if (isEditing.value) {
-      setEditing(false)
-    }
-  }
-
-  // the starting layout: the stored one, or the default when there is nothing usable in the storage. The
-  // custom slot has to be there before the dock is filled, because `syncLayout` only writes a tree that is
-  // not a factory preset into it
-  if (
-    customLayout.value === undefined &&
-    factoryPresets.every((preset) => {
-      return !layoutEquals(preset.layout, storedLayout.value)
-    })
-  ) {
-    customLayout.value = storedLayout.value
-  }
-
-  applyLayout(storedLayout.value)
-
-  /**
    * Measures the height the content of a widget wants.
    *
    * @remarks
@@ -759,6 +520,250 @@ export function createEditorShell(
       applyManagedSizes()
     })
   }
+
+  /**
+   * Creates the widgets of the tree, decorates them for the edit mode and rebuilds the dock from them.
+   *
+   * @remarks
+   * A kind that is no longer in the registry is dropped with its share; when nothing is left, the
+   * default layout takes over, so the screen is never empty.
+   *
+   * @param node The tree to build.
+   * @param fallback `false` when the default layout is already being applied (no second fallback).
+   */
+  /**
+   * Writes the locks of a layout tree onto the widgets.
+   *
+   * @remarks
+   * A lock lives on the node of the widget, and the widgets of a rebuilt dock are new: the tree is what remembers the
+   * locks between two runs, so it is read back here. A widget that is not in a fixed size of the tree is not locked,
+   * so a layout that comes from the storage or from a preset can not keep a lock of an earlier one.
+   *
+   * @param node The tree the dock was built from.
+   */
+  function applyLocks(node: LayoutNode): void {
+    /**
+     * Walks the tree, writing the box of every locked widget onto its node.
+     *
+     * @remarks
+     * The two sides of a lock live on two levels of the tree: the width of a column is the size of the split that
+     * holds it (a locked widget inside a vertical split fixes the width of that split, because the split can not grow
+     * past what its children may take), and the height of the widget is its own size in that split. Walking down and
+     * carrying the two sides is what puts the box back together after a reload.
+     *
+     * @param current The node to walk.
+     * @param box The sides the ancestors have already fixed.
+     */
+    function collect(current: LayoutNode, box: LockBox): void {
+      if (current.type === 'widget') {
+        const widget = dockWidgets(dock).find((candidate) => {
+          return widgetKind(candidate) === current.kind
+        })
+
+        if (widget !== undefined && box.width > 0 && box.height > 0) {
+          lockWidgetTo(widget, box)
+        }
+
+        return
+      }
+
+      for (const [index, child] of current.children.entries()) {
+        const size = current.sizes[index]
+        let fixed: number | undefined
+
+        if (size?.kind === 'fixed') {
+          fixed = size.px
+        }
+
+        let next: LockBox = { width: box.width, height: box.height }
+
+        if (fixed !== undefined && current.orientation === 'horizontal') {
+          next = { width: fixed, height: box.height }
+        } else if (fixed !== undefined) {
+          next = { width: box.width, height: fixed }
+        }
+
+        collect(child, next)
+      }
+    }
+
+    collect(node, { width: 0, height: 0 })
+  }
+
+  function applyLayout(node: LayoutNode, fallback = true): void {
+    clearDock()
+
+    const widgets = new Map<string, Widget>()
+
+    for (const kind of collectKinds(node)) {
+      const definition = definitions.find((candidate) => {
+        return candidate.kind === kind
+      })
+
+      if (definition === undefined) {
+        continue
+      }
+
+      const widget = createWidget(definition)
+      editor.decorate(widget)
+      widgets.set(kind, widget)
+    }
+
+    const config = toDockConfig(node, (kind) => {
+      return widgets.get(kind)
+    })
+
+    const main = config?.main
+
+    if (main === null || main === undefined) {
+      for (const widget of widgets.values()) {
+        editor.undecorate(widget)
+        widget.dispose()
+      }
+
+      if (fallback) {
+        applyLayout(defaultLayout, false)
+      }
+
+      return
+    }
+
+    isRebuilding = true
+
+    try {
+      dock.restoreLayout({ main })
+    } finally {
+      isRebuilding = false
+    }
+
+    applyLocks(node)
+
+    // the echo of this rebuild is not a change of the user either: without this the locks of the tree would be
+    // overwritten by the sizes of the preset before the first pass of the sizes has applied them
+    appliedTree = toLayoutNode(dock.saveLayout(), kindOf)
+
+    // a widget that ended up nowhere (the tree changed under it) is thrown away, not left alive
+    const live = dockWidgets(dock)
+
+    for (const widget of widgets.values()) {
+      if (!live.includes(widget)) {
+        editor.undecorate(widget)
+        widget.dispose()
+      }
+    }
+
+    syncLayout()
+
+    // the dock has just been laid out from the weights of the tree, which is close but not the same thing: a lock is
+    // a pixel size and a ratio a share of what the locks leave, and the content limits of the widgets are not in the
+    // weights at all. The pass is what puts the sizes the preset asks for on the screen
+    requestManagedSizes()
+  }
+
+  /**
+   * Creates a widget of the kind, decorates it for the edit mode and puts it into the dock.
+   *
+   * @param kind The identifier of the widget kind.
+   * @param options Where the widget goes (a lumino insertion mode and a reference widget).
+   *
+   * @returns The new widget.
+   *
+   * @throws When the kind is not in the widget registry.
+   */
+  function addWidget(kind: string, options?: DockPanel.IAddOptions): Widget {
+    const definition = definitions.find((candidate) => {
+      return candidate.kind === kind
+    })
+
+    if (definition === undefined) {
+      throw new Error(`Unknown widget kind: ${kind}`)
+    }
+
+    const widget = createWidget(definition)
+    editor.decorate(widget)
+
+    // a new widget never lands in a tab area: lumino's default mode is `tab-after`, which would hide the
+    // widget behind a tab (and the layout tree could not store it), so the default is a new column
+    dock.addWidget(widget, options ?? { mode: 'split-right', ref: null })
+    syncLayout()
+
+    return widget
+  }
+
+  /**
+   * Removes the widget of a kind from the dock.
+   *
+   * @param kind The identifier of the widget kind.
+   */
+  function removeWidgetByKind(kind: string): void {
+    const widget = dockWidgets(dock).find((candidate) => {
+      return widgetKind(candidate) === kind
+    })
+
+    if (widget !== undefined) {
+      editor.removeWidget(widget)
+      syncLayout()
+    }
+  }
+
+  /**
+   * Turns the edit mode on or off.
+   *
+   * @param editing `true` for edit mode (open lock), `false` for the normal, locked layout.
+   */
+  function setEditing(editing: boolean): void {
+    isEditing.value = editing
+    editor.setUnlocked(editing)
+  }
+
+  /**
+   * Puts a preset on the dock.
+   *
+   * @param id The preset to apply: a factory one, or the stored custom layout.
+   */
+  function applyPreset(id: string): void {
+    const layout = factoryPreset(id)?.layout ?? customLayout.value
+
+    if (layout === undefined) {
+      return
+    }
+
+    applyLayout(layout)
+  }
+
+  /**
+   * Handles the escape key: the popup closes first, the edit mode only after that.
+   *
+   * @param event The keydown event of the document.
+   */
+  function handleKeyDown(event: KeyboardEvent): void {
+    if (event.key !== 'Escape') {
+      return
+    }
+
+    if (pickerOpen.value) {
+      pickerOpen.value = false
+      return
+    }
+
+    if (isEditing.value) {
+      setEditing(false)
+    }
+  }
+
+  // the starting layout: the stored one, or the default when there is nothing usable in the storage. The
+  // custom slot has to be there before the dock is filled, because `syncLayout` only writes a tree that is
+  // not a factory preset into it
+  if (
+    customLayout.value === undefined &&
+    factoryPresets.every((preset) => {
+      return !layoutEquals(preset.layout, storedLayout.value)
+    })
+  ) {
+    customLayout.value = storedLayout.value
+  }
+
+  applyLayout(storedLayout.value)
 
   /**
    * Asks for the sizes to be worked out when the user stops dragging a border.

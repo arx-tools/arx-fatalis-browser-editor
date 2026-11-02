@@ -74,11 +74,15 @@ async function lockOf(page: Page, kind: string): Promise<{ width: number; height
 }
 
 /**
- * Opens the editor on the `Editor` preset, unlocks the layout and locks the jump.
+ * Opens the editor on the `Editor` preset and unlocks the layout.
+ *
+ * @remarks
+ * The jump comes **locked from the preset** (200 x 50, the size the owner measured on the plate), so there is no lock
+ * button to press: the drags below are measured against a widget the preset pinned.
  *
  * @param page The page to prepare.
  *
- * @returns The box of the jump after the lock, which is what a drag is measured against.
+ * @returns The box of the jump, which is what a drag is measured against.
  */
 async function openWithALockedJump(page: Page): Promise<Box> {
   await seedLayout(page, editorLayout)
@@ -86,13 +90,12 @@ async function openWithALockedJump(page: Page): Promise<Box> {
   await waitForLevel(page)
 
   await page.locator('header button[aria-label="Unlock the layout"]').click()
-  await page.locator('[data-widget-kind="jump-to-location"] button[aria-label="Lock the widget"]').click()
   await page.waitForTimeout(600)
 
   const locked = await lockOf(page, 'jump-to-location')
 
   if (locked === undefined) {
-    throw new Error('the jump did not take the lock')
+    throw new Error('the jump of the Editor preset is not locked')
   }
 
   return await boxOf(page, 'jump-to-location')

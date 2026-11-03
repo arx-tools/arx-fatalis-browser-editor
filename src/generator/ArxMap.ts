@@ -21,6 +21,29 @@ import { triangleToPolygonMap, vertexToPolygonsMap } from './polygons.ts'
 import { Player } from './Player.ts'
 
 /**
+ * A run of solid faces that share a texture, in the order the geometry draws them.
+ *
+ * @remarks
+ * The run is what a **group** of the geometry is: the renderer draws every group with one material, so a run is one
+ * draw call. {@link ArxMap.textureRuns} holds them, and the paint builds the groups from this list instead of walking
+ * the triangles of the index.
+ */
+export interface TextureRun {
+  /**
+   * The first index of the run in the index of the solid mesh.
+   */
+  readonly start: number
+  /**
+   * How many indices the run holds.
+   */
+  readonly count: number
+  /**
+   * The texture container the faces of the run draw with.
+   */
+  readonly textureContainerId: number
+}
+
+/**
  * The numbers the statistics widget shows about a level.
  *
  * @remarks
@@ -166,6 +189,16 @@ export class ArxMap {
    * map is the running total of the triangles (see `triangleToPolygonMap`).
    */
   triangleToPolygon: readonly number[]
+
+  /**
+   * The runs of the solid faces that share a texture, in the order the geometry draws them.
+   *
+   * @remarks
+   * The index of the solid mesh is in the texture order ({@link indexSolidGeometryInTextureOrder}), so the runs are the
+   * blocks of the index: the paint builds one group per run, and a run is one draw call (level 11: 266 of them).
+   * Without the list the paint would walk all 123 485 triangles of the index to find the same blocks (52 ms).
+   */
+  textureRuns: readonly TextureRun[] = []
 
   /**
    * What the level was made with: its seed today.
@@ -714,29 +747,69 @@ export class ArxMap {
     const { geometry } = this.solidMeshes[0]
     const triangles = geometry.getAttribute('position').count / 3
     const containerOfTriangle = new Uint32Array(triangles)
+    let sorted = true
 
     for (let triangle = 0; triangle < triangles; triangle = triangle + 1) {
       const polygon = this.polygons[this.triangleToPolygon[triangle] ?? -1]
 
       containerOfTriangle[triangle] = polygon?.textureContainerId ?? 0
+
+      // a cut keeps the order of the polygons, so the level that was in the texture order stays in it: the check is one
+      // walk, the sort is a comparison per triangle (level 11: 40 ms against 2 ms)
+      if (triangle > 0 && containerOfTriangle[triangle] < containerOfTriangle[triangle - 1]) {
+        sorted = false
+      }
     }
 
-    const order = Array.from({ length: triangles }, (_, triangle) => {
-      return triangle
-    }).toSorted((left, right) => {
-      return containerOfTriangle[left] - containerOfTriangle[right]
-    })
-    const indices = new Uint32Array(triangles * 3)
+    let order: readonly number[] | undefined
 
-    for (const [position, triangle] of order.entries()) {
+    if (!sorted) {
+      order = Array.from({ length: triangles }, (_, triangle) => {
+        return triangle
+      }).toSorted((left, right) => {
+        return containerOfTriangle[left] - containerOfTriangle[right]
+      })
+    }
+
+    const indices = new Uint32Array(triangles * 3)
+    const runs: TextureRun[] = []
+    let runContainer = -1
+    let runStart = 0
+    let runCount = 0
+
+    for (let position = 0; position < triangles; position = position + 1) {
+      let triangle = position
+
+      if (order !== undefined) {
+        triangle = order[position] ?? position
+      }
+
+      const container = containerOfTriangle[triangle]
       const target = position * 3
       const source = triangle * 3
 
       indices[target] = source
       indices[target + 1] = source + 1
       indices[target + 2] = source + 2
+
+      if (container === runContainer) {
+        runCount = runCount + 3
+      } else {
+        if (runCount > 0) {
+          runs.push({ start: runStart, count: runCount, textureContainerId: runContainer })
+        }
+
+        runContainer = container
+        runStart = target
+        runCount = 3
+      }
     }
 
+    if (runCount > 0) {
+      runs.push({ start: runStart, count: runCount, textureContainerId: runContainer })
+    }
+
+    this.textureRuns = runs
     geometry.setIndex(new BufferAttribute(indices, 1))
   }
 

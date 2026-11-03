@@ -7,11 +7,12 @@ import {
   SRGBColorSpace,
   Texture,
   type BufferAttribute,
+  type BufferGeometry,
   type Material,
   type Mesh,
 } from 'three'
 import { watch } from 'vue'
-import type { ArxMap } from '../../../generator/ArxMap.ts'
+import type { ArxMap, TextureRun } from '../../../generator/ArxMap.ts'
 import { BLANK_LEVEL_TEXTURE, GENERATOR_ASSETS } from '../../../generator/assets.ts'
 import { createLevelMaterial } from '../../../generator/meshes.ts'
 import { levelRevision } from './editing.ts'
@@ -461,6 +462,74 @@ export function drawnRunsOf(map: ArxMap, index: BufferAttribute, indexOfName: Re
 }
 
 /**
+ * Tells whether the runs of the map cover the index of the geometry.
+ *
+ * @remarks
+ * The runs are built together with the index, so they cover it; the check guards a map whose geometry was replaced
+ * under it (a consumer of the generator), where walking the triangles is still right.
+ *
+ * @param runs The runs of the map.
+ * @param index The index of the geometry.
+ *
+ * @returns Whether the last run ends at the last index.
+ */
+function runsCoverIndex(runs: readonly TextureRun[], index: BufferAttribute): boolean {
+  const last = runs.at(-1)
+
+  return last !== undefined && last.start + last.count === index.count
+}
+
+/**
+ * Adds the groups of a geometry from the runs of a level.
+ *
+ * @remarks
+ * Two containers may share a name (`textureNames`), so the neighbouring runs of the same material are merged, the way
+ * {@link drawnRunsOf} merges the neighbouring triangles: the number of the draw calls is the number of the materials.
+ *
+ * @param geometry The geometry of the level.
+ * @param map The map of the level.
+ * @param runs The runs, in the order of the index.
+ * @param indexOfName The material of a texture, by the name the level calls it.
+ */
+function addRunGroups(
+  geometry: BufferGeometry,
+  map: ArxMap,
+  runs: readonly TextureRun[],
+  indexOfName: ReadonlyMap<string, number>,
+): void {
+  let start = 0
+  let count = 0
+  let material = -1
+
+  for (const run of runs) {
+    const name = map.textureNameOf(run.textureContainerId)
+    let current = 0
+
+    if (name !== undefined) {
+      current = indexOfName.get(name) ?? 0
+    }
+
+    if (current === material) {
+      count = count + run.count
+
+      continue
+    }
+
+    if (count > 0) {
+      geometry.addGroup(start, count, material)
+    }
+
+    start = run.start
+    count = run.count
+    material = current
+  }
+
+  if (count > 0) {
+    geometry.addGroup(start, count, material)
+  }
+}
+
+/**
  * The polygons that draw with a real texture, in the order of the solid geometry.
  *
  * @remarks
@@ -654,6 +723,10 @@ export function paintLevelTextures(map: ArxMap, textures: ReadonlyMap<string, Te
 
       geometry.addGroup(run.start, run.count, material)
     }
+  } else if (runsCoverIndex(map.textureRuns, index)) {
+    // the index is in the texture order, so a run of the map is a block of the index: the groups are the runs, and the
+    // walk over the triangles (123 485 of them on level 11, 52 ms) is not needed
+    addRunGroups(geometry, map, map.textureRuns, indexOfName)
   } else {
     for (const run of drawnRunsOf(map, index, indexOfName)) {
       geometry.addGroup(run.start, run.count, run.index)

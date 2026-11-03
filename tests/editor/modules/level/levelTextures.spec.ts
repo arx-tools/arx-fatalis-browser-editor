@@ -208,6 +208,49 @@ void describe('the paint of a level', () => {
     assert.deepEqual(runs, [{ start: 0, count: index.count, index: 1 }])
   })
 
+  void it('builds the groups from the runs of the map, the same ones the walk gives', () => {
+    const map = blankMap()
+    const textures = new Map([['jorge-[stone].jpg', new Texture()]])
+
+    paintLevelTextures(map, textures)
+
+    const geometry = map.solidMeshes[0]?.geometry
+    const index = geometry?.getIndex() ?? null
+
+    assert.notEqual(index, null)
+
+    if (geometry === undefined || index === null) {
+      return
+    }
+
+    const expected = drawnRunsOf(map, index, new Map([['jorge-[stone].jpg', 1]]))
+
+    assert.deepEqual(
+      geometry.groups.map((group) => {
+        return { start: group.start, count: group.count, materialIndex: group.materialIndex }
+      }),
+      expected.map((run) => {
+        return { start: run.start, count: run.count, materialIndex: run.index }
+      }),
+    )
+  })
+
+  void it('falls back to the walk over the triangles when the runs do not cover the index', () => {
+    const map = blankMap()
+
+    // a map whose runs are gone (the guard of a consumer that replaced the geometry): the walk is the answer
+    ;(map as unknown as { textureRuns: unknown[] }).textureRuns = []
+
+    paintLevelTextures(map, new Map([['jorge-[stone].jpg', new Texture()]]))
+
+    const geometry = map.solidMeshes[0]?.geometry
+    const index = geometry?.getIndex() ?? null
+
+    assert.notEqual(index, null)
+    assert.equal(geometry?.groups.length, 1)
+    assert.equal(geometry?.groups[0]?.count, index?.count)
+  })
+
   void it('puts the flat material back and drops the groups', () => {
     const map = blankMap()
     const geometry = map.solidMeshes[0]?.geometry

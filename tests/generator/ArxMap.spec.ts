@@ -100,6 +100,25 @@ void describe('ArxMap', () => {
       // every triangle is in the index exactly once, so the picking still reads `face.a` the way it does; and the order
       // survives the build of the tree, which means the tree did not write the index back into the polygon order
       assert.equal(seen.size, triangles)
+
+      // the runs are the blocks of the index, and their containers are the ones the order has
+      const runContainers: number[] = []
+      const expectedContainers: number[] = []
+      let runCount = 0
+
+      for (const run of map.textureRuns) {
+        runContainers.push(run.textureContainerId)
+        runCount = runCount + run.count
+      }
+
+      for (const [position, container] of containers.entries()) {
+        if (position === 0 || containers[position - 1] !== container) {
+          expectedContainers.push(container)
+        }
+      }
+
+      assert.equal(runCount, index.count)
+      assert.deepEqual(runContainers, expectedContainers)
       assert.deepEqual(
         containers,
         containers.toSorted((left, right) => {

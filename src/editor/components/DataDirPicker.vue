@@ -178,6 +178,17 @@ async function loadDir(event: Event): Promise<void> {
         The folder is remembered for the session: a reload asks for it again (the level in the url, a later round, will
         not).
       </p>
+      <p>
+        What the folders of the game are and where they live is on the wiki:
+        <a
+          class="about"
+          href="https://wiki.arx-libertatis.org/Data_directories"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Data directories
+        </a>
+      </p>
       <template #actions>
         <button class="close-help" type="button" @click="isExplaining = false">Got it</button>
       </template>
@@ -244,6 +255,15 @@ async function loadDir(event: Event): Promise<void> {
     height: 1px;
     opacity: 0;
     pointer-events: none;
+  }
+
+  // the link of the help: the interactive blue of the palette, the only colour a link may have
+  .about {
+    color: $interactive;
+
+    &:hover {
+      text-decoration: underline;
+    }
   }
 
   .close-help {

@@ -1,15 +1,20 @@
 <script setup lang="ts">
 import { ChevronDown } from 'lucide-vue-next'
 import { computed, ref, watch } from 'vue'
-import { currentMapId, mapCount, mapGroups, openMap } from '../modules/level/maps.ts'
+import { currentMapId, mapCount, mapGroups, openMap, type MapEntry } from '../modules/level/maps.ts'
 
 /**
  * The list of the maps the editor can open: choosing one opens it.
  *
  * @remarks
  * The list shows the map on the screen and a **change opens the chosen one**, in place (the page and the layout stay).
- * There is no question before it: the work of a level is the level's own — the persistence of a later round keeps it —
- * so a switch loses nothing, and a dialog in front of a plain choice would only be in the way.
+ * There is no question before it: the work of a level is the level's own — its history is put aside by the value of the
+ * map and replayed when the map comes back — so a switch loses nothing, and a dialog in front of a plain choice would
+ * only be in the way.
+ *
+ * Every row starts with a **dot**: filled for a map that has changes on it, hollow for one that does not. The dot is a
+ * character and not a styled element because a `<option>` of a native select is drawn by the browser: a colour would
+ * need a list of its own, and the two states still read. The dot is on every row, so the labels line up.
  */
 const selected = ref(currentMapId.value)
 
@@ -61,6 +66,21 @@ const selectedLabel = computed(() => {
   return selected.value
 })
 
+/**
+ * The dot of a row: filled for a map that has changes on it, hollow for one that does not.
+ *
+ * @param entry The map of the row.
+ *
+ * @returns The character the row starts with.
+ */
+function markerOf(entry: MapEntry): string {
+  if (entry.edited) {
+    return '●'
+  }
+
+  return '○'
+}
+
 // a map opened by something else of the editor (the zip of the header, the folder of the url) moves the list with it
 watch(currentMapId, (id) => {
   selected.value = id
@@ -74,7 +94,7 @@ watch(currentMapId, (id) => {
       <select v-model="selected" :title="selectedLabel" aria-label="The maps the editor can open" @change="choose">
         <optgroup v-for="group in mapGroups" :key="group.group" :label="group.label">
           <option v-for="entry in group.entries" :key="entry.id" :value="entry.id">
-            {{ entry.label }}
+            {{ markerOf(entry) }} {{ entry.label }}
           </option>
         </optgroup>
       </select>

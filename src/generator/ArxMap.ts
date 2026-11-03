@@ -17,7 +17,7 @@ import {
 } from './meshes.ts'
 import { countFacesOfTriangles } from './polygonCounts.ts'
 import { Settings } from './Settings.ts'
-import { triangleToPolygonMap, vertexToPolygonsMap } from './polygons.ts'
+import { isDoubleSided, triangleToPolygonMap, vertexToPolygonsMap } from './polygons.ts'
 import { Player } from './Player.ts'
 
 /**
@@ -41,6 +41,14 @@ export interface TextureRun {
    * The texture container the faces of the run draw with.
    */
   readonly textureContainerId: number
+  /**
+   * Whether the faces of the run are drawn from both sides.
+   *
+   * @remarks
+   * The side is part of the material a run draws with, so a texture that has a two-sided face and a one-sided one needs
+   * **two runs**: the paint builds a material of each kind (`levelTextures`), and the run is the block of one of them.
+   */
+  readonly doubleSided: boolean
 }
 
 /**
@@ -743,32 +751,41 @@ export class ArxMap {
    * Builds the index of the solid mesh in the order of the texture containers.
    *
    * @remarks
-   * The renderer draws one group per run of faces that share a texture, and a group is a range of the **index**: an
-   * index in the polygon order gives tens of thousands of runs on a big level (level 11: 30 349), one in the texture
-   * order gives one per container (266). The walkable view then draws **267 calls instead of 46 482** (measured: the
-   * render of a frame 46,4 ms → 0,9 ms).
+   * The renderer draws one group per run of faces that share a **material**, and a group is a range of the **index**: a
+   * run is the faces of one texture container that draw on the same side (the two-sided faces of a fence or a door get
+   * a material of their own, see `levelTextures`), and an index in the polygon order gives tens of thousands of runs on
+   * a big level (level 11: 30 349), one in this order gives one per container and side (266 + the two-sided ones).
    *
    * The order is written as an index and **not by moving the vertices**, so the picking keeps reading `face.a` the way
    * it does: the vertex of the first corner divided by three is the triangle of the polygon list (see
    * `polygonSelection.polygonOfHit`). The tree is built with `indirect: true` (`accelerateRaycast`), so it does not
    * write the index back into its own order.
    *
-   * A stable sort keeps the order of the polygons inside one container, which is the order the level reads best.
+   * A stable sort keeps the order of the polygons inside one run, which is the order the level reads best.
    */
   private indexSolidGeometryInTextureOrder(): void {
     const { geometry } = this.solidMeshes[0]
     const triangles = geometry.getAttribute('position').count / 3
-    const containerOfTriangle = new Uint32Array(triangles)
+
+    // the run of a triangle is its container and its side, in one number: `container * 2 + (double sided ? 1 : 0)`
+    const runKeyOfTriangle = new Uint32Array(triangles)
     let sorted = true
 
     for (let triangle = 0; triangle < triangles; triangle = triangle + 1) {
       const polygon = this.polygons[this.triangleToPolygon[triangle] ?? -1]
+      const container = polygon?.textureContainerId ?? 0
+      const evenKey = container * 2
+      let key = evenKey
 
-      containerOfTriangle[triangle] = polygon?.textureContainerId ?? 0
+      if (polygon !== undefined && isDoubleSided(polygon)) {
+        key = evenKey + 1
+      }
 
-      // a cut keeps the order of the polygons, so the level that was in the texture order stays in it: the check is one
-      // walk, the sort is a comparison per triangle (level 11: 40 ms against 2 ms)
-      if (triangle > 0 && containerOfTriangle[triangle] < containerOfTriangle[triangle - 1]) {
+      runKeyOfTriangle[triangle] = key
+
+      // a cut keeps the order of the polygons, so the level that was in this order stays in it: the check is one walk,
+      // the sort is a comparison per triangle (level 11: 40 ms against 2 ms)
+      if (triangle > 0 && runKeyOfTriangle[triangle] < runKeyOfTriangle[triangle - 1]) {
         sorted = false
       }
     }
@@ -779,15 +796,18 @@ export class ArxMap {
       order = Array.from({ length: triangles }, (_, triangle) => {
         return triangle
       }).toSorted((left, right) => {
-        return containerOfTriangle[left] - containerOfTriangle[right]
+        return runKeyOfTriangle[left] - runKeyOfTriangle[right]
       })
     }
 
     const indices = new Uint32Array(triangles * 3)
     const runs: TextureRun[] = []
-    let runContainer = -1
+    let runKey = -1
     let runStart = 0
     let runCount = 0
+    function pushRun(start: number, count: number, key: number): void {
+      runs.push({ start, count, textureContainerId: Math.trunc(key / 2), doubleSided: key % 2 === 1 })
+    }
 
     for (let position = 0; position < triangles; position = position + 1) {
       let triangle = position
@@ -796,7 +816,7 @@ export class ArxMap {
         triangle = order[position] ?? position
       }
 
-      const container = containerOfTriangle[triangle]
+      const key = runKeyOfTriangle[triangle]
       const target = position * 3
       const source = triangle * 3
 
@@ -804,21 +824,21 @@ export class ArxMap {
       indices[target + 1] = source + 1
       indices[target + 2] = source + 2
 
-      if (container === runContainer) {
+      if (key === runKey) {
         runCount = runCount + 3
       } else {
         if (runCount > 0) {
-          runs.push({ start: runStart, count: runCount, textureContainerId: runContainer })
+          pushRun(runStart, runCount, runKey)
         }
 
-        runContainer = container
+        runKey = key
         runStart = target
         runCount = 3
       }
     }
 
     if (runCount > 0) {
-      runs.push({ start: runStart, count: runCount, textureContainerId: runContainer })
+      pushRun(runStart, runCount, runKey)
     }
 
     this.textureRuns = runs

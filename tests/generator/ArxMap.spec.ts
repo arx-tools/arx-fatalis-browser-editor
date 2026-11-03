@@ -127,6 +127,34 @@ void describe('ArxMap', () => {
       )
     })
 
+    void it('gives the two-sided faces a run of their own', () => {
+      const map = flatMap()
+      const { polygons } = map
+      const first = polygons[0]
+
+      assert.notEqual(first, undefined)
+
+      if (first === undefined) {
+        return
+      }
+
+      // the FTS marks the faces the game draws from behind with the `DoubleSided` bit (1 << 1)
+      ;(first as { flags: number }).flags = first.flags | 2
+
+      // an edit rebuilds the index and the runs (the flag was set after the build)
+      map.deletePolygons([polygons.length - 1])
+
+      const doubleSided = map.textureRuns.filter((run) => {
+        return run.doubleSided
+      })
+
+      assert.equal(doubleSided.length, 1)
+      assert.equal(doubleSided[0]?.count, 6)
+      assert.equal(doubleSided[0]?.textureContainerId, first.textureContainerId)
+      // the two-sided run closes the index: the faces of one container draw on both sides in two runs
+      assert.equal(doubleSided[0]?.start, map.textureRuns.at(-1)?.start)
+    })
+
     void it('picks the face the ray meets, with the index in the texture order', () => {
       const map = flatMap()
       const { polygons } = map

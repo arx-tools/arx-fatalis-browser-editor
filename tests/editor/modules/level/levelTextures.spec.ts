@@ -2,12 +2,13 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ArxPolygon } from 'arx-convert/types'
 import JSZip from 'jszip'
-import { BufferAttribute, Texture, type Material, type MeshLambertMaterial } from 'three'
+import { BufferAttribute, DoubleSide, FrontSide, Texture, type Material, type MeshLambertMaterial } from 'three'
 import { ArxMap } from '../../../../src/generator/ArxMap.ts'
-import { createBlankLevelFiles, MINIMAL_PRESET } from '../../../../src/editor/modules/level/blankLevel.ts'
+import { createBlankLevelFiles, FLAT_PRESET, MINIMAL_PRESET } from '../../../../src/editor/modules/level/blankLevel.ts'
 import {
   drawnRunsOf,
   faceRunsOf,
+  paintKeyOf,
   findTextureFiles,
   paintLevelTextures,
   solidPolygonsOf,
@@ -114,10 +115,10 @@ void describe('findTextureFiles', () => {
 void describe('faceRunsOf', () => {
   void it('merges the neighbouring faces of the same texture', () => {
     const runs = faceRunsOf([polygonOf(1, true), polygonOf(1, false), polygonOf(1, true)], () => {
-      return 'wall'
+      return { name: 'wall', doubleSided: false }
     })
 
-    assert.deepEqual(runs, [{ start: 0, count: 6 + 3 + 6, name: 'wall' }])
+    assert.deepEqual(runs, [{ start: 0, count: 6 + 3 + 6, key: { name: 'wall', doubleSided: false } }])
   })
 
   void it('starts a run where the texture changes', () => {
@@ -127,22 +128,22 @@ void describe('faceRunsOf', () => {
       [2, 'floor'],
     ])
     const runs = faceRunsOf(polygons, (polygon) => {
-      return names.get(polygon.textureContainerId)
+      return { name: names.get(polygon.textureContainerId), doubleSided: false }
     })
 
     assert.deepEqual(runs, [
-      { start: 0, count: 6, name: 'wall' },
-      { start: 6, count: 3, name: 'floor' },
-      { start: 9, count: 12, name: 'wall' },
+      { start: 0, count: 6, key: { name: 'wall', doubleSided: false } },
+      { start: 6, count: 3, key: { name: 'floor', doubleSided: false } },
+      { start: 9, count: 12, key: { name: 'wall', doubleSided: false } },
     ])
   })
 
   void it('gives the faces with no container a run of their own', () => {
     const runs = faceRunsOf([polygonOf(1, true), polygonOf(9, true)], () => {
-      return undefined
+      return { name: undefined, doubleSided: false }
     })
 
-    assert.deepEqual(runs, [{ start: 0, count: 12, name: undefined }])
+    assert.deepEqual(runs, [{ start: 0, count: 12, key: { name: undefined, doubleSided: false } }])
   })
 })
 
@@ -162,7 +163,8 @@ void describe('the paint of a level', () => {
     const geometry = map.solidMeshes[0]?.geometry
 
     assert.equal(painted, 1)
-    assert.deepEqual(geometry?.groups, [{ start: 0, count: 6, materialIndex: 1 }])
+    // the two placeholders come first, so the material of the named texture is the third one
+    assert.deepEqual(geometry?.groups, [{ start: 0, count: 6, materialIndex: 2 }])
     assert.equal(Array.isArray(map.solidMeshes[0]?.material), true)
   })
 
@@ -191,6 +193,44 @@ void describe('the paint of a level', () => {
     assert.deepEqual((first as MeshLambertMaterial).map, missing)
   })
 
+  void it('draws the two-sided faces with a material of two sides', () => {
+    // a floor of many tiles, so an edit can rebuild the runs: the side of a face is part of a run, and the runs are
+    // built with the index (a flag set after the build needs a rebuild)
+    const files = createBlankLevelFiles(FLAT_PRESET)
+    const map = new ArxMap(files.dlf, files.fts, files.llf)
+    const textures = new Map([['jorge-[stone].jpg', new Texture()]])
+    const polygon = map.polygons[0]
+
+    assert.notEqual(polygon, undefined)
+
+    if (polygon === undefined) {
+      return
+    }
+
+    ;(polygon as { flags: number }).flags = polygon.flags | 2
+
+    map.deletePolygons([map.polygons.length - 1])
+    paintLevelTextures(map, textures)
+
+    const materials = map.solidMeshes[0]?.material
+    const groups = map.solidMeshes[0]?.geometry.groups ?? []
+
+    assert.equal(Array.isArray(materials), true)
+
+    if (!Array.isArray(materials)) {
+      return
+    }
+
+    // the placeholders come first, then the keys in the order the faces appear: the flagged tile is the first polygon,
+    // so its key is the first one and the two-sided material is the third
+    assert.equal((materials[2] as MeshLambertMaterial).side, DoubleSide)
+    assert.equal((materials[3] as MeshLambertMaterial).side, FrontSide)
+    // the index is in the run order: the one-sided faces first, the two-sided one after them
+    assert.equal(groups.length, 2)
+    assert.equal(groups[0]?.materialIndex, 3)
+    assert.equal(groups[1]?.materialIndex, 2)
+  })
+
   void it('covers the whole index with the groups, in the order the geometry draws', () => {
     const map = blankMap()
     const textures = new Map([['jorge-[stone].jpg', new Texture()]])
@@ -202,10 +242,10 @@ void describe('the paint of a level', () => {
     // the picking builds a BVH, and its tree writes an index: the groups have to be in that order, not the plain one
     assert.equal(index.count > 0, true)
 
-    const runs = drawnRunsOf(map, index, new Map([['jorge-[stone].jpg', 1]]))
+    const runs = drawnRunsOf(map, index, new Map([[paintKeyOf('jorge-[stone].jpg', false), 2]]))
 
     // every face of the blank level stands on the same texture, so one run covers the whole index from its first place
-    assert.deepEqual(runs, [{ start: 0, count: index.count, index: 1 }])
+    assert.deepEqual(runs, [{ start: 0, count: index.count, index: 2 }])
   })
 
   void it('builds the groups from the runs of the map, the same ones the walk gives', () => {
@@ -223,7 +263,7 @@ void describe('the paint of a level', () => {
       return
     }
 
-    const expected = drawnRunsOf(map, index, new Map([['jorge-[stone].jpg', 1]]))
+    const expected = drawnRunsOf(map, index, new Map([[paintKeyOf('jorge-[stone].jpg', false), 2]]))
 
     assert.deepEqual(
       geometry.groups.map((group) => {

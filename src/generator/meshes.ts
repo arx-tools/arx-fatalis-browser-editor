@@ -9,6 +9,7 @@ import {
   Vector2,
   Vector3,
   type Mesh,
+  type Side,
 } from 'three'
 import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh'
 import { Color } from './Color.ts'
@@ -303,16 +304,34 @@ export function accelerateRaycast(mesh: Mesh, options: RaycastOptions = {}): voi
 }
 
 /**
+ * How the flat material of the level draws.
+ */
+export interface LevelMaterialOptions {
+  /**
+   * The side the material draws, `FrontSide` by default.
+   */
+  readonly side?: Side
+}
+
+/**
  * Builds the material of the level mesh.
  *
  * @remarks
  * The first round has no textures, so the whole level shares one flat material. The texture round
  * replaces this with one material per texture container.
  *
+ * @param options How the material draws; the two sides of a face are the default (`FrontSide`).
+ *
  * @returns The material the mesh of the level is drawn with.
  */
-export function createLevelMaterial(): MeshLambertMaterial {
-  return new MeshLambertMaterial({ color: MESH_COLOR.getHex() })
+export function createLevelMaterial(options: LevelMaterialOptions = {}): MeshLambertMaterial {
+  const material = new MeshLambertMaterial({ color: MESH_COLOR.getHex() })
+
+  if (options.side !== undefined) {
+    material.side = options.side
+  }
+
+  return material
 }
 
 /**

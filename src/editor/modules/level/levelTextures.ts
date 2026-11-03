@@ -2,6 +2,8 @@ import type { ArxPolygon } from 'arx-convert/types'
 import { isQuad } from 'arx-convert/utils'
 import JSZip from 'jszip'
 import {
+  DoubleSide,
+  FrontSide,
   MeshLambertMaterial,
   RepeatWrapping,
   SRGBColorSpace,
@@ -10,11 +12,13 @@ import {
   type BufferGeometry,
   type Material,
   type Mesh,
+  type Side,
 } from 'three'
 import { watch } from 'vue'
 import type { ArxMap, TextureRun } from '../../../generator/ArxMap.ts'
 import { BLANK_LEVEL_TEXTURE, GENERATOR_ASSETS } from '../../../generator/assets.ts'
 import { createLevelMaterial } from '../../../generator/meshes.ts'
+import { isDoubleSided } from '../../../generator/polygons.ts'
 import { levelRevision } from './editing.ts'
 import { readDataFile } from './dataDir.ts'
 import { levelStore } from './levelStore.ts'
@@ -311,7 +315,106 @@ export async function loadMissingTexture(): Promise<Texture> {
 }
 
 /**
- * One run of the faces of the level that share a texture.
+ * The material of the faces whose container has no texture (or that have no container), for the front of a face.
+ *
+ * @remarks
+ * The paint builds two of these before the textures: the faces of a level that draw with the placeholder can be
+ * one-sided or two-sided, and the side of a face belongs to its material.
+ */
+const PLACEHOLDER_FRONT = 0
+
+/**
+ * The same placeholder for the two-sided faces.
+ */
+const PLACEHOLDER_DOUBLE = 1
+
+/**
+ * How many materials the paint builds before the textures: the two placeholders.
+ */
+const PLACEHOLDER_COUNT = 2
+
+/**
+ * What a run of faces draws with: the texture (or none) and the side of the face.
+ *
+ * @remarks
+ * The side belongs to the **material**, not to the texture: the level has faces the game draws from both sides (a
+ * fence, a door, a banner — the `DoubleSided` bit of the FTS), and a texture that has such a face and a one-sided one
+ * needs a material of each kind. The paint builds one per key, and a run is the block of one of them.
+ */
+export interface PaintKey {
+  /**
+   * The name of the texture, or `undefined` when the level has no container for it (or no texture for that container).
+   */
+  readonly name: string | undefined
+  /**
+   * Whether the faces are drawn from both sides.
+   */
+  readonly doubleSided: boolean
+}
+
+/**
+ * A paint key the paint builds a texture material for: it always has a name.
+ */
+interface NamedPaintKey extends PaintKey {
+  readonly name: string
+}
+
+/**
+ * Writes a paint key as the string the materials are keyed with.
+ *
+ * @param name The name of the texture, or `undefined`.
+ * @param doubleSided Whether the faces are drawn from both sides.
+ *
+ * @returns The key, like `double|[iron]_arx_logo.bmp`.
+ */
+export function paintKeyOf(name: string | undefined, doubleSided: boolean): string {
+  if (doubleSided) {
+    return `double|${name ?? ''}`
+  }
+
+  return `front|${name ?? ''}`
+}
+
+/**
+ * The `side` a material of a key draws with.
+ *
+ * @param doubleSided Whether the faces are drawn from both sides.
+ *
+ * @returns The side of the material.
+ */
+function sideOf(doubleSided: boolean): Side {
+  if (doubleSided) {
+    return DoubleSide
+  }
+
+  return FrontSide
+}
+
+/**
+ * The material a run draws with: the one of its key, or the placeholder of its side.
+ *
+ * @param key The key of the run, from {@link paintKeyOf}.
+ * @param doubleSided Whether the faces are drawn from both sides.
+ * @param indexOfKey The material index every key the paint built has.
+ *
+ * @returns The index of the material to draw the run with.
+ */
+function materialIndexOf(key: string, doubleSided: boolean, indexOfKey: ReadonlyMap<string, number>): number {
+  const index = indexOfKey.get(key)
+
+  if (index !== undefined) {
+    return index
+  }
+
+  if (doubleSided) {
+    return PLACEHOLDER_DOUBLE
+  }
+
+  return PLACEHOLDER_FRONT
+}
+
+/**
+ * One run of the faces of the level that draw with the same material.
  */
 export interface FaceRun {
   /**
@@ -323,55 +426,67 @@ export interface FaceRun {
    */
   readonly count: number
   /**
-   * The name of the texture of the run, or `undefined` when the level has no container for it.
+   * What the run draws with.
    */
-  readonly name: string | undefined
+  readonly key: PaintKey
 }
 
 /**
- * The names of the textures the faces of a level need, in the order they first appear.
+ * The materials the faces of a level need, in the order they first appear.
+ *
+ * @remarks
+ * A texture that has both a one-sided and a two-sided face gives two keys, so the list is a list of **keys** and not of
+ * names. A container without a texture is not in it: those faces draw with the placeholder of their side.
  *
  * @param map The map of the level.
  * @param polygons The solid faces, in the order of the geometry.
  * @param textures The textures the level has, by the name it calls them.
  *
- * @returns The names that have a texture: a container without one draws with the placeholder.
+ * @returns The keys that have a texture.
  */
-function neededNamesOf(map: ArxMap, polygons: readonly ArxPolygon[], textures: ReadonlyMap<string, Texture>): string[] {
-  const names: string[] = []
+function neededKeysOf(
+  map: ArxMap,
+  polygons: readonly ArxPolygon[],
+  textures: ReadonlyMap<string, Texture>,
+): NamedPaintKey[] {
+  const keys: NamedPaintKey[] = []
   const seen = new Set<string>()
 
   for (const polygon of polygons) {
     const name = map.textureNameOf(polygon.textureContainerId)
 
-    if (name === undefined || seen.has(name) || !textures.has(name)) {
+    if (name === undefined || !textures.has(name)) {
       continue
     }
 
-    seen.add(name)
-    names.push(name)
+    const doubleSided = isDoubleSided(polygon)
+    const key = paintKeyOf(name, doubleSided)
+
+    if (seen.has(key)) {
+      continue
+    }
+
+    seen.add(key)
+    keys.push({ name, doubleSided })
   }
 
-  return names
+  return keys
 }
 
 /**
- * Reads the runs of the faces of a level that share a texture.
+ * Reads the runs of the faces of a level that draw with the same material.
  *
  * @remarks
- * The geometry of the level is one buffer in the order of the polygons (three or six vertices each), so a texture is
- * drawn with a **group** of the geometry: a run of the neighbouring faces that use the same container. The picking
- * reads the triangle order, which the groups do not touch, so it stays right.
+ * The geometry of the level is one buffer in the order of the polygons (three or six vertices each), so a material is
+ * drawn with a **group** of the geometry: a run of the neighbouring faces that draw with it. The picking reads the
+ * triangle order, which the groups do not touch, so it stays right.
  *
  * @param polygons The polygons of the level, in the order of the geometry.
- * @param nameOf The name of the texture of a polygon, or `undefined` when it has no container.
+ * @param keyOf What a polygon draws with.
  *
  * @returns The runs, in the order of the geometry.
  */
-export function faceRunsOf(
-  polygons: readonly ArxPolygon[],
-  nameOf: (polygon: ArxPolygon) => string | undefined,
-): FaceRun[] {
+export function faceRunsOf(polygons: readonly ArxPolygon[], keyOf: (polygon: ArxPolygon) => PaintKey): FaceRun[] {
   const runs: FaceRun[] = []
   let start = 0
 
@@ -382,13 +497,16 @@ export function faceRunsOf(
       count = 6
     }
 
-    const name = nameOf(polygon)
+    const key = keyOf(polygon)
     const last = runs.at(-1)
 
-    if (last !== undefined && last.name === name) {
-      runs[runs.length - 1] = { start: last.start, count: last.count + count, name }
+    if (
+      last !== undefined &&
+      paintKeyOf(last.key.name, last.key.doubleSided) === paintKeyOf(key.name, key.doubleSided)
+    ) {
+      runs[runs.length - 1] = { start: last.start, count: last.count + count, key }
     } else {
-      runs.push({ start, count, name })
+      runs.push({ start, count, key })
     }
 
     start = start + count
@@ -426,11 +544,11 @@ export interface DrawnRun {
  *
  * @param map The map the geometry belongs to.
  * @param index The index of the geometry.
- * @param indexOfName The material of a texture, by the name the level calls it.
+ * @param indexOfKey The material of a paint key, from {@link paintKeyOf}.
  *
  * @returns The runs, in the order of the index buffer.
  */
-export function drawnRunsOf(map: ArxMap, index: BufferAttribute, indexOfName: ReadonlyMap<string, number>): DrawnRun[] {
+export function drawnRunsOf(map: ArxMap, index: BufferAttribute, indexOfKey: ReadonlyMap<string, number>): DrawnRun[] {
   const runs: DrawnRun[] = []
 
   for (let triangle = 0; triangle < index.count / 3; triangle = triangle + 1) {
@@ -438,17 +556,14 @@ export function drawnRunsOf(map: ArxMap, index: BufferAttribute, indexOfName: Re
     const plain = index.getX(triangle * 3) / 3
     const polygon = map.polygons[map.triangleToPolygon[plain] ?? -1]
     let name: string | undefined
+    let doubleSided = false
 
     if (polygon !== undefined) {
       name = map.textureNameOf(polygon.textureContainerId)
+      doubleSided = isDoubleSided(polygon)
     }
 
-    let material = 0
-
-    if (name !== undefined) {
-      material = indexOfName.get(name) ?? 0
-    }
-
+    const material = materialIndexOf(paintKeyOf(name, doubleSided), doubleSided, indexOfKey)
     const last = runs.at(-1)
 
     if (last?.index === material) {
@@ -489,13 +604,13 @@ function runsCoverIndex(runs: readonly TextureRun[], index: BufferAttribute): bo
  * @param geometry The geometry of the level.
  * @param map The map of the level.
  * @param runs The runs, in the order of the index.
- * @param indexOfName The material of a texture, by the name the level calls it.
+ * @param indexOfKey The material of a paint key, from {@link paintKeyOf}.
  */
 function addRunGroups(
   geometry: BufferGeometry,
   map: ArxMap,
   runs: readonly TextureRun[],
-  indexOfName: ReadonlyMap<string, number>,
+  indexOfKey: ReadonlyMap<string, number>,
 ): void {
   let start = 0
   let count = 0
@@ -503,11 +618,7 @@ function addRunGroups(
 
   for (const run of runs) {
     const name = map.textureNameOf(run.textureContainerId)
-    let current = 0
-
-    if (name !== undefined) {
-      current = indexOfName.get(name) ?? 0
-    }
+    const current = materialIndexOf(paintKeyOf(name, run.doubleSided), run.doubleSided, indexOfKey)
 
     if (current === material) {
       count = count + run.count
@@ -607,9 +718,9 @@ interface PaintedLevel {
    */
   readonly materials: Material[]
   /**
-   * The names of the textures the materials were built for, in the order of the array (the first is the placeholder).
+   * The keys of the materials the paint built, in the order of the array (the first two are the placeholders).
    */
-  readonly names: readonly string[]
+  readonly keys: readonly string[]
   /**
    * The textures the materials were built from, and the placeholder: another set means the level was painted again with
    * the folder of a zip or of the game, so the materials are built again.
@@ -640,9 +751,10 @@ let current:
  * Paints the solid mesh of a level with its textures.
  *
  * @remarks
- * One material per texture container, the first being the flat material of the generator for the containers the zip
- * did not have (the game's own textures) and for the faces with no container. The groups of the geometry are cleared
- * and built again, so the call is also what re-paints the level after an edit moved the faces.
+ * One material per **paint key** (a texture and a side, see {@link PaintKey}): the two placeholders come first, for the
+ * containers the zip did not have (the game's own textures) and for the faces with no container — one for the one-sided
+ * faces and one for the two-sided ones, because the side is a property of the material. The groups of the geometry are
+ * cleared and built again, so the call is also what re-paints the level after an edit moved the faces.
  *
  * @param map The map to paint.
  * @param textures The textures, by the name the level calls them.
@@ -661,21 +773,24 @@ export function paintLevelTextures(map: ArxMap, textures: ReadonlyMap<string, Te
   const materials = started?.materials ?? []
   const polygons = solidPolygonsOf(map)
 
-  // the names the paint needs, in the order they first appear: the materials are built for these, and a repaint (an
-  // edit) keeps them — the same names, the same materials, no shader of thirty textures built again for a delete
-  const names = neededNamesOf(map, polygons, textures)
-  const indexOfName = new Map<string, number>(
-    names.map((name, index) => {
-      return [name, index + 1]
+  // the keys the paint needs, in the order they first appear: the materials are built for these, and a repaint (an
+  // edit) keeps them — the same keys, the same materials, no shader of thirty textures built again for a delete
+  const keys = neededKeysOf(map, polygons, textures)
+  const keyStrings = keys.map((key) => {
+    return paintKeyOf(key.name, key.doubleSided)
+  })
+  const indexOfKey = new Map<string, number>(
+    keyStrings.map((key, index) => {
+      return [key, index + PLACEHOLDER_COUNT]
     }),
   )
 
   const isSamePaint =
     started?.textures === textures &&
     started.missing === missing &&
-    started.materials.length === names.length + 1 &&
-    names.every((name, index) => {
-      return started.names[index] === name
+    started.materials.length === keys.length + PLACEHOLDER_COUNT &&
+    keyStrings.every((key, index) => {
+      return started.keys[index] === key
     })
 
   if (!isSamePaint) {
@@ -686,13 +801,16 @@ export function paintLevelTextures(map: ArxMap, textures: ReadonlyMap<string, Te
     materials.length = 0
 
     if (missing === undefined) {
-      materials.push(createLevelMaterial())
+      materials.push(createLevelMaterial(), createLevelMaterial({ side: DoubleSide }))
     } else {
-      materials.push(new MeshLambertMaterial({ map: missing }))
+      materials.push(
+        new MeshLambertMaterial({ map: missing }),
+        new MeshLambertMaterial({ map: missing, side: DoubleSide }),
+      )
     }
 
-    for (const name of names) {
-      materials.push(new MeshLambertMaterial({ map: textures.get(name) }))
+    for (const key of keys) {
+      materials.push(new MeshLambertMaterial({ map: textures.get(key.name), side: sideOf(key.doubleSided) }))
     }
   }
 
@@ -708,39 +826,30 @@ export function paintLevelTextures(map: ArxMap, textures: ReadonlyMap<string, Te
   if (index === null) {
     // a geometry the picking has not indexed yet: the polygons are in the order of the vertices
     for (const run of faceRunsOf(polygons, (polygon) => {
-      return map.textureNameOf(polygon.textureContainerId)
+      return { name: map.textureNameOf(polygon.textureContainerId), doubleSided: isDoubleSided(polygon) }
     })) {
-      let material = 0
-      let named: number | undefined
+      const key = paintKeyOf(run.key.name, run.key.doubleSided)
 
-      if (run.name !== undefined) {
-        named = indexOfName.get(run.name)
-      }
-
-      if (named !== undefined) {
-        material = named
-      }
-
-      geometry.addGroup(run.start, run.count, material)
+      geometry.addGroup(run.start, run.count, materialIndexOf(key, run.key.doubleSided, indexOfKey))
     }
   } else if (runsCoverIndex(map.textureRuns, index)) {
     // the index is in the texture order, so a run of the map is a block of the index: the groups are the runs, and the
     // walk over the triangles (123 485 of them on level 11, 52 ms) is not needed
-    addRunGroups(geometry, map, map.textureRuns, indexOfName)
+    addRunGroups(geometry, map, map.textureRuns, indexOfKey)
   } else {
-    for (const run of drawnRunsOf(map, index, indexOfName)) {
+    for (const run of drawnRunsOf(map, index, indexOfKey)) {
       geometry.addGroup(run.start, run.count, run.index)
     }
   }
 
   if (started?.mesh === mesh) {
-    painted = { mesh, material: started.material, materials, names, textures, missing }
+    painted = { mesh, material: started.material, materials, keys: keyStrings, textures, missing }
   } else {
-    painted = { mesh, material: mesh.material, materials, names, textures, missing }
+    painted = { mesh, material: mesh.material, materials, keys: keyStrings, textures, missing }
     mesh.material = materials
   }
 
-  return materials.length - 1
+  return materials.length - PLACEHOLDER_COUNT
 }
 
 /**

@@ -1,6 +1,23 @@
-import type { ArxPolygon, ArxVector3 } from 'arx-convert/types'
+import { ArxPolygonFlags, type ArxPolygon, type ArxVector3 } from 'arx-convert/types'
 import { isQuad } from 'arx-convert/utils'
 import { arxVector3toVector3 } from './meshes.ts'
+
+/**
+ * Tells whether a face is drawn from both sides.
+ *
+ * @remarks
+ * The FTS marks the polygons a level has to draw from behind (a fence, a door, a banner, a hanging cloth) with the
+ * `DoubleSided` bit, and the game draws those faces with both sides lit. The renderer can only draw a face from both
+ * sides through the `side` of its material, which is why the paint builds a material of each kind for a texture that
+ * has such a face (see `levelTextures`).
+ *
+ * @param polygon The polygon to read.
+ *
+ * @returns True when the game draws it from both sides.
+ */
+export function isDoubleSided(polygon: Pick<ArxPolygon, 'flags'>): boolean {
+  return (polygon.flags & ArxPolygonFlags.DoubleSided) !== 0
+}
 
 /**
  * The stored vertex order of a polygon is a "Z": `0, 1, 2` for a triangle and `0, 1, 2, 3` for a quad.

@@ -19,6 +19,7 @@ import { isMeshVisible, isWireframeVisible } from '../levelDisplay.ts'
 import { addPreviewLights, attachWireframe, viewMeshesOf, type LevelWireframe } from '../levelScene.ts'
 import { FIELD_OF_VIEW, createViewScene, disposeViewScene, resizeViewScene, type ViewScene } from '../viewScene.ts'
 import { CameraControls } from './cameraControls.ts'
+import { isPickDue } from './pickInterval.ts'
 import { createOrientationGizmo, type OrientationGizmo } from './orientationGizmo.ts'
 import {
   createPolygonSelectionOverlay,
@@ -120,6 +121,16 @@ let lastDrawnPose = ''
  * Whether something else (the level, the selection, the size) asks for a frame of the locked loop.
  */
 let redrawNeeded = false
+/**
+ * When the crosshair last picked a face, and whether a pick was held back by the interval.
+ *
+ * @remarks
+ * The pick is a ray through the level (11,6 ms on a big level), and the camera moves every frame: the pick runs at most
+ * every {@link PICK_INTERVAL_MS}, and the frame it was held back on asks for one more when the interval is over — so a
+ * camera that stops still outlines the face it stopped on.
+ */
+let lastPickedAt = 0
+let pickPending = false
 let stopWatching: (() => void) | undefined
 let stopWatchingWireframe: (() => void) | undefined
 let stopWatchingMesh: (() => void) | undefined
@@ -284,10 +295,31 @@ function onDoubleClick(event: MouseEvent): void {
   selectionStore.selectMany(area, selectionModeOf(event))
 }
 
-function updateCursor(): void {
+/**
+ * Reads the face under the crosshair and tells the outline and the inspector about it.
+ *
+ * @remarks
+ * The pick is a ray through the level, so it runs at most every {@link PICK_INTERVAL_MS} while the pointer is locked;
+ * a held back pick asks the loop for a frame by {@link pickPending}, and that frame picks even if the camera stands
+ * still.
+ *
+ * @param now The timestamp of the frame, in milliseconds.
+ */
+function updateCursor(now: number): void {
   if (view === undefined || loadedMap === undefined || selection === undefined) {
     return
   }
+
+  // a frame of the locked loop picks only when the interval is over, and the one that was held back asks for a frame
+  // when it is not: a camera that stops still outlines the face under the crosshair
+  if (controls?.isLocked === true && !isPickDue(now, lastPickedAt)) {
+    pickPending = true
+
+    return
+  }
+
+  lastPickedAt = now
+  pickPending = false
 
   const index = pickPolygon(view.camera, shown, loadedMap.triangleToPolygon)
   let polygon: ArxPolygon | undefined
@@ -377,15 +409,17 @@ function poseOf(viewScene: ViewScene<PerspectiveCamera>): string {
  * @remarks
  * The gizmo has a canvas of its own over the corner, so it draws after the scene and never touches its
  * frame.
+ *
+ * @param now The timestamp of the frame, in milliseconds.
  */
-function drawFrame(): void {
+function drawFrame(now: number): void {
   if (view === undefined) {
     return
   }
 
   // the crosshair is the centre of the canvas, so the polygon under it is read here, on every frame that
   // is drawn: a look around moves the outline with the camera
-  updateCursor()
+  updateCursor(now)
   updateDrag()
 
   view.renderer.render(view.scene, view.camera)
@@ -407,10 +441,10 @@ function requestRender(): void {
     return
   }
 
-  frame = requestAnimationFrame(() => {
+  frame = requestAnimationFrame((now) => {
     frame = 0
     redrawNeeded = false
-    drawFrame()
+    drawFrame(now)
   })
 }
 
@@ -450,10 +484,10 @@ function animate(now: number): void {
     pose = poseOf(view)
   }
 
-  if (pose !== lastDrawnPose || redrawNeeded) {
+  if (pose !== lastDrawnPose || redrawNeeded || (pickPending && isPickDue(now, lastPickedAt))) {
     lastDrawnPose = pose
     redrawNeeded = false
-    drawFrame()
+    drawFrame(now)
   }
 
   frame = requestAnimationFrame(animate)
@@ -553,6 +587,8 @@ function showMap(map: ArxMap): void {
   wireframe.setVisible(isWireframeVisible.value)
 
   loadedMap = map
+  lastPickedAt = 0
+  pickPending = false
   selection = createPolygonSelectionOverlay(view.scene, arxVector3toVector3(map.scenePosition))
   updateHighlight()
   requestRender()

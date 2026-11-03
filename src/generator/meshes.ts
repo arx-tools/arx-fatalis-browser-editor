@@ -263,6 +263,22 @@ export function splitPolygons(fts: ArxFTS): LevelPolygons {
 const MAX_LEAF_SIZE = 40
 
 /**
+ * How the tree of the picking is built.
+ */
+export interface RaycastOptions {
+  /**
+   * Whether the tree leaves the index of the geometry to its caller.
+   *
+   * @remarks
+   * A plain tree **writes the index**: it groups the triangles for its own walk, so a geometry whose index is sorted
+   * for the renderer (the level sorts it, one run per texture: see `ArxMap`) would lose that order on the next build,
+   * and the draw would fall back to tens of thousands of groups. The indirect tree keeps the triangle ids in a buffer
+   * of its own and never touches the index — the renderer's order and the tree's walk can differ.
+   */
+  readonly indirect?: boolean
+}
+
+/**
  * Makes the raycast of a mesh go through a BVH instead of every triangle.
  *
  * @remarks
@@ -276,9 +292,13 @@ const MAX_LEAF_SIZE = 40
  * three object of the page, and the generator is a library the level projects use as well.
  *
  * @param mesh The mesh to speed up; its geometry has to be built already.
+ * @param options How the tree is built; a plain tree by default.
  */
-export function accelerateRaycast(mesh: Mesh): void {
-  mesh.geometry.boundsTree = new MeshBVH(mesh.geometry, { maxLeafSize: MAX_LEAF_SIZE })
+export function accelerateRaycast(mesh: Mesh, options: RaycastOptions = {}): void {
+  mesh.geometry.boundsTree = new MeshBVH(mesh.geometry, {
+    maxLeafSize: MAX_LEAF_SIZE,
+    indirect: options.indirect === true,
+  })
   mesh.raycast = acceleratedRaycast
 }
 

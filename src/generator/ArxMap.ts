@@ -701,6 +701,13 @@ export class ArxMap {
    * the tree writes it), and a splice moves the triangles after the change: it is dropped here, and the new tree
    * writes a fresh one in `accelerateRaycast`.
    *
+   * The **groups** go with the index: they are the runs of the texture paint, and a group is a *material range* of
+   * the geometry, so `MeshBVH` builds a root per range when the tree is made (a root keeps the tree from reordering
+   * triangles across two materials). A painted level has one group per run, and the runs are short (level 11: 46 480
+   * of them), so a tree built on them has **46 479 roots** and every ray walks all of them — measured: the first pick
+   * after a delete took 6,5 s. The paint builds the groups again after the edit (`paintLevelTextures`), and the
+   * renderer needs nothing else, so they are dropped here.
+   *
    * The attributes follow the **first slice**: a mesh has one layout (position, normal, uv), and the slices of the
    * same mesh are the same. A cut reads the slices from the target itself, so its attributes are read one by one, an
    * attribute that was not replaced yet still holding the old vertices.
@@ -713,6 +720,8 @@ export class ArxMap {
 
     // no slice means no polygon left: the geometry keeps its layout and gets empty buffers
     if (first === undefined) {
+      target.clearGroups()
+
       for (const [name, attribute] of Object.entries(target.attributes)) {
         target.setAttribute(name, new BufferAttribute(new Float32Array(0), attribute.itemSize, attribute.normalized))
       }
@@ -727,6 +736,7 @@ export class ArxMap {
 
     target.dispose()
     target.setIndex(null)
+    target.clearGroups()
 
     for (const name of names) {
       const reference = first.geometry.getAttribute(name)

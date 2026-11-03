@@ -1,8 +1,13 @@
-import { computed, nextTick, ref, shallowRef } from 'vue'
+import { computed, nextTick, ref, shallowRef, watch } from 'vue'
 import { cameraStore } from '../../components/widgets/cameraStore.ts'
+import { history } from '../history/history.ts'
+import { mapHistoryRecords } from '../history/mapHistory.ts'
+import type { HistoryRecord } from '../history/records.ts'
 import { persistedRef } from '../persistedRef/persistedRef.ts'
+import { getUrlAdapter, readUrlValue, writeUrlValue, type UrlAdapter } from '../persistedRef/url.ts'
 import { FLAT_PRESET, MINIMAL_PRESET, type NewLevelPreset } from './blankLevel.ts'
 import { clearDataDirScan, readDataFile, scanLevelNumbers } from './dataDir.ts'
+import { restoreMapHistory, saveMapHistory } from './editing.ts'
 import { paintLevel } from './levelTextures.ts'
 import { levelStore } from './levelStore.ts'
 import { createBlankLevelSource, createOriginalLevelSource, type LevelSource } from './levelSource.ts'
@@ -40,6 +45,13 @@ export interface MapEntry {
    * What the list shows.
    */
   readonly label: string
+  /**
+   * Whether the map has steps on it (a change that can be taken back).
+   *
+   * @remarks
+   * The list marks the map with it: the user sees which levels have work on them without opening every one.
+   */
+  readonly edited: boolean
 }
 
 /**
@@ -91,9 +103,29 @@ export const arxLevels = ref<number[]>([])
 export const customMaps = shallowRef<Array<{ readonly label: string; readonly data: ArrayBuffer }>>([])
 
 /**
+ * The map the editor opens when nothing else says one.
+ *
+ * @remarks
+ * It is the Flat level: the editor starts with a place to build on instead of a dot, and a map the url names but the
+ * list does not have falls back here.
+ */
+export const DEFAULT_MAP_ID = 'blank:flat'
+
+/**
+ * The url parameter that carries the map on the screen, like `?map=arx:8`.
+ *
+ * @remarks
+ * It is the value of the list ({@link MapEntry.id}), so a link says which map it is about. The map of the url is read
+ * at start and written when the map changes; a value the list does not have (a map of a data directory the browser no
+ * longer has, or a zip of a previous session) falls back to {@link DEFAULT_MAP_ID} — the message about it is the todo
+ * of a later round.
+ */
+export const MAP_PARAMETER = 'map'
+
+/**
  * The map the store holds now.
  */
-export const currentMapId = ref<string>('blank:flat')
+export const currentMapId = ref<string>(DEFAULT_MAP_ID)
 
 /**
  * The map that was opened last, in the browser.
@@ -137,17 +169,67 @@ export function startupSource(): LevelSource | undefined {
 }
 
 /**
+ * Reads the maps that have changes on them.
+ *
+ * @remarks
+ * A map that was put away keeps its steps in the store; the map on the screen is the live history, and its saved list
+ * is from the last time it was put away, so the two are read together: the live one wins for the current map (an undo
+ * of every step makes the map clean again).
+ *
+ * @param saved The steps of every map that was put away.
+ * @param currentId The value of the map on the screen.
+ * @param currentEdited Whether the map on the screen has a step that can be taken back.
+ *
+ * @returns The values of the maps that have changes on them.
+ */
+export function editedMapIdsOf(
+  saved: ReadonlyMap<string, readonly HistoryRecord[]>,
+  currentId: string,
+  currentEdited: boolean,
+): ReadonlySet<string> {
+  const ids = new Set<string>()
+
+  for (const [id, records] of saved) {
+    if (records.length > 0) {
+      ids.add(id)
+    }
+  }
+
+  if (currentEdited) {
+    ids.add(currentId)
+  } else {
+    ids.delete(currentId)
+  }
+
+  return ids
+}
+
+/**
+ * The maps that have changes on them.
+ */
+export const editedMapIds = computed<ReadonlySet<string>>(() => {
+  return editedMapIdsOf(mapHistoryRecords.value, currentMapId.value, history.edited.value)
+})
+
+/**
  * The groups of the list, in the order the header shows them.
  */
 export const mapGroups = computed<MapGroupEntry[]>(() => {
+  const edited = editedMapIds.value
   const blanks: MapEntry[] = BLANK_PRESETS.map((entry) => {
-    return { id: `blank:${entry.id}`, group: 'blank', label: entry.label }
+    const id = `blank:${entry.id}`
+
+    return { id, group: 'blank', label: entry.label, edited: edited.has(id) }
   })
   const arx: MapEntry[] = arxLevels.value.map((level) => {
-    return { id: `arx:${String(level)}`, group: 'arx', label: `arx level ${String(level)}` }
+    const id = `arx:${String(level)}`
+
+    return { id, group: 'arx', label: `arx level ${String(level)}`, edited: edited.has(id) }
   })
   const custom: MapEntry[] = customMaps.value.map((entry, index) => {
-    return { id: `custom:${String(index)}`, group: 'custom', label: entry.label }
+    const id = `custom:${String(index)}`
+
+    return { id, group: 'custom', label: entry.label, edited: edited.has(id) }
   })
 
   const groups: MapGroupEntry[] = [
@@ -257,22 +339,43 @@ function sourceOf(id: string): LevelSource | undefined {
 }
 
 /**
+ * What opening a map does with the camera.
+ */
+export interface OpenMapOptions {
+  /**
+   * Whether the camera goes to the spawn of the new level.
+   *
+   * @remarks
+   * A switch the user makes lands somewhere instead of the place the old level left the camera at. The map of the url
+   * at start keeps the pose the url (or the last visit) carries: the camera goes to the spawn there only when the
+   * level is not the one of the last visit (`App.vue` watches that).
+   */
+  readonly camera?: 'spawn' | 'keep'
+}
+
+/**
  * Opens a map of the list, in place.
  *
  * @remarks
- * The map replaces the one in the store (the history and the selection go with it), and the camera moves to the spawn
- * of the new level, so a jump between two maps lands somewhere instead of the place the old one left the camera at.
+ * The map replaces the one in the store, and the steps of the map that goes away are put aside by its value (see
+ * {@link saveMapHistory}): the map that comes back is loaded again and its steps are replayed onto it
+ * ({@link restoreMapHistory}). The selection is dropped with the map.
  *
  * @param id The value of the map, like `arx:8`.
+ * @param options What the camera does; it goes to the spawn of the level by default.
  *
  * @returns A promise that settles when the map is on the screen and painted.
  */
-export async function openMap(id: string): Promise<void> {
+export async function openMap(id: string, options: OpenMapOptions = {}): Promise<void> {
   const source = sourceOf(id)
 
   if (source === undefined) {
     return
   }
+
+  // the steps of the map on the screen are its own: they are put aside before the map goes away, and the map that
+  // comes back gets them again below
+  saveMapHistory(currentMapId.value)
 
   let zipData: ArrayBuffer | undefined
 
@@ -291,10 +394,89 @@ export async function openMap(id: string): Promise<void> {
   currentMapId.value = id
   lastMapId.value = id
 
-  // the new level has its own player: the camera goes there, so the view opens on it (the tick lets the walkable view
-  // rebuild itself around the new map first)
+  // the map change clears the live history (its steps are indices of the map that went away): the tick lets that
+  // happen before the steps of this map are put back
   await nextTick()
-  cameraStore.moveToSpawn()
+
+  const map = levelStore.map.value
+
+  if (map !== undefined) {
+    restoreMapHistory(id, map)
+  }
+
+  // the replay changes the level (the revision is watched, so the paint follows it), and the camera goes after that; the
+  // tick also lets the walkable view rebuild itself around the new map first
+  await nextTick()
+
+  if (options.camera !== 'keep') {
+    cameraStore.moveToSpawn()
+  }
+}
+
+/**
+ * Reads the map the url names.
+ *
+ * @param url The query string to read, the one of the page by default.
+ *
+ * @returns The value of the map, or `undefined` when the url says nothing usable.
+ */
+export function mapIdFromUrl(url: UrlAdapter | undefined = getUrlAdapter(undefined)): string | undefined {
+  if (url === undefined) {
+    return undefined
+  }
+
+  const raw = readUrlValue(url, MAP_PARAMETER)
+
+  // an empty parameter (`?map=`) says nothing, the same as no parameter at all
+  if (raw === undefined || raw.trim() === '') {
+    return undefined
+  }
+
+  return raw.trim()
+}
+
+/**
+ * Reads the map of the url when the list has it.
+ *
+ * @remarks
+ * A blank preset is always there; a level of the game needs its folder to have it (the list of the maps is the levels
+ * the data directory was scanned for), and a zip needs the session that opened it. Anything else is not a map the
+ * editor can open, so the caller falls back to {@link DEFAULT_MAP_ID}.
+ *
+ * @param id The map of the url, or `undefined` when it names none.
+ * @param levels The levels of the data directory.
+ *
+ * @returns The value of the map when the list has it, `undefined` when it does not.
+ */
+export function availableMapIdOf(id: string | undefined, levels: readonly number[]): string | undefined {
+  if (id === undefined || sourceOf(id) === undefined) {
+    return undefined
+  }
+
+  const [group, value] = id.split(':', 2)
+
+  if (group === 'arx' && !levels.includes(Number(value))) {
+    return undefined
+  }
+
+  return id
+}
+
+/**
+ * Keeps the map of the screen in the url.
+ *
+ * @remarks
+ * The url is the api of the editor: a link is the whole state, and the map is part of it now. The write goes through
+ * `replaceState`, so the back button still leaves the page — the same rule as the other persisted values.
+ */
+export function startMapPersistence(): void {
+  watch(currentMapId, (id) => {
+    const url = getUrlAdapter(undefined)
+
+    if (url !== undefined) {
+      writeUrlValue(url, MAP_PARAMETER, id)
+    }
+  })
 }
 
 /**

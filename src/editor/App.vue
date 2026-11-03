@@ -11,7 +11,20 @@ import { paintLevel, startLevelTextures } from './modules/level/levelTextures.ts
 import { levelStore } from './modules/level/levelStore.ts'
 import { DATA_DIR_PARAMETER, dataDirFromUrl, hasDataDir, startDataDir, storedDataDir } from './modules/level/dataDir.ts'
 import { isOriginalLevelSource, ORIGINAL_LEVEL_PARAMETER, starterLevelSource } from './modules/level/levelSource.ts'
-import { currentMapId, lastMapId, refreshDataDir, rememberCustomMap, setStartupSource } from './modules/level/maps.ts'
+import {
+  arxLevels,
+  availableMapIdOf,
+  currentMapId,
+  DEFAULT_MAP_ID,
+  lastMapId,
+  MAP_PARAMETER,
+  mapIdFromUrl,
+  openMap,
+  refreshDataDir,
+  rememberCustomMap,
+  setStartupSource,
+  startMapPersistence,
+} from './modules/level/maps.ts'
 import { getUrlAdapter, writeUrlValue } from './modules/persistedRef/url.ts'
 import { isZipLevelSource } from './modules/level/zipSource.ts'
 import { cameraStore } from './components/widgets/cameraStore.ts'
@@ -35,10 +48,8 @@ const isLevelLoading = computed(() => {
 // the map has to survive that (a layout reset rebuilds every widget). Starting it here also means the
 // level is on its way before the dock asks for it.
 onMounted(() => {
-  const source = starterLevelSource()
   const url = getUrlAdapter(undefined)
-
-  setStartupSource(source)
+  const requestedMap = mapIdFromUrl(url)
 
   // the data directory of the session: the url names one (and it is remembered for the next visits), or the browser
   // has the folder from a previous one
@@ -55,75 +66,100 @@ onMounted(() => {
     console.info(`Data dir: ${startedDataDir} (${state})`)
   }
 
-  // the data directory of the url has levels and textures, and the list of the maps reads the levels it has
-  if (hasDataDir()) {
-    refreshDataDir().catch(() => {
-      // a folder that can not be read leaves the list without levels, the editor still works
-    })
-  }
-
-  if (isZipLevelSource(source)) {
-    // the level of the `fromZip` url: its textures are painted before the views get the map, and a zip that does not
-    // load is an error the walkable view shows (a silent blank level would hide the mistake of the url)
-    const data = source.data()
-
-    if (data !== undefined) {
-      currentMapId.value = rememberCustomMap(source.label, data)
-    }
-
-    levelStore
-      .openLevel(source, async (map): Promise<void> => {
-        await paintLevel(map, source.data())
-      })
-      .catch(() => {
-        // the store keeps the error of the load, the walkable view shows it
-      })
-  } else if (isOriginalLevelSource(source)) {
-    currentMapId.value = `arx:${String(source.level)}`
-
-    // a level of the game, with the textures of the data directory of the url: nothing is downloaded, and a folder
-    // that has no such level is an error the walkable view shows
-    levelStore
-      .openLevel(source, async (map): Promise<void> => {
-        await paintLevel(map)
-      })
-      .catch(() => {
-        // the store keeps the error of the load, the walkable view shows it
-      })
-  } else {
-    // the blank level of the start is painted like any other: the containers it has draw with the placeholder (the
-    // editor has no texture of the game at hand), so the floor is the jorge pattern and not the bare grey of a mesh
-    levelStore
-      .openLevel(source, async (map): Promise<void> => {
-        await paintLevel(map)
-      })
-      .catch(() => {
-        // the store keeps the error of the load, the walkable view shows it
-      })
-  }
-
-  // the level the url names is on its way to the list of the header: the address bar does not need to keep the parameter
-  // (a reload starts from the blank level, or from what the url says; the persistence of the level is a later round).
-  // It comes after the loading above: `startLoading` reads the url when it is called.
-  if (url !== undefined) {
-    writeUrlValue(url, ORIGINAL_LEVEL_PARAMETER, undefined)
-
-    // the folder is in the local storage of the browser, not in the address bar: a link does not carry it (the next
-    // visit reads it from the storage) — but only when the storage **holds** it: a browser that refuses to write would
-    // lose the folder for the next visit, so the parameter stays in the url then
-    if (dataDirFromUrlParameter === undefined || storedDataDir() === startedDataDir) {
-      writeUrlValue(url, DATA_DIR_PARAMETER, undefined)
-    }
-  }
-
+  // the modules that follow the level start before it arrives: their watchers have to be there when it lands (and the
+  // map of the url is read before the level is opened)
   startLevelDisplay()
   startSelection()
   startLevelEditing()
   startLevelTextures()
+  startMapPersistence()
 
-  // the camera of a level is a place in **that** level: when the map that loads is not the one of the last visit (the
-  // editor opens the Flat level at start, and the level in the url is a later round), the persisted pose is of another
-  // level and means another place. The camera goes to the spawn, and the pose leaves the url with it.
+  /**
+   * Loads the level of the session: the map of the url, or the starter level (a zip, a level of the game, a blank one).
+   */
+  async function begin(): Promise<void> {
+    // the data directory of the url has levels and textures, and the list of the maps reads the levels it has: the map
+    // of the url is a value of that list, so the scan comes first
+    if (hasDataDir()) {
+      try {
+        await refreshDataDir()
+      } catch {
+        // a folder that can not be read leaves the list without levels, the editor still works
+      }
+    }
+
+    if (requestedMap === undefined) {
+      const source = starterLevelSource(url)
+
+      setStartupSource(source)
+
+      if (isZipLevelSource(source)) {
+        // the level of the `fromZip` url: its textures are painted before the views get the map, and a zip that does not
+        // load is an error the walkable view shows (a silent blank level would hide the mistake of the url)
+        const data = source.data()
+
+        if (data !== undefined) {
+          currentMapId.value = rememberCustomMap(source.label, data)
+        }
+
+        await levelStore
+          .openLevel(source, async (map): Promise<void> => {
+            await paintLevel(map, source.data())
+          })
+          .catch(() => {
+            // the store keeps the error of the load, the walkable view shows it
+          })
+      } else if (isOriginalLevelSource(source)) {
+        currentMapId.value = `arx:${String(source.level)}`
+
+        // a level of the game, with the textures of the data directory of the url: nothing is downloaded, and a folder
+        // that has no such level is an error the walkable view shows
+        await levelStore
+          .openLevel(source, async (map): Promise<void> => {
+            await paintLevel(map)
+          })
+          .catch(() => {
+            // the store keeps the error of the load, the walkable view shows it
+          })
+      } else {
+        // the blank level of the start is painted like any other: the containers it has draw with the placeholder (the
+        // editor has no texture of the game at hand), so the floor is the jorge pattern and not the bare grey of a mesh
+        await levelStore
+          .openLevel(source, async (map): Promise<void> => {
+            await paintLevel(map)
+          })
+          .catch(() => {
+            // the store keeps the error of the load, the walkable view shows it
+          })
+      }
+    } else {
+      // a map the list does not have (a level the folder lost, a zip of a previous session) falls back to the level the
+      // editor opens with; the message about it is the toast of a later round. The camera keeps the pose of the url:
+      // this is a reload, not a switch
+      await openMap(availableMapIdOf(requestedMap, arxLevels.value) ?? DEFAULT_MAP_ID, { camera: 'keep' })
+    }
+
+    if (url !== undefined) {
+      // the map of the screen is a value of the list now, so the address bar carries that instead of the old parameter
+      // (a reload starts from the same map). The folder is in the local storage of the browser, not in the address bar:
+      // a link does not carry it (the next visit reads it from the storage) — but only when the storage **holds** it: a
+      // browser that refuses to write would lose the folder for the next visit, so the parameter stays in the url then
+      writeUrlValue(url, ORIGINAL_LEVEL_PARAMETER, undefined)
+      writeUrlValue(url, MAP_PARAMETER, currentMapId.value)
+
+      if (dataDirFromUrlParameter === undefined || storedDataDir() === startedDataDir) {
+        writeUrlValue(url, DATA_DIR_PARAMETER, undefined)
+      }
+    }
+  }
+
+  begin().catch(() => {
+    // the store keeps the error of the load, the walkable view shows it
+  })
+
+  // the camera of a level is a place in **that** level: when the map that loads is not the one of the last visit, the
+  // persisted pose is of another level and means another place. The camera goes to the spawn, and the pose leaves the
+  // url with it.
   const previousMap = lastMapId.value
   const stop = watch(levelStore.status, (status): void => {
     if (status !== 'ready') {

@@ -1,5 +1,7 @@
 import { shallowRef, watch, type ShallowRef } from 'vue'
+import type { ArxMap } from '../../../generator/ArxMap.ts'
 import { history, type HistoryCommand } from '../history/history.ts'
+import { historyOfMap, rememberMapHistory } from '../history/mapHistory.ts'
 import { commandOf, createDeleteFacesRecord } from '../history/records.ts'
 import { onKeyboardAction } from '../keyboard/keyboard.ts'
 import { selectionStore } from '../selection/selectionStore.ts'
@@ -87,6 +89,47 @@ export function undoLastStep(): void {
  */
 export function redoLastStep(): void {
   history.redo()
+  selectionStore.clear()
+}
+
+/**
+ * Writes down the steps of the map that is going away.
+ *
+ * @remarks
+ * The history of the editor is the map's own: the steps of a level are indices and polygons of **that** level, so a
+ * switch puts them away by the value of the map in the list (see `mapHistory`), and the map that comes back gets them
+ * again ({@link restoreMapHistory}).
+ *
+ * @param id The value of the map in the list, like `arx:8`.
+ */
+export function saveMapHistory(id: string): void {
+  rememberMapHistory(id, history.records.value)
+}
+
+/**
+ * Puts the steps of a map back on it, after the map was loaded again.
+ *
+ * @remarks
+ * A step is a pair of closures over the map it was made on, so the steps can not be carried from one load to the next:
+ * the records are **replayed** onto the new map, in the order they were made. The indices of a record are the ones of
+ * its moment, and the replay walks the same steps from the same level, so it finds the same faces (the ground
+ * `records.ts` stands on). The selection is dropped with them: the replay moves the indices of the level.
+ *
+ * The map has to be on the store already: the replay goes through the same key-bound step the editor uses, so the
+ * views follow it.
+ *
+ * @param id The value of the map in the list, like `arx:8`.
+ * @param map The map that was just loaded.
+ */
+export function restoreMapHistory(id: string, map: ArxMap): void {
+  for (const record of historyOfMap(id)) {
+    const command = commandOf(record, map)
+
+    if (command !== undefined) {
+      history.run(withRevision(command))
+    }
+  }
+
   selectionStore.clear()
 }
 

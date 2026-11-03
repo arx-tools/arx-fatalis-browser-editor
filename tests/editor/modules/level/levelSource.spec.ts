@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  createOriginalLevelSource,
   fetchLevelFiles,
   levelFileNames,
   levelFileUrls,
@@ -11,6 +12,7 @@ import {
   ZIP_URL_PARAMETER,
   zipUrlFromUrl,
 } from '../../../../src/editor/modules/level/levelSource.ts'
+import { clearPickedDataDir, DATA_DIR_PARAMETER } from '../../../../src/editor/modules/level/dataDir.ts'
 import { isZipLevelSource } from '../../../../src/editor/modules/level/zipSource.ts'
 import type { UrlAdapter } from '../../../../src/editor/modules/persistedRef/url.ts'
 
@@ -186,5 +188,55 @@ void describe('starterLevelSource', () => {
     // it tried the three files of the level of the url, and the editor still has something to show
     assert.equal(calls.length, 3)
     assert.equal(map.statistics.faceCount, 121)
+  })
+})
+
+void describe('the level of a data directory', () => {
+  void it('reads the three files of the level from the folder of the game', async () => {
+    // the header may have picked a folder in another test: this one reads the url
+    clearPickedDataDir()
+
+    const calls: string[] = []
+
+    async function fetchImpl(input: string | URL | Request): Promise<Response> {
+      if (typeof input === 'string') {
+        calls.push(input)
+      }
+
+      await Promise.resolve()
+
+      return new Response('bytes')
+    }
+
+    const source = createOriginalLevelSource(8, urlOf(`${DATA_DIR_PARAMETER}=/home/lali/arx/data`))
+    const files = await source.load(fetchImpl)
+
+    // no network: every file comes from the data directory of the url (in node there is no development server, so the
+    // folder is the base url; the browser takes the route of the server)
+    assert.deepEqual(calls.toSorted(), [
+      '/home/lali/arx/data/graph/levels/level8/fast.fts',
+      '/home/lali/arx/data/graph/levels/level8/level8.dlf',
+      '/home/lali/arx/data/graph/levels/level8/level8.llf',
+    ])
+    assert.equal(new TextDecoder().decode(files.fts), 'bytes')
+  })
+
+  void it('says why a data directory without the level can not open it', async () => {
+    clearPickedDataDir()
+
+    async function fetchImpl(): Promise<Response> {
+      await Promise.resolve()
+
+      return new Response(null, { status: 404 })
+    }
+
+    const source = createOriginalLevelSource(8, urlOf(`${DATA_DIR_PARAMETER}=/home/lali/arx/data`))
+
+    await assert.rejects(
+      (async (): Promise<unknown> => {
+        return await source.load(fetchImpl)
+      })(),
+      /has no level 8/u,
+    )
   })
 })

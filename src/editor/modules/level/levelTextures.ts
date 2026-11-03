@@ -15,7 +15,7 @@ import type { ArxMap } from '../../../generator/ArxMap.ts'
 import { BLANK_LEVEL_TEXTURE, GENERATOR_ASSETS } from '../../../generator/assets.ts'
 import { createLevelMaterial } from '../../../generator/meshes.ts'
 import { levelRevision } from './editing.ts'
-import { fetchGameTexture, gameTexturesFromUrl } from './gameTextures.ts'
+import { readDataFile } from './dataDir.ts'
 import { levelStore } from './levelStore.ts'
 
 /**
@@ -88,6 +88,11 @@ function mimeTypeOf(name: string, bytes: ArrayBuffer): string {
  * the best a machine has.
  */
 const ANISOTROPY = 16
+
+/**
+ * The folder of the game's textures, inside the data directory.
+ */
+const TEXTURE_FOLDER = 'graph/obj3d/textures'
 
 /**
  * Reads the name of a file of a zip path.
@@ -513,6 +518,12 @@ interface PaintedLevel {
 let painted: PaintedLevel | undefined
 
 /**
+ * The bytes of the zip the level of the last paint came from, so a repaint (a data directory picked after the load)
+ * keeps the textures of the zip.
+ */
+let lastZipData: ArrayBuffer | undefined
+
+/**
  * The level of the last paint and the textures it was painted with, so an edit can paint it again.
  */
 let current:
@@ -657,43 +668,43 @@ export function paintZipTextures(map: ArxMap, textures: ReadonlyMap<string, Text
 }
 
 /**
- * Paints the level of a zip with the textures the zip carries.
+ * Paints the level on the screen with its textures.
  *
  * @remarks
- * The textures of the level are in the same zip as the level, and both the picker of the header and the `fromZip` url
- * call this: the containers the zip has are drawn with their texture, and the ones it does not have (the textures of
- * the game itself) take the placeholder of the generator.
+ * The textures come from two places: the zip of the level (**when it came from one**) carries the ones its author
+ * added, and the data directory of the game (`?dataDir=…`) has the rest — the ones the level uses from the game
+ * itself. A container neither has takes the placeholder of the generator (`jorge-[stone].jpg`), so a missing texture
+ * reads as a missing one and the level stays complete.
  *
- * @param map The map the zip made.
- * @param data The bytes of the zip, or `undefined` when the source has not read it (nothing is painted then).
+ * @param map The map to paint.
+ * @param zipData The bytes of the zip the level came from, when it came from one.
  */
-export async function paintZipLevel(map: ArxMap, data: ArrayBuffer | undefined): Promise<void> {
-  if (data === undefined) {
-    return
-  }
+export async function paintLevel(map: ArxMap, zipData?: ArrayBuffer): Promise<void> {
+  lastZipData = zipData
 
   const names = textureNamesOf(map)
-  const files = await findTextureFiles(data, names)
+  let files = new Map<string, ArrayBuffer>()
+
+  if (zipData !== undefined) {
+    files = await findTextureFiles(zipData, names)
+  }
+
   const inZip = files.size
 
-  // the textures the zip does not have are the ones of the game itself: their folder may be named in the url
-  const folder = gameTexturesFromUrl()
+  // the textures the zip does not have are the ones of the game itself: the data directory of the header or the url
+  for (const name of names) {
+    if (files.has(name)) {
+      continue
+    }
 
-  if (folder !== undefined) {
-    for (const name of names) {
-      if (files.has(name)) {
-        continue
+    try {
+      const bytes = await readDataFile(`${TEXTURE_FOLDER}/${name}`)
+
+      if (bytes !== undefined) {
+        files.set(name, bytes)
       }
-
-      try {
-        const bytes = await fetchGameTexture(folder, name)
-
-        if (bytes !== undefined) {
-          files.set(name, bytes)
-        }
-      } catch {
-        // a folder that can not be read leaves the texture flat, the level is still complete
-      }
+    } catch {
+      // a folder that can not be read leaves the texture flat, the level is still complete
     }
   }
 
@@ -701,11 +712,11 @@ export async function paintZipLevel(map: ArxMap, data: ArrayBuffer | undefined):
   // the containers left without a texture take the placeholder of the generator
   const missing = await loadMissingTexture()
   const painted = paintZipTextures(map, textures, missing)
-  const fromGame = files.size - inZip
+  const fromDataDir = files.size - inZip
 
   // the user has to know what came from where: the rest of the containers is what the placeholder stands in for
   console.info(
-    `Textures: ${String(painted)} of ${String(names.length)} painted, ${String(inZip)} from the zip, ${String(fromGame)} from the game.`,
+    `Textures: ${String(painted)} of ${String(names.length)} painted, ${String(inZip)} from the zip, ${String(fromDataDir)} from the data dir.`,
   )
 }
 
@@ -730,6 +741,7 @@ export function startLevelTextures(): void {
       }
 
       current = undefined
+      lastZipData = undefined
     },
   )
 
@@ -738,4 +750,21 @@ export function startLevelTextures(): void {
       paintLevelTextures(current.map, current.textures, current.missing)
     }
   })
+}
+
+/**
+ * Paints the level on the screen again, with the data directory the user just picked.
+ *
+ * @remarks
+ * The folder of the header may come after the level: the textures the level had no source for are fetched from the
+ * new folder, and the ones it already had are read again (a repaint is cheap: a few dozen files).
+ */
+export async function repaintLevelTextures(): Promise<void> {
+  const map = levelStore.map.value
+
+  if (map === undefined) {
+    return
+  }
+
+  await paintLevel(map, lastZipData)
 }

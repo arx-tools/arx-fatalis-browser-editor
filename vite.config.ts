@@ -1,7 +1,7 @@
 import { createReadStream } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import process from 'node:process'
-import { extname, join, resolve } from 'node:path'
+import { basename, dirname, extname, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import vue from '@vitejs/plugin-vue'
 import { config as loadEnv } from 'dotenv'
@@ -67,11 +67,40 @@ function localZipRoute(): Plugin {
 const TEXTURE_EXTENSIONS = ['', '.jpg', '.bmp', '.png', '.jpeg'] as const
 
 /**
- * The content type of a texture, by its extension.
+ * The extension a texture name may carry, though the file of the game has another one.
+ *
+ * @remarks
+ * The game is of a windows that reads a texture by its stem: level 8 names `[stone]_human_castle_wall1.bmp`, and the
+ * file of the game is a `.jpg`. The stem is what the folder is matched against.
+ */
+const EXTENSION_END = /\.(?:jpe?g|bmp|png|tga)$/iu
+
+/**
+ * Reads the name of a texture without its extension.
+ *
+ * @param name The name a level gives its texture.
+ *
+ * @returns The name without an image extension at its end.
+ */
+function stemOf(name: string): string {
+  return name.replace(EXTENSION_END, '')
+}
+
+/**
+ * The shapes a data directory may keep a file in.
+ *
+ * @remarks
+ * A copy of the game's data may have the dlf and the llf of a level in `graph/levels`, and the scene (`fast.fts`) in
+ * `game/graph/levels`: a file is tried in the folder itself first, then under `game/`.
+ */
+const DATA_PREFIXES = ['', 'game/'] as const
+
+/**
+ * The content type of a file, by its extension.
  *
  * @param path The path of the file.
  *
- * @returns The type the browser decodes the image from.
+ * @returns The type the browser reads the file as.
  */
 function contentTypeOf(path: string): string {
   const extension = extname(path).toLowerCase()
@@ -88,25 +117,31 @@ function contentTypeOf(path: string): string {
     return 'image/bmp'
   }
 
+  if (extension === '.zip') {
+    return 'application/zip'
+  }
+
   return 'application/octet-stream'
 }
 
 /**
- * The route the page asks the textures of the game from, on the development server.
+ * The route the page reads the **data directory of the game** from, on the development server.
  *
  * @remarks
- * A zip of a level carries the textures the author added, and **not** the ones of the game itself: a level draws with
- * both, so a zip alone leaves a third of its containers flat (the `jorge` placeholder). The game's textures are on the
- * disk of the developer, and the page can not read the disk, so the development server serves them from the folder it
- * is given (`?gameTextures=/home/lali/arx/arx-data/graph/obj3d/textures`).
+ * A zip of a level carries the textures the author added, and not the ones of the game itself; the level files of the
+ * original levels are not in the editor either. All of them are on the disk of the developer, and the page can not read
+ * the disk, so the development server serves one file of one folder (`?dataDir=/home/lali/arx/arx-data`).
  *
- * Like {@link localZipRoute}, it is a **development** route, answers the machine it runs on only, and reads files of
- * one named folder: a server bound to a network address does not become a reader of the whole disk.
+ * The route is a **development** one (`apply: 'serve'`), answers the machine it runs on only, and only reads a file
+ * **inside** the folder it is given: a server bound to a network address does not become a reader of the whole disk.
+ * The scene of a level and its other files may sit in two places (`graph/` and `game/graph/`), and a texture may be
+ * named without its extension, so both are tried before the answer is a 404.
  *
  * @returns The plugin that adds the route to the server.
  */
-function localTexturesRoute(): Plugin {
-  // a folder is listed once: the page asks for a texture of the same folder many times
+function localDataRoute(): Plugin {
+  // a folder is listed once per request that looks into it: the game's textures are in one folder, and the page asks
+  // for a texture of it many times
   const listings = new Map<string, Map<string, string>>()
 
   /**
@@ -114,7 +149,7 @@ function localTexturesRoute(): Plugin {
    *
    * @param folder The folder to list.
    *
-   * @returns The path of every file, keyed by the name the level calls it.
+   * @returns The path of every file, keyed by the name in lower case.
    */
   async function listingOf(folder: string): Promise<Map<string, string>> {
     const cached = listings.get(folder)
@@ -138,56 +173,71 @@ function localTexturesRoute(): Plugin {
   }
 
   return {
-    name: 'arx-local-textures',
+    name: 'arx-local-data',
     apply: 'serve',
     configureServer(server): void {
-      server.middlewares.use('/__local-textures', (request, response) => {
+      server.middlewares.use('/__local-data', (request, response) => {
         const address = request.socket.remoteAddress ?? ''
         const local = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(address)
         const params = new URL(request.url ?? '/', 'http://localhost').searchParams
-        const folder = params.get('dir') ?? ''
-        const name = params.get('name') ?? ''
+        const root = resolve(params.get('root') ?? '')
+        const requested = params.get('path') ?? ''
 
         if (!local) {
           response.statusCode = 403
-          response.end('The local textures route is for the machine of the server.')
+          response.end('The local data route is for the machine of the server.')
 
           return
         }
 
-        if (folder === '' || name === '') {
+        if (requested === '' || params.get('root') === null) {
           response.statusCode = 400
-          response.end('The local textures route needs a dir and a name.')
+          response.end('The local data route needs a root and a path.')
 
           return
         }
 
         void (async (): Promise<void> => {
-          try {
-            const files = await listingOf(resolve(folder))
-            let found: string | undefined
+          // the folder is matched against the stem of the name, with the extensions the game may have
+          const folder = dirname(requested)
+          const stem = stemOf(basename(requested))
+          const names = TEXTURE_EXTENSIONS.map((extension) => {
+            return `${stem}${extension}`
+          })
 
-            for (const extension of TEXTURE_EXTENSIONS) {
-              found = files.get(`${name.toLowerCase()}${extension}`)
+          for (const prefix of DATA_PREFIXES) {
+            for (const name of names) {
+              const path = resolve(root, `${prefix}${folder}`, name)
 
-              if (found !== undefined) {
-                break
+              // a path that leaves the folder is not a file of the data directory
+              if (!path.startsWith(`${root}${sep}`)) {
+                continue
+              }
+
+              try {
+                // the game is of a windows that does not care about case, the folder of a linux that does: the name
+                // a level gives is matched against the folder in lower case
+                const files = await listingOf(dirname(path))
+                const found = files.get(basename(path).toLowerCase())
+
+                if (found === undefined) {
+                  continue
+                }
+
+                const bytes = await readFile(found)
+
+                response.setHeader('Content-Type', contentTypeOf(found))
+                response.end(bytes)
+
+                return
+              } catch {
+                // the next shape, or the next extension
               }
             }
-
-            if (found === undefined) {
-              response.statusCode = 404
-              response.end(`No texture ${name} in ${folder}`)
-
-              return
-            }
-
-            response.setHeader('Content-Type', contentTypeOf(found))
-            response.end(await readFile(found))
-          } catch (error) {
-            response.statusCode = 500
-            response.end(String(error))
           }
+
+          response.statusCode = 404
+          response.end(`No file ${requested} in ${root}`)
         })()
       })
     },
@@ -226,7 +276,7 @@ export default defineConfig(async () => {
     // /editor/, and the hashed file names of the assets make the browser fetch a new one after
     // every build without any ?v= suffix.
     base: '/editor/',
-    plugins: [vue(), localZipRoute(), localTexturesRoute()],
+    plugins: [vue(), localZipRoute(), localDataRoute()],
     build: {
       // the level, the dock, vue and three in one chunk is a megabyte the browser takes in one piece, and
       // every deploy of the editor makes it download the level code again. The split below does not make

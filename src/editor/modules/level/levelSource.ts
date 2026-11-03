@@ -2,6 +2,7 @@ import { ArxMap } from '../../../generator/ArxMap.ts'
 import { Settings } from '../../../generator/Settings.ts'
 import { getUrlAdapter, readUrlValue, type UrlAdapter } from '../persistedRef/url.ts'
 import { createBlankLevelFiles, FLAT_PRESET, type NewLevelPreset } from './blankLevel.ts'
+import { dataDirFromUrl, readDataFile } from './dataDir.ts'
 import { createZipUrlLevelSource } from './zipSource.ts'
 import { levelSeed } from './seed.ts'
 
@@ -203,17 +204,85 @@ export async function fetchLevelFiles(
 }
 
 /**
+ * Reads the three files of a level from the data directory of the game.
+ *
+ * @remarks
+ * The folder of a level holds `fast.fts` (the scene) beside `level<N>.dlf` and `level<N>.llf`, under `graph/levels`
+ * ({@link DATA_DIR_PREFIXES} carries the shapes a copy of the game may keep them in).
+ *
+ * @param dataDir The folder of the game's data.
+ * @param level The number of the level.
+ * @param fetchImpl The fetch to use; the tests pass a fake one.
+ *
+ * @returns The three files, ready for the generator.
+ *
+ * @throws When the folder has no such level: a level named by the url is not silently a blank one.
+ */
+export async function fetchDataDirLevelFiles(
+  dataDir: string,
+  level: number,
+  fetchImpl: typeof fetch = fetch,
+): Promise<LevelFiles> {
+  const names = levelFileNames(level)
+  const folder = `graph/levels/level${String(level)}`
+  const [dlf, fts, llf] = await Promise.all([
+    readDataFile(`${folder}/${names.dlf}`, fetchImpl, undefined, dataDir),
+    readDataFile(`${folder}/${names.fts}`, fetchImpl, undefined, dataDir),
+    readDataFile(`${folder}/${names.llf}`, fetchImpl, undefined, dataDir),
+  ])
+
+  if (dlf === undefined || fts === undefined || llf === undefined) {
+    throw new Error(`The data directory ${dataDir} has no level ${String(level)}.`)
+  }
+
+  return { dlf, fts, llf }
+}
+
+/**
+ * Where a level of the game comes from, and which one it is.
+ */
+export interface OriginalLevelSource extends LevelSource {
+  /**
+   * The number of the level, from 0.
+   */
+  readonly level: number
+}
+
+/**
+ * Tells whether a source is one of the original levels of the game.
+ *
+ * @param source The source of a level.
+ *
+ * @returns True for the sources of {@link OriginalLevelSource}.
+ */
+export function isOriginalLevelSource(source: LevelSource): source is OriginalLevelSource {
+  return 'level' in source
+}
+
+/**
  * The source of one of the original levels of the game.
  *
  * @param level The number of the level.
+ * @param url The query string to read, the one of the page by default.
  *
  * @returns The source, which downloads the three files of that level.
  */
-export function createOriginalLevelSource(level: number): LevelSource {
+export function createOriginalLevelSource(
+  level: number,
+  url: UrlAdapter | undefined = getUrlAdapter(undefined),
+): OriginalLevelSource {
   return {
     label: `Level ${String(level)}`,
+    level,
     load: async (fetchImpl: typeof fetch = fetch): Promise<LevelFiles> => {
-      return await fetchLevelFiles(level, fetchImpl)
+      // the data directory of the url is the game's own folder: the files are read from there, no network
+      const dataDir = dataDirFromUrl(url)
+
+      if (dataDir === undefined) {
+        return await fetchLevelFiles(level, fetchImpl)
+      }
+
+      return await fetchDataDirLevelFiles(dataDir, level, fetchImpl)
     },
   }
 }
@@ -297,7 +366,7 @@ export function starterLevelSource(url: UrlAdapter | undefined = getUrlAdapter(u
     return createBlankLevelSource(FLAT_PRESET)
   }
 
-  return createOriginalLevelSource(level)
+  return createOriginalLevelSource(level, url)
 }
 
 /**
@@ -318,6 +387,13 @@ export async function loadStarterLevel(
   url: UrlAdapter | undefined = getUrlAdapter(undefined),
 ): Promise<ArxMap> {
   const source = starterLevelSource(url)
+  const named = dataDirFromUrl(url)
+
+  // a level the url names in a data directory is read from the disk: a folder that has no such level is a mistake of
+  // the url, and the walkable view shows it instead of a silent blank level
+  if (named !== undefined && originalLevelFromUrl(url) !== undefined) {
+    return await loadLevel(source, fetchImpl)
+  }
 
   try {
     return await loadLevel(source, fetchImpl)

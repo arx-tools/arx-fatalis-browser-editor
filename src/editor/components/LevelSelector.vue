@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { FolderOpen } from 'lucide-vue-next'
 import { nextTick, useTemplateRef } from 'vue'
-import { paintZipLevel } from '../modules/level/levelTextures.ts'
+import { paintLevel } from '../modules/level/levelTextures.ts'
 import { levelStore } from '../modules/level/levelStore.ts'
 import { createZipLevelSource } from '../modules/level/zipSource.ts'
 import { cameraStore } from './widgets/cameraStore.ts'
@@ -49,7 +49,7 @@ async function loadZip(event: Event): Promise<void> {
   const source = createZipLevelSource(file.name, data)
 
   await levelStore.openLevel(source, async (map): Promise<void> => {
-    await paintZipLevel(map, source.data())
+    await paintLevel(map, source.data())
   })
 
   if (levelStore.status.value !== 'ready') {

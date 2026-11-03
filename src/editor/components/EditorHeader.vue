@@ -2,6 +2,7 @@
 // the mark of the source: the brand icons of lucide are deprecated, so this one comes from Simple Icons,
 // which is what the lucide docs point at (https://simpleicons.org/?q=github)
 import { siGithub } from 'simple-icons'
+import DataDirPicker from './DataDirPicker.vue'
 import LevelSelector from './LevelSelector.vue'
 import WidgetManager from './WidgetManager.vue'
 
@@ -41,6 +42,7 @@ const buildInfo = BUILD_INFO
 
     <div class="levels">
       <LevelSelector />
+      <DataDirPicker />
     </div>
 
     <WidgetManager />
@@ -61,12 +63,15 @@ const buildInfo = BUILD_INFO
   border-bottom: 1px solid $border-dark;
   background: $surface-float;
 
-  // the level of the document sits in the middle of the header: it is what the editor shows, and the widget tools on
-  // the right are about the view of it. The box is out of the row of the flex, so the middle is the middle of the
-  // header and not the middle of the space the brand leaves
+  // the level of the document and the folder of the game sit in the middle of the header: they are what the editor
+  // shows, and the widget tools on the right are about the view of it. The box is out of the row of the flex, so the
+  // middle is the middle of the header and not the middle of the space the brand leaves
   .levels {
     position: absolute;
     left: 50%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
     transform: translateX(-50%);
   }
 

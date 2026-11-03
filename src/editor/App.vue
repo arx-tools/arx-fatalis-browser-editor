@@ -6,9 +6,10 @@ import EditorHeader from './components/EditorHeader.vue'
 import { startLevelDisplay } from './components/widgets/levelDisplay.ts'
 import { startLevelEditing } from './modules/level/editing.ts'
 import { startSelection } from './modules/selection/selectionStore.ts'
-import { paintZipLevel, startLevelTextures } from './modules/level/levelTextures.ts'
+import { paintLevel, startLevelTextures } from './modules/level/levelTextures.ts'
 import { levelStore } from './modules/level/levelStore.ts'
-import { starterLevelSource } from './modules/level/levelSource.ts'
+import { dataDirFromUrl } from './modules/level/dataDir.ts'
+import { isOriginalLevelSource, starterLevelSource } from './modules/level/levelSource.ts'
 import { isZipLevelSource } from './modules/level/zipSource.ts'
 import { provideEditorShell } from './modules/shell/editorShellContext.ts'
 
@@ -20,13 +21,24 @@ provideEditorShell()
 // level is on its way before the dock asks for it.
 onMounted(() => {
   const source = starterLevelSource()
+  const dataDir = dataDirFromUrl()
 
   if (isZipLevelSource(source)) {
     // the level of the `fromZip` url: its textures are painted before the views get the map, and a zip that does not
     // load is an error the walkable view shows (a silent blank level would hide the mistake of the url)
     levelStore
       .openLevel(source, async (map): Promise<void> => {
-        await paintZipLevel(map, source.data())
+        await paintLevel(map, source.data())
+      })
+      .catch(() => {
+        // the store keeps the error of the load, the walkable view shows it
+      })
+  } else if (dataDir !== undefined && isOriginalLevelSource(source)) {
+    // a level of the game, with the textures of the data directory of the url: nothing is downloaded, and a folder
+    // that has no such level is an error the walkable view shows
+    levelStore
+      .openLevel(source, async (map): Promise<void> => {
+        await paintLevel(map)
       })
       .catch(() => {
         // the store keeps the error of the load, the walkable view shows it

@@ -3,6 +3,7 @@
 // which is what the lucide docs point at (https://simpleicons.org/?q=github)
 import { siGithub } from 'simple-icons'
 import DataDirPicker from './DataDirPicker.vue'
+import DownloadLevel from './DownloadLevel.vue'
 import LevelSelector from './LevelSelector.vue'
 import MapsToOpen from './MapsToOpen.vue'
 import WidgetManager from './WidgetManager.vue'
@@ -45,6 +46,7 @@ const buildInfo = BUILD_INFO
       <LevelSelector />
       <DataDirPicker />
       <MapsToOpen />
+      <DownloadLevel />
     </div>
 
     <WidgetManager />

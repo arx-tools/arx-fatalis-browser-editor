@@ -10,7 +10,12 @@ import { clearDataDirScan, readDataFile, scanLevelNumbers } from './dataDir.ts'
 import { restoreMapHistory, saveMapHistory } from './editing.ts'
 import { paintLevel } from './levelTextures.ts'
 import { levelStore } from './levelStore.ts'
-import { createBlankLevelSource, createOriginalLevelSource, type LevelSource } from './levelSource.ts'
+import {
+  createBlankLevelSource,
+  createOriginalLevelSource,
+  ZIP_URL_PARAMETER,
+  type LevelSource,
+} from './levelSource.ts'
 import { createZipLevelSource, isZipLevelSource } from './zipSource.ts'
 
 /**
@@ -393,6 +398,14 @@ export async function openMap(id: string, options: OpenMapOptions = {}): Promise
 
   currentMapId.value = id
   lastMapId.value = id
+
+  // a map picked from the list is not the zip of the url any more: the address bar keeps the map (the watcher of
+  // `startMapPersistence` writes it), and the zip of a previous link must not come back on a reload
+  const mapUrl = getUrlAdapter(undefined)
+
+  if (mapUrl !== undefined) {
+    writeUrlValue(mapUrl, ZIP_URL_PARAMETER, undefined)
+  }
 
   // the map change clears the live history (its steps are indices of the map that went away): the tick lets that
   // happen before the steps of this map are put back

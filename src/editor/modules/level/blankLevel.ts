@@ -1,9 +1,9 @@
 import { DLF, FTS, LLF } from 'arx-convert'
 import type { ArxDLF, ArxFTS, ArxLLF } from 'arx-convert/types'
-import { DLF_HEADER_SIZE, FTS_HEADER_SIZE } from 'arx-header-size'
-import { implode } from 'node-pkware/simple'
+import { getHeaderSize } from 'arx-header-size'
 import { BLANK_LEVEL_TEXTURE } from '../../../generator/assets.ts'
 import type { LevelFiles } from './levelSource.ts'
+import { packLevelFile, packWholeFile } from './packedFile.ts'
 
 /**
  * The side of one tile of a blank level, in game units.
@@ -235,30 +235,6 @@ function blankLighting(preset: NewLevelPreset): ArxLLF {
 }
 
 /**
- * Compresses the body of a file the way the game's files are stored.
- *
- * @remarks
- * The editor reads a level the way the game does: the DLF keeps its fixed header and compresses the body behind it,
- * and the LLF is a compressed whole. Writing the blank level this way means it goes through the **same** loader as
- * an original or a zipped one, so the three sources can not drift apart.
- *
- * @param raw The packed file, as `arx-convert` writes it.
- * @param headerSize Where the header ends and the compressed body starts.
- *
- * @returns The file, ready for {@link ArxMap}.
- */
-function packFile(raw: ArrayBuffer, headerSize: number): ArrayBuffer {
-  const head = new Uint8Array(raw.slice(0, headerSize))
-  const body = new Uint8Array(implode(raw.slice(headerSize), 'binary', 'large'))
-  const packed = new Uint8Array(head.length + body.length)
-
-  packed.set(head, 0)
-  packed.set(body, head.length)
-
-  return packed.buffer
-}
-
-/**
  * Builds the three packed files of a blank level: a floor of tiles under the feet of the player.
  *
  * @remarks
@@ -273,11 +249,13 @@ function packFile(raw: ArrayBuffer, headerSize: number): ArrayBuffer {
 export function createBlankLevelFiles(preset: NewLevelPreset = DEFAULT_NEW_LEVEL_PRESET): LevelFiles {
   const description = DLF.save(blankDescription(preset))
   const scene = FTS.save(blankScene(preset))
-  const lighting = implode(LLF.save(blankLighting(preset)), 'binary', 'large')
+  const lighting = LLF.save(blankLighting(preset))
 
+  // the header of a file is read from the file itself: the scene carries a unique header per texture container (the
+  // blank one has none), and the lighting has no header at all
   return {
-    dlf: packFile(description, DLF_HEADER_SIZE),
-    fts: packFile(scene, FTS_HEADER_SIZE),
-    llf: new Uint8Array(lighting).buffer,
+    dlf: packLevelFile(description, getHeaderSize(description, 'dlf').total),
+    fts: packLevelFile(scene, getHeaderSize(scene, 'fts').total),
+    llf: packWholeFile(lighting),
   }
 }

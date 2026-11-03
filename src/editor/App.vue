@@ -10,7 +10,12 @@ import { startSelection } from './modules/selection/selectionStore.ts'
 import { paintLevel, startLevelTextures } from './modules/level/levelTextures.ts'
 import { levelStore } from './modules/level/levelStore.ts'
 import { DATA_DIR_PARAMETER, dataDirFromUrl, hasDataDir, startDataDir, storedDataDir } from './modules/level/dataDir.ts'
-import { isOriginalLevelSource, ORIGINAL_LEVEL_PARAMETER, starterLevelSource } from './modules/level/levelSource.ts'
+import {
+  isOriginalLevelSource,
+  ORIGINAL_LEVEL_PARAMETER,
+  starterLevelSource,
+  zipUrlFromUrl,
+} from './modules/level/levelSource.ts'
 import {
   arxLevels,
   availableMapIdOf,
@@ -49,7 +54,14 @@ const isLevelLoading = computed(() => {
 // level is on its way before the dock asks for it.
 onMounted(() => {
   const url = getUrlAdapter(undefined)
-  const requestedMap = mapIdFromUrl(url)
+  const zipUrl = zipUrlFromUrl(url)
+  let requestedMap = mapIdFromUrl(url)
+
+  // a zip of the url is the map of the session: the level in it has no value in the list, and the zip is the one the
+  // address bar carries (a reload downloads it again)
+  if (zipUrl !== undefined) {
+    requestedMap = undefined
+  }
 
   // the data directory of the session: the url names one (and it is remembered for the next visits), or the browser
   // has the folder from a previous one
@@ -96,12 +108,6 @@ onMounted(() => {
       if (isZipLevelSource(source)) {
         // the level of the `fromZip` url: its textures are painted before the views get the map, and a zip that does not
         // load is an error the walkable view shows (a silent blank level would hide the mistake of the url)
-        const data = source.data()
-
-        if (data !== undefined) {
-          currentMapId.value = rememberCustomMap(source.label, data)
-        }
-
         await levelStore
           .openLevel(source, async (map): Promise<void> => {
             await paintLevel(map, source.data())
@@ -109,6 +115,14 @@ onMounted(() => {
           .catch(() => {
             // the store keeps the error of the load, the walkable view shows it
           })
+
+        // the bytes of a zip of the url are there after the load (the source downloads it then), so the map joins the
+        // list now: the select shows it, and the history of the level has a value of its own
+        const data = source.data()
+
+        if (data !== undefined) {
+          currentMapId.value = rememberCustomMap(source.label, data)
+        }
       } else if (isOriginalLevelSource(source)) {
         currentMapId.value = `arx:${String(source.level)}`
 
@@ -145,7 +159,12 @@ onMounted(() => {
       // a link does not carry it (the next visit reads it from the storage) — but only when the storage **holds** it: a
       // browser that refuses to write would lose the folder for the next visit, so the parameter stays in the url then
       writeUrlValue(url, ORIGINAL_LEVEL_PARAMETER, undefined)
-      writeUrlValue(url, MAP_PARAMETER, currentMapId.value)
+
+      // a zip of the url is the map itself: the address bar keeps it instead of a value of a list the next visit does
+      // not have
+      if (zipUrl === undefined) {
+        writeUrlValue(url, MAP_PARAMETER, currentMapId.value)
+      }
 
       if (dataDirFromUrlParameter === undefined || storedDataDir() === startedDataDir) {
         writeUrlValue(url, DATA_DIR_PARAMETER, undefined)

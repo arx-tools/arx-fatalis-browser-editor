@@ -210,6 +210,31 @@ export class ArxMap {
   readonly settings: Settings
 
   /**
+   * The general description of the level, as it was loaded.
+   *
+   * @remarks
+   * The editor does not edit entities yet, so the description goes out the way it came in: the export writes it back
+   * from here (see `modules/export/exportLevel.ts`) instead of the bytes of the file.
+   */
+  readonly dlf: ArxDLF
+  /**
+   * The scene: the mesh and the texture containers, as it was loaded.
+   *
+   * @remarks
+   * The polygons of the screen are {@link polygons}; the rest of the scene (the containers, the anchors, the unique
+   * headers) is the one of this object, and the export writes it with the polygons of the editor.
+   */
+  readonly fts: ArxFTS
+  /**
+   * The lighting of the level, as it was loaded.
+   *
+   * @remarks
+   * Its palette is in the order of the polygons of the file: the export rebuilds it in the order of the screen (see
+   * `buildExportLlf`).
+   */
+  readonly llf: ArxLLF
+
+  /**
    * The polygons grouped by the positions of their vertices.
    *
    * @remarks
@@ -237,19 +262,6 @@ export class ArxMap {
    * The vertex index of {@link vertexToPolygons}, until the polygons change.
    */
   private vertexPolygons: ReadonlyMap<string, readonly number[]> | undefined
-
-  /**
-   * The general description of the level.
-   */
-  private readonly dlf: ArxDLF
-  /**
-   * The scene: the mesh and the texture containers.
-   */
-  private readonly fts: ArxFTS
-  /**
-   * The lighting of the level.
-   */
-  private readonly llf: ArxLLF
 
   /**
    * The name of every texture the level uses, by the id a polygon points at.

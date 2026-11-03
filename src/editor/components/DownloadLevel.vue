@@ -1,14 +1,31 @@
 <script setup lang="ts">
-import { Download, LoaderCircle } from 'lucide-vue-next'
-import { computed, nextTick, ref } from 'vue'
+import { Check, Download, LoaderCircle, X } from 'lucide-vue-next'
+import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { downloadBinaryAs } from '../modules/export/download.ts'
 import { exportLevelZip } from '../modules/export/exportLevel.ts'
 import { levelStore } from '../modules/level/levelStore.ts'
 
 /**
- * Whether the archive is being built: the packing of a big level takes seconds, and the button says so.
+ * Where the export is.
  */
-const isPacking = ref(false)
+type ExportState = 'idle' | 'packing' | 'done' | 'failed'
+
+/**
+ * How long the mark of the end of an export stays on the button, in milliseconds.
+ */
+const MARK_LINGER_MS = 2000
+
+/**
+ * What the export does now.
+ */
+const state = ref<ExportState>('idle')
+
+/**
+ * How far the packing is, in percent, while it runs.
+ */
+const percent = ref(0)
+
+let markTimer: ReturnType<typeof setTimeout> | undefined
 
 /**
  * Whether there is a level to write.
@@ -16,6 +33,65 @@ const isPacking = ref(false)
 const hasLevel = computed(() => {
   return levelStore.map.value !== undefined
 })
+
+/**
+ * The way to read the button of the current state.
+ */
+const label = computed(() => {
+  if (state.value === 'packing') {
+    return `Packing… ${String(percent.value)}%`
+  }
+
+  if (state.value === 'done') {
+    return 'Downloaded'
+  }
+
+  if (state.value === 'failed') {
+    return 'Failed'
+  }
+
+  return 'Download'
+})
+
+/**
+ * The tooltip of the button of the current state.
+ *
+ * @returns The text the tooltip shows.
+ */
+function titleOf(): string {
+  if (state.value === 'packing') {
+    return 'Packing the level…'
+  }
+
+  if (state.value === 'done') {
+    return 'The level is in your downloads'
+  }
+
+  if (state.value === 'failed') {
+    return 'The level could not be packed'
+  }
+
+  return 'Download the level as a zip'
+}
+
+/**
+ * Shows the mark of the end of an export for a moment.
+ *
+ * @param mark What the export ended with.
+ */
+function showMark(mark: 'done' | 'failed'): void {
+  state.value = mark
+
+  if (markTimer !== undefined) {
+    clearTimeout(markTimer)
+  }
+
+  markTimer = setTimeout(() => {
+    state.value = 'idle'
+    percent.value = 0
+    markTimer = undefined
+  }, MARK_LINGER_MS)
+}
 
 /**
  * Writes the level on the screen as a zip and gives it to the browser.
@@ -33,11 +109,12 @@ const hasLevel = computed(() => {
 async function download(): Promise<void> {
   const map = levelStore.map.value
 
-  if (map === undefined || isPacking.value) {
+  if (map === undefined || state.value === 'packing') {
     return
   }
 
-  isPacking.value = true
+  state.value = 'packing'
+  percent.value = 0
 
   // the button has to read as busy **before** the packing takes the thread: one frame of it
   await nextTick()
@@ -48,27 +125,41 @@ async function download(): Promise<void> {
   })
 
   try {
-    const { name, data } = await exportLevelZip(map)
+    const { name, data } = await exportLevelZip(map, (value): void => {
+      percent.value = value
+    })
 
     downloadBinaryAs(name, data, 'application/zip')
-  } finally {
-    isPacking.value = false
+    showMark('done')
+  } catch {
+    // the error toast of the editor is a later round: the button says what happened
+    showMark('failed')
   }
 }
+
+onBeforeUnmount(() => {
+  if (markTimer !== undefined) {
+    clearTimeout(markTimer)
+    markTimer = undefined
+  }
+})
 </script>
 
 <template>
   <button
     class="DownloadLevel"
     type="button"
-    :disabled="!hasLevel || isPacking"
-    :aria-label="isPacking ? 'Packing the level…' : 'Download the level as a zip'"
-    v-tooltip="isPacking ? 'Packing the level…' : 'Download the level as a zip'"
+    :class="`is-${state}`"
+    :disabled="!hasLevel || state === 'packing'"
+    :aria-label="titleOf()"
+    v-tooltip="titleOf()"
     @click="download"
   >
-    <LoaderCircle v-if="isPacking" class="spinner" :size="14" />
+    <LoaderCircle v-if="state === 'packing'" class="spinner" :size="14" />
+    <Check v-else-if="state === 'done'" class="mark" :size="14" />
+    <X v-else-if="state === 'failed'" class="mark" :size="14" />
     <Download v-else :size="14" />
-    <span class="label">{{ isPacking ? 'Packing…' : 'Download' }}</span>
+    <span class="label">{{ label }}</span>
   </button>
 </template>
 
@@ -103,10 +194,19 @@ async function download(): Promise<void> {
     white-space: nowrap;
   }
 
-  // the turning mark of a wait: the packing blocks the thread, so it stands still during it — the disabled state and
-  // the words are what say the page is busy
+  // the turning mark of a wait: the packing blocks the thread, but a `transform` animation is turned by the compositor,
+  // so it keeps going while the level is packed
   .spinner {
     animation: DownloadLevel-spin 1.2s linear infinite;
+  }
+
+  // the end of an export: a green check for a file that went to the browser, a red cross for one that did not
+  &.is-done .mark {
+    color: $ok;
+  }
+
+  &.is-failed .mark {
+    color: $danger-bright;
   }
 }
 

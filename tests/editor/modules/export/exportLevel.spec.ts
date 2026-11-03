@@ -197,6 +197,17 @@ void describe('exportLevelFiles', () => {
 })
 
 void describe('exportLevelZip', () => {
+  void it('reports the steps of the export, in the order they run', async () => {
+    const map = flatMap()
+    const steps: number[] = []
+
+    await exportLevelZip(map, (percent) => {
+      steps.push(percent)
+    })
+
+    assert.deepEqual(steps, [0, 10, 70, 80, 90, 100])
+  })
+
   void it('zips the files under the paths of the game', async () => {
     const map = flatMap()
     const level = map.dlf.header.levelIdx

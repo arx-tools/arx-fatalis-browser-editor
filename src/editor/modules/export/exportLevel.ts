@@ -17,6 +17,50 @@ import { packLevelFile, packWholeFile } from '../level/packedFile.ts'
 export const EXPORT_ZIP_NAME = 'mod.zip'
 
 /**
+ * How far the export is, in percent, at the steps it reports.
+ *
+ * @remarks
+ * The values are the **time** of the steps, not their count: the scene of the level is a few megabytes, and packing it
+ * is most of the wait (level 11: 6,3 MB, ~9 s of the 11 s). The numbers are the ones the archived editor showed.
+ */
+export const EXPORT_PROGRESS = {
+  start: 0,
+  sceneBuilt: 10,
+  scenePacked: 70,
+  lightingPacked: 80,
+  descriptionPacked: 90,
+  zipped: 100,
+} as const
+
+/**
+ * The step the export reports its progress with.
+ */
+export type ExportProgressHandler = (percent: number) => void
+
+/**
+ * How long a step lets the page paint before the next one starts, in milliseconds.
+ *
+ * @remarks
+ * The packing is synchronous, so the page can only update between the steps: a macrotask with a frame's worth of delay
+ * gives the browser the room to paint the percentage and to keep the spinner of the button turning (that one is a
+ * compositor animation, so it turns even while a step runs).
+ */
+const PAINT_PAUSE_MS = 16
+
+/**
+ * Gives the browser a moment to paint.
+ *
+ * @returns A promise that settles after the pause.
+ */
+async function nextPaint(): Promise<void> {
+  await new Promise<void>((resolve) => {
+    setTimeout(() => {
+      resolve()
+    }, PAINT_PAUSE_MS)
+  })
+}
+
+/**
  * The white a vertex takes when the level's palette has no colour for it.
  *
  * @remarks
@@ -238,20 +282,61 @@ export function levelFilePath(level: number, kind: 'dlf' | 'fts' | 'llf'): strin
 /**
  * Zips the three files of a level, the way the game reads them.
  *
+ * @remarks
+ * It is the same three files as {@link exportLevelFiles}, one at a time and with a pause between them, so the page can
+ * paint the percentage the caller is told about ({@link EXPORT_PROGRESS}). The work itself is the one of the plain
+ * files: this is the **user's** way out, and the file builder is the one the tests measure.
+ *
  * @param map The map to write.
+ * @param onProgress Called with the percentage of the export, at each step.
  *
  * @returns The bytes of the archive and the name the browser saves it under.
  *
  * @throws When the level has no polygon left (`buildExportFts` throws).
  */
-export async function exportLevelZip(map: ArxMap): Promise<{ readonly name: string; readonly data: ArrayBuffer }> {
-  const files = exportLevelFiles(map)
+export async function exportLevelZip(
+  map: ArxMap,
+  onProgress?: ExportProgressHandler,
+): Promise<{ readonly name: string; readonly data: ArrayBuffer }> {
+  const { polygons } = map
+
+  onProgress?.(EXPORT_PROGRESS.start)
+  await nextPaint()
+
+  // the scene: the file itself, then the compressed body (the long step)
+  const scene = FTS.save(buildExportFts(map.fts, polygons))
+
+  onProgress?.(EXPORT_PROGRESS.sceneBuilt)
+  await nextPaint()
+
+  const fts = packLevelFile(scene, getHeaderSize(scene, 'fts').total)
+
+  onProgress?.(EXPORT_PROGRESS.scenePacked)
+  await nextPaint()
+
+  // the lighting, the whole file compressed
+  const llf = packWholeFile(LLF.save(buildExportLlf(map.llf, polygons)))
+
+  onProgress?.(EXPORT_PROGRESS.lightingPacked)
+  await nextPaint()
+
+  // the description: the entities of the level, and the count of the polygons it names
+  const description = DLF.save(buildExportDlf(map.dlf, polygons.length))
+  const dlf = packLevelFile(description, getHeaderSize(description, 'dlf').total)
+
+  onProgress?.(EXPORT_PROGRESS.descriptionPacked)
+  await nextPaint()
+
   const { levelIdx } = map.dlf.header
   const archive = new JSZip()
 
-  archive.file(levelFilePath(levelIdx, 'fts'), files.fts)
-  archive.file(levelFilePath(levelIdx, 'dlf'), files.dlf)
-  archive.file(levelFilePath(levelIdx, 'llf'), files.llf)
+  archive.file(levelFilePath(levelIdx, 'fts'), fts)
+  archive.file(levelFilePath(levelIdx, 'dlf'), dlf)
+  archive.file(levelFilePath(levelIdx, 'llf'), llf)
 
-  return { name: EXPORT_ZIP_NAME, data: await archive.generateAsync({ type: 'arraybuffer' }) }
+  const data = await archive.generateAsync({ type: 'arraybuffer' })
+
+  onProgress?.(EXPORT_PROGRESS.zipped)
+
+  return { name: EXPORT_ZIP_NAME, data }
 }

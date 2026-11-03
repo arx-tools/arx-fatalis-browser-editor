@@ -271,13 +271,15 @@ export function createOriginalLevelSource(
   level: number,
   url: UrlAdapter | undefined = getUrlAdapter(undefined),
 ): OriginalLevelSource {
+  // the folder is read **now**: the url does not keep the parameter (the editor takes it out of the address bar after
+  // the start, and the source loads later)
+  const dataDir = dataDirFromUrl(url)
+
   return {
     label: `Level ${String(level)}`,
     level,
     load: async (fetchImpl: typeof fetch = fetch): Promise<LevelFiles> => {
       // the data directory of the url is the game's own folder: the files are read from there, no network
-      const dataDir = dataDirFromUrl(url)
-
       if (dataDir === undefined) {
         return await fetchLevelFiles(level, fetchImpl)
       }

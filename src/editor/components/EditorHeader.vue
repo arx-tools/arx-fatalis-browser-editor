@@ -4,6 +4,7 @@
 import { siGithub } from 'simple-icons'
 import DataDirPicker from './DataDirPicker.vue'
 import LevelSelector from './LevelSelector.vue'
+import MapsToOpen from './MapsToOpen.vue'
 import WidgetManager from './WidgetManager.vue'
 
 // the version, the commit and the build date of this build (see `vite.config.ts`)
@@ -43,6 +44,7 @@ const buildInfo = BUILD_INFO
     <div class="levels">
       <LevelSelector />
       <DataDirPicker />
+      <MapsToOpen />
     </div>
 
     <WidgetManager />

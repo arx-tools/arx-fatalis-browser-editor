@@ -1,3 +1,5 @@
+import { shallowRef } from 'vue'
+import { getLocalStorage, type StorageLike } from '../persistedRef/storage.ts'
 import { getUrlAdapter, readUrlValue, type UrlAdapter } from '../persistedRef/url.ts'
 
 /**
@@ -88,6 +90,20 @@ export interface DataDirFile {
 }
 
 /**
+ * The key of the data directory in the local storage of the browser.
+ *
+ * @remarks
+ * The folder is remembered **beside** the url on purpose: a page can not reopen a folder, but the *path* of it is
+ * enough for the development server to serve it, so a user who once gave the folder does not have to give it again.
+ */
+const DATA_DIR_STORAGE_KEY = 'arx-data-dir'
+
+/**
+ * The data directory of the session: the one of the url, or the one the browser remembered.
+ */
+let activeDataDir: string | undefined
+
+/**
  * The data directory the user picked in the header.
  *
  * @remarks
@@ -106,6 +122,123 @@ let picked: Map<string, File> | undefined
  * @returns The name, or `undefined` when no folder is picked.
  */
 let pickedName: string | undefined
+
+/**
+ * The data directory the header shows, as a reactive value.
+ *
+ * @remarks
+ * The header is built *before* the app starts the folder (a child is set up first), so the mark of the folder can not be
+ * a value read once: it follows this ref, and every change of the folder sets it.
+ */
+export const dataDirState = shallowRef<string | undefined>(undefined)
+
+/**
+ * Sets the value the header shows.
+ */
+function syncDataDirState(): void {
+  dataDirState.value = pickedName ?? activeDataDir
+}
+
+/**
+ * Whether the data directory was looked at already (the remembered one is read once).
+ */
+let isDataDirStarted = false
+
+/**
+ * Reads the data directory the browser remembered.
+ *
+ * @param storage The storage to read, the local storage of the page by default.
+ *
+ * @returns The path of the folder, or `undefined` when there is none.
+ */
+export function storedDataDir(storage: StorageLike | undefined = getLocalStorage(undefined)): string | undefined {
+  if (storage === undefined) {
+    return undefined
+  }
+
+  try {
+    const stored = storage.getItem(DATA_DIR_STORAGE_KEY)
+
+    if (stored === null || stored.trim() === '') {
+      return undefined
+    }
+
+    return stored
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Remembers the data directory in the browser.
+ *
+ * @param path The path of the folder.
+ * @param storage The storage to write, the local storage of the page by default.
+ *
+ * @returns True when the browser holds the folder, so the next visit does not need the parameter.
+ */
+export function rememberDataDir(path: string, storage: StorageLike | undefined = getLocalStorage(undefined)): boolean {
+  activeDataDir = path
+  isDataDirStarted = true
+  syncDataDirState()
+
+  if (storage === undefined) {
+    return false
+  }
+
+  try {
+    storage.setItem(DATA_DIR_STORAGE_KEY, path)
+
+    return storage.getItem(DATA_DIR_STORAGE_KEY) === path
+  } catch {
+    // a full or blocked storage keeps the folder for the session only
+    return false
+  }
+}
+
+/**
+ * Forgets the data directory of the browser.
+ *
+ * @param storage The storage to clean, the local storage of the page by default.
+ */
+export function forgetDataDir(storage: StorageLike | undefined = getLocalStorage(undefined)): void {
+  activeDataDir = undefined
+  isDataDirStarted = true
+  syncDataDirState()
+
+  if (storage === undefined) {
+    return
+  }
+
+  try {
+    storage.removeItem(DATA_DIR_STORAGE_KEY)
+  } catch {
+    // nothing to clean
+  }
+}
+
+/**
+ * The data directory of the session.
+ *
+ * @param storage The storage to read on the first look, the local storage of the page by default.
+ *
+ * @returns The folder, or `undefined` when the editor has none.
+ */
+export function activeDataDirName(storage: StorageLike | undefined = getLocalStorage(undefined)): string | undefined {
+  if (!isDataDirStarted) {
+    isDataDirStarted = true
+    activeDataDir = storedDataDir(storage)
+    syncDataDirState()
+  }
+
+  // a path of the disk is read by the development server alone: a shipped editor (github pages) has no server behind
+  // it, so a remembered or linked path is not a data directory there (the folder picker is the way of that build)
+  if (!IS_DEVELOPMENT && activeDataDir?.startsWith('/') === true) {
+    return undefined
+  }
+
+  return activeDataDir
+}
 
 /**
  * The data directory of the game the url names.
@@ -129,6 +262,39 @@ export function dataDirFromUrl(url: UrlAdapter | undefined = getUrlAdapter(undef
 }
 
 /**
+ * Starts the data directory of the session.
+ *
+ * @remarks
+ * The url wins (a link that names a folder is what the user asked for this time), and it is **remembered**: the next
+ * visit does not need the parameter, the folder comes from the browser. Without one in the url the remembered folder is
+ * the data directory, so a user gives it once.
+ *
+ * @param url The query string to read, the one of the page by default.
+ * @param storage The storage to read and write, the local storage of the page by default.
+ *
+ * @returns The folder of the session, or `undefined` when there is none.
+ */
+export function startDataDir(
+  url: UrlAdapter | undefined = getUrlAdapter(undefined),
+  storage: StorageLike | undefined = getLocalStorage(undefined),
+): string | undefined {
+  isDataDirStarted = true
+
+  const fromUrl = dataDirFromUrl(url)
+
+  if (fromUrl !== undefined) {
+    rememberDataDir(fromUrl, storage)
+
+    return fromUrl
+  }
+
+  activeDataDir = storedDataDir(storage)
+  syncDataDirState()
+
+  return activeDataDir
+}
+
+/**
  * Takes the files of the data directory the user picked.
  *
  * @param files The path of every file inside the data directory and the file itself.
@@ -141,6 +307,7 @@ export function setPickedDataDir(files: readonly DataDirFile[], name: string): v
     }),
   )
   pickedName = name
+  syncDataDirState()
 }
 
 /**
@@ -149,32 +316,33 @@ export function setPickedDataDir(files: readonly DataDirFile[], name: string): v
 export function clearPickedDataDir(): void {
   picked = undefined
   pickedName = undefined
+  syncDataDirState()
 }
 
 /**
  * The name of the data directory: the one the user picked, or the folder of the url.
  *
- * @param url The query string to read, the one of the page by default.
+ * @param storage The storage to read on the first look, the local storage of the page by default.
  *
  * @returns The name, or `undefined` when the editor has no data directory.
  */
-export function dataDirName(url: UrlAdapter | undefined = getUrlAdapter(undefined)): string | undefined {
+export function dataDirName(storage: StorageLike | undefined = getLocalStorage(undefined)): string | undefined {
   if (pickedName !== undefined) {
     return pickedName
   }
 
-  return dataDirFromUrl(url)
+  return activeDataDirName(storage)
 }
 
 /**
  * Whether the editor has a data directory to read from.
  *
- * @param url The query string to read, the one of the page by default.
+ * @param storage The storage to read on the first look, the local storage of the page by default.
  *
- * @returns True when a folder is picked or the url names one.
+ * @returns True when a folder is picked, the url named one, or the browser remembered one.
  */
-export function hasDataDir(url: UrlAdapter | undefined = getUrlAdapter(undefined)): boolean {
-  return dataDirName(url) !== undefined
+export function hasDataDir(storage: StorageLike | undefined = getLocalStorage(undefined)): boolean {
+  return dataDirName(storage) !== undefined
 }
 
 /**
@@ -305,7 +473,7 @@ export async function fetchDataFile(
  * @param path The path of the file inside the data directory.
  * @param fetchImpl The fetch to use; the tests pass a fake one.
  * @param isDev Whether the editor runs on the development server.
- * @param dataDir The folder of the url, the one of the page by default.
+ * @param dataDir The folder of the session, the one of the url or the browser by default.
  *
  * @returns The bytes of the file, or `undefined` when the data directory has no such file.
  */
@@ -313,7 +481,7 @@ export async function readDataFile(
   path: string,
   fetchImpl: typeof fetch = fetch,
   isDev = IS_DEVELOPMENT,
-  dataDir: string | undefined = dataDirFromUrl(),
+  dataDir: string | undefined = activeDataDirName(),
 ): Promise<ArrayBuffer | undefined> {
   if (picked !== undefined) {
     for (const candidate of pathsOf(path, true)) {
@@ -332,4 +500,124 @@ export async function readDataFile(
   }
 
   return await fetchDataFile(dataDir, path, fetchImpl, isDev)
+}
+
+/**
+ * The levels of the game fit in these numbers: the game has 22 maps, and the folders are named after them.
+ */
+const LEVEL_LIMIT = 32
+
+/**
+ * The numbers of the levels the data directory was scanned for, once it is read.
+ */
+let scannedLevels: number[] | undefined
+
+/**
+ * Reads the list of the levels the development server makes of the folder.
+ *
+ * @param dataDir The folder of the data directory.
+ * @param fetchImpl The fetch to use; the tests pass a fake one.
+ *
+ * @returns The numbers of the levels, or `undefined` when the server does not answer with a list.
+ */
+async function listedLevelsOf(dataDir: string, fetchImpl: typeof fetch): Promise<number[] | undefined> {
+  try {
+    const response = await fetchImpl(dataFileUrl(dataDir, 'levels', true))
+
+    if (!response.ok) {
+      return undefined
+    }
+
+    const body: unknown = await response.json()
+
+    if (typeof body !== 'object' || body === null) {
+      return undefined
+    }
+
+    const { levels } = body as { levels?: unknown }
+
+    if (!Array.isArray(levels)) {
+      return undefined
+    }
+
+    return levels.filter((level): level is number => {
+      return typeof level === 'number'
+    })
+  } catch {
+    // no list from the server: the files are asked for one by one by the caller
+    return undefined
+  }
+}
+
+/**
+ * Forgets the last scan of the levels (a folder was picked, or the url changed).
+ */
+export function clearDataDirScan(): void {
+  scannedLevels = undefined
+}
+
+/**
+ * Reads the numbers of the levels the data directory has.
+ *
+ * @remarks
+ * A level is a folder with the three files of it: the scene (`fast.fts`), the dlf and the llf. The folder is named after
+ * the number of the level, so the numbers of the folders that have the three files are the levels the editor can open.
+ * The scan is kept: the list of the header does not ask for the same three files on every render.
+ *
+ * @param fetchImpl The fetch to use; the tests pass a fake one.
+ * @param isDev Whether the editor runs on the development server.
+ *
+ * @returns The numbers of the levels, in order.
+ */
+export async function scanLevelNumbers(fetchImpl: typeof fetch = fetch, isDev = IS_DEVELOPMENT): Promise<number[]> {
+  if (scannedLevels !== undefined) {
+    return scannedLevels
+  }
+
+  // the development server lists the levels of the folder in **one** answer: asking for the three files of thirty
+  // levels would be a console full of 404s, and a round of requests for every miss
+  const dataDir = activeDataDirName()
+
+  if (dataDir !== undefined && isDev) {
+    const listed = await listedLevelsOf(dataDir, fetchImpl)
+
+    if (listed !== undefined) {
+      scannedLevels = listed
+
+      return scannedLevels
+    }
+  }
+
+  const numbers: number[] = []
+  const reads = Array.from({ length: LEVEL_LIMIT }, async (_, level) => {
+    const folder = `graph/levels/level${String(level)}`
+    const fts = await readDataFile(`${folder}/fast.fts`, fetchImpl, isDev)
+
+    if (fts === undefined) {
+      return undefined
+    }
+
+    const [dlf, llf] = await Promise.all([
+      readDataFile(`${folder}/level${String(level)}.dlf`, fetchImpl, isDev),
+      readDataFile(`${folder}/level${String(level)}.llf`, fetchImpl, isDev),
+    ])
+
+    if (dlf === undefined || llf === undefined) {
+      return undefined
+    }
+
+    return level
+  })
+
+  for (const level of await Promise.all(reads)) {
+    if (level !== undefined) {
+      numbers.push(level)
+    }
+  }
+
+  scannedLevels = numbers.toSorted((left, right) => {
+    return left - right
+  })
+
+  return scannedLevels
 }

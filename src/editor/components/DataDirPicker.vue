@@ -1,14 +1,66 @@
 <script setup lang="ts">
-import { FolderOpen } from 'lucide-vue-next'
-import { useTemplateRef } from 'vue'
-import { setPickedDataDir, type DataDirFile } from '../modules/level/dataDir.ts'
+import { Check, FolderOpen, HelpCircle, X } from 'lucide-vue-next'
+import { computed, ref, useTemplateRef } from 'vue'
+import { dataDirState, setPickedDataDir, type DataDirFile } from '../modules/level/dataDir.ts'
 import { paintLevel, repaintLevelTextures } from '../modules/level/levelTextures.ts'
 import { starterLevelSource } from '../modules/level/levelSource.ts'
 import { levelStore } from '../modules/level/levelStore.ts'
+import { isZipLevelSource } from '../modules/level/zipSource.ts'
+import { forgetArxLevels, refreshDataDir, startupSource } from '../modules/level/maps.ts'
+import Modal from './Modal.vue'
 
-// the input is the way to the disk: the browser does not let a script pick a folder, only the user can, so the button
-// presses the input and the input stays out of the way
+/**
+ * The data directory of the game: the folder the level files and the textures are read from.
+ *
+ * @remarks
+ * The label, a `?` that says what the folder is (and what the browser asks when it is picked), the button of the
+ * folder, and a mark that says whether the editor has one: a red cross without, a green check with it. A picked folder
+ * is read on the page (the browser gives the files of it, nothing is uploaded), and the editor paints the level again
+ * with the textures of the folder — or loads it, when it could not be without one.
+ */
 const dirInput = useTemplateRef<HTMLInputElement>('dirInput')
+
+/**
+ * Whether the editor has a data directory: the url named one, the browser remembered one, or the user picked one.
+ *
+ * @remarks
+ * It follows the state of the folder of the module: the header is set up before the app starts the folder, so a value
+ * read once would say "no folder" on the first visit with a url that names one.
+ */
+const hasFolder = computed(() => {
+  return dataDirState.value !== undefined
+})
+
+/**
+ * Whether the explanation of the folder is open.
+ */
+const isExplaining = ref(false)
+
+/**
+ * The class of the mark: the green check or the red cross of the state.
+ */
+const stateClass = computed(() => {
+  let name = 'is-missing'
+
+  if (hasFolder.value) {
+    name = 'is-set'
+  }
+
+  return name
+})
+
+/**
+ * What the mark says, for a reader that can not see the icon.
+ */
+const stateLabel = computed(() => {
+  let label = 'No data directory'
+
+  if (hasFolder.value) {
+    label = 'A data directory is set'
+  }
+
+  return label
+})
 
 /**
  * Opens the folder picker of the data directory.
@@ -23,7 +75,7 @@ function chooseDir(): void {
  * @remarks
  * The files come with the page: a `webkitdirectory` input gives the whole tree, and the editor reads what it needs from
  * it (`dataDir.ts` keeps the index by path). The level on the screen is painted again with the textures of the folder —
- * or loaded, when it could not be without one.
+ * or loaded, when it could not be without one — and the list of the header looks for the levels of the folder.
  *
  * @param event The change of the input.
  */
@@ -56,12 +108,24 @@ async function loadDir(event: Event): Promise<void> {
   }
 
   setPickedDataDir(files, name)
+  forgetArxLevels()
   console.info(`Data dir: ${name}, ${String(files.length)} files.`)
 
+  // the list of the maps follows the folder: the levels it has are what it can open
+  await refreshDataDir()
+
   if (levelStore.map.value === undefined) {
-    // the level could not load without the folder: now it can
-    await levelStore.openLevel(starterLevelSource(), async (map): Promise<void> => {
-      await paintLevel(map)
+    // the level could not load without the folder: now it can (the source the editor started with: the url does not
+    // keep the name of the level any more)
+    const source = startupSource() ?? starterLevelSource()
+    let zipData: ArrayBuffer | undefined
+
+    if (isZipLevelSource(source)) {
+      zipData = source.data()
+    }
+
+    await levelStore.openLevel(source, async (map): Promise<void> => {
+      await paintLevel(map, zipData)
     })
 
     return
@@ -73,7 +137,10 @@ async function loadDir(event: Event): Promise<void> {
 
 <template>
   <div class="DataDirPicker">
-    <span class="label">Arx Data Dir</span>
+    <span class="label">set Arx data dir</span>
+    <button class="what" type="button" aria-label="What is the data directory?" @click="isExplaining = true">
+      <HelpCircle :size="14" />
+    </button>
     <button
       class="open-data-dir"
       type="button"
@@ -83,6 +150,10 @@ async function loadDir(event: Event): Promise<void> {
     >
       <FolderOpen :size="14" />
     </button>
+    <span class="state" :class="stateClass" :aria-label="stateLabel">
+      <Check v-if="hasFolder" :size="13" />
+      <X v-else :size="13" />
+    </span>
     <input
       ref="dirInput"
       class="dir-input"
@@ -91,23 +162,44 @@ async function loadDir(event: Event): Promise<void> {
       aria-label="The data directory of the game"
       @change="loadDir"
     />
+
+    <Modal v-if="isExplaining" title="What is the Arx data dir?" @close="isExplaining = false">
+      <p>
+        The level files of Arx Fatalis and the textures it draws with are in the folder the game keeps its data in
+        (<code>graph/levels/…</code>, <code>graph/obj3d/textures/…</code>). The editor can not read a folder of your
+        disk by itself: pick it here, and every level and texture it needs is read from it.
+      </p>
+      <p>
+        The browser asks whether the site may read every file of the folder. <strong>Nothing is uploaded</strong>: the
+        files stay on your disk, the page gets a handle of each one, and the editor reads only the few it needs (the
+        level files and the textures of the level on the screen).
+      </p>
+      <p>
+        The folder is remembered for the session: a reload asks for it again (the level in the url, a later round, will
+        not).
+      </p>
+      <template #actions>
+        <button class="close-help" type="button" @click="isExplaining = false">Got it</button>
+      </template>
+    </Modal>
   </div>
 </template>
 
 <style scoped lang="scss">
 @use '../palette' as *;
 
-// the second way in, beside the level: the data directory of the game, which the textures (and later the models and
-// the scripts) are read from. It reads as a part of the level section, so the two sit in one row
+// the way in of the game's own files, beside the level: the label, what it is, the folder, and whether there is one
 .DataDirPicker {
   display: flex;
   align-items: center;
   gap: 6px;
 
   .label {
+    white-space: nowrap;
     opacity: 0.65;
   }
 
+  .what,
   .open-data-dir {
     display: inline-flex;
     align-items: center;
@@ -126,6 +218,24 @@ async function loadDir(event: Event): Promise<void> {
     }
   }
 
+  .what {
+    border-color: transparent;
+  }
+
+  // the mark of the folder: a red cross without one, a green check with it
+  .state {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .is-set {
+    color: $ok;
+  }
+
+  .is-missing {
+    color: $danger-bright;
+  }
+
   // the input is the file picker the button presses: a one pixel, transparent box (a `display: none` one is not
   // allowed to take the files of a directory in every engine)
   .dir-input {
@@ -134,6 +244,20 @@ async function loadDir(event: Event): Promise<void> {
     height: 1px;
     opacity: 0;
     pointer-events: none;
+  }
+
+  .close-help {
+    padding: 4px 10px;
+    color: $text;
+    font: inherit;
+    background: $surface-panel;
+    border: 1px solid $border;
+    border-radius: 4px;
+    cursor: pointer;
+
+    &:hover {
+      background: $surface-float;
+    }
   }
 }
 </style>

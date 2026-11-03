@@ -1,7 +1,7 @@
 import { createReadStream } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import process from 'node:process'
-import { basename, dirname, extname, join, resolve, sep } from 'node:path'
+import { basename, dirname, extname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import vue from '@vitejs/plugin-vue'
 import { config as loadEnv } from 'dotenv'
@@ -125,6 +125,201 @@ function contentTypeOf(path: string): string {
 }
 
 /**
+ * One entry of a folder: its path and whether it is a folder of its own.
+ */
+interface FolderEntry {
+  /**
+   * The path of the entry.
+   */
+  readonly path: string
+  /**
+   * Whether the entry is a folder (the walk of a path needs the folders too).
+   */
+  readonly directory: boolean
+}
+
+/**
+ * The folder listings, by the folder: a folder is listed once, the game's textures are in one folder and the page asks
+ * for a texture of it many times.
+ */
+const listings = new Map<string, Map<string, FolderEntry>>()
+
+/**
+ * Lists the entries of a folder, by their name in lower case.
+ *
+ * @param folder The folder to list.
+ *
+ * @returns The path of every entry, keyed by the name in lower case.
+ */
+async function listingOf(folder: string): Promise<Map<string, FolderEntry>> {
+  const cached = listings.get(folder)
+
+  if (cached !== undefined) {
+    return cached
+  }
+
+  const entries = await readdir(folder, { withFileTypes: true })
+  const found = new Map<string, FolderEntry>()
+
+  for (const entry of entries) {
+    found.set(entry.name.toLowerCase(), { path: join(folder, entry.name), directory: entry.isDirectory() })
+  }
+
+  listings.set(folder, found)
+
+  return found
+}
+
+/**
+ * Finds a file of the data directory, the way the game finds it.
+ *
+ * @remarks
+ * The game is of a windows that does not care about case, the folders of a linux do, and a copy of the data may keep a
+ * path in a case of its own (`GAME/GRAPH/Levels/Level2/fast.fts` beside `graph/levels/level2`). Every **segment** of the
+ * path is therefore matched against the listing of its parent in lower case, so a level folder is found whatever its
+ * case is.
+ *
+ * @param root The folder of the data directory.
+ * @param path The path inside it, like `game/graph/levels/level2/fast.fts`.
+ *
+ * @returns The path of the file on the disk, or `undefined` when the folder has no such file.
+ */
+async function resolveInDataDir(root: string, path: string): Promise<FolderEntry | undefined> {
+  let current = root
+  const segments = path.split('/').filter((segment) => {
+    return segment !== ''
+  })
+
+  for (const segment of segments) {
+    let entries: Map<string, FolderEntry>
+
+    try {
+      entries = await listingOf(current)
+    } catch {
+      return undefined
+    }
+
+    const found = entries.get(segment.toLowerCase())
+
+    if (found === undefined) {
+      return undefined
+    }
+
+    current = found.path
+  }
+
+  // the entry of the last segment: a file or a folder, the caller knows which one it wants
+  try {
+    const entries = await listingOf(dirname(current))
+    const last = entries.get(basename(current).toLowerCase())
+
+    return last ?? { path: current, directory: false }
+  } catch {
+    return { path: current, directory: false }
+  }
+}
+
+/**
+ * Finds a file of the data directory.
+ *
+ * @param root The folder of the data directory.
+ * @param path The path inside it, like `game/graph/levels/level2/fast.fts`.
+ *
+ * @returns The path of the file on the disk, or `undefined` when the folder has no such file.
+ */
+async function fileInDataDir(root: string, path: string): Promise<string | undefined> {
+  const found = await resolveInDataDir(root, path)
+
+  if (found === undefined || found.directory) {
+    return undefined
+  }
+
+  return found.path
+}
+
+/**
+ * Finds a file of a level folder, in either shape of the data directory.
+ *
+ * @param root The folder of the data directory.
+ * @param path The path inside the level folder, like `level8/fast.fts`.
+ *
+ * @returns The path of the file on the disk, or `undefined` when neither shape has it.
+ */
+async function levelInDataDir(root: string, path: string): Promise<string | undefined> {
+  for (const prefix of DATA_PREFIXES) {
+    const found = await fileInDataDir(root, `${prefix}graph/levels/${path}`)
+
+    if (found !== undefined) {
+      return found
+    }
+  }
+
+  return undefined
+}
+
+/**
+ * Lists the level folders of a data directory.
+ *
+ * @remarks
+ * The folders are named after the numbers of the levels, and a level is the folder that has the three files of it: the
+ * scene (`fast.fts`), the dlf and the llf. The page asks for this **once**, instead of asking for the three files of
+ * thirty levels (a console full of 404s, and a round of requests for every miss).
+ *
+ * @param root The folder of the data directory.
+ *
+ * @returns The numbers of the levels the folder has, in order.
+ */
+async function levelNumbersOf(root: string): Promise<number[]> {
+  const numbers = new Set<number>()
+  const names = new Set<string>()
+
+  // the names of the level folders, from the two shapes the game's data may keep them in
+  for (const prefix of DATA_PREFIXES) {
+    const levelsFolder = await resolveInDataDir(root, `${prefix}graph/levels`)
+
+    if (levelsFolder?.directory !== true) {
+      continue
+    }
+
+    try {
+      for (const entry of await readdir(levelsFolder.path, { withFileTypes: true })) {
+        if (entry.isDirectory()) {
+          names.add(entry.name)
+        }
+      }
+    } catch {
+      // a folder that can not be read has no levels
+    }
+  }
+
+  for (const name of names) {
+    const digits = /^level(?<number>\d+)$/iu.exec(name)?.groups?.number
+
+    if (digits === undefined) {
+      continue
+    }
+
+    const number = Number(digits)
+
+    // the three files of a level may sit in **two** folders (the dlf and the llf beside the map, the scene under
+    // `game/`), so **each file** is looked for in both shapes
+    const [fts, dlf, llf] = await Promise.all([
+      levelInDataDir(root, `${name}/fast.fts`),
+      levelInDataDir(root, `${name}/level${String(number)}.dlf`),
+      levelInDataDir(root, `${name}/level${String(number)}.llf`),
+    ])
+
+    if (fts !== undefined && dlf !== undefined && llf !== undefined) {
+      numbers.add(number)
+    }
+  }
+
+  return [...numbers].toSorted((left, right) => {
+    return left - right
+  })
+}
+
+/**
  * The route the page reads the **data directory of the game** from, on the development server.
  *
  * @remarks
@@ -140,38 +335,6 @@ function contentTypeOf(path: string): string {
  * @returns The plugin that adds the route to the server.
  */
 function localDataRoute(): Plugin {
-  // a folder is listed once per request that looks into it: the game's textures are in one folder, and the page asks
-  // for a texture of it many times
-  const listings = new Map<string, Map<string, string>>()
-
-  /**
-   * Lists the files of a folder, by their name in lower case.
-   *
-   * @param folder The folder to list.
-   *
-   * @returns The path of every file, keyed by the name in lower case.
-   */
-  async function listingOf(folder: string): Promise<Map<string, string>> {
-    const cached = listings.get(folder)
-
-    if (cached !== undefined) {
-      return cached
-    }
-
-    const entries = await readdir(folder, { withFileTypes: true })
-    const files = new Map<string, string>()
-
-    for (const entry of entries) {
-      if (entry.isFile()) {
-        files.set(entry.name.toLowerCase(), join(folder, entry.name))
-      }
-    }
-
-    listings.set(folder, files)
-
-    return files
-  }
-
   return {
     name: 'arx-local-data',
     apply: 'serve',
@@ -190,9 +353,28 @@ function localDataRoute(): Plugin {
           return
         }
 
-        if (requested === '' || params.get('root') === null) {
+        if (params.get('root') === null) {
           response.statusCode = 400
-          response.end('The local data route needs a root and a path.')
+          response.end('The local data route needs a root.')
+
+          return
+        }
+
+        // the levels of the folder, once: the page lists the maps of the header with it
+        if (requested === 'levels') {
+          void (async (): Promise<void> => {
+            const levels = await levelNumbersOf(root)
+
+            response.setHeader('Content-Type', 'application/json')
+            response.end(JSON.stringify({ levels }))
+          })()
+
+          return
+        }
+
+        if (requested === '') {
+          response.statusCode = 400
+          response.end('The local data route needs a path.')
 
           return
         }
@@ -207,23 +389,13 @@ function localDataRoute(): Plugin {
 
           for (const prefix of DATA_PREFIXES) {
             for (const name of names) {
-              const path = resolve(root, `${prefix}${folder}`, name)
+              const found = await fileInDataDir(root, `${prefix}${folder}/${name}`)
 
-              // a path that leaves the folder is not a file of the data directory
-              if (!path.startsWith(`${root}${sep}`)) {
+              if (found === undefined) {
                 continue
               }
 
               try {
-                // the game is of a windows that does not care about case, the folder of a linux that does: the name
-                // a level gives is matched against the folder in lower case
-                const files = await listingOf(dirname(path))
-                const found = files.get(basename(path).toLowerCase())
-
-                if (found === undefined) {
-                  continue
-                }
-
                 const bytes = await readFile(found)
 
                 response.setHeader('Content-Type', contentTypeOf(found))

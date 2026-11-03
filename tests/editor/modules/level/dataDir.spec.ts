@@ -7,11 +7,37 @@ import {
   dataDirName,
   dataFileUrl,
   fetchDataFile,
+  forgetDataDir,
   hasDataDir,
   readDataFile,
+  rememberDataDir,
   setPickedDataDir,
+  startDataDir,
+  storedDataDir,
 } from '../../../../src/editor/modules/level/dataDir.ts'
+import type { StorageLike } from '../../../../src/editor/modules/persistedRef/storage.ts'
 import type { UrlAdapter } from '../../../../src/editor/modules/persistedRef/url.ts'
+
+/**
+ * A storage of the test: the local storage of the browser, in memory.
+ *
+ * @returns The storage, empty.
+ */
+function memoryStorage(): StorageLike {
+  const values = new Map<string, string>()
+
+  return {
+    getItem: (key: string): string | null => {
+      return values.get(key) ?? null
+    },
+    setItem: (key: string, value: string): void => {
+      values.set(key, value)
+    },
+    removeItem: (key: string): void => {
+      values.delete(key)
+    },
+  }
+}
 
 /**
  * A query string as the url of the page would give it.
@@ -184,8 +210,8 @@ void describe('the data directory the user picked', () => {
       'arx-data',
     )
 
-    assert.equal(dataDirName(urlOf('')), 'arx-data')
-    assert.equal(hasDataDir(urlOf('')), true)
+    assert.equal(dataDirName(memoryStorage()), 'arx-data')
+    assert.equal(hasDataDir(memoryStorage()), true)
 
     // the level says `.bmp`, the picked file is a `.jpg`: the stem is what matches
     const bytes = await readDataFile('graph/obj3d/textures/[stone]_human_castle_wall1.bmp')
@@ -211,10 +237,47 @@ void describe('the data directory the user picked', () => {
     assert.deepEqual(calls, [])
   })
 
-  void it('says nothing when neither the url nor the header has a folder', () => {
+  void it('says nothing when neither the url, the header nor the browser has a folder', () => {
     clearPickedDataDir()
 
-    assert.equal(dataDirName(urlOf('')), undefined)
-    assert.equal(hasDataDir(urlOf('')), false)
+    const storage = memoryStorage()
+
+    assert.equal(dataDirName(storage), undefined)
+    assert.equal(hasDataDir(storage), false)
+  })
+})
+
+void describe('the data directory of the browser', () => {
+  void it('remembers the folder of the url, and reads it back', () => {
+    const storage = memoryStorage()
+
+    // the url of a link names a folder: it is remembered, so the next visit does not need the parameter (a folder of
+    // the disk is the development server's; in node a folder url is what the tests have)
+    assert.equal(
+      startDataDir(urlOf(`${DATA_DIR_PARAMETER}=https://example.com/data`), storage),
+      'https://example.com/data',
+    )
+    assert.equal(storedDataDir(storage), 'https://example.com/data')
+
+    // the next visit has nothing in the url: the folder comes from the browser
+    assert.equal(startDataDir(urlOf(''), storage), 'https://example.com/data')
+    assert.equal(hasDataDir(storage), true)
+  })
+
+  void it('forgets the folder', () => {
+    const storage = memoryStorage()
+
+    rememberDataDir('https://example.com/data', storage)
+    forgetDataDir(storage)
+
+    assert.equal(storedDataDir(storage), undefined)
+    assert.equal(hasDataDir(storage), false)
+  })
+
+  void it('reads nothing without a folder anywhere', () => {
+    const storage = memoryStorage()
+
+    assert.equal(storedDataDir(storage), undefined)
+    assert.equal(startDataDir(urlOf(''), storage), undefined)
   })
 })

@@ -3,6 +3,7 @@ import { FolderOpen } from 'lucide-vue-next'
 import { nextTick, useTemplateRef } from 'vue'
 import { paintLevel } from '../modules/level/levelTextures.ts'
 import { levelStore } from '../modules/level/levelStore.ts'
+import { currentMapId, rememberCustomMap } from '../modules/level/maps.ts'
 import { createZipLevelSource } from '../modules/level/zipSource.ts'
 import { cameraStore } from './widgets/cameraStore.ts'
 
@@ -60,12 +61,15 @@ async function loadZip(event: Event): Promise<void> {
   // previous level left it at. The tick lets the walkable view rebuild itself around the new map first
   await nextTick()
   cameraStore.moveToSpawn()
+
+  // the list of the maps keeps the zip: a level the editor opened once is one to go back to
+  currentMapId.value = rememberCustomMap(file.name, data)
 }
 </script>
 
 <template>
   <div class="LevelSelector">
-    <span class="label">Levels</span>
+    <span class="label">Open from ZIP</span>
     <button
       class="open-level"
       type="button"

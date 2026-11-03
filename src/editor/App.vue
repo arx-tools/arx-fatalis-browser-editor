@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { nextTick, onMounted, watch } from 'vue'
 import Cover from './components/Cover.vue'
 import Dock from './components/Dock.vue'
 import EditorHeader from './components/EditorHeader.vue'
@@ -10,9 +10,10 @@ import { paintLevel, startLevelTextures } from './modules/level/levelTextures.ts
 import { levelStore } from './modules/level/levelStore.ts'
 import { DATA_DIR_PARAMETER, dataDirFromUrl, hasDataDir, startDataDir, storedDataDir } from './modules/level/dataDir.ts'
 import { isOriginalLevelSource, ORIGINAL_LEVEL_PARAMETER, starterLevelSource } from './modules/level/levelSource.ts'
-import { currentMapId, refreshDataDir, rememberCustomMap, setStartupSource } from './modules/level/maps.ts'
+import { currentMapId, lastMapId, refreshDataDir, rememberCustomMap, setStartupSource } from './modules/level/maps.ts'
 import { getUrlAdapter, writeUrlValue } from './modules/persistedRef/url.ts'
 import { isZipLevelSource } from './modules/level/zipSource.ts'
+import { cameraStore } from './components/widgets/cameraStore.ts'
 import { provideEditorShell } from './modules/shell/editorShellContext.ts'
 
 // the dock builds the shell when it is mounted, the header reads it from here
@@ -65,7 +66,7 @@ onMounted(() => {
       .catch(() => {
         // the store keeps the error of the load, the walkable view shows it
       })
-  } else if (isOriginalLevelSource(source) && hasDataDir()) {
+  } else if (isOriginalLevelSource(source)) {
     currentMapId.value = `arx:${String(source.level)}`
 
     // a level of the game, with the textures of the data directory of the url: nothing is downloaded, and a folder
@@ -99,6 +100,40 @@ onMounted(() => {
   startSelection()
   startLevelEditing()
   startLevelTextures()
+
+  // the camera of a level is a place in **that** level: when the map that loads is not the one of the last visit (the
+  // editor opens the Flat level at start, and the level in the url is a later round), the persisted pose is of another
+  // level and means another place. The camera goes to the spawn, and the pose leaves the url with it.
+  const previousMap = lastMapId.value
+  const stop = watch(levelStore.status, (status): void => {
+    if (status !== 'ready') {
+      return
+    }
+
+    stop()
+
+    const loaded = currentMapId.value
+
+    lastMapId.value = loaded
+
+    if (previousMap === undefined || previousMap === loaded) {
+      return
+    }
+
+    async function settle(): Promise<void> {
+      await nextTick()
+      cameraStore.moveToSpawn()
+
+      if (url !== undefined) {
+        writeUrlValue(url, 'position', undefined)
+        writeUrlValue(url, 'rotation', undefined)
+      }
+    }
+
+    settle().catch(() => {
+      // the camera of the level stays where it was: the map is on the screen, which is the part that matters
+    })
+  })
 })
 </script>
 

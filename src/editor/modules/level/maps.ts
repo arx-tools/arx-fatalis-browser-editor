@@ -1,5 +1,6 @@
 import { computed, nextTick, ref, shallowRef } from 'vue'
 import { cameraStore } from '../../components/widgets/cameraStore.ts'
+import { persistedRef } from '../persistedRef/persistedRef.ts'
 import { FLAT_PRESET, MINIMAL_PRESET, type NewLevelPreset } from './blankLevel.ts'
 import { clearDataDirScan, readDataFile, scanLevelNumbers } from './dataDir.ts'
 import { paintLevel } from './levelTextures.ts'
@@ -93,6 +94,20 @@ export const customMaps = shallowRef<Array<{ readonly label: string; readonly da
  * The map the store holds now.
  */
 export const currentMapId = ref<string>('blank:flat')
+
+/**
+ * The map that was opened last, in the browser.
+ *
+ * @remarks
+ * A `persistedRef` in the `localStorage`: the editor opens the Flat level at start (the level in the url is a later
+ * round), so the map of the last visit says whether the camera that was left is the camera of **this** level. When the
+ * level that loads is another one, the camera goes to its spawn and the persisted pose of the other level is dropped —
+ * a pose is a place in a level, and the same numbers mean another place in another level.
+ */
+export const lastMapId = persistedRef<string | undefined>({
+  key: 'lastMap',
+  persistInLocalStorage: true,
+})
 
 /**
  * The source the editor started with.
@@ -274,6 +289,7 @@ export async function openMap(id: string): Promise<void> {
   }
 
   currentMapId.value = id
+  lastMapId.value = id
 
   // the new level has its own player: the camera goes there, so the view opens on it (the tick lets the walkable view
   // rebuild itself around the new map first)

@@ -328,6 +328,33 @@ export interface FaceRun {
 }
 
 /**
+ * The names of the textures the faces of a level need, in the order they first appear.
+ *
+ * @param map The map of the level.
+ * @param polygons The solid faces, in the order of the geometry.
+ * @param textures The textures the level has, by the name it calls them.
+ *
+ * @returns The names that have a texture: a container without one draws with the placeholder.
+ */
+function neededNamesOf(map: ArxMap, polygons: readonly ArxPolygon[], textures: ReadonlyMap<string, Texture>): string[] {
+  const names: string[] = []
+  const seen = new Set<string>()
+
+  for (const polygon of polygons) {
+    const name = map.textureNameOf(polygon.textureContainerId)
+
+    if (name === undefined || seen.has(name) || !textures.has(name)) {
+      continue
+    }
+
+    seen.add(name)
+    names.push(name)
+  }
+
+  return names
+}
+
+/**
  * Reads the runs of the faces of a level that share a texture.
  *
  * @remarks
@@ -510,6 +537,16 @@ interface PaintedLevel {
    * edit that re-paints the level has to change the contents of this array and not the material of the mesh.
    */
   readonly materials: Material[]
+  /**
+   * The names of the textures the materials were built for, in the order of the array (the first is the placeholder).
+   */
+  readonly names: readonly string[]
+  /**
+   * The textures the materials were built from, and the placeholder: another set means the level was painted again with
+   * the folder of a zip or of the game, so the materials are built again.
+   */
+  readonly textures: ReadonlyMap<string, Texture>
+  readonly missing: Texture | undefined
 }
 
 /**
@@ -553,36 +590,41 @@ export function paintLevelTextures(map: ArxMap, textures: ReadonlyMap<string, Te
 
   const started = painted
   const materials = started?.materials ?? []
-
-  for (const material of materials) {
-    material.dispose()
-  }
-
-  materials.length = 0
-
-  if (missing === undefined) {
-    materials.push(createLevelMaterial())
-  } else {
-    materials.push(new MeshLambertMaterial({ map: missing }))
-  }
-
-  const indexOfName = new Map<string, number>()
   const polygons = solidPolygonsOf(map)
 
-  for (const polygon of polygons) {
-    const name = map.textureNameOf(polygon.textureContainerId)
-    let texture: Texture | undefined
+  // the names the paint needs, in the order they first appear: the materials are built for these, and a repaint (an
+  // edit) keeps them — the same names, the same materials, no shader of thirty textures built again for a delete
+  const names = neededNamesOf(map, polygons, textures)
+  const indexOfName = new Map<string, number>(
+    names.map((name, index) => {
+      return [name, index + 1]
+    }),
+  )
 
-    if (name !== undefined) {
-      texture = textures.get(name)
+  const isSamePaint =
+    started?.textures === textures &&
+    started.missing === missing &&
+    started.materials.length === names.length + 1 &&
+    names.every((name, index) => {
+      return started.names[index] === name
+    })
+
+  if (!isSamePaint) {
+    for (const material of materials) {
+      material.dispose()
     }
 
-    if (name === undefined || texture === undefined || indexOfName.has(name)) {
-      continue
+    materials.length = 0
+
+    if (missing === undefined) {
+      materials.push(createLevelMaterial())
+    } else {
+      materials.push(new MeshLambertMaterial({ map: missing }))
     }
 
-    indexOfName.set(name, materials.length)
-    materials.push(new MeshLambertMaterial({ map: texture }))
+    for (const name of names) {
+      materials.push(new MeshLambertMaterial({ map: textures.get(name) }))
+    }
   }
 
   const { geometry } = mesh
@@ -618,8 +660,10 @@ export function paintLevelTextures(map: ArxMap, textures: ReadonlyMap<string, Te
     }
   }
 
-  if (started?.mesh !== mesh) {
-    painted = { mesh, material: mesh.material, materials }
+  if (started?.mesh === mesh) {
+    painted = { mesh, material: started.material, materials, names, textures, missing }
+  } else {
+    painted = { mesh, material: mesh.material, materials, names, textures, missing }
     mesh.material = materials
   }
 
@@ -734,12 +778,16 @@ export function startLevelTextures(): void {
       return levelStore.map.value
     },
     (map) => {
-      const previous = current?.map
+      const paintedMap = current?.map
 
-      if (previous !== undefined && previous !== map) {
-        unpaintLevelTextures(previous)
+      // the paint of a level runs **before** the map is published (the prepare step of the load), so the map that
+      // arrives is usually the one that was just painted: clearing here would drop the textures of the level of the
+      // screen, and the first edit would then leave the groups of the old paint on the new geometry
+      if (paintedMap === undefined || paintedMap === map) {
+        return
       }
 
+      unpaintLevelTextures(paintedMap)
       current = undefined
       lastZipData = undefined
     },

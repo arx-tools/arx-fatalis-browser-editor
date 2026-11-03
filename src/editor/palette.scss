@@ -59,3 +59,5 @@ $text-on-danger:                                 hsl(  9, 67%, 89%);
 
 // pure black: only for the translucent shadows and veils
 $ink:                                            hsl(  0,  0%,  0%);
+// what sits on a veil: the wait of a level load, the text over the cover
+$on-veil:                                        hsl(  0,  0%, 100%);

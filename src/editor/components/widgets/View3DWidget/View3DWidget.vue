@@ -29,20 +29,18 @@ import {
 } from './polygonSelection.ts'
 
 /**
- * What the widget shows over the canvas: the loading state, a failure, or nothing while the level is on.
+ * What the widget shows over the canvas: a failure, or nothing while the level is on.
  *
- * The level itself is loaded by {@link levelStore}, so a rebuilt widget shows it at once.
+ * The level itself is loaded by {@link levelStore}, so a rebuilt widget shows it at once. The wait of a load is not
+ * shown here: the app puts a cover over the editor for it, with the words in white (`LoadingOverlay`).
  */
 const status = computed(() => {
   if (levelStore.status.value === 'error') {
     return levelStore.error.value ?? 'Failed to load the level.'
   }
 
-  if (levelStore.status.value === 'ready') {
-    return ''
-  }
-
-  return 'Loading the level…'
+  // the wait of a load is the cover of the app (`LoadingOverlay`), with the words over it: the widget stays clean
+  return ''
 })
 
 /**
@@ -113,6 +111,14 @@ let controls: CameraControls | undefined
 let observer: ResizeObserver | undefined
 let frame = 0
 let lastFrameAt = 0
+/**
+ * The pose of the camera of the last drawn frame, as a string: the locked loop draws only when the camera moved.
+ */
+let lastDrawnPose = ''
+/**
+ * Whether something else (the level, the selection, the size) asks for a frame of the locked loop.
+ */
+let redrawNeeded = false
 let stopWatching: (() => void) | undefined
 let stopWatchingWireframe: (() => void) | undefined
 let stopWatchingMesh: (() => void) | undefined
@@ -348,6 +354,23 @@ function updateDrag(): void {
 }
 
 /**
+ * Reads the pose of the camera of the view, as one string.
+ *
+ * @remarks
+ * The locked loop compares it with the pose of the last drawn frame: the crosshair pick and the render of a level cost
+ * real time on a big level, and a view that stands still has nothing new to pick or to draw.
+ *
+ * @param viewScene The view to read the camera of.
+ *
+ * @returns The position and the rotation of the camera, as one string.
+ */
+function poseOf(viewScene: ViewScene<PerspectiveCamera>): string {
+  const { position, quaternion } = viewScene.camera
+
+  return `${position.x.toFixed(3)},${position.y.toFixed(3)},${position.z.toFixed(3)}|${quaternion.x.toFixed(4)},${quaternion.y.toFixed(4)},${quaternion.z.toFixed(4)},${quaternion.w.toFixed(4)}`
+}
+
+/**
  * Draws one frame: the scene, then the orientation compass in its own corner.
  *
  * @remarks
@@ -376,12 +399,16 @@ function drawFrame(): void {
  * after the level arrived, after a resize.
  */
 function requestRender(): void {
+  redrawNeeded = true
+
   if (frame !== 0) {
+    // the locked loop draws it, on its next frame
     return
   }
 
   frame = requestAnimationFrame(() => {
     frame = 0
+    redrawNeeded = false
     drawFrame()
   })
 }
@@ -412,7 +439,21 @@ function animate(now: number): void {
   }
 
   controls.update(deltaSeconds)
-  drawFrame()
+
+  // a frame costs a raycast and a render, and on a big level that is a real part of a frame's time: the pick only
+  // changes when the camera moves (the crosshair is the centre of the canvas) or when the level under it changes, so
+  // a locked view that stands still draws nothing
+  let pose = ''
+
+  if (view !== undefined) {
+    pose = poseOf(view)
+  }
+
+  if (pose !== lastDrawnPose || redrawNeeded) {
+    lastDrawnPose = pose
+    redrawNeeded = false
+    drawFrame()
+  }
 
   frame = requestAnimationFrame(animate)
 }

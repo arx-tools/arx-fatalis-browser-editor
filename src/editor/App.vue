@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { nextTick, onMounted, watch } from 'vue'
+import { computed, nextTick, onMounted, watch } from 'vue'
 import Cover from './components/Cover.vue'
 import Dock from './components/Dock.vue'
 import EditorHeader from './components/EditorHeader.vue'
+import LoadingOverlay from './components/LoadingOverlay.vue'
 import { startLevelDisplay } from './components/widgets/levelDisplay.ts'
 import { startLevelEditing } from './modules/level/editing.ts'
 import { startSelection } from './modules/selection/selectionStore.ts'
@@ -18,6 +19,17 @@ import { provideEditorShell } from './modules/shell/editorShellContext.ts'
 
 // the dock builds the shell when it is mounted, the header reads it from here
 provideEditorShell()
+
+/**
+ * Whether a level is on its way in: the editor is covered while it is, with the words of the wait over the cover.
+ *
+ * @remarks
+ * The cover is the shape the modal uses (black at 45%), and the words are white on it: the status line of the
+ * walkable view is far too quiet for a wait that takes a level of the game with thirty textures.
+ */
+const isLevelLoading = computed(() => {
+  return levelStore.status.value === 'loading'
+})
 
 // The level is loaded by the app and not by the 3D view: the widget comes and goes with the dock, and
 // the map has to survive that (a layout reset rebuilds every widget). Starting it here also means the
@@ -79,7 +91,15 @@ onMounted(() => {
         // the store keeps the error of the load, the walkable view shows it
       })
   } else {
-    levelStore.startLoading()
+    // the blank level of the start is painted like any other: the containers it has draw with the placeholder (the
+    // editor has no texture of the game at hand), so the floor is the jorge pattern and not the bare grey of a mesh
+    levelStore
+      .openLevel(source, async (map): Promise<void> => {
+        await paintLevel(map)
+      })
+      .catch(() => {
+        // the store keeps the error of the load, the walkable view shows it
+      })
   }
 
   // the level the url names is on its way to the list of the header: the address bar does not need to keep the parameter
@@ -139,6 +159,7 @@ onMounted(() => {
 
 <template>
   <div class="App">
+    <LoadingOverlay v-if="isLevelLoading" />
     <EditorHeader />
     <Dock />
     <Cover />

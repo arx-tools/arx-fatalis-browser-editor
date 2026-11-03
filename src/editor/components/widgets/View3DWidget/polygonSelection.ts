@@ -93,6 +93,8 @@ export function pickPolygons(
   // it would outline a surface that is not on the screen
   raycaster.near = camera.near
   raycaster.far = camera.far
+  // the first face the ray meets is the answer: the tree stops at it instead of reading every face along the ray
+  raycaster.firstHitOnly = true
   raycaster.setFromCamera(new Vector2(0, 0), camera)
 
   const polygons: number[] = []

@@ -13,6 +13,7 @@ import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
 import { isKeyDown } from '../../../modules/keyboard/keyboard.ts'
 import { selectionModeOf, selectionStore, type SelectionMode } from '../../../modules/selection/selectionStore.ts'
 import { cameraStore } from '../cameraStore.ts'
+import { renderPerformanceStore } from '../renderPerformance.ts'
 import { crosshairStore } from '../../../modules/crosshair/crosshairStore.ts'
 import { isMeshVisible, isWireframeVisible } from '../levelDisplay.ts'
 import { addPreviewLights, attachWireframe, viewMeshesOf, type LevelWireframe } from '../levelScene.ts'
@@ -507,6 +508,9 @@ function createScene(): void {
 
   view = createViewScene(target, new PerspectiveCamera(FIELD_OF_VIEW, 1, 0.1, 10_000))
 
+  // the readout of the render performance asks this renderer, and the widget can not reach it another way
+  renderPerformanceStore.setRenderer(view.renderer)
+
   // the walkable view shows the level with the preview lights for now (the lighting round replaces them)
   addPreviewLights(view.scene)
 
@@ -717,6 +721,11 @@ onBeforeUnmount(() => {
   gizmo = undefined
 
   if (view !== undefined) {
+    // a rebuilt dock puts a new view in place before this one goes: the readout keeps the newer renderer
+    if (renderPerformanceStore.renderer.value === view.renderer) {
+      renderPerformanceStore.setRenderer(undefined)
+    }
+
     disposeViewScene(view)
     view = undefined
   }

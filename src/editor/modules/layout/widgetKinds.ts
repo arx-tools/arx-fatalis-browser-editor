@@ -62,4 +62,8 @@ export const WIDGET_KINDS = {
    * The key table of the editor.
    */
   keyboardShortcuts: 'keyboard-shortcuts',
+  /**
+   * The frame rate and the cost of a frame of the walkable view.
+   */
+  renderPerformance: 'render-performance',
 } as const

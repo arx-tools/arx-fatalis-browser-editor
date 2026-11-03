@@ -134,6 +134,17 @@ void describe('the editor preset', () => {
   })
 })
 
+void describe('the presets', () => {
+  void it('keeps the render performance readout off the dock until the user adds it', () => {
+    assert.deepEqual(
+      [editorLayout, viewerLayout].map((tree) => {
+        return collectKinds(tree).includes('render-performance')
+      }),
+      [false, false],
+    )
+  })
+})
+
 void describe('the viewer preset', () => {
   void it('locks the plan and the jump to the sizes the owner measured off the plate', () => {
     assert.deepEqual(lockOfKind(viewerLayout, 'top-view'), { width: 350, height: 285 })

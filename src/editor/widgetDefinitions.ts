@@ -5,6 +5,7 @@ import KeyboardShortcutsWidget from './components/widgets/KeyboardShortcutsWidge
 import JumpToLocationWidget from './components/widgets/JumpToLocationWidget/JumpToLocationWidget.vue'
 import PolygonInspectorWidget from './components/widgets/PolygonInspectorWidget/PolygonInspectorWidget.vue'
 import MapStatisticsWidget from './components/widgets/MapStatisticsWidget/MapStatisticsWidget.vue'
+import RenderPerformanceWidget from './components/widgets/RenderPerformanceWidget/RenderPerformanceWidget.vue'
 import View3DWidget from './components/widgets/View3DWidget/View3DWidget.vue'
 import type { CameraViewMode } from './components/widgets/FixedViewWidget/cameraAlign.ts'
 import { WIDGET_KINDS } from './modules/layout/widgetKinds.ts'
@@ -122,6 +123,15 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
     group: 'info',
     create: (label): Widget => {
       return new VueWidget(KeyboardShortcutsWidget, { label })
+    },
+  },
+  {
+    kind: WIDGET_KINDS.renderPerformance,
+    label: 'Render Performance',
+    contentSized: true,
+    group: 'info',
+    create: (label): Widget => {
+      return new VueWidget(RenderPerformanceWidget, { label })
     },
   },
 ]

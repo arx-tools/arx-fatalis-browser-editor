@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { ArxPolygonFlags, type ArxPolygon, type ArxVector3 } from 'arx-convert/types'
 import {
+  blendModeOf,
+  blendTransOf,
   isTouchingVertices,
   polygonFillTriangles,
   polygonOfTriangle,
@@ -188,5 +190,37 @@ void describe('sameTextureAreaOf', () => {
     const polygons = [quadAt(0, 1)]
 
     assert.deepEqual(sameTextureAreaOf(polygons, vertexToPolygonsMap(polygons), 7), [])
+  })
+})
+
+void describe('blendModeOf', () => {
+  void it('reads an opaque face without the transparent bit', () => {
+    assert.equal(blendModeOf({ flags: 0, transval: 0 }), 'opaque')
+    assert.equal(blendModeOf({ flags: ArxPolygonFlags.Quad, transval: 3 }), 'opaque')
+  })
+
+  void it('reads the four blended modes of a transparent face', () => {
+    const transparent = ArxPolygonFlags.Transparent
+
+    assert.equal(blendModeOf({ flags: transparent, transval: 2 }), 'multiplicative')
+    assert.equal(blendModeOf({ flags: transparent, transval: 1.25 }), 'additive')
+    assert.equal(blendModeOf({ flags: transparent, transval: 0.05 }), 'alpha')
+    assert.equal(blendModeOf({ flags: transparent, transval: -0.95 }), 'subtractive')
+  })
+})
+
+void describe('blendTransOf', () => {
+  void it('gives an opaque face the white of no modulation', () => {
+    assert.equal(blendTransOf({ flags: 0, transval: 0.5 }), 1)
+  })
+
+  void it('reads the brightness the game multiplies the texture with', () => {
+    const transparent = ArxPolygonFlags.Transparent
+
+    // the values of the game: 1.25 turns into 0.25, -0.95 into 1.95, 0.05 into 0.95
+    assert.equal(blendTransOf({ flags: transparent, transval: 1.25 }), 0.25)
+    assert.equal(blendTransOf({ flags: transparent, transval: -0.95 }), 1.95)
+    assert.equal(blendTransOf({ flags: transparent, transval: 0.05 }), 0.95)
+    assert.equal(blendTransOf({ flags: transparent, transval: 2.5 }), 1.75)
   })
 })

@@ -2,12 +2,18 @@ import type { ArxPolygon } from 'arx-convert/types'
 import { isQuad } from 'arx-convert/utils'
 import JSZip from 'jszip'
 import {
+  Color,
+  CustomBlending,
   DoubleSide,
   FrontSide,
   MeshLambertMaterial,
+  OneFactor,
+  OneMinusSrcColorFactor,
   RepeatWrapping,
+  SrcColorFactor,
   SRGBColorSpace,
   Texture,
+  ZeroFactor,
   type BufferAttribute,
   type BufferGeometry,
   type Material,
@@ -18,7 +24,7 @@ import { watch } from 'vue'
 import type { ArxMap, TextureRun } from '../../../generator/ArxMap.ts'
 import { BLANK_LEVEL_TEXTURE, GENERATOR_ASSETS } from '../../../generator/assets.ts'
 import { createLevelMaterial } from '../../../generator/meshes.ts'
-import { isDoubleSided } from '../../../generator/polygons.ts'
+import { blendModeOf, blendTransOf, isDoubleSided, type PolygonBlendMode } from '../../../generator/polygons.ts'
 import { levelRevision } from './editing.ts'
 import { readDataFile } from './dataDir.ts'
 import { levelStore } from './levelStore.ts'
@@ -233,6 +239,155 @@ export async function findTextureFiles(data: ArrayBuffer, names: readonly string
 }
 
 /**
+ * Tells whether the bytes of a file are a BMP.
+ *
+ * @param bytes The bytes of the file, as the browser hands them over.
+ *
+ * @returns True for the `BM` magic of the format.
+ */
+export function isBmpFile(bytes: ArrayBuffer): boolean {
+  const head = new Uint8Array(bytes, 0, Math.min(bytes.byteLength, 2))
+
+  return head[0] === 0x42 && head[1] === 0x4d
+}
+
+/**
+ * The pixels of an image, with its size.
+ */
+interface PixelImage {
+  /**
+   * The pixels, RGBA, four bytes each.
+   */
+  readonly pixels: Uint8ClampedArray
+  /**
+   * The width of the image, in pixels.
+   */
+  readonly width: number
+  /**
+   * The height of the image, in pixels.
+   */
+  readonly height: number
+}
+
+/**
+ * Copies the colour of an opaque neighbour into a transparent pixel.
+ *
+ * @remarks
+ * A texture filter mixes the pixels around a hole, and a black one would draw a dark border around it: the pixel takes
+ * the colour of one of its neighbours that is not a hole (the game does the same, `Image::applyColorKeyToAlpha`).
+ *
+ * @param image The pixels of the image.
+ * @param x The column of the transparent pixel.
+ * @param y The row of the transparent pixel.
+ */
+function copyNeighbourColour(image: PixelImage, x: number, y: number): void {
+  const { pixels, width, height } = image
+  const row = y * width
+  const offset = (row + x) * 4
+
+  for (let ny = Math.max(0, y - 1); ny <= Math.min(height - 1, y + 1); ny = ny + 1) {
+    const neighbourRow = ny * width
+
+    for (let nx = Math.max(0, x - 1); nx <= Math.min(width - 1, x + 1); nx = nx + 1) {
+      const neighbour = (neighbourRow + nx) * 4
+
+      if (pixels[neighbour + 3] !== 0) {
+        pixels[offset] = pixels[neighbour]
+        pixels[offset + 1] = pixels[neighbour + 1]
+        pixels[offset + 2] = pixels[neighbour + 2]
+
+        return
+      }
+    }
+  }
+}
+
+/**
+ * Cuts the colour key of a BMP into the alpha channel of its pixels.
+ *
+ * @remarks
+ * The textures of the game are 24-bit BMPs without an alpha channel, and the game reads the **black** pixels as the
+ * holes of the face (`Texture::restore` calls `applyColorKeyToAlpha(Color::black)`) — the torch's flame, the holes of a
+ * fence, the windows of a door. A browser decodes such a file as an image without alpha, so the editor has to do what
+ * the game does: a black pixel becomes transparent.
+ *
+ * A transparent pixel takes the colour of an opaque **neighbour** (the game does the same), because a texture filter
+ * that mixes a black pixel into a lit one would draw a dark border around every hole.
+ *
+ * @param pixels The pixels of the image, RGBA, four bytes each.
+ * @param width The width of the image, in pixels.
+ * @param height The height of the image, in pixels.
+ */
+export function applyColourKey(pixels: Uint8ClampedArray, width: number, height: number): void {
+  let keyed = false
+
+  for (let offset = 0; offset < pixels.length; offset = offset + 4) {
+    if (pixels[offset] === 0 && pixels[offset + 1] === 0 && pixels[offset + 2] === 0) {
+      pixels[offset + 3] = 0
+      keyed = true
+    } else {
+      pixels[offset + 3] = 255
+    }
+  }
+
+  if (!keyed) {
+    return
+  }
+
+  // the transparent pixels take the colour of an opaque neighbour, so a filter does not mix black into a lit pixel
+  for (let y = 0; y < height; y = y + 1) {
+    const row = y * width
+
+    for (let x = 0; x < width; x = x + 1) {
+      const offset = (row + x) * 4
+
+      if (pixels[offset + 3] === 0) {
+        copyNeighbourColour({ pixels, width, height }, x, y)
+      }
+    }
+  }
+}
+
+/**
+ * Gives a bitmap the colour key of its file, when it is a BMP.
+ *
+ * @remarks
+ * The canvas is where the pixels of a decoded image can be read and written back: an `ImageBitmap` has no pixels of
+ * its own to touch.
+ *
+ * @param bitmap The decoded image.
+ * @param bytes The bytes it was decoded from.
+ *
+ * @returns The image with the colour key cut into its alpha channel, or the one it was given for a file that is not a
+ * BMP.
+ */
+async function keyedBitmapOf(bitmap: ImageBitmap, bytes: ArrayBuffer): Promise<ImageBitmap> {
+  if (!isBmpFile(bytes)) {
+    return bitmap
+  }
+
+  const canvas = document.createElement('canvas')
+
+  canvas.width = bitmap.width
+  canvas.height = bitmap.height
+
+  const context = canvas.getContext('2d', { willReadFrequently: true })
+
+  if (context === null) {
+    return bitmap
+  }
+
+  context.drawImage(bitmap, 0, 0)
+
+  const image = context.getImageData(0, 0, canvas.width, canvas.height)
+
+  applyColourKey(image.data, image.width, image.height)
+  context.putImageData(image, 0, 0)
+
+  return await createImageBitmap(canvas)
+}
+
+/**
  * Decodes the textures of a level.
  *
  * @remarks
@@ -249,7 +404,7 @@ export async function decodeTextures(files: ReadonlyMap<string, ArrayBuffer>): P
   for (const [name, bytes] of files) {
     try {
       const bitmap = await createImageBitmap(new Blob([bytes], { type: mimeTypeOf(name, bytes) }))
-      const texture = new Texture(bitmap)
+      const texture = new Texture(await keyedBitmapOf(bitmap, bytes))
 
       texture.colorSpace = SRGBColorSpace
       texture.wrapS = RepeatWrapping
@@ -315,31 +470,16 @@ export async function loadMissingTexture(): Promise<Texture> {
 }
 
 /**
- * The material of the faces whose container has no texture (or that have no container), for the front of a face.
+ * What a run of faces draws with: the texture (or none), the side of the face, and how the game blends it.
  *
  * @remarks
- * The paint builds two of these before the textures: the faces of a level that draw with the placeholder can be
- * one-sided or two-sided, and the side of a face belongs to its material.
- */
-const PLACEHOLDER_FRONT = 0
-
-/**
- * The same placeholder for the two-sided faces.
- */
-const PLACEHOLDER_DOUBLE = 1
-
-/**
- * How many materials the paint builds before the textures: the two placeholders.
- */
-const PLACEHOLDER_COUNT = 2
-
-/**
- * What a run of faces draws with: the texture (or none) and the side of the face.
+ * All of it belongs to the **material**, not to the texture. The level has faces the game draws from both sides (a
+ * fence, a door, a banner) and faces it blends (a lamp's glow adds, a torch's flame subtracts, the holes of a fence are
+ * cut by the alpha of the texture), and a texture that is used by all of them needs a material of each kind. The paint
+ * builds one material per key, and a run of the geometry is the block of one of them.
  *
- * @remarks
- * The side belongs to the **material**, not to the texture: the level has faces the game draws from both sides (a
- * fence, a door, a banner — the `DoubleSided` bit of the FTS), and a texture that has such a face and a one-sided one
- * needs a material of each kind. The paint builds one per key, and a run is the block of one of them.
+ * The brightness (`trans`) is part of the key because the game modulates the texture of a blended face with it: a light
+ * ray of a dimmer value is the same texture in another key, and so another material.
  */
 export interface PaintKey {
   /**
@@ -350,29 +490,54 @@ export interface PaintKey {
    * Whether the faces are drawn from both sides.
    */
   readonly doubleSided: boolean
-}
-
-/**
- * A paint key the paint builds a texture material for: it always has a name.
- */
-interface NamedPaintKey extends PaintKey {
-  readonly name: string
+  /**
+   * How the game blends the faces.
+   */
+  readonly blend: PolygonBlendMode
+  /**
+   * The brightness the game multiplies the texture with, in hundredths: the key of a run holds it that way.
+   */
+  readonly trans: number
 }
 
 /**
  * Writes a paint key as the string the materials are keyed with.
  *
- * @param name The name of the texture, or `undefined`.
- * @param doubleSided Whether the faces are drawn from both sides.
+ * @param key What the faces draw with.
  *
- * @returns The key, like `double|[iron]_arx_logo.bmp`.
+ * @returns The key, like `double|subtractive|1.95|[stone]_fire_torch01.bmp`.
  */
-export function paintKeyOf(name: string | undefined, doubleSided: boolean): string {
-  if (doubleSided) {
-    return `double|${name ?? ''}`
+export function paintKeyOf(key: PaintKey): string {
+  let side = 'front'
+
+  if (key.doubleSided) {
+    side = 'double'
   }
 
-  return `front|${name ?? ''}`
+  return `${side}|${key.blend}|${key.trans.toFixed(2)}|${key.name ?? ''}`
+}
+
+/**
+ * The paint key of a polygon: the same parts the runs of the map are built from.
+ *
+ * @remarks
+ * The brightness is rounded to hundredths here, the way the key of a run holds it, so the faces of one run always land
+ * on the same material.
+ *
+ * @param map The map the polygon belongs to.
+ * @param polygon The polygon to read.
+ *
+ * @returns What the face draws with.
+ */
+export function paintKeyOfPolygon(map: ArxMap, polygon: ArxPolygon): PaintKey {
+  const trans = Math.round(blendTransOf(polygon) * 100)
+
+  return {
+    name: map.textureNameOf(polygon.textureContainerId),
+    doubleSided: isDoubleSided(polygon),
+    blend: blendModeOf(polygon),
+    trans: Math.min(255, Math.max(0, trans)) / 100,
+  }
 }
 
 /**
@@ -391,26 +556,131 @@ function sideOf(doubleSided: boolean): Side {
 }
 
 /**
- * The material a run draws with: the one of its key, or the placeholder of its side.
+ * The grey the game multiplies the texture of a face with.
  *
- * @param key The key of the run, from {@link paintKeyOf}.
- * @param doubleSided Whether the faces are drawn from both sides.
- * @param indexOfKey The material index every key the paint built has.
+ * @remarks
+ * The game sets the vertex colour of a blended face to `gray(trans)` (`ComputePortalVertexBuffer`), which is why a light
+ * ray is dim and a torch's flame is not. The value is an **sRGB** grey: the game works on the bytes of the texture, and
+ * the texture of the renderer is sRGB too.
  *
- * @returns The index of the material to draw the run with.
+ * @param trans The brightness of the key.
+ *
+ * @returns The colour of the material.
  */
-function materialIndexOf(key: string, doubleSided: boolean, indexOfKey: ReadonlyMap<string, number>): number {
-  const index = indexOfKey.get(key)
+function transColorOf(trans: number): Color {
+  const grey = Math.min(1, Math.max(0, trans))
 
-  if (index !== undefined) {
-    return index
+  return new Color().setRGB(grey, grey, grey, SRGBColorSpace)
+}
+
+/**
+ * Puts the blend mode of a key on a material.
+ *
+ * @remarks
+ * The modes are the ones of the game:
+ *
+ * - `opaque` draws as it is;
+ * - `alpha` blends with the alpha of the texture, which is the colour key of the BMP (its black pixels are the holes);
+ * - `additive` adds the texture to what is behind it (a light ray, a glow) — black adds nothing, so it is invisible;
+ * - `multiplicative` multiplies the two;
+ * - `subtractive` darkens what is behind it with the texture (`dst * (1 - src)`), the way a flame darkens a wall.
+ *
+ * A blended face writes no depth: what stands behind it must stay visible through its holes.
+ *
+ * @param material The material to set up.
+ * @param key The key it draws.
+ */
+function applyBlend(material: MeshLambertMaterial, key: PaintKey): void {
+  material.color.copy(transColorOf(key.trans))
+
+  if (key.blend === 'opaque') {
+    return
   }
 
-  if (doubleSided) {
-    return PLACEHOLDER_DOUBLE
+  material.transparent = true
+  material.depthWrite = false
+
+  if (key.blend === 'alpha') {
+    return
   }
 
-  return PLACEHOLDER_FRONT
+  material.blending = CustomBlending
+
+  if (key.blend === 'additive') {
+    material.blendSrc = OneFactor
+    material.blendDst = OneFactor
+
+    return
+  }
+
+  if (key.blend === 'multiplicative') {
+    material.blendSrc = ZeroFactor
+    material.blendDst = SrcColorFactor
+
+    return
+  }
+
+  material.blendSrc = ZeroFactor
+  material.blendDst = OneMinusSrcColorFactor
+}
+
+/**
+ * How many textures of the level the paint put on the faces.
+ *
+ * @param keys What the faces of the level draw with.
+ * @param textures The textures of the level, by the name it calls them.
+ *
+ * @returns The number of the distinct textures the keys use.
+ */
+function paintedNamesOf(keys: readonly PaintKey[], textures: ReadonlyMap<string, Texture>): number {
+  const names = new Set<string>()
+
+  for (const key of keys) {
+    if (key.name !== undefined && textures.has(key.name)) {
+      names.add(key.name)
+    }
+  }
+
+  return names.size
+}
+
+/**
+ * Builds the material of a paint key.
+ *
+ * @remarks
+ * The faces without a texture of their own draw with the placeholder of the generator (a flat grey when there is none),
+ * and they keep the blend mode of their key: a torch's flame without its texture still darkens the wall.
+ *
+ * @param key What the faces draw with.
+ * @param textures The textures of the level, by the name it calls them.
+ * @param missing The texture the containers the level has none for draw with, when there is one.
+ *
+ * @returns The material of the key.
+ */
+function buildMaterial(
+  key: PaintKey,
+  textures: ReadonlyMap<string, Texture>,
+  missing: Texture | undefined,
+): MeshLambertMaterial {
+  let texture = missing
+
+  if (key.name !== undefined) {
+    texture = textures.get(key.name) ?? missing
+  }
+
+  if (texture === undefined) {
+    const material = createLevelMaterial({ side: sideOf(key.doubleSided) })
+
+    applyBlend(material, key)
+
+    return material
+  }
+
+  const material = new MeshLambertMaterial({ map: texture, side: sideOf(key.doubleSided) })
+
+  applyBlend(material, key)
+
+  return material
 }
 
 /**
@@ -434,40 +704,25 @@ export interface FaceRun {
 /**
  * The materials the faces of a level need, in the order they first appear.
  *
- * @remarks
- * A texture that has both a one-sided and a two-sided face gives two keys, so the list is a list of **keys** and not of
- * names. A container without a texture is not in it: those faces draw with the placeholder of their side.
- *
  * @param map The map of the level.
  * @param polygons The solid faces, in the order of the geometry.
- * @param textures The textures the level has, by the name it calls them.
  *
- * @returns The keys that have a texture.
+ * @returns The keys of the faces, without a repeat.
  */
-function neededKeysOf(
-  map: ArxMap,
-  polygons: readonly ArxPolygon[],
-  textures: ReadonlyMap<string, Texture>,
-): NamedPaintKey[] {
-  const keys: NamedPaintKey[] = []
+function neededKeysOf(map: ArxMap, polygons: readonly ArxPolygon[]): PaintKey[] {
+  const keys: PaintKey[] = []
   const seen = new Set<string>()
 
   for (const polygon of polygons) {
-    const name = map.textureNameOf(polygon.textureContainerId)
+    const key = paintKeyOfPolygon(map, polygon)
+    const string = paintKeyOf(key)
 
-    if (name === undefined || !textures.has(name)) {
+    if (seen.has(string)) {
       continue
     }
 
-    const doubleSided = isDoubleSided(polygon)
-    const key = paintKeyOf(name, doubleSided)
-
-    if (seen.has(key)) {
-      continue
-    }
-
-    seen.add(key)
-    keys.push({ name, doubleSided })
+    seen.add(string)
+    keys.push(key)
   }
 
   return keys
@@ -500,10 +755,7 @@ export function faceRunsOf(polygons: readonly ArxPolygon[], keyOf: (polygon: Arx
     const key = keyOf(polygon)
     const last = runs.at(-1)
 
-    if (
-      last !== undefined &&
-      paintKeyOf(last.key.name, last.key.doubleSided) === paintKeyOf(key.name, key.doubleSided)
-    ) {
+    if (last !== undefined && paintKeyOf(last.key) === paintKeyOf(key)) {
       runs[runs.length - 1] = { start: last.start, count: last.count + count, key }
     } else {
       runs.push({ start, count, key })
@@ -555,15 +807,13 @@ export function drawnRunsOf(map: ArxMap, index: BufferAttribute, indexOfKey: Rea
     // the first vertex of the triangle is the start of its polygon in the plain order: three vertices per triangle
     const plain = index.getX(triangle * 3) / 3
     const polygon = map.polygons[map.triangleToPolygon[plain] ?? -1]
-    let name: string | undefined
-    let doubleSided = false
+    let key: PaintKey = { name: undefined, doubleSided: false, blend: 'opaque', trans: 1 }
 
     if (polygon !== undefined) {
-      name = map.textureNameOf(polygon.textureContainerId)
-      doubleSided = isDoubleSided(polygon)
+      key = paintKeyOfPolygon(map, polygon)
     }
 
-    const material = materialIndexOf(paintKeyOf(name, doubleSided), doubleSided, indexOfKey)
+    const material = indexOfKey.get(paintKeyOf(key)) ?? 0
     const last = runs.at(-1)
 
     if (last?.index === material) {
@@ -617,8 +867,13 @@ function addRunGroups(
   let material = -1
 
   for (const run of runs) {
-    const name = map.textureNameOf(run.textureContainerId)
-    const current = materialIndexOf(paintKeyOf(name, run.doubleSided), run.doubleSided, indexOfKey)
+    const key = paintKeyOf({
+      name: map.textureNameOf(run.textureContainerId),
+      doubleSided: run.doubleSided,
+      blend: run.blend,
+      trans: run.trans,
+    })
+    const current = indexOfKey.get(key) ?? 0
 
     if (current === material) {
       count = count + run.count
@@ -775,20 +1030,20 @@ export function paintLevelTextures(map: ArxMap, textures: ReadonlyMap<string, Te
 
   // the keys the paint needs, in the order they first appear: the materials are built for these, and a repaint (an
   // edit) keeps them — the same keys, the same materials, no shader of thirty textures built again for a delete
-  const keys = neededKeysOf(map, polygons, textures)
+  const keys = neededKeysOf(map, polygons)
   const keyStrings = keys.map((key) => {
-    return paintKeyOf(key.name, key.doubleSided)
+    return paintKeyOf(key)
   })
   const indexOfKey = new Map<string, number>(
     keyStrings.map((key, index) => {
-      return [key, index + PLACEHOLDER_COUNT]
+      return [key, index]
     }),
   )
 
   const isSamePaint =
     started?.textures === textures &&
     started.missing === missing &&
-    started.materials.length === keys.length + PLACEHOLDER_COUNT &&
+    started.materials.length === keys.length &&
     keyStrings.every((key, index) => {
       return started.keys[index] === key
     })
@@ -800,17 +1055,8 @@ export function paintLevelTextures(map: ArxMap, textures: ReadonlyMap<string, Te
 
     materials.length = 0
 
-    if (missing === undefined) {
-      materials.push(createLevelMaterial(), createLevelMaterial({ side: DoubleSide }))
-    } else {
-      materials.push(
-        new MeshLambertMaterial({ map: missing }),
-        new MeshLambertMaterial({ map: missing, side: DoubleSide }),
-      )
-    }
-
     for (const key of keys) {
-      materials.push(new MeshLambertMaterial({ map: textures.get(key.name), side: sideOf(key.doubleSided) }))
+      materials.push(buildMaterial(key, textures, missing))
     }
   }
 
@@ -826,11 +1072,9 @@ export function paintLevelTextures(map: ArxMap, textures: ReadonlyMap<string, Te
   if (index === null) {
     // a geometry the picking has not indexed yet: the polygons are in the order of the vertices
     for (const run of faceRunsOf(polygons, (polygon) => {
-      return { name: map.textureNameOf(polygon.textureContainerId), doubleSided: isDoubleSided(polygon) }
+      return paintKeyOfPolygon(map, polygon)
     })) {
-      const key = paintKeyOf(run.key.name, run.key.doubleSided)
-
-      geometry.addGroup(run.start, run.count, materialIndexOf(key, run.key.doubleSided, indexOfKey))
+      geometry.addGroup(run.start, run.count, indexOfKey.get(paintKeyOf(run.key)) ?? 0)
     }
   } else if (runsCoverIndex(map.textureRuns, index)) {
     // the index is in the texture order, so a run of the map is a block of the index: the groups are the runs, and the
@@ -849,7 +1093,7 @@ export function paintLevelTextures(map: ArxMap, textures: ReadonlyMap<string, Te
     mesh.material = materials
   }
 
-  return materials.length - PLACEHOLDER_COUNT
+  return paintedNamesOf(keys, textures)
 }
 
 /**

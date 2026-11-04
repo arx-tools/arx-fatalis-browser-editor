@@ -155,6 +155,34 @@ void describe('ArxMap', () => {
       assert.equal(doubleSided[0]?.start, map.textureRuns.at(-1)?.start)
     })
 
+    void it('gives a blended face a run of its own', () => {
+      const map = flatMap()
+      const { polygons } = map
+      const first = polygons[0]
+
+      assert.notEqual(first, undefined)
+
+      if (first === undefined) {
+        return
+      }
+
+      // the torch's flame: the transparent bit and a subtractive transval
+      ;(first as { flags: number }).flags = first.flags | 4
+      ;(first as { transval: number }).transval = -0.95
+      map.deletePolygons([polygons.length - 1])
+
+      const blended = map.textureRuns.filter((run) => {
+        return run.blend !== 'opaque'
+      })
+
+      assert.equal(blended.length, 1)
+      assert.equal(blended[0]?.blend, 'subtractive')
+      assert.equal(blended[0]?.trans, 1.95)
+      assert.equal(blended[0]?.count, 6)
+      // the blended runs come after the opaque ones, so the wall behind them is drawn first
+      assert.equal(blended[0]?.start, map.textureRuns.at(-1)?.start)
+    })
+
     void it('picks the face the ray meets, with the index in the texture order', () => {
       const map = flatMap()
       const { polygons } = map

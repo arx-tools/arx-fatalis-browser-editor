@@ -6,9 +6,11 @@ import { BufferAttribute, DoubleSide, FrontSide, Texture, type Material, type Me
 import { ArxMap } from '../../../../src/generator/ArxMap.ts'
 import { createBlankLevelFiles, FLAT_PRESET, MINIMAL_PRESET } from '../../../../src/editor/modules/level/blankLevel.ts'
 import {
+  applyColourKey,
   drawnRunsOf,
   faceRunsOf,
   paintKeyOf,
+  type PaintKey,
   findTextureFiles,
   paintLevelTextures,
   solidPolygonsOf,
@@ -51,6 +53,17 @@ function polygonOf(textureContainerId: number, quad: boolean): ArxPolygon {
   }
 
   return { flags, textureContainerId } as unknown as ArxPolygon
+}
+
+/**
+ * The key of an opaque face of the test.
+ *
+ * @param name The name of its texture.
+ *
+ * @returns What the face draws with.
+ */
+function opaqueKeyOf(name: string | undefined): PaintKey {
+  return { name, doubleSided: false, blend: 'opaque', trans: 1 }
 }
 
 /**
@@ -112,13 +125,41 @@ void describe('findTextureFiles', () => {
   })
 })
 
+void describe('applyColourKey', () => {
+  void it('makes the black pixels of a BMP transparent', () => {
+    // one black pixel, with no neighbour to take a colour from
+    const pixels = new Uint8ClampedArray([0, 0, 0, 255])
+
+    applyColourKey(pixels, 1, 1)
+
+    assert.deepEqual([...pixels], [0, 0, 0, 0])
+  })
+
+  void it('gives a transparent pixel the colour of an opaque neighbour', () => {
+    // the left pixel is opaque, the right one is black: a filter must not mix black into the lit one
+    const pixels = new Uint8ClampedArray([10, 20, 30, 255, 0, 0, 0, 255])
+
+    applyColourKey(pixels, 2, 1)
+
+    assert.deepEqual([...pixels], [10, 20, 30, 255, 10, 20, 30, 0])
+  })
+
+  void it('leaves an image without a black pixel alone', () => {
+    const pixels = new Uint8ClampedArray([10, 20, 30, 255, 128, 128, 128, 255])
+
+    applyColourKey(pixels, 2, 1)
+
+    assert.deepEqual([...pixels], [10, 20, 30, 255, 128, 128, 128, 255])
+  })
+})
+
 void describe('faceRunsOf', () => {
   void it('merges the neighbouring faces of the same texture', () => {
     const runs = faceRunsOf([polygonOf(1, true), polygonOf(1, false), polygonOf(1, true)], () => {
-      return { name: 'wall', doubleSided: false }
+      return opaqueKeyOf('wall')
     })
 
-    assert.deepEqual(runs, [{ start: 0, count: 6 + 3 + 6, key: { name: 'wall', doubleSided: false } }])
+    assert.deepEqual(runs, [{ start: 0, count: 6 + 3 + 6, key: opaqueKeyOf('wall') }])
   })
 
   void it('starts a run where the texture changes', () => {
@@ -128,22 +169,22 @@ void describe('faceRunsOf', () => {
       [2, 'floor'],
     ])
     const runs = faceRunsOf(polygons, (polygon) => {
-      return { name: names.get(polygon.textureContainerId), doubleSided: false }
+      return opaqueKeyOf(names.get(polygon.textureContainerId))
     })
 
     assert.deepEqual(runs, [
-      { start: 0, count: 6, key: { name: 'wall', doubleSided: false } },
-      { start: 6, count: 3, key: { name: 'floor', doubleSided: false } },
-      { start: 9, count: 12, key: { name: 'wall', doubleSided: false } },
+      { start: 0, count: 6, key: opaqueKeyOf('wall') },
+      { start: 6, count: 3, key: opaqueKeyOf('floor') },
+      { start: 9, count: 12, key: opaqueKeyOf('wall') },
     ])
   })
 
   void it('gives the faces with no container a run of their own', () => {
     const runs = faceRunsOf([polygonOf(1, true), polygonOf(9, true)], () => {
-      return { name: undefined, doubleSided: false }
+      return opaqueKeyOf(undefined)
     })
 
-    assert.deepEqual(runs, [{ start: 0, count: 12, key: { name: undefined, doubleSided: false } }])
+    assert.deepEqual(runs, [{ start: 0, count: 12, key: opaqueKeyOf(undefined) }])
   })
 })
 
@@ -163,8 +204,7 @@ void describe('the paint of a level', () => {
     const geometry = map.solidMeshes[0]?.geometry
 
     assert.equal(painted, 1)
-    // the two placeholders come first, so the material of the named texture is the third one
-    assert.deepEqual(geometry?.groups, [{ start: 0, count: 6, materialIndex: 2 }])
+    assert.deepEqual(geometry?.groups, [{ start: 0, count: 6, materialIndex: 0 }])
     assert.equal(Array.isArray(map.solidMeshes[0]?.material), true)
   })
 
@@ -221,14 +261,14 @@ void describe('the paint of a level', () => {
       return
     }
 
-    // the placeholders come first, then the keys in the order the faces appear: the flagged tile is the first polygon,
-    // so its key is the first one and the two-sided material is the third
-    assert.equal((materials[2] as MeshLambertMaterial).side, DoubleSide)
-    assert.equal((materials[3] as MeshLambertMaterial).side, FrontSide)
+    // the keys are the materials in the order the faces appear, and the flagged tile is the first polygon: its
+    // two-sided material is the first one
+    assert.equal((materials[0] as MeshLambertMaterial).side, DoubleSide)
+    assert.equal((materials[1] as MeshLambertMaterial).side, FrontSide)
     // the index is in the run order: the one-sided faces first, the two-sided one after them
     assert.equal(groups.length, 2)
-    assert.equal(groups[0]?.materialIndex, 3)
-    assert.equal(groups[1]?.materialIndex, 2)
+    assert.equal(groups[0]?.materialIndex, 1)
+    assert.equal(groups[1]?.materialIndex, 0)
   })
 
   void it('covers the whole index with the groups, in the order the geometry draws', () => {
@@ -242,10 +282,11 @@ void describe('the paint of a level', () => {
     // the picking builds a BVH, and its tree writes an index: the groups have to be in that order, not the plain one
     assert.equal(index.count > 0, true)
 
-    const runs = drawnRunsOf(map, index, new Map([[paintKeyOf('jorge-[stone].jpg', false), 2]]))
+    const key = paintKeyOf(opaqueKeyOf('jorge-[stone].jpg'))
+    const runs = drawnRunsOf(map, index, new Map([[key, 0]]))
 
     // every face of the blank level stands on the same texture, so one run covers the whole index from its first place
-    assert.deepEqual(runs, [{ start: 0, count: index.count, index: 2 }])
+    assert.deepEqual(runs, [{ start: 0, count: index.count, index: 0 }])
   })
 
   void it('builds the groups from the runs of the map, the same ones the walk gives', () => {
@@ -263,7 +304,8 @@ void describe('the paint of a level', () => {
       return
     }
 
-    const expected = drawnRunsOf(map, index, new Map([[paintKeyOf('jorge-[stone].jpg', false), 2]]))
+    const key = paintKeyOf(opaqueKeyOf('jorge-[stone].jpg'))
+    const expected = drawnRunsOf(map, index, new Map([[key, 0]]))
 
     assert.deepEqual(
       geometry.groups.map((group) => {

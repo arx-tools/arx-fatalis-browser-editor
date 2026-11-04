@@ -20,6 +20,92 @@ export function isDoubleSided(polygon: Pick<ArxPolygon, 'flags'>): boolean {
 }
 
 /**
+ * How the game blends a face with what is behind it.
+ *
+ * @remarks
+ * The `Transparent` bit of a face says it is blended at all, and its **`transval`** says how:
+ *
+ * - `2` or more: multiplicative (the face darkens/multiplies what is behind it);
+ * - `1` or more: additive (a light ray, a glow — black adds nothing, so it is invisible);
+ * - above `0`: the normal alpha blend of the game (the texture's own alpha, from its colour key, cuts the face);
+ * - `0` or less: **subtractive** — the game draws `dst * (1 - src)`, so a flame darkens the wall instead of covering
+ * it with the black of its background.
+ *
+ * @see https://github.com/arx/ArxLibertatis/blob/1.2.1/src/graphics/data/Mesh.cpp (the `POLY_TRANS` branch of
+ * `ComputePortalVertexBuffer`)
+ */
+export type PolygonBlendMode = 'opaque' | 'alpha' | 'additive' | 'multiplicative' | 'subtractive'
+
+/**
+ * The blend modes, in the order the editor keys the groups of the geometry with.
+ */
+export const POLYGON_BLEND_MODES: readonly PolygonBlendMode[] = [
+  'opaque',
+  'alpha',
+  'additive',
+  'multiplicative',
+  'subtractive',
+]
+
+/**
+ * How the game blends a face.
+ *
+ * @param polygon The polygon to read.
+ *
+ * @returns The blend mode of the game; `opaque` for a face without the `Transparent` bit.
+ */
+export function blendModeOf(polygon: Pick<ArxPolygon, 'flags' | 'transval'>): PolygonBlendMode {
+  if ((polygon.flags & ArxPolygonFlags.Transparent) === 0) {
+    return 'opaque'
+  }
+
+  if (polygon.transval >= 2) {
+    return 'multiplicative'
+  }
+
+  if (polygon.transval >= 1) {
+    return 'additive'
+  }
+
+  if (polygon.transval > 0) {
+    return 'alpha'
+  }
+
+  return 'subtractive'
+}
+
+/**
+ * The brightness the game multiplies the texture of a blended face with.
+ *
+ * @remarks
+ * The game sets every vertex colour of a `Transparent` face to `gray(trans)` before it draws them, which is why a light
+ * ray is dim and a torch flame is not: the values are the ones of `ComputePortalVertexBuffer`.
+ *
+ * @param polygon The polygon to read.
+ *
+ * @returns The grey of the face, `1` for an opaque one.
+ */
+export function blendTransOf(polygon: Pick<ArxPolygon, 'flags' | 'transval'>): number {
+  const mode = blendModeOf(polygon)
+
+  if (mode === 'opaque') {
+    return 1
+  }
+
+  if (mode === 'multiplicative') {
+    const half = polygon.transval * 0.5
+
+    return half + 0.5
+  }
+
+  if (mode === 'additive') {
+    return polygon.transval - 1
+  }
+
+  return 1 - polygon.transval
+}
+
+/**
  * The stored vertex order of a polygon is a "Z": `0, 1, 2` for a triangle and `0, 1, 2, 3` for a quad.
  *
  * @remarks

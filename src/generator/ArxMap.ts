@@ -17,7 +17,15 @@ import {
 } from './meshes.ts'
 import { countFacesOfTriangles } from './polygonCounts.ts'
 import { Settings } from './Settings.ts'
-import { isDoubleSided, triangleToPolygonMap, vertexToPolygonsMap } from './polygons.ts'
+import {
+  blendModeOf,
+  blendTransOf,
+  isDoubleSided,
+  POLYGON_BLEND_MODES,
+  triangleToPolygonMap,
+  vertexToPolygonsMap,
+  type PolygonBlendMode,
+} from './polygons.ts'
 import { Player } from './Player.ts'
 
 /**
@@ -49,6 +57,24 @@ export interface TextureRun {
    * **two runs**: the paint builds a material of each kind (`levelTextures`), and the run is the block of one of them.
    */
   readonly doubleSided: boolean
+  /**
+   * How the game blends the faces of the run.
+   *
+   * @remarks
+   * The blend mode is a property of the **material** too: a texture that is used by an opaque wall and by a lamp's glow
+   * needs a material of each kind. A light ray adds to what is behind it, a torch's flame subtracts from it — one
+   * opaque material can not do either.
+   */
+  readonly blend: PolygonBlendMode
+  /**
+   * The brightness the game multiplies the texture of the run with.
+   *
+   * @remarks
+   * It is a number of the faces of the level (`transval`), and a light ray that is dimmer is the same texture with a
+   * lower value: the material of the run carries it as its colour, so a run of one blend mode can hold the faces of
+   * one brightness.
+   */
+  readonly trans: number
 }
 
 /**
@@ -98,6 +124,93 @@ export interface PolygonInsertion {
    * The polygon itself, as it was before it was taken out.
    */
   readonly polygon: ArxPolygon
+}
+
+/**
+ * The number of brightness steps a run key gives a face: the hundredth of its `trans` value.
+ *
+ * @remarks
+ * The key of a run is a number the triangles are sorted with, so every part of it is a digit of the same number: the
+ * brightness is the last one, which is why a light ray of a dimmer value is a run of its own.
+ */
+const BLEND_TRANS_STEP = 256
+
+/**
+ * How many container ids one blend mode and side of the key can hold.
+ *
+ * @remarks
+ * The **blend mode comes first** in the key: the renderer draws the groups of a geometry in the order of the index, so
+ * the opaque faces have to come before the blended ones — a blended face that is drawn first is painted over by the
+ * wall behind it (it writes no depth, the wall does).
+ *
+ * The ids of the data are below 70 million, so the 134 million of this span hold them; a container id above it would
+ * fall into the next side or blend mode of the key.
+ */
+const CONTAINER_KEY_SPAN = 2 ** 27
+
+/**
+ * The distance of the two sides of a face in a run key.
+ */
+const BLEND_SIDE_STEP = CONTAINER_KEY_SPAN * BLEND_TRANS_STEP
+
+/**
+ * The distance of two blend modes in a run key.
+ */
+const BLEND_MODE_STEP = BLEND_SIDE_STEP * 2
+
+/**
+ * The key of a run: its container, its side, its blend mode and its brightness, in one number.
+ *
+ * @remarks
+ * A container id is far from the `Number.MAX_SAFE_INTEGER` (the game's are below 70 million) and the key is a
+ * `Float64Array` of integers, so the number stays exact: the sort of the triangles is still a subtraction.
+ *
+ * @param container The id of the texture container.
+ * @param doubleSided Whether the faces draw on both sides.
+ * @param blendIndex The place of the blend mode in {@link POLYGON_BLEND_MODES}.
+ * @param trans The brightness of the faces.
+ *
+ * @returns The key the triangles of the run sort with.
+ */
+function runKeyOf(container: number, doubleSided: boolean, blendIndex: number, trans: number): number {
+  const transStep = Math.min(BLEND_TRANS_STEP - 1, Math.max(0, Math.round(trans * 100)))
+  let side = 0
+
+  if (doubleSided) {
+    side = 1
+  }
+
+  const modeOffset = blendIndex * 2
+  const sideOffset = modeOffset + side
+  const containerOffset = sideOffset * CONTAINER_KEY_SPAN
+  const key = containerOffset + container
+  const transPart = key * BLEND_TRANS_STEP
+
+  return transPart + transStep
+}
+
+/**
+ * The container of a run key.
+ *
+ * @param key The key of a run, as a triangle of it carries it.
+ *
+ * @returns The id of the texture container the faces of the run draw with.
+ */
+function containerOfRunKey(key: number): number {
+  return Math.trunc(key / BLEND_TRANS_STEP) % CONTAINER_KEY_SPAN
+}
+
+/**
+ * The blend mode of a run key.
+ *
+ * @param key The key of a run, as a triangle of it carries it.
+ *
+ * @returns How the game blends the faces of the run.
+ */
+function blendOfRunKey(key: number): PolygonBlendMode {
+  const index = Math.trunc(key / BLEND_MODE_STEP)
+
+  return POLYGON_BLEND_MODES[index] ?? 'opaque'
 }
 
 /**
@@ -767,21 +880,28 @@ export class ArxMap {
     const { geometry } = this.solidMeshes[0]
     const triangles = geometry.getAttribute('position').count / 3
 
-    // the run of a triangle is its container and its side, in one number: `container * 2 + (double sided ? 1 : 0)`
-    const runKeyOfTriangle = new Uint32Array(triangles)
+    // the run of a triangle is its container, its side, its blend mode and its brightness, in one number:
+    // `((container * 2 + side) * 5 + blend) * 256 + trans`, with the brightness in hundredths
+    const runKeyOfTriangle = new Float64Array(triangles)
     let sorted = true
 
     for (let triangle = 0; triangle < triangles; triangle = triangle + 1) {
       const polygon = this.polygons[this.triangleToPolygon[triangle] ?? -1]
       const container = polygon?.textureContainerId ?? 0
-      const evenKey = container * 2
-      let key = evenKey
+      let blendIndex = 0
+      let trans = 1
 
-      if (polygon !== undefined && isDoubleSided(polygon)) {
-        key = evenKey + 1
+      if (polygon !== undefined) {
+        blendIndex = POLYGON_BLEND_MODES.indexOf(blendModeOf(polygon))
+        trans = blendTransOf(polygon)
       }
 
-      runKeyOfTriangle[triangle] = key
+      runKeyOfTriangle[triangle] = runKeyOf(
+        container,
+        polygon !== undefined && isDoubleSided(polygon),
+        blendIndex,
+        trans,
+      )
 
       // a cut keeps the order of the polygons, so the level that was in this order stays in it: the check is one walk,
       // the sort is a comparison per triangle (level 11: 40 ms against 2 ms)
@@ -806,7 +926,14 @@ export class ArxMap {
     let runStart = 0
     let runCount = 0
     function pushRun(start: number, count: number, key: number): void {
-      runs.push({ start, count, textureContainerId: Math.trunc(key / 2), doubleSided: key % 2 === 1 })
+      runs.push({
+        start,
+        count,
+        textureContainerId: containerOfRunKey(key),
+        doubleSided: Math.trunc(key / BLEND_SIDE_STEP) % 2 === 1,
+        blend: blendOfRunKey(key),
+        trans: (key % BLEND_TRANS_STEP) / 100,
+      })
     }
 
     for (let position = 0; position < triangles; position = position + 1) {

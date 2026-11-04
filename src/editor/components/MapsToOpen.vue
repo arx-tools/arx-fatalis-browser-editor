@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ChevronDown } from 'lucide-vue-next'
-import { computed, ref, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { currentMapId, mapCount, mapGroups, openMap, type MapEntry } from '../modules/level/maps.ts'
 
 /**
@@ -50,23 +50,6 @@ async function choose(): Promise<void> {
 }
 
 /**
- * The label of the map the list shows, for the title of the select.
- */
-const selectedLabel = computed(() => {
-  for (const group of mapGroups.value) {
-    const entry = group.entries.find((candidate) => {
-      return candidate.id === selected.value
-    })
-
-    if (entry !== undefined) {
-      return entry.label
-    }
-  }
-
-  return selected.value
-})
-
-/**
  * The dot of a row: filled for a map that has changes on it, hollow for one that does not.
  *
  * @param entry The map of the row.
@@ -91,7 +74,7 @@ watch(currentMapId, (id) => {
   <div class="MapsToOpen">
     <span class="label">Maps to open ({{ mapCount }})</span>
     <div class="list">
-      <select v-model="selected" :title="selectedLabel" aria-label="The maps the editor can open" @change="choose">
+      <select v-model="selected" aria-label="The maps the editor can open" @change="choose">
         <optgroup v-for="group in mapGroups" :key="group.group" :label="group.label">
           <option v-for="entry in group.entries" :key="entry.id" :value="entry.id">
             {{ markerOf(entry) }} {{ entry.label }}

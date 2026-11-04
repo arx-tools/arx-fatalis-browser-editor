@@ -34,6 +34,7 @@ import {
 } from './modules/level/maps.ts'
 import { getUrlAdapter, writeUrlValue } from './modules/persistedRef/url.ts'
 import { isZipLevelSource } from './modules/level/zipSource.ts'
+import { cameraAngle, cameraPosition } from './components/widgets/cameraState.ts'
 import { cameraStore } from './components/widgets/cameraStore.ts'
 import { provideEditorShell } from './modules/shell/editorShellContext.ts'
 
@@ -193,10 +194,9 @@ onMounted(() => {
     // the store keeps the error of the load, the walkable view shows it
   })
 
-  // the camera of a level is a place in **that** level: when the map that loads is not the one of the last visit, the
-  // persisted pose is of another level and means another place. The camera goes to the spawn, and the pose leaves the
-  // url with it.
-  const previousMap = lastMapId.value
+  // the camera keeps the pose the url or the storage of the browser carries: a visit that has neither starts at the
+  // spawn of the level. The map is not asked: the owner asked for the pose of the last visit to survive a visit
+  // without a link, even when the map is another one.
   const stop = watch(levelStore.status, (status): void => {
     if (status !== 'ready') {
       return
@@ -204,11 +204,9 @@ onMounted(() => {
 
     stop()
 
-    const loaded = currentMapId.value
+    lastMapId.value = currentMapId.value
 
-    lastMapId.value = loaded
-
-    if (previousMap === undefined || previousMap === loaded) {
+    if (cameraPosition.value !== undefined && cameraAngle.value !== undefined) {
       return
     }
 

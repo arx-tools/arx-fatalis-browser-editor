@@ -252,6 +252,15 @@ export function isBmpFile(bytes: ArrayBuffer): boolean {
 }
 
 /**
+ * The alpha under which a pixel of a texture is not drawn.
+ *
+ * @remarks
+ * The game passes the alpha of the texture it draws as a cutout, so the holes of a colour keyed BMP are holes on every
+ * face — on an opaque wall as well as on a blended one. The alpha of the key is 0 or 255, so half is the exact line.
+ */
+const ALPHA_CUTOUT = 0.5
+
+/**
  * The pixels of an image, with its size.
  */
 interface PixelImage {
@@ -677,6 +686,12 @@ function buildMaterial(
   }
 
   const material = new MeshLambertMaterial({ map: texture, side: sideOf(key.doubleSided) })
+
+  // the game cuts the holes of a texture with the alpha it has (`BackgroundRenderOpaque`:
+  // `setAlphaCutout(texture->hasAlpha())`), so a wall whose texture has a black background shows what stands behind
+  // it — the iron logo of a level 0 wall is the ornament of the texture, not a black panel. The alpha of a 24-bit BMP
+  // is the colour key (`applyColourKey`), which is 0 or 255, so the cut is exact.
+  material.alphaTest = ALPHA_CUTOUT
 
   applyBlend(material, key)
 

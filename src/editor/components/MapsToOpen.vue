@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ChevronDown } from 'lucide-vue-next'
 import { ref, watch } from 'vue'
-import { currentMapId, mapCount, mapGroups, openMap, type MapEntry } from '../modules/level/maps.ts'
+import { currentMapId, mapCount, mapGroups, openMap } from '../modules/level/maps.ts'
 
 /**
  * The list of the maps the editor can open: choosing one opens it.
@@ -49,21 +49,6 @@ async function choose(): Promise<void> {
   }
 }
 
-/**
- * The dot of a row: filled for a map that has changes on it, hollow for one that does not.
- *
- * @param entry The map of the row.
- *
- * @returns The character the row starts with.
- */
-function markerOf(entry: MapEntry): string {
-  if (entry.edited) {
-    return '●'
-  }
-
-  return '○'
-}
-
 // a map opened by something else of the editor (the zip of the header, the folder of the url) moves the list with it
 watch(currentMapId, (id) => {
   selected.value = id
@@ -77,7 +62,7 @@ watch(currentMapId, (id) => {
       <select v-model="selected" aria-label="The maps the editor can open" @change="choose">
         <optgroup v-for="group in mapGroups" :key="group.group" :label="group.label">
           <option v-for="entry in group.entries" :key="entry.id" :value="entry.id">
-            {{ markerOf(entry) }} {{ entry.label }}
+            {{ entry.label }}
           </option>
         </optgroup>
       </select>

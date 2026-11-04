@@ -87,6 +87,17 @@ onMounted(() => {
   startMapPersistence()
 
   /**
+   * Whether the map of the url was not in the list of the maps, so the address bar has to keep it.
+   *
+   * @remarks
+   * The value of the url is the one the user picked the last time, and it is only a value of the list when the data
+   * directory (the one of the url, or the remembered one) has the level. Without the folder there is nothing to open,
+   * and the editor falls back to the default map — but the address bar keeps the value, so a visit where the folder is
+   * there again opens the level that was asked for (the same rule the level of a lost folder follows).
+   */
+  let keepRequestedMap = false
+
+  /**
    * Loads the level of the session: the map of the url, or the starter level (a zip, a level of the game, a blank one).
    */
   async function begin(): Promise<void> {
@@ -150,7 +161,11 @@ onMounted(() => {
       // a map the list does not have (a level the folder lost, a zip of a previous session) falls back to the level the
       // editor opens with; the message about it is the toast of a later round. The camera keeps the pose of the url:
       // this is a reload, not a switch
-      await openMap(availableMapIdOf(requestedMap, arxLevels.value) ?? DEFAULT_MAP_ID, { camera: 'keep' })
+      const resolved = availableMapIdOf(requestedMap, arxLevels.value)
+
+      await openMap(resolved ?? DEFAULT_MAP_ID, { camera: 'keep' })
+
+      keepRequestedMap = resolved === undefined
     }
 
     if (url !== undefined) {
@@ -161,8 +176,8 @@ onMounted(() => {
       writeUrlValue(url, ORIGINAL_LEVEL_PARAMETER, undefined)
 
       // a zip of the url is the map itself: the address bar keeps it instead of a value of a list the next visit does
-      // not have
-      if (zipUrl === undefined) {
+      // not have. A map the list did not have is kept too: the folder of the next visit may have its level
+      if (zipUrl === undefined && !keepRequestedMap) {
         writeUrlValue(url, MAP_PARAMETER, currentMapId.value)
       }
 

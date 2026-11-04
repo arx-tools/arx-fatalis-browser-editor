@@ -54,7 +54,8 @@ export interface MapEntry {
    * Whether the map has steps on it (a change that can be taken back).
    *
    * @remarks
-   * The list marks the map with it: the user sees which levels have work on them without opening every one.
+   * The select no longer shows it (a native `<option>` can not carry a colour, and the dot it did carry read as a
+   * character of the name — TODO 120), but the list keeps the value: a marker of the header can read it.
    */
   readonly edited: boolean
 }

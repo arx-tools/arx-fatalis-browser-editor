@@ -4,9 +4,19 @@ import { computed, ref, useTemplateRef } from 'vue'
 import { dataDirState, setPickedDataDir, type DataDirFile } from '../modules/level/dataDir.ts'
 import { paintLevel, repaintLevelTextures } from '../modules/level/levelTextures.ts'
 import { starterLevelSource } from '../modules/level/levelSource.ts'
+import { getUrlAdapter } from '../modules/persistedRef/url.ts'
 import { levelStore } from '../modules/level/levelStore.ts'
 import { isZipLevelSource } from '../modules/level/zipSource.ts'
-import { forgetArxLevels, refreshDataDir, startupSource } from '../modules/level/maps.ts'
+import {
+  availableMapIdOf,
+  arxLevels,
+  currentMapId,
+  forgetArxLevels,
+  mapIdFromUrl,
+  openMap,
+  refreshDataDir,
+  startupSource,
+} from '../modules/level/maps.ts'
 import Modal from './Modal.vue'
 
 /**
@@ -113,6 +123,21 @@ async function loadDir(event: Event): Promise<void> {
 
   // the list of the maps follows the folder: the levels it has are what it can open
   await refreshDataDir()
+
+  // the map of the url waited for the folder: the address bar kept it while the list did not have its level, so the
+  // level that was asked for opens now instead of the one the editor started with
+  const requested = mapIdFromUrl(getUrlAdapter(undefined))
+  let available: string | undefined
+
+  if (requested !== undefined) {
+    available = availableMapIdOf(requested, arxLevels.value)
+  }
+
+  if (available !== undefined && available !== currentMapId.value) {
+    await openMap(available, { camera: 'keep' })
+
+    return
+  }
 
   if (levelStore.map.value === undefined) {
     // the level could not load without the folder: now it can (the source the editor started with: the url does not

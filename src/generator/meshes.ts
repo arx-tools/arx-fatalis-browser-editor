@@ -1,10 +1,9 @@
-import type { ArxPolygon, ArxVector3, ArxFTS } from 'arx-convert/types'
+import type { ArxPolygon, ArxVector3 } from 'arx-convert/types'
 import { isQuad } from 'arx-convert/utils'
 import {
   BufferAttribute,
   BufferGeometry,
   LineBasicMaterial,
-  MeshBasicMaterial,
   MeshLambertMaterial,
   Vector2,
   Vector3,
@@ -201,58 +200,6 @@ export function arxPolygonsToGeometry(polygons: readonly ArxPolygon[], offset: V
 }
 
 /**
- * The polygons of a level, split by what the renderer has to do with them.
- *
- * @remarks
- * `ArxLibertatis` hardcodes `#000` of the `alpha.bmp` as a colour key, so those polygons are not drawn in the
- * game either: they are the **invisible walls** (they close a stairwell, they stop the player from walking
- * through a doorway). The mesh keeps them, with a material that draws nothing and a mesh that does not cast a
- * shadow, so the level's shape is complete and a selection can still point at them.
- */
-export interface LevelPolygons {
-  /**
-   * The polygons with a real texture.
-   */
-  readonly solid: readonly ArxPolygon[]
-  /**
-   * The polygons of an alpha container: the invisible walls.
-   */
-  readonly invisible: readonly ArxPolygon[]
-}
-
-/**
- * Reads the polygons of a level and splits them into the solid ones and the invisible walls.
- *
- * @param fts The scene of the level.
- *
- * @returns The two lists, in the order of the file.
- */
-export function splitPolygons(fts: ArxFTS): LevelPolygons {
-  const invisibleContainers = new Set(
-    fts.textureContainers
-      .filter((container) => {
-        return /alpha/i.test(container.filename)
-      })
-      .map((container) => {
-        return container.id
-      }),
-  )
-
-  const solid: ArxPolygon[] = []
-  const invisible: ArxPolygon[] = []
-
-  for (const polygon of fts.polygons) {
-    if (invisibleContainers.has(polygon.textureContainerId)) {
-      invisible.push(polygon)
-    } else {
-      solid.push(polygon)
-    }
-  }
-
-  return { solid, invisible }
-}
-
-/**
  * How many triangles a leaf of the tree holds.
  *
  * @remarks
@@ -332,20 +279,6 @@ export function createLevelMaterial(options: LevelMaterialOptions = {}): MeshLam
   }
 
   return material
-}
-
-/**
- * Builds the material of the invisible walls of the level.
- *
- * @remarks
- * It draws nothing: the polygons are there for the shape of the level (a wall the player can not walk
- * through), not for its look. The depth is not written either, because a surface that draws nothing must not
- * hide what stands behind it; the mesh that carries this material does not cast a shadow for the same reason.
- *
- * @returns The material of the alpha polygons.
- */
-export function createInvisibleMaterial(): MeshBasicMaterial {
-  return new MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
 }
 
 /**

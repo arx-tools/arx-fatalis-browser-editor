@@ -8,11 +8,9 @@ import {
   arxPolygonsToGeometry,
   arxPolygonsToWireframeGeometry,
   arxVector3toVector3,
-  createInvisibleMaterial,
   copyVertexSegments,
   createLevelMaterial,
   keptRuns,
-  splitPolygons,
   type VertexSegment,
 } from './meshes.ts'
 import { countFacesOfTriangles } from './polygonCounts.ts'
@@ -267,15 +265,9 @@ export class ArxMap {
    * The meshes with a real texture.
    *
    * @remarks
-   * A view that paints the level with a material of its own (the fixed views keep a flat face) has to leave
-   * the invisible walls alone: painting them would put walls on the map that the game does not draw.
+   * A view that paints the level with a material of its own (the fixed views keep a flat face) draws these.
    */
   readonly solidMeshes: readonly Mesh[]
-
-  /**
-   * The meshes of the invisible walls, with their own transparent material.
-   */
-  readonly invisibleMeshes: readonly Mesh[]
 
   /**
    * The player of the map: where it stands and where it faces.
@@ -296,9 +288,8 @@ export class ArxMap {
    * The polygons the mesh was built from, in the order of its triangles.
    *
    * @remarks
-   * The invisible ones are left out, exactly like the geometry: the index of a polygon here is the one a
-   * raycast can report through {@link triangleToPolygon}. The selection and the phantom cursor read the
-   * vertices from this list.
+   * The index of a polygon here is the one a raycast can report through {@link triangleToPolygon}. The selection and
+   * the phantom cursor read the vertices from this list.
    */
   polygons: readonly ArxPolygon[]
 
@@ -394,15 +385,6 @@ export class ArxMap {
   private readonly textureNames: ReadonlyMap<number, string>
 
   /**
-   * The polygons that came from an alpha container: the walls the game does not draw.
-   *
-   * @remarks
-   * A `WeakSet` on the polygon itself, so an edit that moves the indices around does not have to keep a
-   * second list in step: the object knows which mesh it belongs to.
-   */
-  private readonly invisibleWalls = new WeakSet<ArxPolygon>()
-
-  /**
    * The scene position of the level, which is the origin of the mesh's coordinate system.
    *
    * @remarks
@@ -469,25 +451,12 @@ export class ArxMap {
     this.textureNames = textureNames
 
     // the polygons of the file are read once: the geometry, the wireframe, the selection and the statistics
-    // are all built from these two lists, so nothing walks the level again. The invisible walls come second,
-    // and the triangle map follows that order (the pick works out which mesh a hit belongs to)
-    const { solid, invisible } = splitPolygons(this.fts)
-    const polygons = [...solid, ...invisible]
-
-    for (const polygon of invisible) {
-      this.invisibleWalls.add(polygon)
-    }
-
+    // are all built from this list, so nothing walks the level again
+    const polygons = [...this.fts.polygons]
     const solidMesh = new Mesh(new BufferGeometry(), createLevelMaterial())
-    const invisibleMesh = new Mesh(new BufferGeometry(), createInvisibleMaterial())
-
-    // the walls of an alpha container draw nothing, so they must not take part in the shadows either
-    invisibleMesh.castShadow = false
-    invisibleMesh.receiveShadow = false
 
     this.solidMeshes = [solidMesh]
-    this.invisibleMeshes = [invisibleMesh]
-    this.meshes = [...this.solidMeshes, ...this.invisibleMeshes]
+    this.meshes = [solidMesh]
     this.polygons = polygons
     this.wireframeGeometry = new BufferGeometry()
     this.triangleToPolygon = triangleToPolygonMap(polygons)
@@ -502,7 +471,7 @@ export class ArxMap {
     }
 
     // everything that comes from the polygons is built here, the same way an edit builds it again
-    this.rebuild(polygons, solid, invisible)
+    this.rebuild(polygons)
   }
 
   /**
@@ -589,17 +558,14 @@ export class ArxMap {
     }
 
     const solid: ArxPolygon[] = []
-    const invisible: ArxPolygon[] = []
     const solidCounts: number[] = []
     const solidKept: boolean[] = []
-    const invisibleCounts: number[] = []
-    const invisibleKept: boolean[] = []
     const wireframeCounts: number[] = []
     const wireframeKept: boolean[] = []
     let { faceCount, quadCount, triangleCount } = this.figures
 
-    // one walk over the polygons: which mesh a polygon belongs to, how many vertices it owns in the geometry of
-    // that mesh (3 for a triangle, 6 for a quad) and in the wireframe (two per edge of the perimeter)
+    // one walk over the polygons: how many vertices a polygon owns in the geometry (3 for a triangle, 6 for a quad)
+    // and in the wireframe (two per edge of the perimeter)
     for (const polygon of this.polygons) {
       const gone = removed.has(polygon)
       const quad = isQuad(polygon)
@@ -611,20 +577,11 @@ export class ArxMap {
         edges = 8
       }
 
-      if (this.invisibleWalls.has(polygon)) {
-        invisibleCounts.push(vertices)
-        invisibleKept.push(!gone)
+      solidCounts.push(vertices)
+      solidKept.push(!gone)
 
-        if (!gone) {
-          invisible.push(polygon)
-        }
-      } else {
-        solidCounts.push(vertices)
-        solidKept.push(!gone)
-
-        if (!gone) {
-          solid.push(polygon)
-        }
+      if (!gone) {
+        solid.push(polygon)
       }
 
       wireframeCounts.push(edges)
@@ -641,11 +598,11 @@ export class ArxMap {
       }
     }
 
-    if (solid.length + invisible.length === this.polygons.length) {
+    if (solid.length === this.polygons.length) {
       return
     }
 
-    this.polygons = [...solid, ...invisible]
+    this.polygons = solid
     this.triangleToPolygon = triangleToPolygonMap(this.polygons)
     this.vertexPolygons = undefined
     this.figures = { ...this.figures, faceCount, triangleCount, quadCount }
@@ -659,14 +616,6 @@ export class ArxMap {
       )
       this.indexSolidGeometryInTextureOrder()
       accelerateRaycast(this.solidMeshes[0], { indirect: true })
-    }
-
-    if (invisible.length !== invisibleCounts.length) {
-      this.refillGeometry(
-        this.invisibleMeshes[0].geometry,
-        this.slicesOf(this.invisibleMeshes[0].geometry, invisibleCounts, invisibleKept),
-      )
-      accelerateRaycast(this.invisibleMeshes[0])
     }
   }
 
@@ -728,13 +677,9 @@ export class ArxMap {
     )
     const offset = arxVector3toVector3(this.fts.header.mScenePosition)
     const restoredSolid = next.filter((polygon) => {
-      return restored.has(polygon) && !this.invisibleWalls.has(polygon)
-    })
-    const restoredInvisible = next.filter((polygon) => {
-      return restored.has(polygon) && this.invisibleWalls.has(polygon)
+      return restored.has(polygon)
     })
     const solidBuilt = arxPolygonsToGeometry(restoredSolid, offset)
-    const invisibleBuilt = arxPolygonsToGeometry(restoredInvisible, offset)
     const wireframeBuilt = arxPolygonsToWireframeGeometry(
       next.filter((polygon) => {
         return restored.has(polygon)
@@ -743,13 +688,10 @@ export class ArxMap {
     )
 
     const solidSlices: GeometrySlice[] = []
-    const invisibleSlices: GeometrySlice[] = []
     const wireframeSlices: GeometrySlice[] = []
     let solidLive = 0
-    let invisibleLive = 0
     let wireframeLive = 0
     let solidRestored = 0
-    let invisibleRestored = 0
     let wireframeRestored = 0
     let faces = 0
     let quads = 0
@@ -765,15 +707,7 @@ export class ArxMap {
         edges = 8
       }
 
-      if (this.invisibleWalls.has(polygon)) {
-        if (restored.has(polygon)) {
-          this.pushSlice(invisibleSlices, invisibleBuilt, invisibleRestored, vertices)
-          invisibleRestored = invisibleRestored + vertices
-        } else {
-          this.pushSlice(invisibleSlices, this.invisibleMeshes[0].geometry, invisibleLive, vertices)
-          invisibleLive = invisibleLive + vertices
-        }
-      } else if (restored.has(polygon)) {
+      if (restored.has(polygon)) {
         this.pushSlice(solidSlices, solidBuilt, solidRestored, vertices)
         solidRestored = solidRestored + vertices
       } else {
@@ -813,11 +747,6 @@ export class ArxMap {
       this.refillGeometry(this.solidMeshes[0].geometry, solidSlices)
       this.indexSolidGeometryInTextureOrder()
       accelerateRaycast(this.solidMeshes[0], { indirect: true })
-    }
-
-    if (restoredInvisible.length > 0) {
-      this.refillGeometry(this.invisibleMeshes[0].geometry, invisibleSlices)
-      accelerateRaycast(this.invisibleMeshes[0])
     }
   }
 
@@ -1038,14 +967,8 @@ export class ArxMap {
    * Rebuilds every field that comes from the polygons, on the first build of the level.
    *
    * @param polygons Every polygon of the level, in the order of the mesh.
-   * @param solid The ones with a real texture.
-   * @param invisible The walls of an alpha container.
    */
-  private rebuild(
-    polygons: readonly ArxPolygon[],
-    solid: readonly ArxPolygon[],
-    invisible: readonly ArxPolygon[],
-  ): void {
+  private rebuild(polygons: readonly ArxPolygon[]): void {
     const offset = arxVector3toVector3(this.fts.header.mScenePosition)
 
     this.polygons = polygons
@@ -1053,12 +976,10 @@ export class ArxMap {
     this.vertexPolygons = undefined
 
     this.refillFromGeometry(this.wireframeGeometry, arxPolygonsToWireframeGeometry(polygons, offset))
-    this.refillFromGeometry(this.solidMeshes[0].geometry, arxPolygonsToGeometry(solid, offset))
-    this.refillFromGeometry(this.invisibleMeshes[0].geometry, arxPolygonsToGeometry(invisible, offset))
+    this.refillFromGeometry(this.solidMeshes[0].geometry, arxPolygonsToGeometry(polygons, offset))
 
     this.indexSolidGeometryInTextureOrder()
     accelerateRaycast(this.solidMeshes[0], { indirect: true })
-    accelerateRaycast(this.invisibleMeshes[0])
 
     this.refreshStatistics()
   }

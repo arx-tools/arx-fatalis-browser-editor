@@ -44,8 +44,7 @@ function polygonOfHit(
     return undefined
   }
 
-  // the level is more than one mesh (the invisible walls have their own), and the triangle map runs over
-  // all of them in the same order: the triangles of the meshes before the hit one come first
+  // the triangles of the meshes before the hit one come first: the map runs over every mesh in the same order
   let offset = 0
 
   for (const mesh of meshes) {

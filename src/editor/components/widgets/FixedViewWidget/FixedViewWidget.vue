@@ -454,9 +454,10 @@ function showMap(map: ArxMap): void {
 
   // the small views keep the flat, neutral face of the level: their own material, so a later texture or
   // lighting round can not repaint them (TODO 92)
-  // the flat material is for the solid polygons: the invisible walls keep their transparent one, so the map
-  // does not show walls the game does not draw
-  shown = [...viewMeshesOf(map.solidMeshes, previewMaterial()), ...viewMeshesOf(map.invisibleMeshes)]
+  // the whole level is one mesh, so the flat material draws every polygon: the faces of a fully transparent texture
+  // (the walls of the game, the holes of a colour key) are cut by the alpha test of the walkable view, not here — the
+  // map is a silhouette, and the few faces of a stairwell do not change it
+  shown = viewMeshesOf(map.solidMeshes, previewMaterial())
 
   setMeshVisible(isMeshVisible.value)
 

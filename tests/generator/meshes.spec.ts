@@ -1,12 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import {
-  ArxPolygonFlags,
-  type ArxFTS,
-  type ArxPolygon,
-  type ArxTextureContainer,
-  type ArxVector3,
-} from 'arx-convert/types'
+import { ArxPolygonFlags, type ArxPolygon, type ArxVector3 } from 'arx-convert/types'
 import { Mesh, MeshLambertMaterial, PerspectiveCamera, PlaneGeometry, Raycaster, Vector2, Vector3 } from 'three'
 import {
   accelerateRaycast,
@@ -17,7 +11,6 @@ import {
   createWireframeMaterial,
   arxVector3toVector3,
   createLevelMaterial,
-  splitPolygons,
 } from '../../src/generator/meshes.ts'
 import { Color } from '../../src/generator/Color.ts'
 
@@ -66,33 +59,6 @@ function polygon(isQuad: boolean, container = 1): ArxPolygon {
     flags,
     room: 1,
   }
-}
-
-/**
- * A scene of the test: one real container and, optionally, the invisible one.
- *
- * @param polygons The shapes of the scene.
- * @param withInvisible `true` to add the `alpha.bmp` container the level hides.
- *
- * @returns A scene with the two containers and the given shapes.
- */
-function scene(polygons: ArxPolygon[], withInvisible = false): ArxFTS {
-  const containers = [{ id: 1, filename: 'stone.bmp' }]
-
-  if (withInvisible) {
-    containers[1] = { id: 2, filename: 'alpha.bmp' }
-  }
-
-  return {
-    header: { mScenePosition: position(0, 0, 0) },
-    textureContainers: containers as unknown as ArxTextureContainer[],
-    polygons,
-    cells: [],
-    anchors: [],
-    portals: [],
-    rooms: [],
-    roomDistances: [],
-  } as unknown as ArxFTS
 }
 
 /**
@@ -188,40 +154,6 @@ void describe('arxPolygonsToGeometry', () => {
     const geometry = arxPolygonsToGeometry([polygon(false)], new Vector3(100, 200, 300))
 
     assert.deepEqual(roundedPositions(geometry).slice(0, 3), [-100, -200, -300])
-  })
-})
-
-void describe('splitPolygons', () => {
-  void it('keeps the polygons with a real texture as the solid ones', () => {
-    const level = scene([polygon(false)])
-
-    assert.deepEqual(splitPolygons(level), { solid: [level.polygons[0]], invisible: [] })
-  })
-
-  void it('puts the ones with an alpha container among the invisible walls', () => {
-    // the alpha container is the second one of the test scene: its polygon draws nothing
-    const level = scene([polygon(false, 1), polygon(false, 2)], true)
-
-    assert.equal(splitPolygons(level).solid.length, 1)
-    assert.equal(splitPolygons(level).invisible.length, 1)
-  })
-
-  void it('keeps the order of the file in both lists', () => {
-    const level = scene([polygon(false, 2), polygon(false, 1), polygon(false, 2)], true)
-    const split = splitPolygons(level)
-
-    assert.deepEqual(
-      split.invisible.map((each) => {
-        return each.textureContainerId
-      }),
-      [2, 2],
-    )
-    assert.deepEqual(
-      split.solid.map((each) => {
-        return each.textureContainerId
-      }),
-      [1],
-    )
   })
 })
 

@@ -89,7 +89,7 @@ void describe('createBlankLevelFiles', () => {
     const map = blankMap()
 
     assert.equal(map.lights.length, 0)
-    assert.equal(map.invisibleMeshes[0].geometry.getAttribute('position').count, 0)
+    assert.equal(map.meshes.length, 1)
   })
 })
 

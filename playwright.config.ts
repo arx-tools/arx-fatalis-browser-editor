@@ -51,6 +51,9 @@ export default defineConfig({
   // playwright does not run the unit tests
   testDir: './tests/e2e',
   fullyParallel: true,
+  // the suite runs two files at a time: the eight workers (the default on this machine) took the memory the editor's
+  // own pages need, and the machine of the owner ran out of it — the suite is slower this way, the commits are cheaper
+  workers: 2,
   // a `test.only` that was left in the code would silently hide every other test in the ci
   forbidOnly: isCI,
   retries,

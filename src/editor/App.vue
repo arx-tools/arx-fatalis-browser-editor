@@ -24,6 +24,8 @@ import {
   lastMapId,
   MAP_PARAMETER,
   mapIdFromUrl,
+  mapSlugOf,
+  storedMapId,
   openMap,
   refreshDataDir,
   rememberCustomMap,
@@ -55,7 +57,7 @@ const isLevelLoading = computed(() => {
 onMounted(() => {
   const url = getUrlAdapter(undefined)
   const zipUrl = zipUrlFromUrl(url)
-  let requestedMap = mapIdFromUrl(url)
+  let requestedMap = mapIdFromUrl(url) ?? storedMapId()
 
   // a zip of the url is the map of the session: the level in it has no value in the list, and the zip is the one the
   // address bar carries (a reload downloads it again)
@@ -178,7 +180,7 @@ onMounted(() => {
       // a zip of the url is the map itself: the address bar keeps it instead of a value of a list the next visit does
       // not have. A map the list did not have is kept too: the folder of the next visit may have its level
       if (zipUrl === undefined && !keepRequestedMap) {
-        writeUrlValue(url, MAP_PARAMETER, currentMapId.value)
+        writeUrlValue(url, MAP_PARAMETER, mapSlugOf(currentMapId.value))
       }
 
       if (dataDirFromUrlParameter === undefined || storedDataDir() === startedDataDir) {

@@ -30,6 +30,7 @@ function roundUrlTriplet(value: TripleOf<number> | undefined): TripleOf<number> 
 export const cameraPosition = persistedRef<TripleOf<number> | undefined>({
   key: 'position',
   persistInUrl: true,
+  persistInLocalStorage: true,
   throttle: 150,
   transformOutput: { url: roundUrlTriplet },
   urlDeserialize: (raw: string) => {
@@ -47,6 +48,7 @@ export const cameraPosition = persistedRef<TripleOf<number> | undefined>({
 export const cameraAngle = persistedRef<TripleOf<number> | undefined>({
   key: 'rotation',
   persistInUrl: true,
+  persistInLocalStorage: true,
   throttle: 150,
   transformOutput: { url: roundUrlTriplet },
   urlDeserialize: (raw: string) => {

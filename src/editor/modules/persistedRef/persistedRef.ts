@@ -429,6 +429,12 @@ export function persistedRef<T>(
   // the last value which reached the targets: the camera pushes the same pose on every frame
   let lastWritten: T | undefined = state.value
 
+  // a value the url carried is remembered in the storage too: the next visit has no link, and the browser is the
+  // memory of the session (a camera pose, a seed, the map). The write happens once, at the start of the page.
+  if (runtime.targetStorage !== undefined) {
+    writeValue(options, runtime, state.value)
+  }
+
   /**
    * Writes the pending value (if any) right away, the throttled and debounced writes call it too.
    */

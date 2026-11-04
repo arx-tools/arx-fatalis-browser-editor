@@ -12,4 +12,5 @@ import { persistedRef } from '../persistedRef/persistedRef.ts'
 export const levelSeed = persistedRef<string | undefined>({
   key: 'seed',
   persistInUrl: true,
+  persistInLocalStorage: true,
 })

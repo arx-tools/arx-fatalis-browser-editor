@@ -46,14 +46,26 @@ if (isCI) {
   retries = 2
 }
 
+/**
+ * How many files the suite runs at a time.
+ *
+ * @remarks
+ * The owner's machine has enough memory now (64 GB, 2026-11-05), so a local run takes four: the eight workers the
+ * default gave it took the memory the editor's own pages need when the machine had less (the commit of 2026-11-04 ran
+ * two). The ci runners are small, they keep the two.
+ */
+let workers = 4
+
+if (isCI) {
+  workers = 2
+}
+
 export default defineConfig({
   // the e2e suite lives next to the unit tests but in its own folder: `node --test` does not run it and
   // playwright does not run the unit tests
   testDir: './tests/e2e',
   fullyParallel: true,
-  // the suite runs two files at a time: the eight workers (the default on this machine) took the memory the editor's
-  // own pages need, and the machine of the owner ran out of it — the suite is slower this way, the commits are cheaper
-  workers: 2,
+  workers,
   // a `test.only` that was left in the code would silently hide every other test in the ci
   forbidOnly: isCI,
   retries,

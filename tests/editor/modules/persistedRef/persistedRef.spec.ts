@@ -7,7 +7,7 @@ import {
   persistedRef,
   type PersistenceAdapters,
 } from '../../../../src/editor/modules/persistedRef/persistedRef.ts'
-import { parseNumberTriplet } from '../../../../src/editor/modules/functions.ts'
+import { parseNumberTriplet } from '../../../../src/editor/modules/numbers.ts'
 import { createBrowserUrlAdapter } from '../../../../src/editor/modules/persistedRef/url.ts'
 import { persistenceProblems } from '../../../../src/editor/modules/persistedRef/persistenceProblems.ts'
 

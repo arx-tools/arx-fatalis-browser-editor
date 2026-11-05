@@ -1,5 +1,5 @@
 import type { TripleOf } from 'arx-convert/utils'
-import { parseNumberTriplet, roundTriplet } from '../../modules/functions.ts'
+import { parseNumberTriplet, roundTriplet } from '../../modules/numbers.ts'
 import { persistedRef } from '../../modules/persistedRef/persistedRef.ts'
 
 /**

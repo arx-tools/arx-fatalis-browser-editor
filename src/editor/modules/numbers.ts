@@ -1,18 +1,4 @@
-import { ArxPolygonFlags } from 'arx-convert/types'
 import type { TripleOf } from 'arx-convert/utils'
-
-/**
- * Sleeps for the given time, the loading and the export sequences use it to let the browser paint.
- *
- * @param delayInMs The time to wait in milliseconds.
- */
-export async function wait(delayInMs: number): Promise<void> {
-  await new Promise<void>((resolve) => {
-    setTimeout(() => {
-      resolve()
-    }, delayInMs)
-  })
-}
 
 /**
  * Rounds a number to the given number of decimals.
@@ -49,18 +35,6 @@ export function roundTriplet(value: TripleOf<number>): TripleOf<number> {
   const [x, y, z] = value
 
   return [roundToNDecimals(x, 2), roundToNDecimals(y, 2), roundToNDecimals(z, 2)]
-}
-
-export function isTransparent(flags: ArxPolygonFlags): boolean {
-  return (flags & ArxPolygonFlags.Transparent) !== 0
-}
-
-export function isDoubleSided(flags: ArxPolygonFlags): boolean {
-  return (flags & ArxPolygonFlags.DoubleSided) !== 0
-}
-
-export function isNoDraw(flags: ArxPolygonFlags): boolean {
-  return (flags & ArxPolygonFlags.NoDraw) !== 0
 }
 
 /**

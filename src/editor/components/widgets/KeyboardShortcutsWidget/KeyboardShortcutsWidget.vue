@@ -2,6 +2,7 @@
 import { Command, Eye, EyeOff, MouseLeft, Redo2, Undo2, UndoDot } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { history } from '../../../modules/history/history.ts'
+import { redoLastStep, undoLastStep } from '../../../modules/level/editing.ts'
 import { isMacKeyboard } from '../../../modules/keyboard/keyboard.ts'
 import WidgetHeading from '../../WidgetHeading.vue'
 import { isViewAtDefault, resetViewSwitches, viewSwitches, type ViewSwitch } from '../levelDisplay.ts'
@@ -205,16 +206,21 @@ function buttonLabel(button: 'redo' | 'undo'): string {
 /**
  * Runs the step of a row: the undo or the redo of the history.
  *
+ * @remarks
+ * The buttons go through the same door as the keys (`undoLastStep`/`redoLastStep` in the editing module): the undo of
+ * a delete drops the selection, because the faces that stay selected would point at other faces after the step. A
+ * button that called the history directly would leave that selection behind (2026-11-05, a refactor find).
+ *
  * @param button The step the row runs.
  */
 function runHistory(button: 'redo' | 'undo'): void {
   if (button === 'undo') {
-    history.undo()
+    undoLastStep()
 
     return
   }
 
-  history.redo()
+  redoLastStep()
 }
 
 function buttonTitle(toggle: HelpToggle): string {

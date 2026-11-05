@@ -1,4 +1,4 @@
-import { roundToNDecimals } from '../../../modules/functions.ts'
+import { roundToNDecimals } from '../../../modules/numbers.ts'
 import type { CameraPose } from '../cameraPose.ts'
 
 /**

@@ -431,17 +431,6 @@ export function sameUvs(first: readonly UvPoint[], second: readonly UvPoint[]): 
 }
 
 /**
- * Reads the uv of a corner as a text.
- *
- * @param uv The corner.
- *
- * @returns The two numbers with three decimals, like `u 0.250 · v 0.750`.
- */
-export function describeUv(uv: UvPoint): string {
-  return `u ${uv.u.toFixed(3)} · v ${uv.v.toFixed(3)}`
-}
-
-/**
  * Why the widget can not edit a selection of more than one face.
  *
  * @remarks

@@ -3,7 +3,6 @@ import { describe, it } from 'node:test'
 import { ArxPolygonFlags, type ArxPolygon } from 'arx-convert/types'
 import {
   clampUv,
-  describeUv,
   mismatchMessageOf,
   MAX_ZOOM,
   MIN_ZOOM,
@@ -242,12 +241,6 @@ void describe('sameUvs', () => {
       false,
     )
     assert.equal(sameUvs([{ u: 0, v: 0 }], []), false)
-  })
-})
-
-void describe('describeUv', () => {
-  void it('writes the two numbers with three decimals', () => {
-    assert.equal(describeUv({ u: 0.25, v: 0.5 }), 'u 0.250 · v 0.500')
   })
 })
 

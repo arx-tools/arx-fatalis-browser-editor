@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import type { BorderDragWatcher } from '../../../../src/editor/modules/layout/borderDrag/drag.ts'
 import type {
   BorderDragTarget,
-  BorderDragWatcher,
   DragBoard,
   DragRect,
   HeldSplit,
-} from '../../../../src/editor/modules/layout/borderDrag.ts'
+} from '../../../../src/editor/modules/layout/borderDrag/model.ts'
 import type { LayoutNode } from '../../../../src/editor/modules/layout/layoutNode.ts'
 import type { WidgetDefinition } from '../../../../src/editor/modules/layout/widgetDefinition.ts'
 import { installDom } from '../../../support/dom.ts'
@@ -17,19 +17,10 @@ const { Widget } = await import('@lumino/widgets')
 const { editorLayout } = await import('../../../../src/editor/modules/layout/layoutPresets.ts')
 const { lockWidgetTo, lockedBoxOf } = await import('../../../../src/editor/modules/layout/layoutNode.ts')
 const { createWidget } = await import('../../../../src/editor/modules/layout/widgetDefinition.ts')
-const {
-  applyDragEdges,
-  boardOf,
-  borderAxisOf,
-  dragTargetsOf,
-  gapBetween,
-  heldSizes,
-  heldSplitsOf,
-  holdSplit,
-  nodeBoxes,
-  visibleHandles,
-  watchBorderDrag,
-} = await import('../../../../src/editor/modules/layout/borderDrag.ts')
+const { applyDragEdges, borderAxisOf, dragTargetsOf, gapBetween, heldSizes, nodeBoxes } =
+  await import('../../../../src/editor/modules/layout/borderDrag/model.ts')
+const { boardOf, heldSplitsOf, holdSplit, visibleHandles, watchBorderDrag } =
+  await import('../../../../src/editor/modules/layout/borderDrag/drag.ts')
 
 /**
  * The gaps between two children of a split take this much room in the dock.

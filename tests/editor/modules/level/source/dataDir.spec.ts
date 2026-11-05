@@ -16,9 +16,9 @@ import {
   startDataDir,
   storedDataDir,
   clearTextureScan,
-} from '../../../../src/editor/modules/level/dataDir.ts'
-import type { StorageLike } from '../../../../src/editor/modules/persistedRef/storage.ts'
-import type { UrlAdapter } from '../../../../src/editor/modules/persistedRef/url.ts'
+} from '../../../../../src/editor/modules/level/source/dataDir.ts'
+import type { StorageLike } from '../../../../../src/editor/modules/persistedRef/storage.ts'
+import type { UrlAdapter } from '../../../../../src/editor/modules/persistedRef/url.ts'
 
 /**
  * A storage of the test: the local storage of the browser, in memory.

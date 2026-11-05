@@ -1,6 +1,6 @@
 import type { ArxPolygon } from 'arx-convert/types'
 import { usedVerticesOf } from '../../../../generator/polygons.ts'
-import type { FaceUv } from '../../../../generator/ArxMap.ts'
+import type { FaceUv } from '../../../../generator/arxMap/uvs.ts'
 
 /**
  * How far the uv mapper can zoom out: the texture at **half** the size of the square.

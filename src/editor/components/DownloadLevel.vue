@@ -3,7 +3,7 @@ import { Check, Download, LoaderCircle, X } from 'lucide-vue-next'
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { downloadBinaryAs } from '../modules/export/download.ts'
 import { exportLevelZip } from '../modules/export/exportLevel.ts'
-import { levelStore } from '../modules/level/levelStore.ts'
+import { levelStore } from '../modules/level/edit/levelStore.ts'
 
 /**
  * Where the export is.

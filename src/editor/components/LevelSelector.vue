@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { FolderOpen } from 'lucide-vue-next'
 import { nextTick, useTemplateRef } from 'vue'
-import { paintLevel } from '../modules/level/levelTextures.ts'
-import { levelStore } from '../modules/level/levelStore.ts'
-import { currentMapId, rememberCustomMap } from '../modules/level/maps.ts'
-import { createZipLevelSource } from '../modules/level/zipSource.ts'
+import { paintLevel } from '../modules/level/edit/levelTextures.ts'
+import { levelStore } from '../modules/level/edit/levelStore.ts'
+import { currentMapId, rememberCustomMap } from '../modules/level/source/maps.ts'
+import { createZipLevelSource } from '../modules/level/source/zipSource.ts'
 import { cameraStore } from './widgets/camera/cameraStore.ts'
 
 // the file input is the level's way in: the browser does not let a script choose a file, so the button only presses

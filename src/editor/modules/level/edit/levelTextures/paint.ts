@@ -13,9 +13,9 @@ import {
   type Side,
   type Texture,
 } from 'three'
-import type { ArxMap } from '../../../../generator/ArxMap.ts'
-import { createLevelMaterial } from '../../../../generator/meshes.ts'
-import { blendModeOf, blendTransOf, isDoubleSided, type PolygonBlendMode } from '../../../../generator/polygons.ts'
+import type { ArxMap } from '../../../../../generator/ArxMap.ts'
+import { createLevelMaterial } from '../../../../../generator/meshes.ts'
+import { blendModeOf, blendTransOf, isDoubleSided, type PolygonBlendMode } from '../../../../../generator/polygons.ts'
 
 /**
  * The alpha cut of the material of a face: the texels of the texture below it are not drawn.

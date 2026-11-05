@@ -5,18 +5,24 @@ import Dock from './components/Dock.vue'
 import EditorHeader from './components/EditorHeader.vue'
 import LoadingOverlay from './components/LoadingOverlay.vue'
 import { startLevelDisplay } from './components/widgets/shared/levelDisplay.ts'
-import { startLevelEditing } from './modules/level/editing.ts'
+import { startLevelEditing } from './modules/level/edit/editing.ts'
 import { startSelection } from './modules/selection/selectionStore.ts'
-import { paintLevel, startLevelTextures } from './modules/level/levelTextures.ts'
-import { levelStore } from './modules/level/levelStore.ts'
+import { paintLevel, startLevelTextures } from './modules/level/edit/levelTextures.ts'
+import { levelStore } from './modules/level/edit/levelStore.ts'
 import { startTextureCatalog } from './modules/textures/textureCatalog.ts'
-import { DATA_DIR_PARAMETER, dataDirFromUrl, hasDataDir, startDataDir, storedDataDir } from './modules/level/dataDir.ts'
+import {
+  DATA_DIR_PARAMETER,
+  dataDirFromUrl,
+  hasDataDir,
+  startDataDir,
+  storedDataDir,
+} from './modules/level/source/dataDir.ts'
 import {
   isOriginalLevelSource,
   ORIGINAL_LEVEL_PARAMETER,
   starterLevelSource,
   zipUrlFromUrl,
-} from './modules/level/levelSource.ts'
+} from './modules/level/source/levelSource.ts'
 import {
   arxLevels,
   availableMapIdOf,
@@ -32,9 +38,9 @@ import {
   rememberCustomMap,
   setStartupSource,
   startMapPersistence,
-} from './modules/level/maps.ts'
+} from './modules/level/source/maps.ts'
 import { getUrlAdapter, writeUrlValue } from './modules/persistedRef/url.ts'
-import { isZipLevelSource } from './modules/level/zipSource.ts'
+import { isZipLevelSource } from './modules/level/source/zipSource.ts'
 import { cameraAngle, cameraPosition } from './components/widgets/camera/cameraState.ts'
 import { cameraStore } from './components/widgets/camera/cameraStore.ts'
 import { provideEditorShell } from './modules/shell/editorShellContext.ts'

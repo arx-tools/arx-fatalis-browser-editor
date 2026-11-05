@@ -2,7 +2,7 @@
 import { Command, Eye, EyeOff, MouseLeft, Redo2, Undo2, UndoDot } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { history } from '../../../modules/history/history.ts'
-import { redoLastStep, undoLastStep } from '../../../modules/level/editing.ts'
+import { redoLastStep, undoLastStep } from '../../../modules/level/edit/editing.ts'
 import { isMacKeyboard } from '../../../modules/keyboard/keyboard.ts'
 import WidgetHeading from '../../WidgetHeading.vue'
 import { isViewAtDefault, resetViewSwitches, viewSwitches, type ViewSwitch } from '../shared/levelDisplay.ts'

@@ -1,10 +1,10 @@
-import { ArxMap } from '../../../generator/ArxMap.ts'
-import { Settings } from '../../../generator/Settings.ts'
-import { getUrlAdapter, readUrlValue, type UrlAdapter } from '../persistedRef/url.ts'
-import { createBlankLevelFiles, FLAT_PRESET, type NewLevelPreset } from './blankLevel.ts'
+import { ArxMap } from '../../../../generator/ArxMap.ts'
+import { Settings } from '../../../../generator/Settings.ts'
+import { getUrlAdapter, readUrlValue, type UrlAdapter } from '../../persistedRef/url.ts'
+import { createBlankLevelFiles, FLAT_PRESET, type NewLevelPreset } from '../blankLevel.ts'
+import { levelSeed } from '../seed.ts'
 import { dataDirFromUrl, readDataFile } from './dataDir.ts'
 import { createZipUrlLevelSource } from './zipSource.ts'
-import { levelSeed } from './seed.ts'
 
 /**
  * The three packed files a level is made of.

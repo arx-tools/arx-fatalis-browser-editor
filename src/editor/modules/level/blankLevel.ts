@@ -2,8 +2,8 @@ import { DLF, FTS, LLF } from 'arx-convert'
 import type { ArxDLF, ArxFTS, ArxLLF } from 'arx-convert/types'
 import { getHeaderSize } from 'arx-header-size'
 import { BLANK_LEVEL_TEXTURE } from '../../../generator/assets.ts'
-import type { LevelFiles } from './levelSource.ts'
-import { packLevelFile, packWholeFile } from './packedFile.ts'
+import type { LevelFiles } from './source/levelSource.ts'
+import { packLevelFile, packWholeFile } from './source/packedFile.ts'
 
 /**
  * The side of one tile of a blank level, in game units.

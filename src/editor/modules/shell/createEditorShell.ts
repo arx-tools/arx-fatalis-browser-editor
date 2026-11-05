@@ -1,8 +1,8 @@
 import { DockLayout, DockPanel, Widget } from '@lumino/widgets'
 import { computed, ref, shallowRef, type ComputedRef, type Ref } from 'vue'
-import { watchBorderDrag, type BorderDragWatcher } from '../layout/borderDrag.ts'
-import { MIN_WIDGET_HEIGHT, MIN_WIDGET_WIDTH, planLayout, type WidgetFit } from '../layout/contentFit.ts'
+import { watchBorderDrag, type BorderDragWatcher } from '../layout/borderDrag/drag.ts'
 import { dockWidgets } from '../layout/dockWidgets.ts'
+import { createLayoutApply } from '../layout/layoutApply.ts'
 import {
   CUSTOM_PRESET_LABEL,
   defaultLayout,
@@ -11,17 +11,7 @@ import {
   type PresetId,
 } from '../layout/layoutPresets.ts'
 import { LayoutEditor, type MountWidgetOverlay } from '../layout/layoutEditor.ts'
-import {
-  collectKinds,
-  layoutEquals,
-  lockedBoxOf,
-  lockWidgetTo,
-  parseLayoutNode,
-  type LockBox,
-  toDockConfig,
-  toLayoutNode,
-  type LayoutNode,
-} from '../layout/layoutNode.ts'
+import { layoutEquals, parseLayoutNode, toLayoutNode, type LayoutNode } from '../layout/layoutNode.ts'
 import { createWidget, widgetKind, type WidgetDefinition } from '../layout/widgetDefinition.ts'
 import { persistedRef } from '../persistedRef/persistedRef.ts'
 
@@ -201,26 +191,6 @@ export function createEditorShell(
   const borderDrag: { watcher?: BorderDragWatcher } = {}
 
   /**
-   * The tree the last pass of the sizes applied, or `null` before the first one.
-   *
-   * @remarks
-   * The dock tells the world about its own rebuild as well (a message of the pass reaches the handler a frame later),
-   * so the handler compares what the dock has with what the pass has just put there: the same tree means the message
-   * is the echo of the pass and nothing of the user changed.
-   */
-  let appliedTree: LayoutNode | null = null
-
-  /**
-   * Tells whether the dock is being rebuilt from a tree of ours (the pass, a preset, the first layout).
-   */
-  let isRebuilding = false
-
-  /**
-   * The frame the next pass waits for, or `undefined` when none is asked for.
-   */
-  let sizesFrame: number | undefined
-
-  /**
    * The timer that waits for a drag to end, or `undefined` when none is running.
    */
   let sizesTimer: ReturnType<typeof setTimeout> | undefined
@@ -352,313 +322,27 @@ export function createEditorShell(
   }
 
   /**
-   * Empties the dock: the overlays are unmounted and the widgets are disposed, so their Vue apps go too.
-   */
-  function clearDock(): void {
-    for (const widget of dockWidgets(dock)) {
-      editor.undecorate(widget)
-      widget.dispose()
-    }
-  }
-
-  /**
-   * Measures the height the content of a widget wants.
+   * The managed layout of the dock: the sizes, the locks and the rebuild of the tree.
    *
    * @remarks
-   * The measure is taken with the content element off its box for the length of it: the element fills the widget with
-   * `height: 100%`, so without this its own height would be what it already got, and the widget could never grow or
-   * shrink again.
-   *
-   * @param widget The live widget, when the dock has it.
-   * @param kind The kind of the widget.
-   *
-   * @returns The height of its rows, or `undefined` for a view and for a widget that is not on the dock.
+   * The pass has its own module (`layout/layoutApply.ts`), so the lock logic is a unit of its own: this is where the
+   * shell binds it to the dock, the host, the widget registry and the edits of the tree.
    */
-  function contentHeightOf(widget: Widget | undefined, kind: string): number | undefined {
-    if (widget === undefined) {
-      return undefined
-    }
-
-    const definition = definitions.find((candidate) => {
-      return candidate.kind === kind
-    })
-
-    if (definition?.contentSized !== true) {
-      return undefined
-    }
-
-    const content = widget.node.querySelector<HTMLElement>('.VueWidget-content')
-
-    if (content === null) {
-      return undefined
-    }
-
-    const previous = content.style.height
-    content.style.height = 'auto'
-    const height = content.scrollHeight
-    content.style.height = previous
-
-    return Math.max(MIN_WIDGET_HEIGHT, height)
-  }
-
-  /**
-   * Reads the limits of a widget: the height its content wants, the box it is locked to, and the floor of the css.
-   *
-   * @remarks
-   * The three sources of a limit are the same as in a flexbox. The **content** is the natural height of a list (a view
-   * has none: a canvas fills what it gets). The **lock** is what the user pinned: both sides of the box, so the widget
-   * keeps the width it had as well. The **floor** is {@link MIN_WIDGET_HEIGHT} and {@link MIN_WIDGET_WIDTH}: below
-   * that the splitter could not be grabbed.
-   *
-   * @param kind The kind of the widget.
-   *
-   * @returns What the layout may do with it, per axis.
-   */
-  function fitOf(kind: string): WidgetFit {
-    const widget = dockWidgets(dock).find((candidate) => {
-      return widgetKind(candidate) === kind
-    })
-    let box: LockBox | undefined
-
-    if (widget !== undefined) {
-      box = lockedBoxOf(widget)
-    }
-
-    return {
-      width: { min: MIN_WIDGET_WIDTH, floor: MIN_WIDGET_WIDTH, max: box?.width ?? Number.POSITIVE_INFINITY },
-      height: {
-        min: contentHeightOf(widget, kind) ?? MIN_WIDGET_HEIGHT,
-        floor: MIN_WIDGET_HEIGHT,
-        max: box?.height ?? Number.POSITIVE_INFINITY,
-      },
-    }
-  }
-
-  /**
-   * Works out the size of every child of the dock and builds the dock from it.
-   *
-   * @remarks
-   * This is the **managed** layout: lumino keeps a slot at the size the shares give it and only clamps the node into
-   * it, so a widget pinned with a css `max-height` would leave a hole in its column instead of handing the space to
-   * its neighbours. Instead, the sizes are worked out for the whole tree (`planLayout`), where a lock is the maximum
-   * of a child, and the dock is rebuilt from those sizes. A lock therefore keeps its box, the flexible widgets share
-   * the rest by their ratios, and everything shrinks when the window has no room — no hole and no overflow.
-   */
-  function applyManagedSizes(): void {
-    // a drag of a border holds the handle the pointer is on: a rebuild of the dock now would take the drag away, so the
-    // drag itself corrects the sizes of the locked widgets, and the pass runs when it ends
-    if (borderDrag.watcher?.isActive() === true) {
-      return
-    }
-
-    const { layout } = dock
-
-    if (!(layout instanceof DockLayout)) {
-      return
-    }
-
-    const tree = toLayoutNode(layout.saveLayout(), kindOf)
-
-    if (tree === null) {
-      return
-    }
-
-    const box = host.getBoundingClientRect()
-
-    if (box.width <= 0 || box.height <= 0) {
-      return
-    }
-
-    const sizes = planLayout(tree, { width: box.width, height: box.height }, fitOf, dock.spacing)
-    const widgets = new Map<string, Widget>()
-
-    for (const widget of dockWidgets(dock)) {
-      const kind = widgetKind(widget)
-
-      if (kind !== undefined) {
-        widgets.set(kind, widget)
-      }
-    }
-
-    const config = toDockConfig(
-      tree,
-      (kind) => {
-        return widgets.get(kind)
-      },
-      sizes,
-    )
-
-    if (config?.main === null || config?.main === undefined) {
-      return
-    }
-
-    isRebuilding = true
-
-    try {
-      dock.restoreLayout({ main: config.main })
-    } finally {
-      isRebuilding = false
-    }
-
-    appliedTree = toLayoutNode(dock.saveLayout(), kindOf)
-  }
-
-  /**
-   * Asks for the sizes to be worked out again on the next frame.
-   *
-   * @remarks
-   * This is the way of a **resize**: the dock has to follow the window at once, and the window is not something the
-   * user is dragging inside the dock, so a frame later is fine.
-   */
-  function requestManagedSizes(): void {
-    if (sizesFrame !== undefined) {
-      return
-    }
-
-    sizesFrame = requestAnimationFrame(() => {
-      sizesFrame = undefined
-      applyManagedSizes()
-    })
-  }
-
-  /**
-   * Creates the widgets of the tree, decorates them for the edit mode and rebuilds the dock from them.
-   *
-   * @remarks
-   * A kind that is no longer in the registry is dropped with its share; when nothing is left, the
-   * default layout takes over, so the screen is never empty.
-   *
-   * @param node The tree to build.
-   * @param fallback `false` when the default layout is already being applied (no second fallback).
-   */
-  /**
-   * Writes the locks of a layout tree onto the widgets.
-   *
-   * @remarks
-   * A lock lives on the node of the widget, and the widgets of a rebuilt dock are new: the tree is what remembers the
-   * locks between two runs, so it is read back here. A widget that is not in a fixed size of the tree is not locked,
-   * so a layout that comes from the storage or from a preset can not keep a lock of an earlier one.
-   *
-   * @param node The tree the dock was built from.
-   */
-  function applyLocks(node: LayoutNode): void {
-    /**
-     * Walks the tree, writing the box of every locked widget onto its node.
-     *
-     * @remarks
-     * The two sides of a lock live on two levels of the tree: the width of a column is the size of the split that
-     * holds it (a locked widget inside a vertical split fixes the width of that split, because the split can not grow
-     * past what its children may take), and the height of the widget is its own size in that split. Walking down and
-     * carrying the two sides is what puts the box back together after a reload.
-     *
-     * @param current The node to walk.
-     * @param box The sides the ancestors have already fixed.
-     */
-    function collect(current: LayoutNode, box: LockBox): void {
-      if (current.type === 'widget') {
-        const widget = dockWidgets(dock).find((candidate) => {
-          return widgetKind(candidate) === current.kind
-        })
-
-        if (widget !== undefined && box.width > 0 && box.height > 0) {
-          lockWidgetTo(widget, box)
-        }
-
-        return
-      }
-
-      for (const [index, child] of current.children.entries()) {
-        const size = current.sizes[index]
-        let fixed: number | undefined
-
-        if (size?.kind === 'fixed') {
-          fixed = size.px
-        }
-
-        let next: LockBox = { width: box.width, height: box.height }
-
-        if (fixed !== undefined && current.orientation === 'horizontal') {
-          next = { width: fixed, height: box.height }
-        } else if (fixed !== undefined) {
-          next = { width: box.width, height: fixed }
-        }
-
-        collect(child, next)
-      }
-    }
-
-    collect(node, { width: 0, height: 0 })
-  }
-
-  function applyLayout(node: LayoutNode, fallback = true): void {
-    clearDock()
-
-    const widgets = new Map<string, Widget>()
-
-    for (const kind of collectKinds(node)) {
-      const definition = definitions.find((candidate) => {
-        return candidate.kind === kind
-      })
-
-      if (definition === undefined) {
-        continue
-      }
-
-      const widget = createWidget(definition)
+  const apply = createLayoutApply({
+    dock,
+    host,
+    definitions,
+    decorate: (widget) => {
       editor.decorate(widget)
-      widgets.set(kind, widget)
-    }
-
-    const config = toDockConfig(node, (kind) => {
-      return widgets.get(kind)
-    })
-
-    const main = config?.main
-
-    if (main === null || main === undefined) {
-      for (const widget of widgets.values()) {
-        editor.undecorate(widget)
-        widget.dispose()
-      }
-
-      if (fallback) {
-        applyLayout(defaultLayout, false)
-      }
-
-      return
-    }
-
-    isRebuilding = true
-
-    try {
-      dock.restoreLayout({ main })
-    } finally {
-      isRebuilding = false
-    }
-
-    applyLocks(node)
-
-    // the echo of this rebuild is not a change of the user either: without this the locks of the tree would be
-    // overwritten by the sizes of the preset before the first pass of the sizes has applied them
-    appliedTree = toLayoutNode(dock.saveLayout(), kindOf)
-
-    // a widget that ended up nowhere (the tree changed under it) is thrown away, not left alive
-    const live = dockWidgets(dock)
-
-    for (const widget of widgets.values()) {
-      if (!live.includes(widget)) {
-        editor.undecorate(widget)
-        widget.dispose()
-      }
-    }
-
-    syncLayout()
-
-    // the dock has just been laid out from the weights of the tree, which is close but not the same thing: a lock is
-    // a pixel size and a ratio a share of what the locks leave, and the content limits of the widgets are not in the
-    // weights at all. The pass is what puts the sizes the preset asks for on the screen
-    requestManagedSizes()
-  }
+    },
+    undecorate: (widget) => {
+      editor.undecorate(widget)
+    },
+    isDragActive: () => {
+      return borderDrag.watcher?.isActive() === true
+    },
+    syncLayout,
+  })
 
   /**
    * Creates a widget of the kind, decorates it for the edit mode and puts it into the dock.
@@ -728,7 +412,7 @@ export function createEditorShell(
       return
     }
 
-    applyLayout(layout)
+    apply.applyLayout(layout)
   }
 
   /**
@@ -763,7 +447,7 @@ export function createEditorShell(
     customLayout.value = storedLayout.value
   }
 
-  applyLayout(storedLayout.value)
+  apply.applyLayout(storedLayout.value)
 
   /**
    * Asks for the sizes to be worked out when the user stops dragging a border.
@@ -782,7 +466,7 @@ export function createEditorShell(
     sizesTimer = setTimeout(() => {
       sizesTimer = undefined
 
-      applyManagedSizes()
+      apply.applyManagedSizes()
     }, 250)
   }
 
@@ -790,7 +474,7 @@ export function createEditorShell(
     const tree = toLayoutNode(dock.saveLayout(), kindOf)
 
     // the dock echoes a rebuild of the pass: that is not a change of the user
-    if (isRebuilding || (tree !== null && appliedTree !== null && layoutEquals(tree, appliedTree))) {
+    if (apply.isRebuilding || (tree !== null && apply.appliedTree !== null && layoutEquals(tree, apply.appliedTree))) {
       return
     }
 
@@ -800,7 +484,7 @@ export function createEditorShell(
 
   afterLockChanged = (): void => {
     // a lock is a fixed size in the tree, so the whole layout is worked out again from it
-    applyManagedSizes()
+    apply.applyManagedSizes()
     syncLayout()
   }
 
@@ -822,12 +506,12 @@ export function createEditorShell(
       // the lock of the widgets was written by the watcher: the tree has to be read again, and the sizes of the whole
       // dock are worked out from the (possibly new) locks
       syncLayout()
-      requestManagedSizes()
+      apply.requestManagedSizes()
     },
   })
 
   const resizeObserver = new ResizeObserver(() => {
-    requestManagedSizes()
+    apply.requestManagedSizes()
     dock.fit()
   })
   resizeObserver.observe(host)
@@ -836,7 +520,7 @@ export function createEditorShell(
 
   // the first layout pass: the widgets get their real size here (after the browser laid the host out)
   const firstFit = requestAnimationFrame(() => {
-    applyManagedSizes()
+    apply.applyManagedSizes()
     dock.fit()
   })
 

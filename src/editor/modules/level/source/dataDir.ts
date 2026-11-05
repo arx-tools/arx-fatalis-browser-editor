@@ -1,6 +1,6 @@
 import { shallowRef } from 'vue'
-import { getLocalStorage, type StorageLike } from '../persistedRef/storage.ts'
-import { getUrlAdapter, readUrlValue, type UrlAdapter } from '../persistedRef/url.ts'
+import { getLocalStorage, type StorageLike } from '../../persistedRef/storage.ts'
+import { getUrlAdapter, readUrlValue, type UrlAdapter } from '../../persistedRef/url.ts'
 
 /**
  * The data directory of the game: the folder the level files, the textures, the models and the scripts come from.

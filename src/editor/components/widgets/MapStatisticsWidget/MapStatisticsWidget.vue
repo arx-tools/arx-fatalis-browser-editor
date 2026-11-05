@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { shallowRef, watch } from 'vue'
-import { levelRevision } from '../../../modules/level/editing.ts'
-import { levelStore } from '../../../modules/level/levelStore.ts'
+import { levelRevision } from '../../../modules/level/edit/editing.ts'
+import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import WidgetHeading from '../../WidgetHeading.vue'
 import { mapStatisticsRows } from './mapStatistics.ts'
 

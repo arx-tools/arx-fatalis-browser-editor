@@ -12,7 +12,7 @@ import {
   NEW_LEVEL_PRESETS,
   type NewLevelPreset,
 } from '../../../../src/editor/modules/level/blankLevel.ts'
-import { createBlankLevelSource, loadLevel } from '../../../../src/editor/modules/level/levelSource.ts'
+import { createBlankLevelSource, loadLevel } from '../../../../src/editor/modules/level/source/levelSource.ts'
 import { BLANK_LEVEL_TEXTURE, GENERATOR_ASSETS } from '../../../../src/generator/assets.ts'
 
 /**

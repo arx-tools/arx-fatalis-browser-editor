@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ChevronDown } from 'lucide-vue-next'
 import { ref, watch } from 'vue'
-import { currentMapId, mapCount, mapGroups, openMap } from '../modules/level/maps.ts'
+import { currentMapId, mapCount, mapGroups, openMap } from '../modules/level/source/maps.ts'
 
 /**
  * The list of the maps the editor can open: choosing one opens it.

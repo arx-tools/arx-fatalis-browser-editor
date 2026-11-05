@@ -6,7 +6,7 @@ import {
   createZipUrlLevelSource,
   readLevelFromZip,
   zipFetchUrl,
-} from '../../../../src/editor/modules/level/zipSource.ts'
+} from '../../../../../src/editor/modules/level/source/zipSource.ts'
 
 /**
  * Builds a zip in memory.

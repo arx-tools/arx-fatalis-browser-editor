@@ -1,5 +1,7 @@
 import type { ArxPolygon } from 'arx-convert/types'
-import type { FaceTexture, FaceUv, PolygonInsertion } from '../../../generator/ArxMap.ts'
+import type { FaceTexture } from '../../../generator/ArxMap.ts'
+import type { PolygonInsertion } from '../../../generator/arxMap/removal.ts'
+import type { FaceUv } from '../../../generator/arxMap/uvs.ts'
 import type { HistoryCommand } from './history.ts'
 
 /**

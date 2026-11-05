@@ -11,10 +11,10 @@ import {
   starterLevelSource,
   ZIP_URL_PARAMETER,
   zipUrlFromUrl,
-} from '../../../../src/editor/modules/level/levelSource.ts'
-import { clearPickedDataDir, DATA_DIR_PARAMETER } from '../../../../src/editor/modules/level/dataDir.ts'
-import { isZipLevelSource } from '../../../../src/editor/modules/level/zipSource.ts'
-import type { UrlAdapter } from '../../../../src/editor/modules/persistedRef/url.ts'
+} from '../../../../../src/editor/modules/level/source/levelSource.ts'
+import { clearPickedDataDir, DATA_DIR_PARAMETER } from '../../../../../src/editor/modules/level/source/dataDir.ts'
+import { isZipLevelSource } from '../../../../../src/editor/modules/level/source/zipSource.ts'
+import type { UrlAdapter } from '../../../../../src/editor/modules/persistedRef/url.ts'
 
 /**
  * A fake fetch which answers with the bytes of the url.

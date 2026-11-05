@@ -1,39 +1,24 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ArxPolygon } from 'arx-convert/types'
-import JSZip from 'jszip'
 import { BufferAttribute, DoubleSide, FrontSide, Texture, type Material, type MeshLambertMaterial } from 'three'
-import { ArxMap } from '../../../../src/generator/ArxMap.ts'
-import { createBlankLevelFiles, FLAT_PRESET, MINIMAL_PRESET } from '../../../../src/editor/modules/level/blankLevel.ts'
-import { applyColourKey } from '../../../../src/editor/modules/textures/image.ts'
-import { paintKeyOf, type PaintKey } from '../../../../src/editor/modules/level/levelTextures/paint.ts'
+import { ArxMap } from '../../../../../src/generator/ArxMap.ts'
+import {
+  createBlankLevelFiles,
+  FLAT_PRESET,
+  MINIMAL_PRESET,
+} from '../../../../../src/editor/modules/level/blankLevel.ts'
+import { applyColourKey } from '../../../../../src/editor/modules/textures/image.ts'
+import { paintKeyOf, type PaintKey } from '../../../../../src/editor/modules/level/edit/levelTextures/paint.ts'
 import {
   drawnRunsOf,
   faceRunsOf,
-  findTextureFiles,
   paintLevelTextures,
   solidPolygonsOf,
   textureNamesOf,
   unpaintLevelTextures,
-} from '../../../../src/editor/modules/level/levelTextures.ts'
-import { Settings } from '../../../../src/generator/Settings.ts'
-
-/**
- * Builds a zip in memory.
- *
- * @param files The path of every file and its content.
- *
- * @returns The bytes of the zip.
- */
-async function zipOf(files: Record<string, string>): Promise<ArrayBuffer> {
-  const archive = new JSZip()
-
-  for (const [path, content] of Object.entries(files)) {
-    archive.file(path, content)
-  }
-
-  return await archive.generateAsync({ type: 'arraybuffer' })
-}
+} from '../../../../../src/editor/modules/level/edit/levelTextures.ts'
+import { Settings } from '../../../../../src/generator/Settings.ts'
 
 /**
  * A polygon of the test, with the fields the runs read.
@@ -75,54 +60,6 @@ function blankMap(): ArxMap {
 
   return new ArxMap(files.dlf, files.fts, files.llf, new Settings({ seed: '1' }))
 }
-
-void describe('findTextureFiles', () => {
-  const names = ['[stone]_wall.bmp', '[wood]_floor.jpg', 'missing.bmp']
-
-  void it('finds the textures of the level in the zip by their name', async () => {
-    const data = await zipOf({
-      'graph/obj3d/textures/[stone]_wall.bmp': 'bmp',
-      'graph/obj3d/textures/[wood]_floor.jpg': 'jpg',
-      'sfx/click.wav': 'wav',
-    })
-    const files = await findTextureFiles(data, names)
-
-    assert.deepEqual(files.keys().toArray().toSorted(), ['[stone]_wall.bmp', '[wood]_floor.jpg'])
-  })
-
-  void it('takes only the files the manifest lists', async () => {
-    const data = await zipOf({
-      'graph/obj3d/textures/[stone]_wall.bmp': 'bmp',
-      // a texture the zip still carries but the level no longer uses: the manifest does not list it
-      'graph/obj3d/textures/[wood]_floor.jpg': 'jpg',
-      'manifest.json': JSON.stringify({
-        name: 'A level',
-        // the real manifest names the installed files with absolute machine paths
-        files: ['/home/lali/maps/mine/graph/obj3d/textures/[stone]_wall.bmp', '/home/lali/maps/mine/sfx/click.wav'],
-      }),
-    })
-    const files = await findTextureFiles(data, names)
-
-    assert.deepEqual(files.keys().toArray(), ['[stone]_wall.bmp'])
-  })
-
-  void it('finds a texture the level names without its extension', async () => {
-    const data = await zipOf({ 'graph/obj3d/textures/[glass]_windows2.jpg': 'jpg' })
-    const files = await findTextureFiles(data, ['[glass]_windows2'])
-
-    assert.deepEqual(files.keys().toArray(), ['[glass]_windows2'])
-  })
-
-  void it('finds the textures when the manifest is not JSON', async () => {
-    const data = await zipOf({
-      'graph/obj3d/textures/[stone]_wall.bmp': 'bmp',
-      'manifest.json': 'not a json at all',
-    })
-    const files = await findTextureFiles(data, names)
-
-    assert.deepEqual(files.keys().toArray(), ['[stone]_wall.bmp'])
-  })
-})
 
 void describe('applyColourKey', () => {
   void it('makes the black pixels of a BMP transparent', () => {

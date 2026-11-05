@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { ArxPolygonFlags, type ArxPolygon } from 'arx-convert/types'
-import type { FaceTexture, FaceUv, PolygonInsertion } from '../../../../src/generator/ArxMap.ts'
+import type { FaceTexture } from '../../../../src/generator/ArxMap.ts'
+import type { PolygonInsertion } from '../../../../src/generator/arxMap/removal.ts'
+import type { FaceUv } from '../../../../src/generator/arxMap/uvs.ts'
 import {
   commandOf,
   createDeleteFacesRecord,

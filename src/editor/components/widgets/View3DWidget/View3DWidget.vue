@@ -6,8 +6,8 @@ import Crosshair from '../../Crosshair.vue'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { sameTextureAreaOf, usedVerticesOf } from '../../../../generator/polygons.ts'
-import { levelRevision } from '../../../modules/level/editing.ts'
-import { levelStore } from '../../../modules/level/levelStore.ts'
+import { levelRevision } from '../../../modules/level/edit/editing.ts'
+import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { WIDGET_KINDS } from '../../../modules/layout/widgetKinds.ts'
 import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
 import { isKeyDown } from '../../../modules/keyboard/keyboard.ts'
@@ -26,7 +26,7 @@ import {
   type ViewScene,
 } from '../shared/viewScene.ts'
 import { CameraControls } from './cameraControls.ts'
-import { isPickDue } from './pickInterval.ts'
+import { createFrameLoop } from './frameLoop.ts'
 import { createOrientationGizmo, type OrientationGizmo } from './orientationGizmo.ts'
 import {
   createPolygonSelectionOverlay,
@@ -118,26 +118,6 @@ let loadedMap: ArxMap | undefined
 let stopWatchingSelection: (() => void) | undefined
 let controls: CameraControls | undefined
 let observer: ResizeObserver | undefined
-let frame = 0
-let lastFrameAt = 0
-/**
- * The pose of the camera of the last drawn frame, as a string: the locked loop draws only when the camera moved.
- */
-let lastDrawnPose = ''
-/**
- * Whether something else (the level, the selection, the size) asks for a frame of the locked loop.
- */
-let redrawNeeded = false
-/**
- * When the crosshair last picked a face, and whether a pick was held back by the interval.
- *
- * @remarks
- * The pick is a ray through the level (11,6 ms on a big level), and the camera moves every frame: the pick runs at most
- * every {@link PICK_INTERVAL_MS}, and the frame it was held back on asks for one more when the interval is over — so a
- * camera that stops still outlines the face it stopped on.
- */
-let lastPickedAt = 0
-let pickPending = false
 let stopWatching: (() => void) | undefined
 let stopWatchingWireframe: (() => void) | undefined
 let stopWatchingMesh: (() => void) | undefined
@@ -306,27 +286,13 @@ function onDoubleClick(event: MouseEvent): void {
  * Reads the face under the crosshair and tells the outline and the inspector about it.
  *
  * @remarks
- * The pick is a ray through the level, so it runs at most every {@link PICK_INTERVAL_MS} while the pointer is locked;
- * a held back pick asks the loop for a frame by {@link pickPending}, and that frame picks even if the camera stands
- * still.
- *
- * @param now The timestamp of the frame, in milliseconds.
+ * The loop decides when the pick runs (at most every {@link PICK_INTERVAL_MS} under the pointer lock): this reads the
+ * face and puts it on the screen.
  */
-function updateCursor(now: number): void {
+function pickUnderCrosshair(): void {
   if (view === undefined || loadedMap === undefined || selection === undefined) {
     return
   }
-
-  // a frame of the locked loop picks only when the interval is over, and the one that was held back asks for a frame
-  // when it is not: a camera that stops still outlines the face under the crosshair
-  if (controls?.isLocked === true && !isPickDue(now, lastPickedAt)) {
-    pickPending = true
-
-    return
-  }
-
-  lastPickedAt = now
-  pickPending = false
 
   const index = pickPolygon(view.camera, shown, loadedMap.triangleToPolygon)
   let polygon: ArxPolygon | undefined
@@ -394,75 +360,30 @@ function updateDrag(): void {
 }
 
 /**
- * Reads the pose of the camera of the view, as one string.
+ * The frame loop of the view: when it draws, and how often it picks.
  *
  * @remarks
- * The locked loop compares it with the pose of the last drawn frame: the crosshair pick and the render of a level cost
- * real time on a big level, and a view that stands still has nothing new to pick or to draw.
- *
- * @param viewScene The view to read the camera of.
- *
- * @returns The position and the rotation of the camera, as one string.
+ * The loop has its own module (`frameLoop.ts`): this is where the widget binds the scene, the camera controls and the
+ * picking to it.
  */
-function poseOf(viewScene: ViewScene<PerspectiveCamera>): string {
-  const { position, quaternion } = viewScene.camera
-
-  return `${position.x.toFixed(3)},${position.y.toFixed(3)},${position.z.toFixed(3)}|${quaternion.x.toFixed(4)},${quaternion.y.toFixed(4)},${quaternion.z.toFixed(4)},${quaternion.w.toFixed(4)}`
-}
-
-/**
- * Draws one frame: the scene, then the orientation compass in its own corner.
- *
- * @remarks
- * The gizmo has a canvas of its own over the corner, so it draws after the scene and never touches its
- * frame.
- *
- * @param now The timestamp of the frame, in milliseconds.
- */
-function drawFrame(now: number): void {
-  if (view === undefined) {
-    return
-  }
-
-  // the crosshair is the centre of the canvas, so the polygon under it is read here, on every frame that
-  // is drawn: a look around moves the outline with the camera
-  updateCursor(now)
-  updateDrag()
-
-  view.renderer.render(view.scene, view.camera)
-  gizmo?.render()
-}
-
-/**
- * Draws the next frame, at most once per animation frame.
- *
- * @remarks
- * The first round has no controls and no animation, so the scene is only redrawn when something changes:
- * after the level arrived, after a resize.
- */
-function requestRender(): void {
-  redrawNeeded = true
-
-  if (frame !== 0) {
-    // the locked loop draws it, on its next frame
-    return
-  }
-
-  frame = requestAnimationFrame((now) => {
-    frame = 0
-    redrawNeeded = false
-    drawFrame(now)
-  })
-}
+const loop = createFrameLoop({
+  view: () => {
+    return view
+  },
+  controls: () => {
+    return controls
+  },
+  pick: () => {
+    pickUnderCrosshair()
+  },
+  updateDrag,
+  gizmo: () => {
+    return gizmo
+  },
+})
 
 /**
  * Recolours the outline of the face under the crosshair when a modifier key goes down or up.
- *
- * @remarks
- * The mode of the next click is read from the keys, and the keys change without a mouse move: a `Ctrl` pressed over a
- * view that stands still used to leave the outline green until the pointer moved again (2026-11-05, the owner's bug
- * report). The pick is taken again on the next frame — the held back pick is what a frame that stands still waits for —
- * so the outline is red before the click.
  *
  * @param event The key event of the window.
  */
@@ -471,67 +392,7 @@ function onModifierKey(event: KeyboardEvent): void {
     return
   }
 
-  lastPickedAt = 0
-  pickPending = true
-  requestRender()
-}
-
-/**
- * Draws the frames for as long as the pointer is locked.
- *
- * @remarks
- * Outside the pointer lock nothing moves the camera, so the scene is only redrawn when something
- * changes (the level arrived, the widget was resized). The loop stops when the lock is released.
- *
- * @param now The timestamp the browser gave the frame.
- */
-function animate(now: number): void {
-  let deltaSeconds = 0
-
-  if (lastFrameAt !== 0) {
-    deltaSeconds = (now - lastFrameAt) / 1000
-  }
-
-  lastFrameAt = now
-
-  if (controls?.isLocked !== true) {
-    frame = 0
-    lastFrameAt = 0
-
-    return
-  }
-
-  controls.update(deltaSeconds)
-
-  // a frame costs a raycast and a render, and on a big level that is a real part of a frame's time: the pick only
-  // changes when the camera moves (the crosshair is the centre of the canvas) or when the level under it changes, so
-  // a locked view that stands still draws nothing
-  let pose = ''
-
-  if (view !== undefined) {
-    pose = poseOf(view)
-  }
-
-  if (pose !== lastDrawnPose || redrawNeeded || (pickPending && isPickDue(now, lastPickedAt))) {
-    lastDrawnPose = pose
-    redrawNeeded = false
-    drawFrame(now)
-  }
-
-  frame = requestAnimationFrame(animate)
-}
-
-/**
- * Starts the locked movement loop, if it is not running already.
- */
-function startLoop(): void {
-  if (frame !== 0) {
-    requestAnimationFrame(animate)
-    return
-  }
-
-  lastFrameAt = 0
-  frame = requestAnimationFrame(animate)
+  loop.holdPick()
 }
 
 /**
@@ -554,7 +415,7 @@ function resize(): void {
   }
 
   resizeViewScene(view, width, height)
-  requestRender()
+  loop.requestRender()
 }
 
 /**
@@ -615,11 +476,10 @@ function showMap(map: ArxMap): void {
   wireframe.setVisible(isWireframeVisible.value)
 
   loadedMap = map
-  lastPickedAt = 0
-  pickPending = false
+  loop.resetPick()
   selection = createPolygonSelectionOverlay(view.scene, arxVector3toVector3(map.scenePosition))
   updateHighlight()
-  requestRender()
+  loop.requestRender()
 
   // a level change builds a new camera: the old one has to let the pointer and the listeners go
   controls?.dispose()
@@ -631,16 +491,16 @@ function showMap(map: ArxMap): void {
     player: map.player,
     onPoseChange: (pose): void => {
       cameraStore.setPose(pose)
-      requestRender()
+      loop.requestRender()
     },
     onLockChange: (locked: boolean): void => {
       if (locked) {
-        startLoop()
+        loop.startLoop()
 
         return
       }
 
-      requestRender()
+      loop.requestRender()
     },
   })
 
@@ -656,7 +516,7 @@ function showMap(map: ArxMap): void {
     },
   })
 
-  requestRender()
+  loop.requestRender()
 }
 
 /**
@@ -721,7 +581,7 @@ onMounted(() => {
   // the wireframe is a switch of every view at once: the same ref is read by the six fixed ones
   stopWatchingWireframe = watch(isWireframeVisible, (visible) => {
     wireframe?.setVisible(visible)
-    requestRender()
+    loop.requestRender()
   })
 
   // an edit changes the polygons, but not the objects this view holds: the level refills its geometry in
@@ -729,19 +589,19 @@ onMounted(() => {
   // frame: the view draws on demand, so without this the canvas would keep the picture of the level before
   // the edit (a walk away and back would refresh it, which is exactly what a still picture can not do)
   stopWatchingEdit = watch(levelRevision, () => {
-    requestRender()
+    loop.requestRender()
   })
 
   // the mesh is a switch too: off, the level keeps the wireframe and the overlays only
   stopWatchingMesh = watch(isMeshVisible, (visible) => {
     setMeshVisible(visible)
-    requestRender()
+    loop.requestRender()
   })
 
   // the selection is shared with the statistics widget: a change draws the fill of the polygons
   stopWatchingSelection = watch(selectionStore.polygons, () => {
     updateHighlight()
-    requestRender()
+    loop.requestRender()
   })
 
   globalThis.addEventListener('keydown', onModifierKey)
@@ -780,10 +640,7 @@ onBeforeUnmount(() => {
   controls?.dispose()
   controls = undefined
 
-  if (frame !== 0) {
-    cancelAnimationFrame(frame)
-    frame = 0
-  }
+  loop.stop()
 
   gizmo?.dispose()
   gizmo = undefined

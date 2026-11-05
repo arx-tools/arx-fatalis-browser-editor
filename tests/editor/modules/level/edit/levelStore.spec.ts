@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { watch } from 'vue'
-import type { ArxMap } from '../../../../src/generator/ArxMap.ts'
-import { createLevelStore } from '../../../../src/editor/modules/level/levelStore.ts'
+import type { ArxMap } from '../../../../../src/generator/ArxMap.ts'
+import { createLevelStore } from '../../../../../src/editor/modules/level/edit/levelStore.ts'
 
 /**
  * A map of the test: the store only passes it through.

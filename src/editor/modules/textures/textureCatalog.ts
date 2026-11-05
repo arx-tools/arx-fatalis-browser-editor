@@ -1,7 +1,7 @@
 import { computed, shallowRef, watch, type ComputedRef, type ShallowRef } from 'vue'
 import { BLANK_LEVEL_TEXTURE, GENERATOR_ASSETS } from '../../../generator/assets.ts'
 import type { ArxMap } from '../../../generator/ArxMap.ts'
-import { dataDirState, listDataDirTextures, readDataFile, TEXTURE_FOLDER } from '../level/dataDir.ts'
+import { dataDirState, listDataDirTextures, readDataFile, TEXTURE_FOLDER } from '../level/source/dataDir.ts'
 import { decodeTextureBitmap, thumbnailUrlOf } from './image.ts'
 import { groupOf, type TextureGroup } from './search.ts'
 import type { TextureEntry, TextureSource } from './textureEntry.ts'

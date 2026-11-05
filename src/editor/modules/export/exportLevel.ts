@@ -4,8 +4,8 @@ import { getCellCoords, isQuad, MAP_WIDTH_IN_CELLS } from 'arx-convert/utils'
 import { getHeaderSize } from 'arx-header-size'
 import JSZip from 'jszip'
 import type { ArxMap } from '../../../generator/ArxMap.ts'
-import type { LevelFiles } from '../level/levelSource.ts'
-import { packLevelFile, packWholeFile } from '../level/packedFile.ts'
+import type { LevelFiles } from '../level/source/levelSource.ts'
+import { packLevelFile, packWholeFile } from '../level/source/packedFile.ts'
 
 /**
  * The name the browser saves the archive of a level under.

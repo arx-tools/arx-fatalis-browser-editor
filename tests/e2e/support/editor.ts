@@ -2,7 +2,7 @@ import { expect, type Locator, type Page } from '@playwright/test'
 import { editorLayout } from '../../../src/editor/modules/layout/layoutPresets.ts'
 import type { LayoutNode } from '../../../src/editor/modules/layout/layoutNode.ts'
 import { WIDGET_KINDS } from '../../../src/editor/modules/layout/widgetKinds.ts'
-import { ORIGINAL_LEVEL_PARAMETER } from '../../../src/editor/modules/level/levelSource.ts'
+import { ORIGINAL_LEVEL_PARAMETER } from '../../../src/editor/modules/level/source/levelSource.ts'
 
 /**
  * Starts the page with the given layout on the dock.

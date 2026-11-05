@@ -1,10 +1,10 @@
 import { shallowRef, watch, type ShallowRef } from 'vue'
-import type { ArxMap } from '../../../generator/ArxMap.ts'
-import { history, type HistoryCommand } from '../history/history.ts'
-import { historyOfMap, rememberMapHistory } from '../history/mapHistory.ts'
-import { commandOf, createDeleteFacesRecord } from '../history/records.ts'
-import { onKeyboardAction } from '../keyboard/keyboard.ts'
-import { selectionStore } from '../selection/selectionStore.ts'
+import type { ArxMap } from '../../../../generator/ArxMap.ts'
+import { history, type HistoryCommand } from '../../history/history.ts'
+import { historyOfMap, rememberMapHistory } from '../../history/mapHistory.ts'
+import { commandOf, createDeleteFacesRecord } from '../../history/records.ts'
+import { onKeyboardAction } from '../../keyboard/keyboard.ts'
+import { selectionStore } from '../../selection/selectionStore.ts'
 import { levelStore } from './levelStore.ts'
 
 /**

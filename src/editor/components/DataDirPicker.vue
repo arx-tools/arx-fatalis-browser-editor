@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { Check, FolderOpen, HelpCircle, X } from 'lucide-vue-next'
 import { computed, ref, useTemplateRef } from 'vue'
-import { dataDirState, setPickedDataDir, type DataDirFile } from '../modules/level/dataDir.ts'
-import { paintLevel, repaintLevelTextures } from '../modules/level/levelTextures.ts'
-import { starterLevelSource } from '../modules/level/levelSource.ts'
+import { dataDirState, setPickedDataDir, type DataDirFile } from '../modules/level/source/dataDir.ts'
+import { paintLevel, repaintLevelTextures } from '../modules/level/edit/levelTextures.ts'
+import { starterLevelSource } from '../modules/level/source/levelSource.ts'
 import { getUrlAdapter } from '../modules/persistedRef/url.ts'
-import { levelStore } from '../modules/level/levelStore.ts'
-import { isZipLevelSource } from '../modules/level/zipSource.ts'
+import { levelStore } from '../modules/level/edit/levelStore.ts'
+import { isZipLevelSource } from '../modules/level/source/zipSource.ts'
 import {
   availableMapIdOf,
   arxLevels,
@@ -16,7 +16,7 @@ import {
   openMap,
   refreshDataDir,
   startupSource,
-} from '../modules/level/maps.ts'
+} from '../modules/level/source/maps.ts'
 import Modal from './Modal.vue'
 
 /**

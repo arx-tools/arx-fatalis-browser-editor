@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import type { HistoryRecord } from '../../../../src/editor/modules/history/records.ts'
+import type { HistoryRecord } from '../../../../../src/editor/modules/history/records.ts'
 import {
   availableMapIdOf,
   editedMapIdsOf,
@@ -9,8 +9,8 @@ import {
   mapSlugOf,
   rememberMapId,
   storedMapId,
-} from '../../../../src/editor/modules/level/maps.ts'
-import type { UrlAdapter } from '../../../../src/editor/modules/persistedRef/url.ts'
+} from '../../../../../src/editor/modules/level/source/maps.ts'
+import type { UrlAdapter } from '../../../../../src/editor/modules/persistedRef/url.ts'
 
 /**
  * A step of the test: a delete of the first face.

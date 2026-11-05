@@ -286,7 +286,7 @@ export function createLevelMaterial(options: LevelMaterialOptions = {}): MeshLam
  *
  * @remarks
  * The flat grey of the mesh, darkened by half: the lines then read on it, and the look is the one the
- * archived editor had (`createPolygonWireframe` in `src/_old/`).
+ * archived editor had (`createPolygonWireframe`, deleted from `src/_old/` on 2026-11-05).
  */
 const WIREFRAME_COLOR = Color.white.darken(50)
 
@@ -313,7 +313,7 @@ export function createWireframeMaterial(): LineBasicMaterial {
  * @remarks
  * The **perimeter of every source polygon** instead of the triangles of the merged geometry: this keeps
  * the quad edges visible without the diagonal the triangle split introduces, so the wireframe shows the
- * polygons the level stores (the archived editor did the same in `src/_old/geometry/createWireframe.ts`).
+ * polygons the level stores (the archived editor did the same in its `createWireframe`, deleted on 2026-11-05).
  *
  * The perimeter follows {@link polygonPerimeter} (`0-1-2` for a triangle, `0-1-3-2` for a quad), and
  * the segments go into the geometry as pairs of points, which is what a `LineSegments` reads.

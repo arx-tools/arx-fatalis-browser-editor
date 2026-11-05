@@ -12,9 +12,9 @@ import { currentMapId, mapCount, mapGroups, openMap } from '../modules/level/map
  * map and replayed when the map comes back — so a switch loses nothing, and a dialog in front of a plain choice would
  * only be in the way.
  *
- * Every row starts with a **dot**: filled for a map that has changes on it, hollow for one that does not. The dot is a
- * character and not a styled element because a `<option>` of a native select is drawn by the browser: a colour would
- * need a list of its own, and the two states still read. The dot is on every row, so the labels line up.
+ * A row is the **name** of the map, and nothing else: the dot that marked a map with changes was taken out (2026-11-04,
+ * the owner's decision, TODO 120 in `CANCELLED.md`), and a styled `<option>` would need a dropdown of its own — the
+ * browser draws the row of a native select.
  */
 const selected = ref(currentMapId.value)
 

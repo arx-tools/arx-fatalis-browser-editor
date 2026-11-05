@@ -6,6 +6,9 @@ import JumpToLocationWidget from './components/widgets/JumpToLocationWidget/Jump
 import PolygonInspectorWidget from './components/widgets/PolygonInspectorWidget/PolygonInspectorWidget.vue'
 import MapStatisticsWidget from './components/widgets/MapStatisticsWidget/MapStatisticsWidget.vue'
 import RenderPerformanceWidget from './components/widgets/RenderPerformanceWidget/RenderPerformanceWidget.vue'
+import SelectionInspectorWidget from './components/widgets/SelectionInspectorWidget/SelectionInspectorWidget.vue'
+import TextureBrowserWidget from './components/widgets/TextureBrowserWidget/TextureBrowserWidget.vue'
+import UvMapperWidget from './components/widgets/UvMapperWidget/UvMapperWidget.vue'
 import View3DWidget from './components/widgets/View3DWidget/View3DWidget.vue'
 import type { CameraViewMode } from './components/widgets/FixedViewWidget/cameraAlign.ts'
 import { WIDGET_KINDS } from './modules/layout/widgetKinds.ts'
@@ -114,6 +117,30 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
     group: 'info',
     create: (label): Widget => {
       return new VueWidget(PolygonInspectorWidget, { label })
+    },
+  },
+  {
+    kind: WIDGET_KINDS.textures,
+    label: 'Textures',
+    group: 'info',
+    create: (label): Widget => {
+      return new VueWidget(TextureBrowserWidget, { label })
+    },
+  },
+  {
+    kind: WIDGET_KINDS.selectionInspector,
+    label: 'Selection Inspector',
+    group: 'info',
+    create: (label): Widget => {
+      return new VueWidget(SelectionInspectorWidget, { label })
+    },
+  },
+  {
+    kind: WIDGET_KINDS.uvMapper,
+    label: 'UV Mapper',
+    group: 'info',
+    create: (label): Widget => {
+      return new VueWidget(UvMapperWidget, { label })
     },
   },
   {

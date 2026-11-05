@@ -133,6 +133,12 @@ void describe('vertexKeyOf', () => {
   void it('rounds the position, so a rounding difference still meets', () => {
     assert.equal(vertexKeyOf({ x: 1.0001, y: 2.0002, z: 3.0003 }), vertexKeyOf({ x: 1, y: 2, z: 3 }))
   })
+
+  void it('welds a seam of a few thousandths of a unit, like the two halves of the level 0 floor', () => {
+    // the two pieces of the floor sit at 1780.7126 and 1780.7159, and the player sees one floor: the key is a tenth,
+    // so they meet (measured on level 0: the double click went from 110 + 122 faces to one area of 232)
+    assert.equal(vertexKeyOf({ x: 8550, y: 1780.7126, z: 10_050 }), vertexKeyOf({ x: 8550, y: 1780.7159, z: 10_050 }))
+  })
 })
 
 void describe('vertexToPolygonsMap', () => {
@@ -140,7 +146,7 @@ void describe('vertexToPolygonsMap', () => {
     // the two quads start at the same `x`: they share their left edge
     const index = vertexToPolygonsMap([quadAt(0, 1), quadAt(0, 2), quadAt(20, 1)])
 
-    assert.deepEqual(index.get('0.00:0.00:0.00'), [0, 1])
+    assert.deepEqual(index.get('0.0:0.0:0.0'), [0, 1])
     // the two quads at the same place share all four of their keys, the third one adds four more
     assert.equal(index.size, 8)
   })

@@ -245,4 +245,200 @@ void describe('ArxMap', () => {
       assert.notEqual(polygon, undefined)
     })
   })
+
+  void describe('the texture of the faces', () => {
+    void it('adds a texture container the level does not have', () => {
+      const map = flatMap()
+      const id = map.nextTextureContainerId()
+
+      assert.equal(map.textureNameOf(id), undefined)
+      assert.equal(map.textureContainerIdOfName('dropped.png'), undefined)
+
+      map.addTextureContainer(id, 'dropped.png')
+
+      assert.equal(map.textureNameOf(id), 'dropped.png')
+      assert.equal(map.textureContainerIdOfName('dropped.png'), id)
+      // the ids of the game are the hashes of the file names, so the next one is above the biggest
+      assert.equal(map.nextTextureContainerId(), id + 1)
+      assert.equal(
+        map.fts.textureContainers.filter((container) => {
+          return container.id === id
+        }).length,
+        1,
+      )
+    })
+
+    void it('leaves a container the level has already', () => {
+      const map = flatMap()
+      const id = map.nextTextureContainerId()
+
+      map.addTextureContainer(id, 'dropped.png')
+      map.addTextureContainer(id, 'other.png')
+
+      // the step that adds a container may be replayed: the second call does not write another one
+      assert.equal(map.textureNameOf(id), 'dropped.png')
+      assert.equal(map.fts.textureContainers.at(-1)?.id, id)
+    })
+
+    void it('takes a container out of the level', () => {
+      const map = flatMap()
+      const id = map.nextTextureContainerId()
+
+      map.addTextureContainer(id, 'dropped.png')
+      map.removeTextureContainer(id)
+
+      assert.equal(map.textureNameOf(id), undefined)
+      assert.equal(map.textureContainerIdOfName('dropped.png'), undefined)
+      assert.equal(
+        map.fts.textureContainers.some((container) => {
+          return container.id === id
+        }),
+        false,
+      )
+    })
+
+    void it('paints the faces, and reads the runs of the texture again', () => {
+      const map = flatMap()
+      const { polygons } = map
+      const first = polygons[0]
+
+      assert.notEqual(first, undefined)
+
+      if (first === undefined) {
+        return
+      }
+
+      const id = map.nextTextureContainerId()
+
+      map.addTextureContainer(id, 'dropped.png')
+      map.setFaceTextures([{ index: 0, textureContainerId: id }])
+
+      assert.equal(polygons[0]?.textureContainerId, id)
+
+      const index = map.solidMeshes[0]?.geometry.getIndex()
+
+      assert.notEqual(index, null)
+
+      if (index === null) {
+        return
+      }
+
+      // the first face is a quad: its two triangles are the first six indices of the plain order, and the runs are read
+      // in the order of the index, so the face that changed is the first run of its new container
+      assert.deepEqual(
+        map.textureRuns.map((run) => {
+          return { start: run.start, count: run.count, textureContainerId: run.textureContainerId }
+        })[0],
+        { start: 0, count: 6, textureContainerId: id },
+      )
+
+      // and the runs cover the whole index again, so the paint finds the blocks of the materials where they are
+      assert.equal(
+        map.textureRuns.reduce((sum, run) => {
+          return sum + run.count
+        }, 0),
+        index.count,
+      )
+    })
+
+    void it('leaves the runs alone when the faces keep their texture', () => {
+      const map = flatMap()
+      const runs = map.textureRuns
+
+      map.setFaceTextures([{ index: 0, textureContainerId: map.polygons[0]?.textureContainerId ?? 0 }])
+
+      assert.equal(map.textureRuns, runs)
+    })
+  })
+
+  void describe('the uv of the faces', () => {
+    void it('writes the corners into the polygon and into the geometry', () => {
+      const map = flatMap()
+      const polygon = map.polygons[0]
+      const geometry = map.solidMeshes[0]?.geometry
+
+      assert.notEqual(polygon, undefined)
+      assert.notEqual(geometry, undefined)
+
+      if (polygon === undefined || geometry === undefined) {
+        return
+      }
+
+      const uvs = [
+        { u: 0.1, v: 0.1 },
+        { u: 0.9, v: 0.1 },
+        { u: 0.9, v: 0.9 },
+        { u: 0.1, v: 0.9 },
+      ]
+
+      map.setFaceUvs(0, uvs)
+
+      // the model, which the export writes
+      assert.deepEqual(
+        polygon.vertices.slice(0, 4).map((vertex) => {
+          return [vertex.u, vertex.v]
+        }),
+        [
+          [0.1, 0.1],
+          [0.9, 0.1],
+          [0.9, 0.9],
+          [0.1, 0.9],
+        ],
+      )
+
+      // the attribute of the mesh: the first face is the first six vertices, in the order `a, b, c, c, b, d`. The
+      // attribute is a float32, so the numbers come back with the rounding of the type
+      const attribute = geometry.getAttribute('uv')
+
+      function rounded(value: number): number {
+        return Math.round(value * 1e5) / 1e5
+      }
+
+      assert.deepEqual(
+        Array.from({ length: 6 }, (_, slot) => {
+          return [rounded(attribute.getX(slot)), rounded(attribute.getY(slot))]
+        }),
+        [
+          [0.1, 0.1],
+          [0.9, 0.1],
+          [0.9, 0.9],
+          [0.9, 0.9],
+          [0.9, 0.1],
+          [0.1, 0.9],
+        ],
+      )
+    })
+
+    void it('writes the corners of a face that is not the first one', () => {
+      const map = flatMap()
+      const geometry = map.solidMeshes[0]?.geometry
+
+      assert.notEqual(geometry, undefined)
+
+      if (geometry === undefined) {
+        return
+      }
+
+      const attribute = geometry.getAttribute('uv')
+
+      function rounded(value: number): number {
+        return Math.round(value * 1e5) / 1e5
+      }
+
+      const before = [rounded(attribute.getX(0)), rounded(attribute.getY(0))]
+
+      // the blank level is a floor of quads: the second face starts at the seventh vertex
+      map.setFaceUvs(1, [
+        { u: 0.25, v: 0.25 },
+        { u: 0.75, v: 0.25 },
+        { u: 0.75, v: 0.75 },
+        { u: 0.25, v: 0.75 },
+      ])
+
+      assert.deepEqual([rounded(attribute.getX(6)), rounded(attribute.getY(6))], [0.25, 0.25])
+      assert.deepEqual([rounded(attribute.getX(8)), rounded(attribute.getY(8))], [0.75, 0.75])
+      // and the face before it is untouched
+      assert.deepEqual([rounded(attribute.getX(0)), rounded(attribute.getY(0))], before)
+    })
+  })
 })

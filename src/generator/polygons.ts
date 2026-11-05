@@ -1,4 +1,4 @@
-import { ArxPolygonFlags, type ArxPolygon, type ArxVector3 } from 'arx-convert/types'
+import { ArxPolygonFlags, type ArxPolygon, type ArxVertex, type ArxVector3 } from 'arx-convert/types'
 import { isQuad } from 'arx-convert/utils'
 import { arxVector3toVector3 } from './meshes.ts'
 
@@ -195,13 +195,25 @@ export function polygonOfTriangle(map: readonly number[], triangleIndex: number)
  *
  * @returns The vertices it draws.
  */
-export function usedVerticesOf(polygon: ArxPolygon): ArxVector3[] {
+export function usedVerticesOf(polygon: ArxPolygon): ArxVertex[] {
   if (isQuad(polygon)) {
     return polygon.vertices.slice(0, 4)
   }
 
   return polygon.vertices.slice(0, 3)
 }
+
+/**
+ * The precision of the key of a vertex position, in decimals: a tenth of a unit.
+ *
+ * @remarks
+ * The level 0 floor is a single surface the author put together from two pieces, and the pieces sit at heights that
+ * differ by **0.003** (measured: `y` 1780.7126 and 1780.7159 on the two sides of the seam). A key of two decimals puts
+ * those in **two** buckets — 1780.71 and 1780.72 — so the double click selected one half of the floor (110 faces) and
+ * the other half was a separate area (122), while the player sees one floor. One decimal welds them (232), and it is far
+ * below the 100-unit cell of the level, so two faces that are genuinely apart do not meet.
+ */
+const VERTEX_KEY_DECIMALS = 1
 
 /**
  * The key of a vertex position: the rounded coordinates, so two polygons that meet at the same point find
@@ -212,7 +224,7 @@ export function usedVerticesOf(polygon: ArxPolygon): ArxVector3[] {
  * @returns The key of its position.
  */
 export function vertexKeyOf(vertex: ArxVector3): string {
-  return `${vertex.x.toFixed(2)}:${vertex.y.toFixed(2)}:${vertex.z.toFixed(2)}`
+  return `${vertex.x.toFixed(VERTEX_KEY_DECIMALS)}:${vertex.y.toFixed(VERTEX_KEY_DECIMALS)}:${vertex.z.toFixed(VERTEX_KEY_DECIMALS)}`
 }
 
 /**

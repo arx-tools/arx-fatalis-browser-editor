@@ -111,6 +111,34 @@ export interface MapStatistics {
 }
 
 /**
+ * The place of a corner of a face on its texture, in the 0..1 space of the uv.
+ */
+export interface FaceUv {
+  /**
+   * The column of the texture, from the left.
+   */
+  readonly u: number
+  /**
+   * The row of the texture, from the bottom (the way the renderer reads it).
+   */
+  readonly v: number
+}
+
+/**
+ * The texture container a face takes.
+ */
+export interface FaceTexture {
+  /**
+   * The index of the face in {@link ArxMap.polygons}.
+   */
+  readonly index: number
+  /**
+   * The id of the texture container it draws with.
+   */
+  readonly textureContainerId: number
+}
+
+/**
  * A polygon that goes back into the level, at the index it was taken from.
  */
 export interface PolygonInsertion {
@@ -209,6 +237,53 @@ function blendOfRunKey(key: number): PolygonBlendMode {
   const index = Math.trunc(key / BLEND_MODE_STEP)
 
   return POLYGON_BLEND_MODES[index] ?? 'opaque'
+}
+
+/**
+ * Reads the run key of a polygon.
+ *
+ * @remarks
+ * Every part of the key is a property of the face, so the key of a run is read from its first polygon the same way the
+ * sort of the triangles reads it (`indexSolidGeometryInTextureOrder`) and a later texture edit reads it again
+ * (`refreshTextureRuns`). The brightness of a face without one is the opaque value, so a polygon the level has no
+ * place for still gets a key of its own.
+ *
+ * @param polygon The polygon to read, or `undefined` when the triangle has none.
+ *
+ * @returns The key the triangles of the face sort with.
+ */
+function runKeyOfPolygon(polygon: ArxPolygon | undefined): number {
+  let container = 0
+  let blendIndex = 0
+  let trans = 1
+
+  if (polygon !== undefined) {
+    container = polygon.textureContainerId
+    blendIndex = POLYGON_BLEND_MODES.indexOf(blendModeOf(polygon))
+    trans = blendTransOf(polygon)
+  }
+
+  return runKeyOf(container, polygon !== undefined && isDoubleSided(polygon), blendIndex, trans)
+}
+
+/**
+ * Builds the run of a key, the way the level stores it.
+ *
+ * @param key The key the triangles of the run carry.
+ * @param start The first index of it in the index buffer.
+ * @param count The number of the indices of the buffer the run holds.
+ *
+ * @returns The run, in the shape {@link TextureRun} has.
+ */
+function textureRunOf(key: number, start: number, count: number): TextureRun {
+  return {
+    start,
+    count,
+    textureContainerId: containerOfRunKey(key),
+    doubleSided: Math.trunc(key / BLEND_SIDE_STEP) % 2 === 1,
+    blend: blendOfRunKey(key),
+    trans: (key % BLEND_TRANS_STEP) / 100,
+  }
 }
 
 /**
@@ -381,8 +456,11 @@ export class ArxMap {
    * @remarks
    * The FTS stores the containers as a list, and a polygon holds an id: the two are looked up here once, so the
    * inspector can name the texture of a face without walking the list on every frame.
+   *
+   * It follows the containers of the level: a texture the editor adds to a face
+   * ({@link ArxMap.addTextureContainer}) is in this map too, so `textureNameOf` names it right away.
    */
-  private readonly textureNames: ReadonlyMap<number, string>
+  private readonly textureNames: Map<number, string>
 
   /**
    * The scene position of the level, which is the origin of the mesh's coordinate system.
@@ -487,6 +565,187 @@ export class ArxMap {
    */
   textureNameOf(textureContainerId: number): string | undefined {
     return this.textureNames.get(textureContainerId)
+  }
+
+  /**
+   * The id of the container the level has for a texture name.
+   *
+   * @remarks
+   * A level may name its texture once and point many faces at it, and a texture the editor paints on a face has to have
+   * a container of its own: this is how the editor finds the container of a texture it already has, before it adds a new
+   * one ({@link ArxMap.nextTextureContainerId}).
+   *
+   * @param name The name of the texture, the way the level reads it.
+   *
+   * @returns The id of its container, or `undefined` when the level has none with that name.
+   */
+  textureContainerIdOfName(name: string): number | undefined {
+    for (const [id, filename] of this.textureNames) {
+      if (filename === name) {
+        return id
+      }
+    }
+
+    return undefined
+  }
+
+  /**
+   * The id a container added to the level takes.
+   *
+   * @remarks
+   * The ids of the game are not a run of small numbers (they are the hashes of the file names), and the level may have
+   * a hole in its list, so the next id is one above the biggest rather than one above the last: a container that
+   * replaces another keeps a name of its own, and no existing face starts to point at it by accident.
+   *
+   * @returns The id the next container of the level gets.
+   */
+  nextTextureContainerId(): number {
+    let biggest = 0
+
+    for (const id of this.textureNames.keys()) {
+      biggest = Math.max(biggest, id)
+    }
+
+    return biggest + 1
+  }
+
+  /**
+   * Adds a texture container to the level.
+   *
+   * @remarks
+   * A level knows the textures it draws with, and a face can only point at one of them: painting a face with a texture
+   * the level does not have (a dropped file, a texture of another level) adds its container first. The container is
+   * written into the scene, so the export writes it too, and the id comes from the record of the step (the replay has
+   * to add the same one).
+   *
+   * A container the level already has by that id is left as it is: the step that adds it may be replayed.
+   *
+   * @param id The id of the container, from {@link ArxMap.nextTextureContainerId} when the step was made.
+   * @param filename The name of the texture, relative to `graph/obj3d/textures`.
+   */
+  addTextureContainer(id: number, filename: string): void {
+    if (this.textureNames.has(id)) {
+      return
+    }
+
+    this.fts.textureContainers.push({ id, filename })
+    this.textureNames.set(id, filename)
+  }
+
+  /**
+   * Takes a texture container out of the level.
+   *
+   * @remarks
+   * It is the inverse of {@link ArxMap.addTextureContainer}: a step that added a container takes it back when it is
+   * undone. The faces have to be put back on their old container first, which the step does by its own record.
+   *
+   * @param id The id of the container to take out.
+   */
+  removeTextureContainer(id: number): void {
+    if (!this.textureNames.delete(id)) {
+      return
+    }
+
+    this.fts.textureContainers = this.fts.textureContainers.filter((container) => {
+      return container.id !== id
+    })
+  }
+
+  /**
+   * Sets the texture container of faces, one by one.
+   *
+   * @remarks
+   * The texture of a face is not a part of its geometry, so the mesh does not have to be built again: the runs of the
+   * texture ({@link ArxMap.textureRuns}) are read again, because a run is the block of the index the paint draws with
+   * one material, and the faces of a run just became faces of another texture. The index itself is not sorted again: a
+   * container that moved into the middle of another run costs a draw call, a sort of 123 485 triangles costs more than
+   * the edit.
+   *
+   * @param changes The faces and the container each of them takes.
+   */
+  setFaceTextures(changes: readonly FaceTexture[]): void {
+    let changed = false
+
+    for (const change of changes) {
+      const polygon = this.polygons[change.index]
+
+      if (polygon === undefined || polygon.textureContainerId === change.textureContainerId) {
+        continue
+      }
+
+      polygon.textureContainerId = change.textureContainerId
+      changed = true
+    }
+
+    if (changed) {
+      this.refreshTextureRuns()
+    }
+  }
+
+  /**
+   * Sets the uv of the corners of a face.
+   *
+   * @remarks
+   * The uv is not a part of the geometry the level is built from: it is an attribute of the mesh, so a face can be
+   * re-textured at the corner level without building the mesh again. The **model** (the vertices of the polygon) is
+   * written too, because the export writes the polygon, and the picking, the wireframe and the statistics read it.
+   *
+   * The corners are the used vertices of the polygon: three for a triangle, four for a quad. The attribute of the mesh
+   * holds the six vertices of a quad (`a, b, c` and `c, b, d`), so a quad writes its four corners into that order.
+   *
+   * @param faceIndex The face in {@link ArxMap.polygons}.
+   * @param uvs The uv of the corners, in the order they are stored (`a, b, c` and `d` for a quad).
+   */
+  setFaceUvs(faceIndex: number, uvs: readonly FaceUv[]): void {
+    const polygon = this.polygons[faceIndex]
+
+    if (polygon === undefined) {
+      return
+    }
+
+    let corners = 3
+
+    if (isQuad(polygon)) {
+      corners = 4
+    }
+
+    for (let corner = 0; corner < corners; corner = corner + 1) {
+      const uv = uvs[corner]
+      const vertex = polygon.vertices[corner]
+
+      if (uv === undefined || vertex === undefined) {
+        continue
+      }
+
+      vertex.u = uv.u
+      vertex.v = uv.v
+    }
+
+    const attribute = this.solidMeshes[0]?.geometry.getAttribute('uv')
+    const first = this.firstTriangleOf(faceIndex)
+
+    if (attribute === undefined || first === undefined) {
+      return
+    }
+
+    // the vertices of the geometry of one face, in the order `arxPolygonsToGeometry` writes them
+    let order = [0, 1, 2]
+
+    if (corners === 4) {
+      order = [0, 1, 2, 2, 1, 3]
+    }
+
+    const start = first * 3
+
+    for (const [position, corner] of order.entries()) {
+      const uv = uvs[corner]
+
+      if (uv !== undefined) {
+        attribute.setXY(start + position, uv.u, uv.v)
+      }
+    }
+
+    attribute.needsUpdate = true
   }
 
   /**
@@ -790,6 +1049,96 @@ export class ArxMap {
   }
 
   /**
+   * Reads the runs of the texture again, after the texture of some faces changed.
+   *
+   * @remarks
+   * The runs are the blocks of the index the paint draws with one material each, so they are read in the order the
+   * geometry **draws** them (the BVH of the picking wrote that index): a run is a stretch of the index whose faces share
+   * a key, and a key is the container, the side, the blend mode and the brightness of the face
+   * ({@link runKeyOfPolygon}). Neighbouring runs of one key are merged, so a texture that came back to a face next to
+   * another face of its own is one run again.
+   *
+   * A geometry with no index has no draw order to follow: the runs are dropped, and the paint walks the polygons
+   * itself (`faceRunsOf`).
+   */
+  private refreshTextureRuns(): void {
+    const index = this.solidMeshes[0].geometry.getIndex()
+
+    if (index === null) {
+      this.textureRuns = []
+
+      return
+    }
+
+    const runs: TextureRun[] = []
+    let runKey = -1
+    let runStart = 0
+    let runCount = 0
+
+    for (let position = 0; position < index.count; position = position + 3) {
+      // the first vertex of the triangle is its place in the plain order (three vertices per triangle), which is the
+      // polygon of the triangle through the map of the BVH index (`triangleToPolygon`)
+      const plain = index.getX(position) / 3
+      const key = runKeyOfPolygon(this.polygons[this.triangleToPolygon[plain] ?? -1])
+
+      if (key === runKey) {
+        runCount = runCount + 3
+
+        continue
+      }
+
+      if (runCount > 0) {
+        runs.push(textureRunOf(runKey, runStart, runCount))
+      }
+
+      runKey = key
+      runStart = position
+      runCount = 3
+    }
+
+    if (runCount > 0) {
+      runs.push(textureRunOf(runKey, runStart, runCount))
+    }
+
+    this.textureRuns = runs
+  }
+
+  /**
+   * The first triangle of a face in the index of the mesh.
+   *
+   * @remarks
+   * The triangle map is a running total of the faces, so it is sorted: a face with two triangles is two neighbouring
+   * entries. The binary search finds its first triangle without walking the level (a drag of a corner asks for it on
+   * every frame).
+   *
+   * @param faceIndex The face in {@link ArxMap.polygons}.
+   *
+   * @returns The triangle, or `undefined` when the map has none for the face.
+   */
+  private firstTriangleOf(faceIndex: number): number | undefined {
+    const map = this.triangleToPolygon
+    let low = 0
+    let high = map.length - 1
+
+    while (low <= high) {
+      const middle = (low + high) >> 1
+      const polygon = map[middle] ?? -1
+
+      if (polygon < faceIndex) {
+        low = middle + 1
+      } else {
+        high = middle - 1
+      }
+    }
+
+    if (map[low] === faceIndex) {
+      return low
+    }
+
+    return undefined
+  }
+
+  /**
    * Builds the index of the solid mesh in the order of the texture containers.
    *
    * @remarks
@@ -815,22 +1164,7 @@ export class ArxMap {
     let sorted = true
 
     for (let triangle = 0; triangle < triangles; triangle = triangle + 1) {
-      const polygon = this.polygons[this.triangleToPolygon[triangle] ?? -1]
-      const container = polygon?.textureContainerId ?? 0
-      let blendIndex = 0
-      let trans = 1
-
-      if (polygon !== undefined) {
-        blendIndex = POLYGON_BLEND_MODES.indexOf(blendModeOf(polygon))
-        trans = blendTransOf(polygon)
-      }
-
-      runKeyOfTriangle[triangle] = runKeyOf(
-        container,
-        polygon !== undefined && isDoubleSided(polygon),
-        blendIndex,
-        trans,
-      )
+      runKeyOfTriangle[triangle] = runKeyOfPolygon(this.polygons[this.triangleToPolygon[triangle] ?? -1])
 
       // a cut keeps the order of the polygons, so the level that was in this order stays in it: the check is one walk,
       // the sort is a comparison per triangle (level 11: 40 ms against 2 ms)
@@ -855,14 +1189,7 @@ export class ArxMap {
     let runStart = 0
     let runCount = 0
     function pushRun(start: number, count: number, key: number): void {
-      runs.push({
-        start,
-        count,
-        textureContainerId: containerOfRunKey(key),
-        doubleSided: Math.trunc(key / BLEND_SIDE_STEP) % 2 === 1,
-        blend: blendOfRunKey(key),
-        trans: (key % BLEND_TRANS_STEP) / 100,
-      })
+      runs.push(textureRunOf(key, start, count))
     }
 
     for (let position = 0; position < triangles; position = position + 1) {

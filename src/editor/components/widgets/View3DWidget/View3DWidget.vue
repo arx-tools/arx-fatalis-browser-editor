@@ -11,6 +11,7 @@ import { levelStore } from '../../../modules/level/levelStore.ts'
 import { WIDGET_KINDS } from '../../../modules/layout/widgetKinds.ts'
 import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
 import { isKeyDown } from '../../../modules/keyboard/keyboard.ts'
+import { getModifierOfKey } from '../../../modules/keyboard/functions.ts'
 import { selectionModeOf, selectionStore, type SelectionMode } from '../../../modules/selection/selectionStore.ts'
 import { cameraStore } from '../cameraStore.ts'
 import { renderPerformanceStore } from '../renderPerformance.ts'
@@ -449,6 +450,27 @@ function requestRender(): void {
 }
 
 /**
+ * Recolours the outline of the face under the crosshair when a modifier key goes down or up.
+ *
+ * @remarks
+ * The mode of the next click is read from the keys, and the keys change without a mouse move: a `Ctrl` pressed over a
+ * view that stands still used to leave the outline green until the pointer moved again (2026-11-05, the owner's bug
+ * report). The pick is taken again on the next frame — the held back pick is what a frame that stands still waits for —
+ * so the outline is red before the click.
+ *
+ * @param event The key event of the window.
+ */
+function onModifierKey(event: KeyboardEvent): void {
+  if (getModifierOfKey(event.code) === undefined) {
+    return
+  }
+
+  lastPickedAt = 0
+  pickPending = true
+  requestRender()
+}
+
+/**
  * Draws the frames for as long as the pointer is locked.
  *
  * @remarks
@@ -716,6 +738,8 @@ onMounted(() => {
     requestRender()
   })
 
+  globalThis.addEventListener('keydown', onModifierKey)
+  globalThis.addEventListener('keyup', onModifierKey)
   document.addEventListener('mousedown', onMouseDown)
   document.addEventListener('mouseup', onMouseUp)
   document.addEventListener('dblclick', onDoubleClick)
@@ -735,6 +759,8 @@ onBeforeUnmount(() => {
   stopWatchingSelection?.()
   stopWatchingSelection = undefined
 
+  globalThis.removeEventListener('keydown', onModifierKey)
+  globalThis.removeEventListener('keyup', onModifierKey)
   document.removeEventListener('mousedown', onMouseDown)
   document.removeEventListener('mouseup', onMouseUp)
   document.removeEventListener('dblclick', onDoubleClick)

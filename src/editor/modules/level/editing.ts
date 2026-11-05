@@ -18,6 +18,35 @@ import { levelStore } from './levelStore.ts'
 export const levelRevision: ShallowRef<number> = shallowRef(0)
 
 /**
+ * How many times the **paint** of the level went stale.
+ *
+ * @remarks
+ * The paint of the level (`levelTextures`) holds the materials of the containers and the **groups** of the geometry: a
+ * step that paints faces needs a new material, and a step that takes faces out (or puts them back) needs the groups
+ * again — a cut geometry carries no groups (`refillGeometry` drops them, they are the roots of the BVH otherwise), so a
+ * delete without a paint would draw the whole level with one material.
+ *
+ * A step that only moves the uv of a face (`setUv`) changes neither: the triangles, their order and their materials are
+ * the same, so the paint is not stale. That is the whole point of the counter: the paint of a big level is the expensive
+ * half of an edit (it rebuilds the groups of 45 000 faces), and the drag of a uv corner writes the model on every frame.
+ *
+ * Every view follows the level itself ({@link levelRevision}); this counter is for the paint.
+ */
+export const textureRevision: ShallowRef<number> = shallowRef(0)
+
+/**
+ * Tells the views that the level changed under them.
+ *
+ * @remarks
+ * The map is a plain object and the edits change it in place, so the views that draw something derived from it have
+ * nothing reactive to follow: this is the signal, and a step and its undo both bump it. A module that changes the model
+ * while a gesture runs (a uv dragged on the texture) bumps it on its own frames.
+ */
+export function bumpLevelRevision(): void {
+  levelRevision.value = levelRevision.value + 1
+}
+
+/**
  * Wraps a step, so the views follow what it does.
  *
  * @remarks
@@ -31,18 +60,45 @@ export const levelRevision: ShallowRef<number> = shallowRef(0)
  * @returns The same step, with the revision bumped on both halves.
  */
 function withRevision(command: HistoryCommand): HistoryCommand {
+  /**
+   * Tells the views, and the paint when the step touched a material.
+   *
+   * @param step The step that ran.
+   */
+  function bump(step: HistoryCommand): void {
+    bumpLevelRevision()
+
+    // a uv edit keeps the triangles, their order and their materials: the paint of the level is not stale
+    if (step.record.kind !== 'setUv') {
+      textureRevision.value = textureRevision.value + 1
+    }
+  }
+
   return {
     label: command.label,
     record: command.record,
     apply: (): void => {
       command.apply()
-      levelRevision.value = levelRevision.value + 1
+      bump(command)
     },
     revert: (): void => {
       command.revert()
-      levelRevision.value = levelRevision.value + 1
+      bump(command)
     },
   }
+}
+
+/**
+ * Runs a step of an edit, so the views follow what it does.
+ *
+ * @remarks
+ * Every edit of the editor goes through the history ({@link history}); this is the door of a module outside this file
+ * (a widget that paints faces with a texture), so the revision is bumped on both halves of the step the same way.
+ *
+ * @param command The step to run.
+ */
+export function runStep(command: HistoryCommand): void {
+  history.run(withRevision(command))
 }
 
 /**
@@ -68,7 +124,7 @@ export function deleteSelectedPolygons(): void {
     return
   }
 
-  history.run(withRevision(command))
+  runStep(command)
   selectionStore.clear()
 }
 
@@ -76,20 +132,32 @@ export function deleteSelectedPolygons(): void {
  * Takes the last step of the history back.
  *
  * @remarks
- * The selection is dropped with it: a step moves the indices of the level (a delete takes faces out, an undo puts
- * them back), so the ones the selection holds would point at other faces.
+ * The selection is dropped only with a step that **moves the indices** of the level: a delete takes faces out and its
+ * undo puts them back, so the indices the selection holds would point at other faces. A step that changes a face in
+ * place (a texture, a uv) leaves the indices alone, and the selection is what the widget of such a step edits — dropping
+ * it would empty the texture list and the uv mapper after every undo.
  */
 export function undoLastStep(): void {
+  const step = history.undoStack.value.at(-1)
+
   history.undo()
-  selectionStore.clear()
+
+  if (step?.record.kind === 'deleteFaces') {
+    selectionStore.clear()
+  }
 }
 
 /**
  * Makes the last undone step again.
  */
 export function redoLastStep(): void {
+  const step = history.redoStack.value.at(-1)
+
   history.redo()
-  selectionStore.clear()
+
+  if (step?.record.kind === 'deleteFaces') {
+    selectionStore.clear()
+  }
 }
 
 /**

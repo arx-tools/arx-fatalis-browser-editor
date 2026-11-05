@@ -1,12 +1,12 @@
 import { expect, test } from '@playwright/test'
-import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
 import {
   clickCrosshair,
   editorUrl,
+  layoutWithSelectionInspector,
   lockPointer,
   readPose,
   seedLayout,
-  statOf,
+  selectionCount,
   waitForLevel,
   writePose,
 } from './support/editor.ts'
@@ -34,7 +34,7 @@ test('the face under the crosshair is the one a gesture takes', async ({ page, b
   test.setTimeout(120_000)
 
   // the editor preset: it has the camera form, which is how the test aims the camera again after the lock
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, layoutWithSelectionInspector())
   await page.goto(editorUrl())
 
   const view = page.locator('[data-widget-kind="3d-view"] canvas').first()
@@ -47,7 +47,7 @@ test('the face under the crosshair is the one a gesture takes', async ({ page, b
 
   // the pointer lock, and nothing else: the press that asks for it still finds the pointer free
   await lockPointer(page, view)
-  expect(await statOf(page, 'Selected faces')).toBe(0)
+  expect(await selectionCount(page)).toBe(0)
 
   // the aim goes back to the spawn: the crosshair sits on a face of the level whatever the click did
   await writePose(page, spawn)
@@ -56,7 +56,7 @@ test('the face under the crosshair is the one a gesture takes', async ({ page, b
   await clickCrosshair(view)
   await expect
     .poll(async () => {
-      return await statOf(page, 'Selected faces')
+      return await selectionCount(page)
     })
     .toBe(1)
 
@@ -64,13 +64,13 @@ test('the face under the crosshair is the one a gesture takes', async ({ page, b
   // takes nothing leaves the count alone (the unit tests of `faceToSweep` are the ones that pin down where the
   // walk of the ray stops when another face lies behind this one)
   await clickCrosshair(view, { shift: true })
-  expect(await statOf(page, 'Selected faces')).toBe(1)
+  expect(await selectionCount(page)).toBe(1)
 
   // ctrl takes the face away: the ray stops at the face in front of it, whatever the gesture does
   await clickCrosshair(view, { ctrl: true })
   await expect
     .poll(async () => {
-      return await statOf(page, 'Selected faces')
+      return await selectionCount(page)
     })
     .toBe(0)
 
@@ -80,7 +80,7 @@ test('the face under the crosshair is the one a gesture takes', async ({ page, b
   await clickCrosshair(view, { shift: true, clicks: 2 })
   await expect
     .poll(async () => {
-      return await statOf(page, 'Selected faces')
+      return await selectionCount(page)
     })
     .toBeGreaterThan(1)
 })

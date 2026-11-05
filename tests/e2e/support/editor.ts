@@ -1,5 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test'
+import { editorLayout } from '../../../src/editor/modules/layout/layoutPresets.ts'
 import type { LayoutNode } from '../../../src/editor/modules/layout/layoutNode.ts'
+import { WIDGET_KINDS } from '../../../src/editor/modules/layout/widgetKinds.ts'
 import { ORIGINAL_LEVEL_PARAMETER } from '../../../src/editor/modules/level/levelSource.ts'
 
 /**
@@ -55,31 +57,129 @@ export async function seedLayout(page: Page, layout: LayoutNode): Promise<void> 
 }
 
 /**
+ * Reads the value of a row of an info widget.
+ *
+ * @remarks
+ * The rows are a `dt`/`dd` pair per line: the label is what a test knows, the index of the row is not.
+ *
+ * @param page The page to read.
+ * @param kind The kind of the widget, like `map-statistics`.
+ * @param label The text of the cell on the left of the row.
+ *
+ * @returns The text of the value next to the label, an empty string when the widget has no such row.
+ */
+export async function rowOf(page: Page, kind: string, label: string): Promise<string> {
+  const widget = page.locator(`[data-widget-kind="${kind}"]`)
+  const index = await widget.locator('dt').evaluateAll((cells, wanted) => {
+    return cells.findIndex((cell) => {
+      return cell.textContent === wanted
+    })
+  }, label)
+
+  if (index < 0) {
+    return ''
+  }
+
+  return (await widget.locator('dd').nth(index).textContent()) ?? ''
+}
+
+/**
  * The value of a row of the map statistics, as a number.
  *
  * @param page The page to read.
- * @param label The label of the row.
+ * @param label The text of the cell on the left of the row.
  *
  * @returns The number the row shows, or `undefined` while the row still shows the pending dots.
  */
 export async function statOf(page: Page, label: string): Promise<number | undefined> {
-  const text = await page
-    .locator('[data-widget-kind="map-statistics"] dd')
-    .nth(
-      // the rows are in the order of the widget: the label is what the test knows, the index is not
-      await page.locator('[data-widget-kind="map-statistics"] dt').evaluateAll((cells, wanted) => {
-        return cells.findIndex((cell) => {
-          return cell.textContent === wanted
-        })
-      }, label),
-    )
-    .textContent()
+  const text = await rowOf(page, WIDGET_KINDS.mapStatistics, label)
 
-  if (text === null || /^\s*…\s*$/u.test(text)) {
+  if (/^\s*…\s*$/u.test(text)) {
     return undefined
   }
 
   return Number(text.replaceAll(/\s/gu, ''))
+}
+
+/**
+ * How many faces the selection holds, as the selection inspector shows it.
+ *
+ * @remarks
+ * The count moved out of the statistics with the texture round: the selection is what the selection inspector is about,
+ * so the tests read it there (the layout they seed has the widget on the dock, see {@link painterLayout}).
+ *
+ * @param page The page to read.
+ *
+ * @returns The number of the selected faces, or `undefined` before the widget is on the screen.
+ */
+export async function selectionCount(page: Page): Promise<number | undefined> {
+  const value = await rowOf(page, WIDGET_KINDS.selectionInspector, 'Selected faces')
+  const text = value.trim()
+
+  if (text === '') {
+    return undefined
+  }
+
+  return Number(text.replaceAll(/\s/gu, ''))
+}
+
+/**
+ * Renames the kinds of a layout tree.
+ *
+ * @param layout The tree to walk.
+ * @param renames The kinds to swap, by the kind they have in the tree.
+ *
+ * @returns The tree, with the kinds of `renames` in the place of the ones they replace.
+ */
+function renameKinds(layout: LayoutNode, renames: Readonly<Record<string, string>>): LayoutNode {
+  if (layout.type === 'widget') {
+    return { type: 'widget', kind: renames[layout.kind] ?? layout.kind }
+  }
+
+  return {
+    ...layout,
+    children: layout.children.map((child) => {
+      return renameKinds(child, renames)
+    }),
+  }
+}
+
+/**
+ * The editor preset, with the selection inspector in the place of the polygon inspector.
+ *
+ * @remarks
+ * The count of the selected faces moved out of the statistics with the texture round, so a test that selects faces reads
+ * it in the selection inspector (see {@link selectionCount}). The two widgets of the round are not in a preset of the
+ * factory ones (the owner lays out the `Painter` one later), so the test seeds the editor preset with the kind swapped:
+ * the inspector takes the slot of the polygon inspector, which keeps the size the owner measured (350 × 190) and the
+ * camera form the tests aim the camera with.
+ *
+ * @returns The tree to put into the storage.
+ */
+export function layoutWithSelectionInspector(): LayoutNode {
+  return renameKinds(editorLayout, { [WIDGET_KINDS.polygonInspector]: WIDGET_KINDS.selectionInspector })
+}
+
+/**
+ * The editor preset with both widgets of the texture round on the dock.
+ *
+ * @remarks
+ * The selection inspector takes the place of the polygon inspector (the same size) and the texture list the place of the
+ * keys: a test that paints faces needs both, and nothing in it reads the key table.
+ *
+ * @returns The tree to put into the storage.
+ */
+export function painterLayout(): LayoutNode {
+  return renameKinds(layoutWithSelectionInspector(), { [WIDGET_KINDS.keyboardShortcuts]: WIDGET_KINDS.textures })
+}
+
+/**
+ * The layout of a test of the uv mapper: the painter layout, with the uv mapper in the place of the texture list.
+ *
+ * @returns The tree to put into the storage.
+ */
+export function uvLayout(): LayoutNode {
+  return renameKinds(painterLayout(), { [WIDGET_KINDS.textures]: WIDGET_KINDS.uvMapper })
 }
 
 /**

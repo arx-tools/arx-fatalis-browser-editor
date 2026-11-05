@@ -7,10 +7,11 @@ import { editorUrl } from './support/editor.ts'
  * @remarks
  * The lock of a widget is a box, and a preset spells it on two levels of the tree: the width on the horizontal split
  * the widget sits in and the height on the vertical one. These tests are the acceptance of the numbers (2026-11-01):
- * the viewer comes with the plan at 350 x 285 and the jump at 350 x 80, and the editor with the plan at 350 x 350, the
- * jump at 200 x 50, the statistics at 350 x 210 and the inspector at 350 x 190. The widgets the owner did not size stay
- * free, and the header has to keep the name of the preset after the locks are applied — a layout that comes back
- * differently from the preset would show up as `Custom`.
+ * the viewer comes with the plan at 350 x 285 and the jump at 350 x 80, the editor with the plan at 350 x 350, the
+ * jump at 200 x 50, the statistics at 350 x 210 and the inspector at 350 x 190, and the painter (2026-11-04) with the
+ * polygon inspector at 360 x 185, the keys at 360 x 430 and the uv mapper at 400 x 430. The widgets the owner did not
+ * size stay free, and the header has to keep the name of the preset after the locks are applied — a layout that comes
+ * back differently from the preset would show up as `Custom`.
  */
 test.setTimeout(120_000)
 
@@ -141,4 +142,49 @@ test('the editor preset comes with the four sizes the owner measured', async ({ 
   expect(planAfter.height).toBe(350)
   expect(statisticsAfter.height).toBe(210)
   expect(keysAfter.height).toBeGreaterThan(keys.height)
+})
+
+test('the painter preset comes with the sizes the owner measured', async ({ page }) => {
+  await page.setViewportSize({ width: 1631, height: 850 })
+  await page.goto(editorUrl())
+
+  await page.locator('header button[aria-label="Presets"]').click()
+  await page.locator('.preset-menu .preset-row', { hasText: 'Painter' }).click()
+
+  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(6)
+  await page.waitForTimeout(800)
+
+  expect(await presetName(page)).toBe('Painter')
+
+  const inspector = await boxOf(page, 'polygon-inspector')
+  const keys = await boxOf(page, 'keyboard-shortcuts')
+  const mapper = await boxOf(page, 'uv-mapper')
+
+  // the three boxes of the arrangement: the two inspectors and the keys on the left, the uv mapper on the right
+  expect(inspector.width).toBe(360)
+  expect(inspector.height).toBe(185)
+  expect(keys.width).toBe(360)
+  expect(keys.height).toBe(430)
+  expect(mapper.width).toBe(400)
+  expect(mapper.height).toBe(430)
+
+  expect(await page.locator('[data-widget-kind="polygon-inspector"]').getAttribute('data-locked-height')).toBe('185')
+  expect(await page.locator('[data-widget-kind="uv-mapper"]').getAttribute('data-locked-width')).toBe('400')
+
+  // the selection inspector and the texture list are free: they take what the two locked neighbours leave
+  expect(await page.locator('[data-widget-kind="selection-inspector"]').getAttribute('data-locked-height')).toBeNull()
+  expect(await page.locator('[data-widget-kind="textures"]').getAttribute('data-locked-height')).toBeNull()
+
+  const selection = await boxOf(page, 'selection-inspector')
+  const textures = await boxOf(page, 'textures')
+
+  expect(selection.top).toBe(inspector.top + inspector.height + 4)
+  expect(keys.top).toBe(selection.top + selection.height + 4)
+  expect(textures.top).toBe(mapper.top + mapper.height + 4)
+
+  // the walkable view is the middle column alone: no camera form, and it takes the room the columns leave
+  const view = await boxOf(page, '3d-view')
+
+  expect(view.width).toBeGreaterThan(400)
+  expect(view.top).toBe(inspector.top)
 })

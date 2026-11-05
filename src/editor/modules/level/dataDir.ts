@@ -99,6 +99,18 @@ export interface DataDirFile {
 const DATA_DIR_STORAGE_KEY = 'arx-data-dir'
 
 /**
+ * The textures of the data directory, once they are read.
+ */
+let scannedTextures: string[] | undefined
+
+/**
+ * Forgets the list of the textures (a folder was picked, or the url changed).
+ */
+export function clearTextureScan(): void {
+  scannedTextures = undefined
+}
+
+/**
  * The data directory of the session: the one of the url, or the one the browser remembered.
  */
 let activeDataDir: string | undefined
@@ -180,6 +192,7 @@ export function storedDataDir(storage: StorageLike | undefined = getLocalStorage
 export function rememberDataDir(path: string, storage: StorageLike | undefined = getLocalStorage(undefined)): boolean {
   activeDataDir = path
   isDataDirStarted = true
+  clearTextureScan()
   syncDataDirState()
 
   if (storage === undefined) {
@@ -204,6 +217,7 @@ export function rememberDataDir(path: string, storage: StorageLike | undefined =
 export function forgetDataDir(storage: StorageLike | undefined = getLocalStorage(undefined)): void {
   activeDataDir = undefined
   isDataDirStarted = true
+  clearTextureScan()
   syncDataDirState()
 
   if (storage === undefined) {
@@ -307,6 +321,7 @@ export function setPickedDataDir(files: readonly DataDirFile[], name: string): v
     }),
   )
   pickedName = name
+  clearTextureScan()
   syncDataDirState()
 }
 
@@ -316,6 +331,7 @@ export function setPickedDataDir(files: readonly DataDirFile[], name: string): v
 export function clearPickedDataDir(): void {
   picked = undefined
   pickedName = undefined
+  clearTextureScan()
   syncDataDirState()
 }
 
@@ -503,6 +519,21 @@ export async function readDataFile(
 }
 
 /**
+ * The folder of the game's textures, inside the data directory.
+ *
+ * @remarks
+ * The textures of the game are the images a level names in its texture containers, relative to this folder
+ * (`graph/obj3d/textures/[stone]_human_wall1.bmp`). The folder has the spells and the refinements of the game in
+ * subfolders of its own, and a name may carry that part (`spells/fire.bmp`), which is why the editor walks it whole.
+ */
+export const TEXTURE_FOLDER = 'graph/obj3d/textures'
+
+/**
+ * The extensions the image files of the game have.
+ */
+const IMAGE_EXTENSIONS = /\.(?:bmp|jpe?g|png|tga)$/iu
+
+/**
  * The levels of the game fit in these numbers: the game has 22 maps, and the folders are named after them.
  */
 const LEVEL_LIMIT = 32
@@ -620,4 +651,109 @@ export async function scanLevelNumbers(fetchImpl: typeof fetch = fetch, isDev = 
   })
 
   return scannedLevels
+}
+
+/**
+ * Reads the list of the textures the development server makes of the folder.
+ *
+ * @remarks
+ * The page can not list a folder of the disk, and asking for the files one by one is not a list: the names of the
+ * textures are what a picker of them needs. The server walks the folder and answers with the names relative to
+ * `graph/obj3d/textures` (the way a level names them), subfolders included.
+ *
+ * @param dataDir The folder of the data directory.
+ * @param fetchImpl The fetch to use; the tests pass a fake one.
+ *
+ * @returns The names of the textures, or `undefined` when the server does not answer with a list.
+ */
+async function listedTexturesOf(dataDir: string, fetchImpl: typeof fetch): Promise<string[] | undefined> {
+  try {
+    const response = await fetchImpl(dataFileUrl(dataDir, 'textures', true))
+
+    if (!response.ok) {
+      return undefined
+    }
+
+    const body: unknown = await response.json()
+
+    if (typeof body !== 'object' || body === null) {
+      return undefined
+    }
+
+    const { textures } = body as { textures?: unknown }
+
+    if (!Array.isArray(textures)) {
+      return undefined
+    }
+
+    return textures.filter((name): name is string => {
+      return typeof name === 'string'
+    })
+  } catch {
+    // no list from the server: the widget lists the textures of the level itself
+    return undefined
+  }
+}
+
+/**
+ * Reads the names of the textures the data directory has.
+ *
+ * @remarks
+ * The texture list of the editor shows every texture a face can be painted with, and the ones of the game are in the
+ * data directory — a folder of a few thousand files. A folder the user picked is already on the page (`picked`), so the
+ * names come from the files; a folder the url names is listed by the development server. A **served** folder (the
+ * production shape of the url) has no list: the editor then knows the textures of the level it loaded, and no more.
+ *
+ * The names are relative to `graph/obj3d/textures` and lower case for a picked folder (the game is of a windows that
+ * does not care about the case, and the files of the page are keyed by their lower case path), the way a level names
+ * them.
+ *
+ * @param fetchImpl The fetch to use; the tests pass a fake one.
+ * @param isDev Whether the editor runs on the development server.
+ *
+ * @returns The names of the textures, in order.
+ */
+export async function listDataDirTextures(fetchImpl: typeof fetch = fetch, isDev = IS_DEVELOPMENT): Promise<string[]> {
+  if (scannedTextures !== undefined) {
+    return scannedTextures
+  }
+
+  const prefix = `${TEXTURE_FOLDER}/`.toLowerCase()
+
+  if (picked !== undefined) {
+    const names = new Set<string>()
+
+    for (const path of picked.keys()) {
+      if (!path.startsWith(prefix)) {
+        continue
+      }
+
+      const name = path.slice(prefix.length)
+
+      if (IMAGE_EXTENSIONS.test(name)) {
+        names.add(name)
+      }
+    }
+
+    scannedTextures = [...names].toSorted()
+
+    return scannedTextures
+  }
+
+  const dataDir = activeDataDirName()
+
+  if (dataDir !== undefined && isDev) {
+    const listed = await listedTexturesOf(dataDir, fetchImpl)
+
+    if (listed !== undefined) {
+      scannedTextures = listed.toSorted()
+
+      return scannedTextures
+    }
+  }
+
+  // a served folder can not be listed: the widget shows the textures the level itself brought
+  scannedTextures = []
+
+  return scannedTextures
 }

@@ -1,11 +1,12 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
 import {
   clickCrosshair,
   editorUrl,
+  layoutWithSelectionInspector,
   lockPointer,
   readPose,
   seedLayout,
+  selectionCount,
   statOf,
   waitForLevel,
   writePose,
@@ -64,7 +65,7 @@ function historyButtonOf(page: Page, word: string): Locator {
  * @param page The page to prepare.
  */
 async function openTheEditor(page: Page): Promise<void> {
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, layoutWithSelectionInspector())
   await page.goto(editorUrl())
   await waitForLevel(page)
 }
@@ -87,7 +88,7 @@ test('a delete is a step of the history, and Ctrl+Z takes it back', async ({ pag
 
   await expect
     .poll(async () => {
-      return await statOf(page, 'Selected faces')
+      return await selectionCount(page)
     })
     .toBeGreaterThan(0)
 

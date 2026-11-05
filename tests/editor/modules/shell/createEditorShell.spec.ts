@@ -186,7 +186,7 @@ void describe('the layout of the shell', () => {
       shell.presets.value.map((preset) => {
         return preset.label
       }),
-      ['Editor', 'Viewer'],
+      ['Editor', 'Viewer', 'Painter'],
     )
     assert.equal(shell.selectedPreset.value, 'viewer')
     shell.dispose()
@@ -218,7 +218,7 @@ void describe('the layout of the shell', () => {
       shell.presets.value.map((preset) => {
         return preset.label
       }),
-      ['Editor', 'Viewer', 'Custom'],
+      ['Editor', 'Viewer', 'Painter', 'Custom'],
     )
     shell.dispose()
   })
@@ -242,7 +242,7 @@ void describe('the layout of the shell', () => {
       'top-view',
     ])
     // the custom is still there, so switching back brings the modified layout again
-    assert.equal(shell.presets.value.length, 3)
+    assert.equal(shell.presets.value.length, 4)
 
     shell.applyPreset('custom')
 
@@ -259,7 +259,7 @@ void describe('the layout of the shell', () => {
     shell.addWidget('keyboard-shortcuts')
 
     assert.equal(shell.selectedPreset.value, 'custom')
-    assert.equal(shell.presets.value.length, 3)
+    assert.equal(shell.presets.value.length, 4)
     shell.dispose()
   })
 
@@ -285,7 +285,7 @@ void describe('the layout of the shell', () => {
       shell.presets.value.map((preset) => {
         return preset.id
       }),
-      ['editor', 'viewer', 'custom'],
+      ['editor', 'viewer', 'painter', 'custom'],
     )
     shell.dispose()
   })

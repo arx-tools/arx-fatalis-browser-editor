@@ -28,21 +28,19 @@ const PENDING_VALUE = '…'
  * not there the value is a single `…`, and the labels are fixed here (not in the component), so the order
  * and the names are testable.
  *
+ * The count of the **selected** faces is not here: it is about the selection and not about the level, so it lives in
+ * the Selection Inspector, under the textures the selected faces draw with (2026-11-04, the owner).
+ *
  * @param map The map of the loaded level, or `undefined` while it is loading.
- * @param selected The number of selected polygons: a quad counts as one.
  *
  * @returns The rows, in the order the widget shows them.
  */
-export function mapStatisticsRows(
-  map: { readonly statistics: MapStatistics } | undefined,
-  selected = 0,
-): StatisticsRow[] {
+export function mapStatisticsRows(map: { readonly statistics: MapStatistics } | undefined): StatisticsRow[] {
   if (map === undefined) {
     return [
       { label: 'Triangles', value: PENDING_VALUE },
       { label: 'Quads', value: PENDING_VALUE },
       { label: 'Total faces', value: PENDING_VALUE },
-      { label: 'Selected faces', value: PENDING_VALUE },
       { label: 'Lights', value: PENDING_VALUE },
       { label: 'Anchors', value: PENDING_VALUE },
       { label: 'Portals', value: PENDING_VALUE },
@@ -55,8 +53,6 @@ export function mapStatisticsRows(
     { label: 'Triangles', value: formatCount(statistics.triangleCount) },
     { label: 'Quads', value: formatCount(statistics.quadCount) },
     { label: 'Total faces', value: formatCount(statistics.faceCount) },
-    // the selection belongs right under the total: it is the same count, of a part of the level
-    { label: 'Selected faces', value: formatCount(selected) },
     { label: 'Lights', value: formatCount(statistics.lightCount) },
     { label: 'Anchors', value: formatCount(statistics.anchorCount) },
     { label: 'Portals', value: formatCount(statistics.portalCount) },

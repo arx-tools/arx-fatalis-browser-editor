@@ -1,7 +1,7 @@
 import { createReadStream } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import process from 'node:process'
-import { basename, dirname, extname, join, resolve } from 'node:path'
+import { basename, dirname, extname, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import vue from '@vitejs/plugin-vue'
 import { config as loadEnv } from 'dotenv'
@@ -320,6 +320,62 @@ async function levelNumbersOf(root: string): Promise<number[]> {
 }
 
 /**
+ * The lists of the textures of the data directories, by the folder: a list is a walk of a few thousand files, and the
+ * page asks for it once per folder.
+ */
+const textureListings = new Map<string, string[]>()
+
+/**
+ * Lists the image files of a data directory.
+ *
+ * @remarks
+ * The texture list of the editor shows every texture a face can be painted with, and the game's are the files of
+ * `graph/obj3d/textures`. The page can not walk a folder of the disk, so the route answers with the names a level calls
+ * them: relative to the texture folder, with the subfolders of the game (`spells/`, `refinement/`) in the path
+ * (`spells/fire.bmp`).
+ *
+ * @param root The folder of the data directory.
+ *
+ * @returns The names of the texture files, in order.
+ */
+async function textureNamesOf(root: string): Promise<string[]> {
+  const cached = textureListings.get(root)
+
+  if (cached !== undefined) {
+    return cached
+  }
+
+  const names = new Set<string>()
+
+  for (const prefix of DATA_PREFIXES) {
+    const folder = await resolveInDataDir(root, `${prefix}graph/obj3d/textures`)
+
+    if (folder?.directory !== true) {
+      continue
+    }
+
+    try {
+      for (const entry of await readdir(folder.path, { recursive: true })) {
+        if (!EXTENSION_END.test(entry)) {
+          continue
+        }
+
+        // the walk gives the path of the platform: the page reads the names of the game, with slashes
+        names.add(entry.split(sep).join('/'))
+      }
+    } catch {
+      // a folder that can not be read has no textures
+    }
+  }
+
+  const listed = [...names].toSorted()
+
+  textureListings.set(root, listed)
+
+  return listed
+}
+
+/**
  * The route the page reads the **data directory of the game** from, on the development server.
  *
  * @remarks
@@ -356,6 +412,18 @@ function localDataRoute(): Plugin {
         if (params.get('root') === null) {
           response.statusCode = 400
           response.end('The local data route needs a root.')
+
+          return
+        }
+
+        // the textures of the folder, once: the texture list of the editor shows them all
+        if (requested === 'textures') {
+          void (async (): Promise<void> => {
+            const textures = await textureNamesOf(root)
+
+            response.setHeader('Content-Type', 'application/json')
+            response.end(JSON.stringify({ textures }))
+          })()
 
           return
         }

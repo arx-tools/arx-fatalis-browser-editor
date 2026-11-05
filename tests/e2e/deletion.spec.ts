@@ -1,12 +1,13 @@
 import { expect, test, type Response } from '@playwright/test'
-import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
 import {
   clickCrosshair,
   editorUrl,
+  layoutWithSelectionInspector,
   litPixels,
   lockPointer,
   readPose,
   seedLayout,
+  selectionCount,
   statOf,
   waitForLevel,
   writePose,
@@ -39,7 +40,7 @@ test('a deleted face leaves the rest of the level on the screen', async ({ page,
   })
 
   // the editor preset: it has the camera form, which is how the test aims the camera again after the lock
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, layoutWithSelectionInspector())
   await page.goto(editorUrl())
 
   const view = page.locator('[data-widget-kind="3d-view"] canvas').first()
@@ -67,11 +68,11 @@ test('a deleted face leaves the rest of the level on the screen', async ({ page,
 
   await expect
     .poll(async () => {
-      return await statOf(page, 'Selected faces')
+      return await selectionCount(page)
     })
     .toBeGreaterThan(0)
 
-  const selected = (await statOf(page, 'Selected faces')) ?? 0
+  const selected = (await selectionCount(page)) ?? 0
 
   await page.keyboard.press('Delete')
 
@@ -84,7 +85,7 @@ test('a deleted face leaves the rest of the level on the screen', async ({ page,
 
   await expect
     .poll(async () => {
-      return await statOf(page, 'Selected faces')
+      return await selectionCount(page)
     })
     .toBe(0)
 
@@ -102,11 +103,11 @@ test('a deleted face leaves the rest of the level on the screen', async ({ page,
 
   await expect
     .poll(async () => {
-      return await statOf(page, 'Selected faces')
+      return await selectionCount(page)
     })
     .toBeGreaterThan(0)
 
-  const secondSelected = (await statOf(page, 'Selected faces')) ?? 0
+  const secondSelected = (await selectionCount(page)) ?? 0
 
   await page.keyboard.press('Delete')
 
@@ -118,7 +119,7 @@ test('a deleted face leaves the rest of the level on the screen', async ({ page,
 
   await expect
     .poll(async () => {
-      return await statOf(page, 'Selected faces')
+      return await selectionCount(page)
     })
     .toBe(0)
 

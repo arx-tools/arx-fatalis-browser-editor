@@ -8,7 +8,7 @@ import { WIDGET_KINDS } from './widgetKinds.ts'
  * `custom` is not a constant: it is the slot the editor stores the last layout that is not a factory one
  * in, so the header can offer it back next to the factory presets.
  */
-export type PresetId = 'custom' | 'editor' | 'viewer'
+export type PresetId = 'custom' | 'editor' | 'painter' | 'viewer'
 
 /**
  * One factory preset of the layout.
@@ -162,6 +162,46 @@ export const viewerLayout: LayoutNode = {
 }
 
 /**
+ * The layout of the texture work: the two inspectors on the left, the walkable view in the middle, the texture list and
+ * the uv mapper on the right.
+ *
+ * @remarks
+ * The owner arranged this one in the editor (2026-11-04): the column of the work is the **right** one — the texture list
+ * with the uv mapper above it — and the left column has the two inspectors and the keys. The numbers are the sizes he
+ * read off the plates of the edit mode: the polygon inspector 360 x 185, the keys 360 x 430 (which is the width of the
+ * left column too) and the uv mapper 400 x 430 (the width of the right column). The painters do not need the six fixed
+ * views, and the middle column is the **walkable view alone**: the camera form is not in this layout (the pose of the
+ * view is on its HUD), so no widget of the middle is locked and it takes what the two columns leave.
+ */
+export const painterLayout: LayoutNode = {
+  type: 'split',
+  orientation: 'horizontal',
+  sizes: [fixed(360), auto(1), fixed(400)],
+  children: [
+    {
+      type: 'split',
+      orientation: 'vertical',
+      sizes: [fixed(185), auto(1), fixed(430)],
+      children: [
+        { type: 'widget', kind: WIDGET_KINDS.polygonInspector },
+        { type: 'widget', kind: WIDGET_KINDS.selectionInspector },
+        { type: 'widget', kind: WIDGET_KINDS.keyboardShortcuts },
+      ],
+    },
+    { type: 'widget', kind: WIDGET_KINDS.view3d },
+    {
+      type: 'split',
+      orientation: 'vertical',
+      sizes: [fixed(430), auto(1)],
+      children: [
+        { type: 'widget', kind: WIDGET_KINDS.uvMapper },
+        { type: 'widget', kind: WIDGET_KINDS.textures },
+      ],
+    },
+  ],
+}
+
+/**
  * The layout the editor starts with.
  *
  * @remarks
@@ -175,12 +215,14 @@ export const defaultLayout: LayoutNode = viewerLayout
  * The presets the header offers, in the order of the dropdown.
  *
  * @remarks
- * The order is the one of the header: the `Editor` first (the layout of the level work), the `Viewer` second.
+ * The order is the one of the header: the `Editor` first (the layout of the level work), the `Viewer` second and the
+ * `Painter` third (the texture work, 2026-11-04).
  * Which of them the editor starts with is {@link defaultLayout}, not this order.
  */
 export const factoryPresets: readonly FactoryPreset[] = [
   { id: 'editor', label: 'Editor', layout: editorLayout },
   { id: 'viewer', label: 'Viewer', layout: viewerLayout },
+  { id: 'painter', label: 'Painter', layout: painterLayout },
 ]
 
 /**

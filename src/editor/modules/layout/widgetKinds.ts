@@ -59,6 +59,18 @@ export const WIDGET_KINDS = {
    */
   polygonInspector: 'polygon-inspector',
   /**
+   * The textures a face can be painted with.
+   */
+  textures: 'textures',
+  /**
+   * The faces of the selection, and the textures they draw with.
+   */
+  selectionInspector: 'selection-inspector',
+  /**
+   * The uv of the selected face, on the texture.
+   */
+  uvMapper: 'uv-mapper',
+  /**
    * The key table of the editor.
    */
   keyboardShortcuts: 'keyboard-shortcuts',

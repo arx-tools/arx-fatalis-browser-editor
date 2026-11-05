@@ -9,11 +9,13 @@ import {
   fetchDataFile,
   forgetDataDir,
   hasDataDir,
+  listDataDirTextures,
   readDataFile,
   rememberDataDir,
   setPickedDataDir,
   startDataDir,
   storedDataDir,
+  clearTextureScan,
 } from '../../../../src/editor/modules/level/dataDir.ts'
 import type { StorageLike } from '../../../../src/editor/modules/persistedRef/storage.ts'
 import type { UrlAdapter } from '../../../../src/editor/modules/persistedRef/url.ts'
@@ -235,6 +237,49 @@ void describe('the data directory the user picked', () => {
     // a picked folder is in the page: the url of the disk is not even asked for a file the folder does not have
     assert.equal(await readDataFile('graph/levels/level8/level8.dlf', fetchImpl), undefined)
     assert.deepEqual(calls, [])
+  })
+
+  void it('lists the textures of the picked folder, by the names a level calls them', async () => {
+    setPickedDataDir(
+      [
+        { path: 'graph/obj3d/textures/[stone]_human_castle_wall1.jpg', file: new File(['jpg'], 'wall.jpg') },
+        { path: 'graph/obj3d/textures/spells/fire.bmp', file: new File(['bmp'], 'fire.bmp') },
+        { path: 'graph/levels/level8/fast.fts', file: new File(['fts'], 'fast.fts') },
+        { path: 'graph/obj3d/textures/readme.txt', file: new File(['txt'], 'readme.txt') },
+      ],
+      'arx-data',
+    )
+
+    // the level's own files and the files that are not images stay out, and the subfolder is in the name: the game reads
+    // a texture of `spells/` by that path
+    assert.deepEqual(await listDataDirTextures(), ['[stone]_human_castle_wall1.jpg', 'spells/fire.bmp'])
+
+    // a folder of the url is listed by the server, and the names come as it says them
+    clearPickedDataDir()
+    clearTextureScan()
+    // a served folder: the path of the disk is only read by the development server, a url is a folder the host serves
+    rememberDataDir('http://localhost:5557/arx-data', undefined)
+
+    async function fetchImpl(): Promise<Response> {
+      await Promise.resolve()
+
+      return Response.json({ textures: ['b.bmp', 'a.bmp'] }, { status: 200 })
+    }
+
+    assert.deepEqual(await listDataDirTextures(fetchImpl, true), ['a.bmp', 'b.bmp'])
+
+    // and a folder that can not be listed (a served one) gives an empty list, not an error
+    async function notFound(): Promise<Response> {
+      await Promise.resolve()
+
+      return new Response(null, { status: 404 })
+    }
+
+    clearTextureScan()
+
+    assert.deepEqual(await listDataDirTextures(notFound, true), [])
+
+    forgetDataDir(undefined)
   })
 
   void it('says nothing when neither the url, the header nor the browser has a folder', () => {

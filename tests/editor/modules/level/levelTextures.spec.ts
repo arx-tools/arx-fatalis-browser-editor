@@ -5,8 +5,8 @@ import JSZip from 'jszip'
 import { BufferAttribute, DoubleSide, FrontSide, Texture, type Material, type MeshLambertMaterial } from 'three'
 import { ArxMap } from '../../../../src/generator/ArxMap.ts'
 import { createBlankLevelFiles, FLAT_PRESET, MINIMAL_PRESET } from '../../../../src/editor/modules/level/blankLevel.ts'
+import { applyColourKey } from '../../../../src/editor/modules/textures/image.ts'
 import {
-  applyColourKey,
   drawnRunsOf,
   faceRunsOf,
   paintKeyOf,

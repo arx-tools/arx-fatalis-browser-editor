@@ -9,6 +9,7 @@ import { startLevelEditing } from './modules/level/editing.ts'
 import { startSelection } from './modules/selection/selectionStore.ts'
 import { paintLevel, startLevelTextures } from './modules/level/levelTextures.ts'
 import { levelStore } from './modules/level/levelStore.ts'
+import { startTextureCatalog } from './modules/textures/textureCatalog.ts'
 import { DATA_DIR_PARAMETER, dataDirFromUrl, hasDataDir, startDataDir, storedDataDir } from './modules/level/dataDir.ts'
 import {
   isOriginalLevelSource,
@@ -87,6 +88,7 @@ onMounted(() => {
   startSelection()
   startLevelEditing()
   startLevelTextures()
+  startTextureCatalog()
   startMapPersistence()
 
   /**

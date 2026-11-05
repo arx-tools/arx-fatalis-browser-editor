@@ -102,6 +102,8 @@ onBeforeUnmount(() => {
 
   // the clicks belong to the shield
   pointer-events: none;
+  // a click on a window that comes back must not start a text selection over the editor
+  user-select: none;
 }
 
 // the whole window, over everything the dock draws: the first click of a window that comes back stops here,
@@ -112,6 +114,7 @@ onBeforeUnmount(() => {
   z-index: 1001;
   background: transparent;
   cursor: default;
+  user-select: none;
 }
 
 @keyframes veil {

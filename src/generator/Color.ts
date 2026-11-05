@@ -1,11 +1,26 @@
 import type { ArxColor } from 'arx-convert/types'
 import rgba from 'color-rgba'
 import { type Color as ThreeJsColor, MathUtils } from 'three'
-import { percentOf } from './functions.ts'
 
 export const Alpha = {
   Transparent: 0,
   Opaque: 1,
+}
+
+/**
+ * Takes a percentage of a number.
+ *
+ * @remarks
+ * The subject (`x`) comes first, like `MathUtils.clamp` in three: there is no currying in the level generator, so the
+ * arguments read left to right.
+ *
+ * @param x The number to take the percentage of.
+ * @param percentage The percentage, 0..100.
+ *
+ * @returns `percentage` percent of `x`.
+ */
+function percentOf(x: number, percentage: number): number {
+  return (x / 100) * percentage
 }
 
 export class Color {
@@ -226,14 +241,14 @@ export class Color {
   }
 
   /**
-   * Brightens the color by adding <percent>% of 256 to every channel.
+   * Brightens the color by adding <percent>% of the full scale (255) to every channel.
    */
   lighten(percent: number): this {
     return this.addScalar(percentOf(255, percent))
   }
 
   /**
-   * Darkens the color by subtracting <percent>% of 256 from every channel.
+   * Darkens the color by subtracting <percent>% of the full scale (255) from every channel.
    */
   darken(percent: number): this {
     return this.subScalar(percentOf(255, percent))

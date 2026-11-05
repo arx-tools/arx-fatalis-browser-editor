@@ -14,7 +14,7 @@ import {
   syncFields,
   type CameraFields,
 } from '../../../../../src/editor/components/widgets/CameraControlsWidget/cameraFields.ts'
-import type { CameraPose } from '../../../../../src/editor/components/widgets/cameraPose.ts'
+import type { CameraPose } from '../../../../../src/editor/components/widgets/camera/cameraPose.ts'
 
 /**
  * A pose with a negative coordinate in every axis, so a lost sign shows up.

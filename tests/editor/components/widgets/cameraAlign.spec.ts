@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { PerspectiveCamera, Vector3 } from 'three'
 import type { ArxVector3 } from 'arx-convert/types'
-import type { CameraBounds } from '../../../../src/editor/components/widgets/cameraBounds.ts'
+import type { CameraBounds } from '../../../../src/editor/components/widgets/shared/cameraBounds.ts'
 import {
   alignPose,
   frustumOf,
@@ -14,7 +14,7 @@ import {
   gamePositionToWorld,
   setCameraPose,
   type CameraPose,
-} from '../../../../src/editor/components/widgets/cameraPose.ts'
+} from '../../../../src/editor/components/widgets/camera/cameraPose.ts'
 
 /**
  * The scene position of the test level.

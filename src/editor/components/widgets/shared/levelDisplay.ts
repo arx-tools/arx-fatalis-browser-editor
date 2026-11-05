@@ -1,6 +1,6 @@
 import { computed, type ComputedRef, type ShallowRef } from 'vue'
-import { onKeyboardToggle, startKeyboard } from '../../modules/keyboard/keyboard.ts'
-import { persistedRef } from '../../modules/persistedRef/persistedRef.ts'
+import { onKeyboardToggle, startKeyboard } from '../../../modules/keyboard/keyboard.ts'
+import { persistedRef } from '../../../modules/persistedRef/persistedRef.ts'
 
 /**
  * Whether the wireframe of the level is drawn over the mesh.

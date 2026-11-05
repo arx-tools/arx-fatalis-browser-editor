@@ -5,7 +5,7 @@ import { paintLevel } from '../modules/level/levelTextures.ts'
 import { levelStore } from '../modules/level/levelStore.ts'
 import { currentMapId, rememberCustomMap } from '../modules/level/maps.ts'
 import { createZipLevelSource } from '../modules/level/zipSource.ts'
-import { cameraStore } from './widgets/cameraStore.ts'
+import { cameraStore } from './widgets/camera/cameraStore.ts'
 
 // the file input is the level's way in: the browser does not let a script choose a file, so the button only presses
 // the input, and the input is out of the way because the button is what the user sees

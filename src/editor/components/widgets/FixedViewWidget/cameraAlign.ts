@@ -1,7 +1,7 @@
 import type { ArxVector3 } from 'arx-convert/types'
 import { Vector3 } from 'three'
-import { centreOfBounds, type CameraBounds } from '../cameraBounds.ts'
-import type { CameraPose, GameAngle } from '../cameraPose.ts'
+import { centreOfBounds, type CameraBounds } from '../shared/cameraBounds.ts'
+import type { CameraPose, GameAngle } from '../camera/cameraPose.ts'
 
 /**
  * The six fixed views of the align row.

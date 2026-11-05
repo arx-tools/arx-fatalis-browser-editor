@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ArxVector3 } from 'arx-convert/types'
-import { centreOfBounds, type CameraBounds } from '../../../../src/editor/components/widgets/cameraBounds.ts'
+import { centreOfBounds, type CameraBounds } from '../../../../../src/editor/components/widgets/shared/cameraBounds.ts'
 
 /**
  * The box the fixed views frame.

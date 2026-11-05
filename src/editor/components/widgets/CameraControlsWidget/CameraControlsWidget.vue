@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { WIDGET_KINDS } from '../../../modules/layout/widgetKinds.ts'
 import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
-import { cameraStore } from '../cameraStore.ts'
+import { cameraStore } from '../camera/cameraStore.ts'
 import FieldLabel from '../../FieldLabel.vue'
 import {
   cameraFieldGroups,

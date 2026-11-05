@@ -10,7 +10,7 @@ import {
   setCameraPose,
   worldPositionToGame,
   type CameraPose,
-} from '../../../../src/editor/components/widgets/cameraPose.ts'
+} from '../../../../../src/editor/components/widgets/camera/cameraPose.ts'
 
 /**
  * The scene position of the test level.

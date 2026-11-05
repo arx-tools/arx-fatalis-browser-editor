@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict'
 import { beforeEach, describe, it } from 'node:test'
-import { isWireframeVisible, startLevelDisplay } from '../../../../src/editor/components/widgets/levelDisplay.ts'
+import {
+  isWireframeVisible,
+  startLevelDisplay,
+} from '../../../../../src/editor/components/widgets/shared/levelDisplay.ts'
 import {
   clearPressedKeys,
   handleKeyDown,
   type KeyboardDownEvent,
-} from '../../../../src/editor/modules/keyboard/keyboard.ts'
+} from '../../../../../src/editor/modules/keyboard/keyboard.ts'
 
 /**
  * Builds the part of a keydown the dispatcher reads.

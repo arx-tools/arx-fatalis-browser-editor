@@ -11,7 +11,7 @@ import {
   type RenderCounters,
   type RenderPerformanceRow,
   type RenderPerformanceSample,
-} from '../renderPerformance.ts'
+} from '../shared/renderPerformance.ts'
 
 /**
  * The label of the widget, from the widget definition.
@@ -148,7 +148,7 @@ onBeforeUnmount(() => {
 
 <style scoped lang="scss">
 @use '../../../palette' as *;
-@use '../infoRows' as *;
+@use '../shared/infoRows' as *;
 
 .RenderPerformanceWidget {
   height: 100%;

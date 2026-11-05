@@ -1,7 +1,7 @@
 import type { ArxVector3 } from 'arx-convert/types'
 import type { OrthographicCamera, Vector3 } from 'three'
-import { centreOfBounds, type CameraBounds } from '../cameraBounds.ts'
-import { applyGameAngle, gamePositionToWorld, type CameraPose } from '../cameraPose.ts'
+import { centreOfBounds, type CameraBounds } from '../shared/cameraBounds.ts'
+import { applyGameAngle, gamePositionToWorld, type CameraPose } from '../camera/cameraPose.ts'
 import { alignPose, frameOf, frustumOf, type CameraViewMode } from './cameraAlign.ts'
 
 /**

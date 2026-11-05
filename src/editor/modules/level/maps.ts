@@ -1,5 +1,5 @@
 import { computed, nextTick, ref, shallowRef, watch } from 'vue'
-import { cameraStore } from '../../components/widgets/cameraStore.ts'
+import { cameraStore } from '../../components/widgets/camera/cameraStore.ts'
 import { history } from '../history/history.ts'
 import { mapHistoryRecords } from '../history/mapHistory.ts'
 import type { HistoryRecord } from '../history/records.ts'

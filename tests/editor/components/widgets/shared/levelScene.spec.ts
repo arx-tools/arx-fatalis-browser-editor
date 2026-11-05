@@ -22,8 +22,8 @@ import {
   gameBoundsOf,
   previewMaterial,
   viewMeshesOf,
-} from '../../../../src/editor/components/widgets/levelScene.ts'
-import { accelerateRaycast, createLevelMaterial } from '../../../../src/generator/meshes.ts'
+} from '../../../../../src/editor/components/widgets/shared/levelScene.ts'
+import { accelerateRaycast, createLevelMaterial } from '../../../../../src/generator/meshes.ts'
 
 /**
  * The scene position of the test level.

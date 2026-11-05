@@ -3,11 +3,11 @@ import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from
 import { OrthographicCamera, type Mesh, type Vector3 } from 'three'
 import type { ArxPolygon, ArxVector3 } from 'arx-convert/types'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
-import { cameraStore } from '../cameraStore.ts'
+import { cameraStore } from '../camera/cameraStore.ts'
 import { levelRevision } from '../../../modules/level/editing.ts'
 import { levelStore } from '../../../modules/level/levelStore.ts'
-import { centreOfBounds, type CameraBounds } from '../cameraBounds.ts'
-import { gamePositionToWorld, worldPositionToGame } from '../cameraPose.ts'
+import { centreOfBounds, type CameraBounds } from '../shared/cameraBounds.ts'
+import { gamePositionToWorld, worldPositionToGame } from '../camera/cameraPose.ts'
 import {
   addPreviewLights,
   attachWireframe,
@@ -15,12 +15,18 @@ import {
   previewMaterial,
   viewMeshesOf,
   type LevelWireframe,
-} from '../levelScene.ts'
-import { isMeshVisible, isWireframeVisible } from '../levelDisplay.ts'
+} from '../shared/levelScene.ts'
+import { isMeshVisible, isWireframeVisible } from '../shared/levelDisplay.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { createPolygonSelectionOverlay, type PolygonSelectionOverlay } from '../View3DWidget/polygonSelection.ts'
-import { FIELD_OF_VIEW, createViewScene, disposeViewScene, resizeViewScene, type ViewScene } from '../viewScene.ts'
+import {
+  FIELD_OF_VIEW,
+  createViewScene,
+  disposeViewScene,
+  resizeViewScene,
+  type ViewScene,
+} from '../shared/viewScene.ts'
 import type { CameraViewMode } from './cameraAlign.ts'
 import { MAX_ZOOM, frameFixedView } from './fixedView.ts'
 import { planePointAt, targetPositionOf } from './fixedViewTarget.ts'

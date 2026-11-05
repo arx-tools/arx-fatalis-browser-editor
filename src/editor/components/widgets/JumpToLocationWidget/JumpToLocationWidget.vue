@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { cameraStore } from '../cameraStore.ts'
+import { cameraStore } from '../camera/cameraStore.ts'
 import FieldLabel from '../../FieldLabel.vue'
 import { jumpTargets, jumpTo } from './locations.ts'
 

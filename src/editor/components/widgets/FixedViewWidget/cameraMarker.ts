@@ -1,7 +1,7 @@
 import type { ArxVector3 } from 'arx-convert/types'
 import { PerspectiveCamera, Vector3, type Camera } from 'three'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
-import { applyGameAngle, gamePositionToWorld, type CameraPose, type GameAngle } from '../cameraPose.ts'
+import { applyGameAngle, gamePositionToWorld, type CameraPose, type GameAngle } from '../camera/cameraPose.ts'
 import type { CameraViewMode } from './cameraAlign.ts'
 
 /**

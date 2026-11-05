@@ -1,4 +1,4 @@
-import type { CameraPose } from '../cameraPose.ts'
+import type { CameraPose } from '../camera/cameraPose.ts'
 
 /**
  * The id of the spawn target: the pose the editor starts with when the url carries no position.

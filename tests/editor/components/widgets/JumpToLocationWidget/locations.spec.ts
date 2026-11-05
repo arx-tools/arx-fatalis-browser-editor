@@ -7,7 +7,7 @@ import {
   type JumpCamera,
   type JumpTarget,
 } from '../../../../../src/editor/components/widgets/JumpToLocationWidget/locations.ts'
-import type { CameraPose } from '../../../../../src/editor/components/widgets/cameraPose.ts'
+import type { CameraPose } from '../../../../../src/editor/components/widgets/camera/cameraPose.ts'
 
 /**
  * A pose the tests jump to.

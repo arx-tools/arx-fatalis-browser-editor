@@ -13,7 +13,7 @@ import {
   type ViewScene,
   disposeViewScene,
   resizeViewScene,
-} from '../../../../src/editor/components/widgets/viewScene.ts'
+} from '../../../../../src/editor/components/widgets/shared/viewScene.ts'
 
 /**
  * Builds a view whose renderer only records the calls.

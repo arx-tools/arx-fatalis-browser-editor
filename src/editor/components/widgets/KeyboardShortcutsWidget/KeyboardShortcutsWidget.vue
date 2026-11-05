@@ -5,7 +5,7 @@ import { history } from '../../../modules/history/history.ts'
 import { redoLastStep, undoLastStep } from '../../../modules/level/editing.ts'
 import { isMacKeyboard } from '../../../modules/keyboard/keyboard.ts'
 import WidgetHeading from '../../WidgetHeading.vue'
-import { isViewAtDefault, resetViewSwitches, viewSwitches, type ViewSwitch } from '../levelDisplay.ts'
+import { isViewAtDefault, resetViewSwitches, viewSwitches, type ViewSwitch } from '../shared/levelDisplay.ts'
 
 /**
  * One cell of the key column: a key cap with a text, or one with an icon of the library.
@@ -294,7 +294,7 @@ function buttonTitle(toggle: HelpToggle): string {
 
 <style scoped lang="scss">
 @use '../../../palette' as *;
-@use '../infoRows' as *;
+@use '../shared/infoRows' as *;
 
 .KeyboardShortcutsWidget {
   height: 100%;

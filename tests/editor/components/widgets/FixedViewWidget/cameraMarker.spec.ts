@@ -11,7 +11,7 @@ import {
   applyGameAngle,
   gamePositionToWorld,
   type CameraPose,
-} from '../../../../../src/editor/components/widgets/cameraPose.ts'
+} from '../../../../../src/editor/components/widgets/camera/cameraPose.ts'
 import type { PixelOffset } from '../../../../../src/editor/components/widgets/FixedViewWidget/fixedViewTarget.ts'
 import type { CameraViewMode } from '../../../../../src/editor/components/widgets/FixedViewWidget/cameraAlign.ts'
 

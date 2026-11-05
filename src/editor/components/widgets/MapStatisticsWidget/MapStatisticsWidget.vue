@@ -54,7 +54,7 @@ watch(
 
 <style scoped lang="scss">
 @use '../../../palette' as *;
-@use '../infoRows' as *;
+@use '../shared/infoRows' as *;
 
 .MapStatisticsWidget {
   height: 100%;

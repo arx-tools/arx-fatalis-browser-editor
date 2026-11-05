@@ -155,7 +155,7 @@ function thumbOf(name: string): string | undefined {
 
 <style scoped lang="scss">
 @use '../../../palette' as *;
-@use '../infoRows' as *;
+@use '../shared/infoRows' as *;
 
 // The selection, read as an inspector: the count under the title, then the textures of the faces grouped by where they
 // come from. The widget fills the space it is given and scrolls: a selection may hold forty textures, and the columns of

@@ -1,5 +1,5 @@
 import { shallowRef, type ShallowRef } from 'vue'
-import { formatCount, formatSize } from '../../modules/format.ts'
+import { formatCount, formatSize } from '../../../modules/format.ts'
 
 /**
  * The window the frame rate is measured over, in milliseconds.

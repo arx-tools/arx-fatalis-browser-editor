@@ -6,11 +6,10 @@ import { BufferAttribute, DoubleSide, FrontSide, Texture, type Material, type Me
 import { ArxMap } from '../../../../src/generator/ArxMap.ts'
 import { createBlankLevelFiles, FLAT_PRESET, MINIMAL_PRESET } from '../../../../src/editor/modules/level/blankLevel.ts'
 import { applyColourKey } from '../../../../src/editor/modules/textures/image.ts'
+import { paintKeyOf, type PaintKey } from '../../../../src/editor/modules/level/levelTextures/paint.ts'
 import {
   drawnRunsOf,
   faceRunsOf,
-  paintKeyOf,
-  type PaintKey,
   findTextureFiles,
   paintLevelTextures,
   solidPolygonsOf,

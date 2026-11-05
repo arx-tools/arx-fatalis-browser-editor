@@ -11,8 +11,8 @@ import {
   readCameraPose,
   setCameraPose,
   type CameraPose,
-} from '../cameraPose.ts'
-import { cameraAngle, cameraPosition } from '../cameraState.ts'
+} from '../camera/cameraPose.ts'
+import { cameraAngle, cameraPosition } from '../camera/cameraState.ts'
 
 /**
  * How far the camera moves in one second, in the level's units.

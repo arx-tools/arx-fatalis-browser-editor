@@ -13,12 +13,18 @@ import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
 import { isKeyDown } from '../../../modules/keyboard/keyboard.ts'
 import { getModifierOfKey } from '../../../modules/keyboard/functions.ts'
 import { selectionModeOf, selectionStore, type SelectionMode } from '../../../modules/selection/selectionStore.ts'
-import { cameraStore } from '../cameraStore.ts'
-import { renderPerformanceStore } from '../renderPerformance.ts'
+import { cameraStore } from '../camera/cameraStore.ts'
+import { renderPerformanceStore } from '../shared/renderPerformance.ts'
 import { crosshairStore } from '../../../modules/crosshair/crosshairStore.ts'
-import { isMeshVisible, isWireframeVisible } from '../levelDisplay.ts'
-import { addPreviewLights, attachWireframe, viewMeshesOf, type LevelWireframe } from '../levelScene.ts'
-import { FIELD_OF_VIEW, createViewScene, disposeViewScene, resizeViewScene, type ViewScene } from '../viewScene.ts'
+import { isMeshVisible, isWireframeVisible } from '../shared/levelDisplay.ts'
+import { addPreviewLights, attachWireframe, viewMeshesOf, type LevelWireframe } from '../shared/levelScene.ts'
+import {
+  FIELD_OF_VIEW,
+  createViewScene,
+  disposeViewScene,
+  resizeViewScene,
+  type ViewScene,
+} from '../shared/viewScene.ts'
 import { CameraControls } from './cameraControls.ts'
 import { isPickDue } from './pickInterval.ts'
 import { createOrientationGizmo, type OrientationGizmo } from './orientationGizmo.ts'

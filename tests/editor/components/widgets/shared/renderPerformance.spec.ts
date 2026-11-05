@@ -7,7 +7,7 @@ import {
   renderPerformanceRows,
   type RendererReadout,
   type RenderPerformanceSample,
-} from '../../../../src/editor/components/widgets/renderPerformance.ts'
+} from '../../../../../src/editor/components/widgets/shared/renderPerformance.ts'
 
 /**
  * A sample of the readout, with the counters of a big level.

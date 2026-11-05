@@ -2,13 +2,13 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { OrthographicCamera, Vector3 } from 'three'
 import type { ArxVector3 } from 'arx-convert/types'
-import type { CameraBounds } from '../../../../../src/editor/components/widgets/cameraBounds.ts'
+import type { CameraBounds } from '../../../../../src/editor/components/widgets/shared/cameraBounds.ts'
 import {
   alignPose,
   frustumOf,
   type CameraViewMode,
 } from '../../../../../src/editor/components/widgets/FixedViewWidget/cameraAlign.ts'
-import { gamePositionToWorld } from '../../../../../src/editor/components/widgets/cameraPose.ts'
+import { gamePositionToWorld } from '../../../../../src/editor/components/widgets/camera/cameraPose.ts'
 import { MAX_ZOOM, frameFixedView } from '../../../../../src/editor/components/widgets/FixedViewWidget/fixedView.ts'
 
 /**

@@ -12,10 +12,10 @@ import {
   type Scene,
   Vector3,
 } from 'three'
-import { Color } from '../../../generator/Color.ts'
-import { createWireframeMaterial } from '../../../generator/meshes.ts'
+import { Color } from '../../../../generator/Color.ts'
+import { createWireframeMaterial } from '../../../../generator/meshes.ts'
+import { worldPositionToGame } from '../camera/cameraPose.ts'
 import type { CameraBounds } from './cameraBounds.ts'
-import { worldPositionToGame } from './cameraPose.ts'
 
 /**
  * The distance multiplier the camera keeps from the level, in radii.

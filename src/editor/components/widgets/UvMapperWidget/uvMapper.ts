@@ -1,4 +1,5 @@
 import type { ArxPolygon } from 'arx-convert/types'
+import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { usedVerticesOf } from '../../../../generator/polygons.ts'
 import type { FaceUv } from '../../../../generator/arxMap/uvs.ts'
 
@@ -80,6 +81,25 @@ export interface UvView {
    * the texture around it is drawn repeated, the way the game draws it.
    */
   readonly centre: UvPoint
+}
+
+/**
+ * The face a uv mapper widget edits: the faces of the selection that share their texture and their uv, and the one set
+ * of corners they draw with.
+ */
+export interface ShownFace {
+  /**
+   * The level the faces belong to.
+   */
+  readonly map: ArxMap
+  /**
+   * The faces, all of them drawing with the same corners on the same texture.
+   */
+  readonly indices: readonly number[]
+  /**
+   * The first of them: the one the caption names the texture by.
+   */
+  readonly polygon: ArxPolygon
 }
 
 /**
@@ -219,6 +239,34 @@ export function zoomAfter(zoom: number, deltaY: number): number {
   const next = zoom * Math.exp(-deltaY * WHEEL_STEP)
 
   return Math.min(Math.max(next, MIN_ZOOM), MAX_ZOOM)
+}
+
+/**
+ * Reads a number a user typed into a field.
+ *
+ * @remarks
+ * An empty field, a lone minus or a half typed decimal is **not** a number: the model is left alone until the text is
+ * one (an empty string would be a zero, and the corner would jump to the corner of the texture on the first keystroke of
+ * a new number). A comma is read as the decimal point, the way a Hungarian keyboard writes it.
+ *
+ * @param text The text of the field.
+ *
+ * @returns The number, or `undefined` when the text is not one.
+ */
+export function numberOfText(text: string): number | undefined {
+  const clean = text.trim().replace(',', '.')
+
+  if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/u.test(clean)) {
+    return undefined
+  }
+
+  const value = Number(clean)
+
+  if (!Number.isFinite(value)) {
+    return undefined
+  }
+
+  return value
 }
 
 /**

@@ -1,8 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue'
-import type { ArxPolygon } from 'arx-convert/types'
+import { computed, onBeforeUnmount, onMounted, shallowRef, useTemplateRef, watch } from 'vue'
 import { RotateCcw, RotateCw, SquareCenterlineDashedHorizontal, SquareCenterlineDashedVertical } from 'lucide-vue-next'
-import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { commandOf, createSetUvRecord } from '../../../modules/history/records.ts'
 import { bumpLevelRevision, levelRevision, runStep } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
@@ -12,21 +10,17 @@ import type { TextureEntry } from '../../../modules/textures/textureEntry.ts'
 import {
   DEFAULT_ZOOM,
   mismatchMessageOf,
-  movedCorner,
-  pannedBy,
-  sameUvs,
   screenOfUv,
-  snappedPoint,
   turnedUvs,
   uvsOfFace,
-  uvOfScreen,
   uvSelectionOf,
   viewOf,
-  zoomAfter,
-  type StagePoint,
+  type ShownFace,
   type UvPoint,
   type UvTurn,
 } from './uvMapper.ts'
+import { useUvMapperDrag } from './useUvMapperDrag.ts'
+import { useUvMapperFields } from './useUvMapperFields.ts'
 
 /**
  * The label of the widget, from the widget definition.
@@ -34,24 +28,6 @@ import {
 const props = defineProps<{
   readonly label: string
 }>()
-
-/**
- * What the widget edits: the faces of the selection that share their texture and their uv, and the one set of corners.
- */
-interface ShownFace {
-  /**
-   * The level the faces belong to.
-   */
-  readonly map: ArxMap
-  /**
-   * The faces, all of them drawing with the same corners on the same texture.
-   */
-  readonly indices: readonly number[]
-  /**
-   * The first of them: the one the caption names the texture by.
-   */
-  readonly polygon: ArxPolygon
-}
 
 /**
  * The line of the widget when it has no face to edit: what the user has to do, or why the selection can not be edited.
@@ -104,11 +80,6 @@ const pan = shallowRef<UvPoint>({ u: 0, v: 0 })
 const panning = shallowRef(false)
 
 /**
- * Where the drag of the texture started, in pixels of the square.
- */
-let panFrom: StagePoint | undefined
-
-/**
  * The corner the pointer drags, or `undefined` when nothing is dragged.
  */
 const dragged = shallowRef<number | undefined>(undefined)
@@ -117,11 +88,6 @@ const dragged = shallowRef<number | undefined>(undefined)
  * The corner the caption reads: the one that was dragged last, so the numbers under the square stay on it.
  */
 const active = shallowRef<number | undefined>(undefined)
-
-/**
- * The corners the drag started from, so the step can be undone to the state before it.
- */
-let dragStart: readonly UvPoint[] | undefined
 
 /**
  * The frame a live change asked for, so a drag does not bump the views on every event of the pointer.
@@ -154,26 +120,6 @@ const textureName = shallowRef<string | undefined>(undefined)
 const zoomLabel = computed(() => {
   return `${zoom.value.toFixed(1)}×`
 })
-
-/**
- * The text of the two uv fields, as the user types it.
- *
- * @remarks
- * The fields follow the corners except the one that holds the focus (a half typed number would be overwritten by the
- * model on every frame of a drag), the same way the camera form follows the pose.
- */
-const fieldU = ref('')
-const fieldV = ref('')
-
-/**
- * Which field the user is typing into, if any.
- */
-const focusedField = shallowRef<'u' | 'v' | undefined>(undefined)
-
-/**
- * The corners the typing started from, so the change is one step of the history (like a drag).
- */
-let fieldStart: readonly UvPoint[] | undefined
 
 /**
  * Empties the widget: no face, no texture.
@@ -355,18 +301,17 @@ function draw(): void {
 }
 
 /**
- * Writes the numbers of a corner into the two fields, except the one the user is typing into.
- *
- * @param corner The corner the fields show.
+ * Turns the model write into a frame, so a drag of the pointer does not re-render the views on every event.
  */
-function syncFields(corner: UvPoint): void {
-  if (focusedField.value !== 'u') {
-    fieldU.value = corner.u.toFixed(3)
+function requestRedraw(): void {
+  if (redrawFrame !== 0) {
+    return
   }
 
-  if (focusedField.value !== 'v') {
-    fieldV.value = corner.v.toFixed(3)
-  }
+  redrawFrame = requestAnimationFrame(() => {
+    redrawFrame = 0
+    bumpLevelRevision()
+  })
 }
 
 /**
@@ -382,15 +327,29 @@ function reframe(): void {
     return { index, x: at.x, y: at.y }
   })
 
-  const shownCorner = dragged.value ?? active.value ?? 0
-  const corner = corners.value[shownCorner]
-
-  if (corner !== undefined) {
-    syncFields(corner)
-  }
-
   draw()
 }
+
+const fields = useUvMapperFields({ corners, active, shown, reframe, requestRedraw })
+
+const { fieldU, fieldV, onFieldInput, onFieldFocus, onFieldBlur, onFieldEnter } = fields
+
+const drag = useUvMapperDrag({
+  canvas,
+  shown,
+  corners,
+  view,
+  size,
+  zoom,
+  pan,
+  panning,
+  dragged,
+  active,
+  reframe,
+  requestRedraw,
+})
+
+const { onPointerDown, onPointerMove, onPointerUp, onPanStart, onPanMove, onPanEnd } = drag
 
 /**
  * The corner the fields edit, as the select under the square shows it.
@@ -408,226 +367,6 @@ const activeCorner = computed({
     reframe()
   },
 })
-
-/**
- * Turns the model write into a frame, so a drag of the pointer does not re-render the views on every event.
- */
-function requestRedraw(): void {
-  if (redrawFrame !== 0) {
-    return
-  }
-
-  redrawFrame = requestAnimationFrame(() => {
-    redrawFrame = 0
-    bumpLevelRevision()
-  })
-}
-
-/**
- * Reads the pointer in the pixels of the square.
- *
- * @param event The pointer event of the handle.
- *
- * @returns The place of the pointer, from the top left of the square.
- */
-function pointOf(event: PointerEvent): { x: number; y: number } {
-  const box = canvas.value?.getBoundingClientRect()
-
-  if (box === undefined) {
-    return { x: 0, y: 0 }
-  }
-
-  return { x: event.clientX - box.left, y: event.clientY - box.top }
-}
-
-/**
- * Takes a corner for the drag.
- *
- * @param index The corner of the handle.
- * @param event The press that starts the drag.
- */
-function onPointerDown(index: number, event: PointerEvent): void {
-  const current = shown.value
-
-  if (current === undefined) {
-    return
-  }
-
-  event.preventDefault()
-  ;(event.currentTarget as Element | null)?.setPointerCapture(event.pointerId)
-  dragged.value = index
-  active.value = index
-  dragStart = corners.value.map((corner) => {
-    return { ...corner }
-  })
-  reframe()
-}
-
-/**
- * Moves the dragged corner, and the model with it, so the 3D view follows the drag.
- *
- * @param event The position of the drag.
- */
-function onPointerMove(event: PointerEvent): void {
-  const index = dragged.value
-  const current = shown.value
-
-  if (index === undefined || current === undefined) {
-    return
-  }
-
-  event.preventDefault()
-
-  // with the shift held, the corner is laid on the nearest 45 degree ray of the drag: a wall's texture is as wide as the
-  // wall above it, not a degree off (2026-11-05, the owner)
-  const origin = dragStart?.[index]
-  let target = pointOf(event)
-
-  if (origin !== undefined && event.shiftKey) {
-    target = snappedPoint(screenOfUv(view.value, origin), target)
-  }
-
-  corners.value = movedCorner(corners.value, index, uvOfScreen(view.value, target))
-
-  for (const face of current.indices) {
-    current.map.setFaceUvs(face, uvsOfFace(corners.value))
-  }
-
-  reframe()
-  requestRedraw()
-}
-
-/**
- * Reads a number a user typed into a field.
- *
- * @remarks
- * An empty field, a lone minus or a half typed decimal is **not** a number: the model is left alone until the text is
- * one (an empty string would be a zero, and the corner would jump to the corner of the texture on the first keystroke of
- * a new number). A comma is read as the decimal point, the way a Hungarian keyboard writes it.
- *
- * @param text The text of the field.
- *
- * @returns The number, or `undefined` when the text is not one.
- */
-function numberOf(text: string): number | undefined {
-  const clean = text.trim().replace(',', '.')
-
-  if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/u.test(clean)) {
-    return undefined
-  }
-
-  const value = Number(clean)
-
-  if (!Number.isFinite(value)) {
-    return undefined
-  }
-
-  return value
-}
-
-/**
- * Puts a typed uv into the model, when both fields hold a number.
- *
- * @remarks
- * The two fields are one edit: a corner has two numbers, and a half typed one (an empty field, a comma) leaves the model
- * alone. The value is kept inside the texture, like the drag.
- */
-function applyFields(): void {
-  const index = active.value ?? 0
-  const current = shown.value
-  const u = numberOf(fieldU.value)
-  const v = numberOf(fieldV.value)
-
-  if (current === undefined || u === undefined || v === undefined) {
-    return
-  }
-
-  const next = movedCorner(corners.value, index, { u, v })
-
-  if (sameUvs(corners.value, next)) {
-    return
-  }
-
-  corners.value = next
-
-  for (const face of current.indices) {
-    current.map.setFaceUvs(face, uvsOfFace(corners.value))
-  }
-
-  reframe()
-  requestRedraw()
-}
-
-/**
- * Reads a typed uv, and the corner the user is on.
- *
- * @param axis The field that was typed into.
- */
-function onFieldInput(axis: 'u' | 'v'): void {
-  focusedField.value = axis
-  applyFields()
-}
-
-/**
- * Starts a typed edit: the corners are kept, so the whole typing is one step of the history.
- *
- * @remarks
- * The two fields are one corner, so the edit starts at the first of them and the step is written when the focus leaves
- * both (typing the u and then the v is **one** step, not two).
- */
-function onFieldFocus(): void {
-  if (fieldStart === undefined) {
-    fieldStart = corners.value.map((corner) => {
-      return { ...corner }
-    })
-  }
-}
-
-/**
- * Ends a typed edit: the change is a step of the history, the way a drag is.
- */
-function commitFields(): void {
-  const current = shown.value
-  const from = fieldStart
-
-  focusedField.value = undefined
-  fieldStart = undefined
-
-  if (current === undefined || from === undefined || sameUvs(from, corners.value)) {
-    return
-  }
-
-  const command = commandOf(createSetUvRecord(current.indices, uvsOfFace(from), uvsOfFace(corners.value)), current.map)
-
-  if (command !== undefined) {
-    runStep(command)
-  }
-}
-
-/**
- * Ends a typed edit, unless the focus only moved to the other field of the corner.
- *
- * @param event The event of the field that lost the focus.
- */
-function onFieldBlur(event: FocusEvent): void {
-  const next = event.relatedTarget
-
-  if (next instanceof HTMLElement && next.closest('.fields') !== null) {
-    return
-  }
-
-  commitFields()
-}
-
-/**
- * Ends a typed edit on Enter: the step is on the stack, and the keyboard belongs to the editor again.
- *
- * @param event The key down of the field.
- */
-function onFieldEnter(event: KeyboardEvent): void {
-  commitFields()
-  ;(event.target as HTMLInputElement | null)?.blur()
-}
 
 /**
  * Lays the corners of the face on other corners of it: the four buttons of the footer.
@@ -667,94 +406,6 @@ function onTurn(turn: UvTurn): void {
 }
 
 /**
- * Ends the drag: the corner stays where it was let go, and the drag becomes a step of the history.
- *
- * @param event The release that ends the drag.
- */
-function onPointerUp(event: PointerEvent): void {
-  const index = dragged.value
-  const current = shown.value
-  const from = dragStart
-
-  ;(event.currentTarget as Element | null)?.releasePointerCapture(event.pointerId)
-  dragged.value = undefined
-  dragStart = undefined
-
-  if (index === undefined || current === undefined || from === undefined) {
-    reframe()
-
-    return
-  }
-
-  if (!sameUvs(from, corners.value)) {
-    const command = commandOf(
-      createSetUvRecord(current.indices, uvsOfFace(from), uvsOfFace(corners.value)),
-      current.map,
-    )
-
-    if (command !== undefined) {
-      runStep(command)
-    }
-  }
-
-  reframe()
-}
-
-/**
- * Starts the drag of the texture: the whole view follows the pointer.
- *
- * @param event The press that starts the drag.
- */
-function onPanStart(event: PointerEvent): void {
-  event.preventDefault()
-  ;(event.currentTarget as Element | null)?.setPointerCapture(event.pointerId)
-  panning.value = true
-  panFrom = pointOf(event)
-}
-
-/**
- * Slides the view with the pointer: the texture under the hand stays under it.
- *
- * @param event The position of the drag.
- */
-function onPanMove(event: PointerEvent): void {
-  const from = panFrom
-
-  if (from === undefined) {
-    return
-  }
-
-  const point = pointOf(event)
-
-  pan.value = pannedBy(pan.value, { x: point.x - from.x, y: point.y - from.y }, size.value, zoom.value)
-  panFrom = point
-  reframe()
-}
-
-/**
- * Ends the drag of the texture.
- *
- * @param event The release that ends the drag.
- */
-function onPanEnd(event: PointerEvent): void {
-  ;(event.currentTarget as Element | null)?.releasePointerCapture(event.pointerId)
-  panning.value = false
-  panFrom = undefined
-}
-
-/**
- * Zooms the square with the wheel of the pointer.
- *
- * @param event The turn of the wheel.
- */
-function onWheel(event: WheelEvent): void {
-  // the wheel must not scroll the dock under the widget
-  event.preventDefault()
-  zoom.value = zoomAfter(zoom.value, event.deltaY)
-  reframe()
-}
-
-/**
  * Fits the square to the box of the widget.
  */
 function resize(): void {
@@ -787,7 +438,7 @@ onMounted(() => {
     })
     observer.observe(box)
     // the wheel must be able to stop the dock from scrolling: a passive listener may not
-    box.addEventListener('wheel', onWheel, { passive: false })
+    box.addEventListener('wheel', drag.onWheel, { passive: false })
   }
 
   resize()

@@ -7,6 +7,7 @@ import {
   MAX_ZOOM,
   MIN_ZOOM,
   movedCorner,
+  numberOfText,
   pannedBy,
   sameUvs,
   screenOfUv,
@@ -189,6 +190,35 @@ void describe('zoomAfter', () => {
 
     assert.ok(zoomed > 2)
     assert.ok(Math.abs(zoomAfter(zoomed, 100) - 2) < 1e-9)
+  })
+})
+
+void describe('numberOfText', () => {
+  void it('reads a number a user typed', () => {
+    assert.equal(numberOfText('0.5'), 0.5)
+    assert.equal(numberOfText('-0.25'), -0.25)
+    assert.equal(numberOfText('1'), 1)
+  })
+
+  void it('ignores the spaces around the number', () => {
+    assert.equal(numberOfText('  0.75  '), 0.75)
+  })
+
+  void it('reads a comma as the decimal point', () => {
+    assert.equal(numberOfText('0,5'), 0.5)
+  })
+
+  void it('reads nothing from an empty or a half typed field', () => {
+    assert.equal(numberOfText(''), undefined)
+    assert.equal(numberOfText(' '.repeat(3)), undefined)
+    assert.equal(numberOfText('.'), undefined)
+    assert.equal(numberOfText('-'), undefined)
+  })
+
+  void it('reads nothing from a text or an infinity', () => {
+    assert.equal(numberOfText('abc'), undefined)
+    assert.equal(numberOfText('1e3'), undefined)
+    assert.equal(numberOfText('Infinity'), undefined)
   })
 })
 

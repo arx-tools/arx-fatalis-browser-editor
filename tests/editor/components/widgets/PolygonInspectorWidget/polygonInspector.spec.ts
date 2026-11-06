@@ -34,7 +34,7 @@ function polygon(flags: number): ArxPolygon {
 }
 
 void describe('inspectorRows', () => {
-  void it('shows a dash for every row when the ray hits nothing', () => {
+  void it('shows a hyphen for every row when the ray hits nothing', () => {
     const rows = inspectorRows(undefined)
 
     assert.deepEqual(
@@ -45,7 +45,7 @@ void describe('inspectorRows', () => {
     )
     assert.deepEqual(
       rows.filter((row) => {
-        return row.value !== '—'
+        return row.value !== '-'
       }),
       [],
     )

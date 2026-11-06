@@ -87,8 +87,8 @@ export interface MapGroupEntry {
  * with nothing in the url).
  */
 const BLANK_PRESETS: ReadonlyArray<{ id: string; label: string; preset: NewLevelPreset }> = [
-  { id: 'minimal', label: 'Minimal — one quad', preset: MINIMAL_PRESET },
-  { id: 'flat', label: 'Flat — 11×11 tiles', preset: FLAT_PRESET },
+  { id: 'minimal', label: 'Minimal: one quad under the player', preset: MINIMAL_PRESET },
+  { id: 'flat', label: 'Flat: 11×11 tiles', preset: FLAT_PRESET },
 ]
 
 /**

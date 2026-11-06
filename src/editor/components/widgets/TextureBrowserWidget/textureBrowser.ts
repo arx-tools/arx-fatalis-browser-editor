@@ -40,7 +40,7 @@ export interface TexturePage {
    */
   readonly to: number
   /**
-   * The line under the list, like `1–100 of 2 468`.
+   * The line under the list, like `1-100 of 2 468`.
    */
   readonly label: string
 }
@@ -77,7 +77,7 @@ export function texturePageOf(entries: readonly TextureEntry[], filter: TextureF
     // one texture is a page of one: a range of the same number twice reads worse than the count
     label = `${formatCount(from)} of ${formatCount(filtered.length)}`
   } else {
-    label = `${formatCount(from)}–${formatCount(to)} of ${formatCount(filtered.length)}`
+    label = `${formatCount(from)}-${formatCount(to)} of ${formatCount(filtered.length)}`
   }
 
   return { entries: shown, page: current, pageCount, total: filtered.length, from, to, label }

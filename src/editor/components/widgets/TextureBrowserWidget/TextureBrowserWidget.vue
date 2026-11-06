@@ -97,7 +97,7 @@ const materials = computed(() => {
       let label = materialLabelOf(name)
 
       if (aliases !== undefined) {
-        label = `${label} — ${aliases.join(', ')}`
+        label = `${label}: ${aliases.join(', ')}`
       }
 
       return { value: name, label }
@@ -144,7 +144,7 @@ function titleOf(entry: TextureEntry): string {
     where = 'Arx Fatalis'
   }
 
-  return `${entry.name} — ${materialLabelOf(materialOf(entry.name))}, ${where}`
+  return `${entry.name}: ${materialLabelOf(materialOf(entry.name))}, ${where}`
 }
 
 /**

@@ -53,8 +53,8 @@ void describe('texturePageOf', () => {
   })
 
   void it('writes the range with the counts of the editor', () => {
-    assert.equal(texturePageOf(textures(250), ANY_TEXTURE, 1).label, '1–100 of 250')
-    assert.equal(texturePageOf(textures(2468), ANY_TEXTURE, 2).label, '101–200 of 2 468')
+    assert.equal(texturePageOf(textures(250), ANY_TEXTURE, 1).label, '1-100 of 250')
+    assert.equal(texturePageOf(textures(2468), ANY_TEXTURE, 2).label, '101-200 of 2 468')
   })
 
   void it('lands on the last page when the filter makes the list shorter', () => {
@@ -92,6 +92,6 @@ void describe('texturePageOf', () => {
     assert.equal(page.pageCount, 2)
     assert.equal(page.page, 2)
     assert.equal(page.total, 150)
-    assert.equal(page.label, '101–150 of 150')
+    assert.equal(page.label, '101-150 of 150')
   })
 })

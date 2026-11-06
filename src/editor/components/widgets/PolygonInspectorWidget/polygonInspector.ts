@@ -36,8 +36,11 @@ export interface InspectedPolygon {
 
 /**
  * What a row shows when no face is under the crosshair.
+ *
+ * @remarks
+ * A plain hyphen, and not the em dash it used to be: the interface never shows an em dash (the owner's rule, 2026-11-06).
  */
-const NOTHING = '—'
+const NOTHING = '-'
 
 /**
  * The rows of the widget, in the order it shows them.

@@ -494,7 +494,7 @@ watch(
   <div class="UvMapperWidget">
     <div class="head">
       <h2 class="label">{{ props.label }}</h2>
-      <span class="name">{{ textureName ?? '—' }}</span>
+      <span class="name">{{ textureName ?? 'no face' }}</span>
       <span v-if="shown !== undefined && shown.indices.length > 1" class="faces">{{ shown.indices.length }} faces</span>
       <span class="zoom">{{ zoomLabel }}</span>
     </div>

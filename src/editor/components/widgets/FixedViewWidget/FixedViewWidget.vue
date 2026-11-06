@@ -7,7 +7,7 @@ import { cameraStore } from '../camera/cameraStore.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { centreOfBounds, type CameraBounds } from '../shared/cameraBounds.ts'
-import { gamePositionToWorld, worldPositionToGame } from '../camera/cameraPose.ts'
+import { gamePositionToWorld } from '../camera/cameraPose.ts'
 import {
   addPreviewLights,
   attachWireframe,
@@ -28,8 +28,8 @@ import {
   type ViewScene,
 } from '../shared/viewScene.ts'
 import type { CameraViewMode } from './cameraAlign.ts'
-import { MAX_ZOOM, frameFixedView } from './fixedView.ts'
-import { planePointAt, targetPositionOf } from './fixedViewTarget.ts'
+import { frameFixedView } from './fixedView.ts'
+import { useFixedViewPointer } from './useFixedViewPointer.ts'
 import { markerPoint, markerState, type MarkerState } from './cameraMarker.ts'
 
 /**
@@ -75,15 +75,6 @@ const zoomLabel = computed(() => {
   return `${zoom.value.toFixed(1)}×`
 })
 
-/**
- * How much one pixel of the wheel turns the zoom.
- *
- * @remarks
- * The exponential keeps every step the same size, whatever the current zoom is, and the wheel back is
- * always the exact inverse of the wheel in.
- */
-const WHEEL_STEP = 0.0015
-
 let view: ViewScene<OrthographicCamera> | undefined
 let shown: Mesh[] = []
 let wireframe: LevelWireframe | undefined
@@ -92,7 +83,6 @@ let bounds: CameraBounds | undefined
 let scenePosition: ArxVector3 | undefined
 let observer: ResizeObserver | undefined
 let frame = 0
-let pressing = false
 let stopWatching: (() => void) | undefined
 let stopWatchingCamera: (() => void) | undefined
 let stopWatchingWireframe: (() => void) | undefined
@@ -212,131 +202,25 @@ function frameView(): void {
 }
 
 /**
- * Reads the pointer in the pixels of the canvas.
- *
- * @param event The pointer event of the view.
- *
- * @returns The distance of the pointer from the top left corner of the canvas, in CSS pixels.
- */
-function canvasPixel(event: PointerEvent): { x: number; y: number } {
-  const stage = event.currentTarget as HTMLCanvasElement
-  const box = stage.getBoundingClientRect()
-
-  return { x: event.clientX - box.left, y: event.clientY - box.top }
-}
-
-/**
- * Moves the walkable camera to the place under the pointer, with the angle it has now.
+ * The pointer of the view: the jump and the drag of the walkable camera, and the wheel of the zoom.
  *
  * @remarks
- * The framed (`1×`) view is a map of the whole level: the pointer is read on the plane of the walkable camera
- * ({@link planePointAt}), and only the two axes the view shows change ({@link targetPositionOf}) — the marker
- * lands under the pointer and the height (or the distance from the level) stays. The drag uses the same
- * mapping, so it follows the pointer smoothly. A zoomed view moves the camera the same way and frames it
- * again, so the marker lands in the middle of the canvas and the level slides under it.
- *
- * @param event The pointer event of the view.
+ * The gesture has its own module (`useFixedViewPointer.ts`): this is where the widget binds the scene, the level, the
+ * zoom and the framing to it.
  */
-function moveToPointer(event: PointerEvent): void {
-  const target = view
-  const pose = cameraStore.pose.value
-
-  // without a 3D view there is nothing to move, and the store would drop the pose anyway
-  if (target === undefined || pose === undefined || scenePosition === undefined || !cameraStore.hasView.value) {
-    return
-  }
-
-  const box = target.renderer.domElement.getBoundingClientRect()
-  const pixel = canvasPixel(event)
-  const place = planePointAt(
-    { x: pixel.x, y: pixel.y, width: box.width, height: box.height },
-    target.camera,
-    gamePositionToWorld(pose.position, scenePosition),
-  )
-
-  if (place === undefined) {
-    return
-  }
-
-  cameraStore.moveCamera({
-    position: targetPositionOf(props.mode, worldPositionToGame(place, scenePosition), pose.position),
-    angle: pose.angle,
-  })
-}
-
-/**
- * Starts the pointer on the view: a press jumps, and a drag follows the pointer.
- *
- * @remarks
- * The pointer is captured, so a drag that leaves the widget keeps reporting its moves to this view, and the
- * release always arrives here.
- *
- * @param event The pointer event of the view.
- */
-function onPointerDown(event: PointerEvent): void {
-  pressing = true
-  moveToPointer(event)
-
-  const stage = event.currentTarget as HTMLElement
-  stage.setPointerCapture(event.pointerId)
-}
-
-/**
- * Follows a dragged pointer.
- *
- * @remarks
- * The drag is a move of the framed (`1×`) view only: zoomed in, every move of the camera reframes the view
- * around it, so the level would slide under the pointer and the drag would chase its own tail. A click works
- * in both: it moves the camera to the place under the pointer, and a zoomed view frames the camera again,
- * which puts the marker back in the middle of the canvas.
- *
- * @param event The pointer event of the view.
- */
-function onPointerMove(event: PointerEvent): void {
-  if (!pressing) {
-    return
-  }
-
-  if (zoom.value > 1) {
-    return
-  }
-
-  moveToPointer(event)
-}
-
-/**
- * Ends the drag of the pointer.
- *
- * @param event The pointer event of the view.
- */
-function onPointerUp(event: PointerEvent): void {
-  pressing = false
-
-  const stage = event.currentTarget as HTMLElement
-
-  if (stage.hasPointerCapture(event.pointerId)) {
-    stage.releasePointerCapture(event.pointerId)
-  }
-}
-
-/**
- * Zooms the view with the wheel of the pointer.
- *
- * @remarks
- * The listener is not passive, because the wheel must not scroll the page under the dock, and the zoom is
- * clamped by the framing of the view: the smallest step is the whole level, the largest one is
- * {@link MAX_ZOOM}.
- *
- * @param event The wheel event of the pointer.
- */
-function onWheel(event: WheelEvent): void {
-  event.preventDefault()
-
-  const next = zoom.value * Math.exp(-event.deltaY * WHEEL_STEP)
-
-  zoom.value = Math.min(Math.max(next, 1), MAX_ZOOM)
-  frameView()
-}
+const pointer = useFixedViewPointer({
+  view: () => {
+    return view
+  },
+  scenePosition: () => {
+    return scenePosition
+  },
+  mode: () => {
+    return props.mode
+  },
+  zoom,
+  frameView,
+})
 
 /**
  * Fits the renderer and the camera to the size of the widget.
@@ -481,14 +365,14 @@ onMounted(() => {
 
   if (host.value !== null) {
     observer.observe(host.value)
-    host.value.addEventListener('wheel', onWheel, { passive: false })
+    host.value.addEventListener('wheel', pointer.onWheel, { passive: false })
   }
 
   // the click of a fixed view is the navigation of the walkable one (TODO 85)
-  target.addEventListener('pointerdown', onPointerDown)
-  target.addEventListener('pointermove', onPointerMove)
-  target.addEventListener('pointerup', onPointerUp)
-  target.addEventListener('pointercancel', onPointerUp)
+  target.addEventListener('pointerdown', pointer.onPointerDown)
+  target.addEventListener('pointermove', pointer.onPointerMove)
+  target.addEventListener('pointerup', pointer.onPointerUp)
+  target.addEventListener('pointercancel', pointer.onPointerUp)
 
   resize()
 
@@ -566,16 +450,16 @@ onBeforeUnmount(() => {
   stopWatchingSelection = undefined
 
   if (host.value !== null) {
-    host.value.removeEventListener('wheel', onWheel)
+    host.value.removeEventListener('wheel', pointer.onWheel)
   }
 
   const stage = canvas.value
 
   if (stage !== null) {
-    stage.removeEventListener('pointerdown', onPointerDown)
-    stage.removeEventListener('pointermove', onPointerMove)
-    stage.removeEventListener('pointerup', onPointerUp)
-    stage.removeEventListener('pointercancel', onPointerUp)
+    stage.removeEventListener('pointerdown', pointer.onPointerDown)
+    stage.removeEventListener('pointermove', pointer.onPointerMove)
+    stage.removeEventListener('pointerup', pointer.onPointerUp)
+    stage.removeEventListener('pointercancel', pointer.onPointerUp)
   }
 
   observer?.disconnect()

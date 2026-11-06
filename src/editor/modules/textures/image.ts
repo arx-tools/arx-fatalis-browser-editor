@@ -24,7 +24,7 @@
  *
  * @returns The MIME type, `application/octet-stream` for a name with no known extension.
  */
-export function mimeTypeOf(name: string, bytes: ArrayBuffer): string {
+function mimeTypeOf(name: string, bytes: ArrayBuffer): string {
   const head = new Uint8Array(bytes, 0, Math.min(bytes.byteLength, 3))
 
   // the magic of the three formats of the game: JPEG (FF D8 FF), PNG (89 50 4E 47), BMP (42 4D)
@@ -64,7 +64,7 @@ export function mimeTypeOf(name: string, bytes: ArrayBuffer): string {
  *
  * @returns True for the `BM` magic of the format.
  */
-export function isBmpFile(bytes: ArrayBuffer): boolean {
+function isBmpFile(bytes: ArrayBuffer): boolean {
   const head = new Uint8Array(bytes, 0, Math.min(bytes.byteLength, 2))
 
   return head[0] === 0x42 && head[1] === 0x4d
@@ -216,7 +216,7 @@ export async function decodeTextureBitmap(name: string, bytes: ArrayBuffer): Pro
  * The texture list shows a hundred of them at once, and a thumbnail of a few dozen pixels is enough for the eye to tell
  * a brick from a leaf: a bigger one would cost the page a megabyte of png data for the same read.
  */
-export const THUMBNAIL_SIZE = 64
+const THUMBNAIL_SIZE = 64
 
 /**
  * Makes a small picture of an image, for a list of textures.

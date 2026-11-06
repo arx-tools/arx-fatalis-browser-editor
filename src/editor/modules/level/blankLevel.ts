@@ -53,7 +53,7 @@ export const NEW_LEVEL_PRESETS: readonly NewLevelPreset[] = [MINIMAL_PRESET, FLA
 /**
  * The preset a new level starts with.
  */
-export const DEFAULT_NEW_LEVEL_PRESET: NewLevelPreset = MINIMAL_PRESET
+const DEFAULT_NEW_LEVEL_PRESET: NewLevelPreset = MINIMAL_PRESET
 
 /**
  * The texture of the floor: the generator's own one, the same the Arx Level Generator puts under a new map.
@@ -144,7 +144,7 @@ function blankTile(tileX: number, tileZ: number): ArxFTS['polygons'][number] {
  *
  * @returns The size of the square the tiles cover.
  */
-export function floorSizeOf(preset: NewLevelPreset): number {
+function floorSizeOf(preset: NewLevelPreset): number {
   return preset.tiles * BLANK_LEVEL_TILE_SIZE
 }
 

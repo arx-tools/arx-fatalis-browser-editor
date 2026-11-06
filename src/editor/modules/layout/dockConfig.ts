@@ -33,7 +33,7 @@ import {
  *
  * @returns The number to put into the config.
  */
-export function weightOf(size: ChildSize): number {
+function weightOf(size: ChildSize): number {
   if (size.kind === 'fixed') {
     return size.px
   }

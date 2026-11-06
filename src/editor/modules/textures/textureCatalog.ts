@@ -5,7 +5,7 @@ import { dataDirState, listDataDirTextures, readDataFile } from '../level/source
 import { TEXTURE_FOLDER } from '../level/source/dataDir/url.ts'
 import { decodeTextureBitmap, thumbnailUrlOf } from './image.ts'
 import { groupOf, type TextureGroup } from './search.ts'
-import type { TextureEntry, TextureSource } from './textureEntry.ts'
+import type { TextureEntry } from './textureEntry.ts'
 
 /**
  * The textures the editor can paint a face with.
@@ -169,17 +169,6 @@ export function entryOfName(name: string): TextureEntry | undefined {
   return textureCatalog.entries.value.find((entry) => {
     return stemOf(entry.name) === stem
   })
-}
-
-/**
- * The source a texture name belongs to.
- *
- * @param name The name a face of the level calls the texture.
- *
- * @returns The source of its entry, or `undefined` when the editor has no file for it.
- */
-export function sourceOfName(name: string): TextureSource | undefined {
-  return entryOfName(name)?.source
 }
 
 /**
@@ -451,7 +440,7 @@ export function publishLevelTextures(sources: LevelTextureSources): void {
  * It runs at the start and whenever the data directory changes (a folder picked, another url): the list is a walk of a
  * few thousand files, so it is read once and kept, and a new folder is a new list.
  */
-export async function refreshGameTextures(): Promise<void> {
+async function refreshGameTextures(): Promise<void> {
   gameTextures.value = await listDataDirTextures()
 }
 

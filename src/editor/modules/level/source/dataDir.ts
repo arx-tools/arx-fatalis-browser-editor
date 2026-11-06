@@ -189,7 +189,7 @@ export function forgetDataDir(storage: StorageLike | undefined = getLocalStorage
  *
  * @returns The folder, or `undefined` when the editor has none.
  */
-export function activeDataDirName(storage: StorageLike | undefined = getLocalStorage(undefined)): string | undefined {
+function activeDataDirName(storage: StorageLike | undefined = getLocalStorage(undefined)): string | undefined {
   if (!isDataDirStarted) {
     isDataDirStarted = true
     activeDataDir = storedDataDir(storage)

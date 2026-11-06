@@ -14,7 +14,7 @@ import { packLevelFile, packWholeFile } from '../level/source/packedFile.ts'
  * The archive is what a mod of the game is: a folder of level files the user drops in the data directory. The name is
  * the one the archived editor used, so a file of the two can not be told apart by its name.
  */
-export const EXPORT_ZIP_NAME = 'mod.zip'
+const EXPORT_ZIP_NAME = 'mod.zip'
 
 /**
  * How far the export is, in percent, at the steps it reports.

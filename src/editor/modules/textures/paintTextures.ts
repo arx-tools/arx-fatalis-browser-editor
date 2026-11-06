@@ -1,4 +1,5 @@
-import { commandOf, createSetTextureRecord } from '../history/records.ts'
+import { commandOf } from '../history/commands.ts'
+import { createSetTextureRecord } from '../history/records.ts'
 import { runStep } from '../level/edit/editing.ts'
 import { registerLevelTexture } from '../level/edit/levelTextures.ts'
 import { levelStore } from '../level/edit/levelStore.ts'

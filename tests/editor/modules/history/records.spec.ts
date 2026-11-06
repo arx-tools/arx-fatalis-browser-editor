@@ -4,8 +4,8 @@ import { ArxPolygonFlags, type ArxPolygon } from 'arx-convert/types'
 import type { FaceTexture } from '../../../../src/generator/ArxMap.ts'
 import type { PolygonInsertion } from '../../../../src/generator/arxMap/removal.ts'
 import type { FaceUv } from '../../../../src/generator/arxMap/uvs.ts'
+import { commandOf } from '../../../../src/editor/modules/history/commands.ts'
 import {
-  commandOf,
   createDeleteFacesRecord,
   createSetTextureRecord,
   createSetUvRecord,

@@ -1,5 +1,6 @@
 import { ref, shallowRef, watch, type Ref, type ShallowRef } from 'vue'
-import { commandOf, createSetUvRecord } from '../../../modules/history/records.ts'
+import { commandOf } from '../../../modules/history/commands.ts'
+import { createSetUvRecord } from '../../../modules/history/records.ts'
 import { runStep } from '../../../modules/level/edit/editing.ts'
 import { movedCorner, numberOfText, sameUvs, uvsOfFace, type ShownFace, type UvPoint } from './uvMapper.ts'
 

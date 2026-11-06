@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, shallowRef, useTemplateRef, watch } from 'vue'
 import { RotateCcw, RotateCw, SquareCenterlineDashedHorizontal, SquareCenterlineDashedVertical } from 'lucide-vue-next'
-import { commandOf, createSetUvRecord } from '../../../modules/history/records.ts'
+import { commandOf } from '../../../modules/history/commands.ts'
+import { createSetUvRecord } from '../../../modules/history/records.ts'
 import { bumpLevelRevision, levelRevision, runStep } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'

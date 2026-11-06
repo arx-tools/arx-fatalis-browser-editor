@@ -3,7 +3,8 @@ import type { Material, Mesh, Texture } from 'three'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { decodeTextureBitmap } from '../../textures/image.ts'
 import { publishLevelTextures } from '../../textures/textureCatalog.ts'
-import { readDataFile, TEXTURE_FOLDER } from '../source/dataDir.ts'
+import { readDataFile } from '../source/dataDir.ts'
+import { TEXTURE_FOLDER } from '../source/dataDir/url.ts'
 import { textureRevision } from './editing.ts'
 import {
   createLevelTexture,

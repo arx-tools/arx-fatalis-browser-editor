@@ -1,18 +1,25 @@
 import { DockLayout, DockPanel, Widget } from '@lumino/widgets'
-import { computed, ref, shallowRef, type ComputedRef, type Ref } from 'vue'
+import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { watchBorderDrag, type BorderDragWatcher } from '../layout/borderDrag/drag.ts'
 import { dockWidgets } from '../layout/dockWidgets.ts'
 import { toLayoutNode } from '../layout/dockConfig.ts'
 import { createLayoutApply } from '../layout/layoutApply.ts'
+import { factoryPreset, factoryPresets, type PresetId } from '../layout/layoutPresets.ts'
 import {
-  CUSTOM_PRESET_LABEL,
-  defaultLayout,
-  factoryPreset,
-  factoryPresets,
-  type PresetId,
-} from '../layout/layoutPresets.ts'
+  canRedoOf,
+  canUndoOf,
+  historyOf,
+  parseLayoutHistories,
+  redoOf,
+  stateOf,
+  undoOf,
+  withHistory,
+  withLayoutState,
+  type LayoutHistories,
+  type LayoutHistory,
+} from '../layout/layoutHistory.ts'
 import { LayoutEditor, type MountWidgetOverlay } from '../layout/layoutEditor.ts'
-import { layoutEquals, lockedBoxOf, lockWidgetTo, parseLayoutNode, type LayoutNode } from '../layout/layoutNode.ts'
+import { layoutEquals, lockedBoxOf, lockWidgetTo, type LayoutNode } from '../layout/layoutNode.ts'
 import { createWidget, widgetKind, type WidgetDefinition } from '../layout/widgetDefinition.ts'
 import { persistedRef } from '../persistedRef/persistedRef.ts'
 
@@ -47,15 +54,11 @@ export interface EditorShell {
    */
   readonly pickerOpen: Ref<boolean>
   /**
-   * Tells whether the live layout is not the selected factory preset: a modified layout is the custom one.
-   */
-  readonly isLayoutModified: ComputedRef<boolean>
-  /**
-   * The presets the header offers: the factory ones and, once there is one, the custom slot at the end.
+   * The presets the header offers, with the steps their own history can take.
    */
   readonly presets: ComputedRef<readonly PresetOption[]>
   /**
-   * The preset the dropdown shows as selected.
+   * The preset the dropdown shows as selected: the layout the dock is on.
    */
   readonly selectedPreset: ComputedRef<PresetId>
   /**
@@ -90,11 +93,23 @@ export interface EditorShell {
    */
   removeWidgetByKind: (kind: string) => void
   /**
-   * Puts a preset on the dock.
+   * Puts a preset on the dock, at the state its history is on.
    *
-   * @param id The preset to apply: a factory one, or the stored custom layout.
+   * @param id The preset to apply.
    */
   applyPreset: (id: string) => void
+  /**
+   * Takes the active layout one step back in its own history.
+   *
+   * @param id The preset of the row the button belongs to (a row that is not active does nothing).
+   */
+  undoPreset: (id: PresetId) => void
+  /**
+   * Makes the step the active layout took back again.
+   *
+   * @param id The preset of the row the button belongs to (a row that is not active does nothing).
+   */
+  redoPreset: (id: PresetId) => void
   /**
    * Disposes the widgets and the dock, so a hot reload does not leave a live shell behind.
    */
@@ -113,27 +128,14 @@ export interface PresetOption {
    * The name shown in the dropdown.
    */
   readonly label: string
-}
-
-/**
- * Reads the stored layout of the dock.
- *
- * @remarks
- * The storage may hold garbage (an older shape, a hand edited value), so the value is validated: an
- * unreadable layout is not an error, it just means the default one is used.
- *
- * @param raw The raw value of the storage.
- *
- * @returns The tree, or `undefined` when the value is not a layout.
- */
-function readLayout(raw: string): LayoutNode | undefined {
-  try {
-    const parsed: unknown = JSON.parse(raw)
-
-    return parseLayoutNode(parsed) ?? undefined
-  } catch {
-    return undefined
-  }
+  /**
+   * Tells whether the layout has a step to take back.
+   */
+  readonly canUndo: boolean
+  /**
+   * Tells whether the layout has a step to make again.
+   */
+  readonly canRedo: boolean
 }
 
 /**
@@ -214,65 +216,70 @@ export function createEditorShell(
   }
 
   /**
-   * The stored layout: the default one until the user changes something.
+   * The layout the dock is on: the preset the header shows, and the row the steps belong to.
    *
-   * The write is debounced, because a split drag emits a layout change on every mouse move.
+   * @remarks
+   * It is **chosen**, not derived from the tree: a tweak belongs to the preset it started from, so the dropdown keeps
+   * saying which layout the user is working on (the old model derived it, and a changed preset became `Custom`).
    */
-  const storedLayout = persistedRef<LayoutNode>({
-    key: 'layout',
-    defaultValue: defaultLayout,
+  const activePreset = persistedRef<PresetId>({
+    key: 'layoutPreset',
+    defaultValue: 'viewer',
     persistInLocalStorage: true,
-    debounce: 250,
-    deserialize: readLayout,
   })
 
   /**
-   * The custom slot: the last layout that is not a factory preset.
+   * The history of every layout: the states it went through, and where each one is.
    *
    * @remarks
-   * It is the one level of history of the layout: a change of a factory preset lands here, and the header
-   * offers it back as the `Custom` entry. It is stored, so the dropdown keeps it after a reload.
+   * A preset starts from its factory tree, and every tweak of the user is a state on top of it. The histories are kept
+   * in the browser, so a reload brings back what each layout was left like. The keys of the browser (`Ctrl+Z`) belong
+   * to the **map** history: a layout step is a button of the dropdown only.
    */
-  const customLayout = persistedRef<LayoutNode | undefined>({
-    key: 'layoutCustom',
-    defaultValue: undefined,
+  const histories = persistedRef<LayoutHistories>({
+    key: 'layoutHistories',
+    defaultValue: {},
     persistInLocalStorage: true,
     debounce: 250,
-    deserialize: readLayout,
+    deserialize: parseLayoutHistories,
   })
 
-  // the live tree: it follows the dock synchronously, while the ref above writes it out debounced
-  const currentLayout = shallowRef<LayoutNode>(storedLayout.value)
+  /**
+   * Reads the history of a preset.
+   *
+   * @param id The preset to read.
+   *
+   * @returns The history of that preset.
+   */
+  function historyFor(id: PresetId): LayoutHistory {
+    return historyOf(histories.value, id)
+  }
 
   /**
-   * The preset the header shows as selected.
+   * Stores the history of a preset.
    *
-   * @remarks
-   * It is derived from the live layout: the dropdown follows the dock, so a preset that is dragged back to
-   * its own tree selects itself again, and a tree that is not a factory one is the custom slot.
+   * @param id The preset the history belongs to.
+   * @param history The history to store.
    */
+  function saveHistory(id: PresetId, history: LayoutHistory): void {
+    histories.value = withHistory(histories.value, id, history)
+  }
+
   const selectedPreset = computed<PresetId>(() => {
-    const found = factoryPresets.find((preset) => {
-      return layoutEquals(preset.layout, currentLayout.value)
-    })
-
-    return found?.id ?? 'custom'
-  })
-
-  const isLayoutModified = computed(() => {
-    return selectedPreset.value === 'custom'
+    return activePreset.value
   })
 
   const presets = computed<readonly PresetOption[]>(() => {
-    const options = factoryPresets.map((preset): PresetOption => {
-      return { id: preset.id, label: preset.label }
+    return factoryPresets.map((preset): PresetOption => {
+      const history = historyFor(preset.id)
+
+      return {
+        id: preset.id,
+        label: preset.label,
+        canUndo: canUndoOf(history),
+        canRedo: canRedoOf(history),
+      }
     })
-
-    if (customLayout.value === undefined) {
-      return options
-    }
-
-    return [...options, { id: 'custom', label: CUSTOM_PRESET_LABEL }]
   })
 
   // the dock changes are lumino's, not vue's: the signal of the dock refreshes the reactive list
@@ -292,33 +299,28 @@ export function createEditorShell(
   }
 
   /**
-   * Reads the live tree of the dock into the reactive value and hands it to the persisted ref.
+   * Reads the live tree of the dock.
+   *
+   * @remarks
+   * The tree is what the dock has now, and the history of the active preset is what keeps it: the steps are written
+   * where the pass of the sizes settles (see {@link recordLayout}).
+   *
+   * @returns The tree of the dock, or `undefined` when the dock has none.
    */
-  function syncLayout(): void {
+  function readDockLayout(): LayoutNode | undefined {
     const { layout } = dock
 
     if (!(layout instanceof DockLayout)) {
-      return
+      return undefined
     }
 
-    const node = toLayoutNode(layout.saveLayout(), kindOf)
+    return toLayoutNode(layout.saveLayout(), kindOf) ?? undefined
+  }
 
-    if (node === null) {
-      return
-    }
-
-    // a tree that is not a factory preset is the custom one: the change of the user overwrites the previous
-    // custom layout, while a preset only fills the dock and leaves the slot alone
-    if (
-      factoryPresets.every((preset) => {
-        return !layoutEquals(preset.layout, node)
-      })
-    ) {
-      customLayout.value = node
-    }
-
-    currentLayout.value = node
-    storedLayout.value = node
+  /**
+   * Reads the kinds of the dock and the tree of the layout.
+   */
+  function syncLayout(): void {
     refreshPlacedKinds()
   }
 
@@ -344,111 +346,6 @@ export function createEditorShell(
     },
     syncLayout,
   })
-
-  /**
-   * Creates a widget of the kind, decorates it for the edit mode and puts it into the dock.
-   *
-   * @param kind The identifier of the widget kind.
-   * @param options Where the widget goes (a lumino insertion mode and a reference widget).
-   *
-   * @returns The new widget.
-   *
-   * @throws When the kind is not in the widget registry.
-   */
-  function addWidget(kind: string, options?: DockPanel.IAddOptions): Widget {
-    const definition = definitions.find((candidate) => {
-      return candidate.kind === kind
-    })
-
-    if (definition === undefined) {
-      throw new Error(`Unknown widget kind: ${kind}`)
-    }
-
-    const widget = createWidget(definition)
-    editor.decorate(widget)
-
-    // a new widget never lands in a tab area: lumino's default mode is `tab-after`, which would hide the
-    // widget behind a tab (and the layout tree could not store it), so the default is a new column
-    dock.addWidget(widget, options ?? { mode: 'split-right', ref: null })
-    syncLayout()
-
-    return widget
-  }
-
-  /**
-   * Removes the widget of a kind from the dock.
-   *
-   * @param kind The identifier of the widget kind.
-   */
-  function removeWidgetByKind(kind: string): void {
-    const widget = dockWidgets(dock).find((candidate) => {
-      return widgetKind(candidate) === kind
-    })
-
-    if (widget !== undefined) {
-      editor.removeWidget(widget)
-      syncLayout()
-    }
-  }
-
-  /**
-   * Turns the edit mode on or off.
-   *
-   * @param editing `true` for edit mode (open lock), `false` for the normal, locked layout.
-   */
-  function setEditing(editing: boolean): void {
-    isEditing.value = editing
-    editor.setUnlocked(editing)
-  }
-
-  /**
-   * Puts a preset on the dock.
-   *
-   * @param id The preset to apply: a factory one, or the stored custom layout.
-   */
-  function applyPreset(id: string): void {
-    const layout = factoryPreset(id)?.layout ?? customLayout.value
-
-    if (layout === undefined) {
-      return
-    }
-
-    apply.applyLayout(layout)
-  }
-
-  /**
-   * Handles the escape key: the popup closes first, the edit mode only after that.
-   *
-   * @param event The keydown event of the document.
-   */
-  function handleKeyDown(event: KeyboardEvent): void {
-    if (event.key !== 'Escape') {
-      return
-    }
-
-    if (pickerOpen.value) {
-      pickerOpen.value = false
-      return
-    }
-
-    if (isEditing.value) {
-      setEditing(false)
-    }
-  }
-
-  // the starting layout: the stored one, or the default when there is nothing usable in the storage. The
-  // custom slot has to be there before the dock is filled, because `syncLayout` only writes a tree that is
-  // not a factory preset into it
-  if (
-    customLayout.value === undefined &&
-    factoryPresets.every((preset) => {
-      return !layoutEquals(preset.layout, storedLayout.value)
-    })
-  ) {
-    customLayout.value = storedLayout.value
-  }
-
-  apply.applyLayout(storedLayout.value)
 
   /**
    * Writes the size a locked widget has now into its lock.
@@ -481,6 +378,26 @@ export function createEditorShell(
   }
 
   /**
+   * Puts the tree of the dock on the history of the active preset.
+   *
+   * @remarks
+   * A layout change of the user (a drop beside a locked widget, a removal, a border drag) is one step of the preset it
+   * was made on. The step is written where the pass of the sizes has settled, so the sizes of the pass are what the
+   * history keeps: a step back then puts the same pixels on the screen, and not the guesses the dock had during the
+   * drag.
+   */
+  function recordLayout(): void {
+    // the dock has the tree of the pass by now: the pass rebuilt it from the plan a moment ago
+    const tree = readDockLayout()
+
+    if (tree === undefined) {
+      return
+    }
+
+    saveHistory(activePreset.value, withLayoutState(historyFor(activePreset.value), tree))
+  }
+
+  /**
    * Asks for the sizes to be worked out when the user stops dragging a border.
    *
    * @remarks
@@ -507,8 +424,162 @@ export function createEditorShell(
       refreshLocks()
       syncLayout()
       apply.applyManagedSizes()
+      // the sizes of the pass are the step the history keeps: a step back puts the same pixels on the screen
+      recordLayout()
     }, 250)
   }
+
+  /**
+   * Creates a widget of the kind, decorates it for the edit mode and puts it into the dock.
+   *
+   * @param kind The identifier of the widget kind.
+   * @param options Where the widget goes (a lumino insertion mode and a reference widget).
+   *
+   * @returns The new widget.
+   *
+   * @throws When the kind is not in the widget registry.
+   */
+  function addWidget(kind: string, options?: DockPanel.IAddOptions): Widget {
+    const definition = definitions.find((candidate) => {
+      return candidate.kind === kind
+    })
+
+    if (definition === undefined) {
+      throw new Error(`Unknown widget kind: ${kind}`)
+    }
+
+    const widget = createWidget(definition)
+    editor.decorate(widget)
+
+    // a new widget never lands in a tab area: lumino's default mode is `tab-after`, which would hide the
+    // widget behind a tab (and the layout tree could not store it), so the default is a new column
+    dock.addWidget(widget, options ?? { mode: 'split-right', ref: null })
+    syncLayout()
+    // a widget of the user is a step of the layout: the pass that settles it is what the history keeps
+    requestManagedSizesAfterDrag()
+
+    return widget
+  }
+
+  /**
+   * Removes the widget of a kind from the dock.
+   *
+   * @param kind The identifier of the widget kind.
+   */
+  function removeWidgetByKind(kind: string): void {
+    const widget = dockWidgets(dock).find((candidate) => {
+      return widgetKind(candidate) === kind
+    })
+
+    if (widget !== undefined) {
+      editor.removeWidget(widget)
+      syncLayout()
+      requestManagedSizesAfterDrag()
+    }
+  }
+
+  /**
+   * Turns the edit mode on or off.
+   *
+   * @param editing `true` for edit mode (open lock), `false` for the normal, locked layout.
+   */
+  function setEditing(editing: boolean): void {
+    isEditing.value = editing
+    editor.setUnlocked(editing)
+  }
+
+  /**
+   * Puts a preset on the dock, at the state its own history is on.
+   *
+   * @remarks
+   * Switching **keeps every history**: a layout that was tweaked is left on its last state, and coming back puts that
+   * state on the dock, with its cursor where it was.
+   *
+   * @param id The preset to apply.
+   */
+  function applyPreset(id: string): void {
+    const preset = factoryPreset(id)
+
+    if (preset === undefined) {
+      return
+    }
+
+    activePreset.value = preset.id
+    apply.applyLayout(stateOf(historyFor(preset.id)))
+  }
+
+  /**
+   * Takes the active layout one step back.
+   *
+   * @param id The preset of the row: a row that is not active does nothing.
+   */
+  function undoPreset(id: PresetId): void {
+    if (id !== activePreset.value) {
+      return
+    }
+
+    const history = historyFor(id)
+
+    if (!canUndoOf(history)) {
+      return
+    }
+
+    const next = undoOf(history)
+
+    saveHistory(id, next)
+    apply.applyLayout(stateOf(next))
+  }
+
+  /**
+   * Makes the step the active layout took back again.
+   *
+   * @param id The preset of the row: a row that is not active does nothing.
+   */
+  function redoPreset(id: PresetId): void {
+    if (id !== activePreset.value) {
+      return
+    }
+
+    const history = historyFor(id)
+
+    if (!canRedoOf(history)) {
+      return
+    }
+
+    const next = redoOf(history)
+
+    saveHistory(id, next)
+    apply.applyLayout(stateOf(next))
+  }
+
+  /**
+   * Handles the escape key: the popup closes first, the edit mode only after that.
+   *
+   * @param event The keydown event of the document.
+   */
+  function handleKeyDown(event: KeyboardEvent): void {
+    if (event.key !== 'Escape') {
+      return
+    }
+
+    if (pickerOpen.value) {
+      pickerOpen.value = false
+      return
+    }
+
+    if (isEditing.value) {
+      setEditing(false)
+    }
+  }
+
+  // the starting layout: the active preset at the state its history is on (its factory tree, when the browser has no
+  // history for it yet). The old `layout`/`layoutCustom` keys are dropped by the owner's decision: a layout is started
+  // from the presets, with its own history
+  if (factoryPreset(activePreset.value) === undefined) {
+    activePreset.value = 'viewer'
+  }
+
+  apply.applyLayout(stateOf(historyFor(activePreset.value)))
 
   dock.layoutModified.connect(() => {
     const tree = toLayoutNode(dock.saveLayout(), kindOf)
@@ -523,9 +594,11 @@ export function createEditorShell(
   })
 
   afterLockChanged = (): void => {
-    // a lock is a fixed size in the tree, so the whole layout is worked out again from it
+    // a lock is a fixed size in the tree, so the whole layout is worked out again from it — and it is a step of the
+    // layout the user made, so the history keeps it (the echo of the pass is not seen as a change, the step is here)
     apply.applyManagedSizes()
     syncLayout()
+    recordLayout()
   }
 
   borderDrag.watcher = watchBorderDrag(host, {
@@ -572,7 +645,6 @@ export function createEditorShell(
     editor,
     isEditing,
     pickerOpen,
-    isLayoutModified,
     presets,
     selectedPreset,
     setEditing,
@@ -582,6 +654,8 @@ export function createEditorShell(
     addWidget,
     removeWidgetByKind,
     applyPreset,
+    undoPreset,
+    redoPreset,
     dispose: (): void => {
       cancelAnimationFrame(firstFit)
       resizeObserver.disconnect()

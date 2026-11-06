@@ -11,7 +11,8 @@ import { editorUrl } from './support/editor.ts'
  * jump at 200 x 50, the statistics at 350 x 210 and the inspector at 350 x 190, and the painter (2026-11-04) with the
  * polygon inspector at 360 x 185, the keys at 360 x 430 and the uv mapper at 400 x 430. The widgets the owner did not
  * size stay free, and the header has to keep the name of the preset after the locks are applied — a layout that comes
- * back differently from the preset would show up as `Custom`.
+ * back differently from the preset would show up as `Custom` — the name now says which layout is active, and a tweak
+ * belongs to the preset it was made on (see `layoutHistory.ts`).
  */
 test.setTimeout(120_000)
 
@@ -187,4 +188,67 @@ test('the painter preset comes with the sizes the owner measured', async ({ page
 
   expect(view.width).toBeGreaterThan(400)
   expect(view.top).toBe(inspector.top)
+})
+
+test('every layout keeps its own history, and the steps of the menu take it back', async ({ page }) => {
+  await page.setViewportSize({ width: 1631, height: 850 })
+  await page.goto(editorUrl())
+
+  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(4)
+  await page.waitForTimeout(800)
+
+  const menu = page.locator('header button[aria-label="Presets"]')
+  const viewerRow = page.locator('.preset-row', { hasText: 'Viewer' })
+  const editorRow = page.locator('.preset-row', { hasText: 'Editor' })
+  const keys = page.locator('[data-widget-kind="keyboard-shortcuts"]')
+
+  // the viewer comes from the preset: the keys are free, and the menu has no step to take
+  await expect(keys).not.toHaveAttribute('data-locked-height', /.+/u)
+  await menu.click()
+  await expect(viewerRow.locator('.step').first()).toBeDisabled()
+  await menu.click()
+
+  // a layout change: the keys are locked in the edit mode (a lock is a step, like a drop)
+  await page.locator('header button[aria-label="Unlock the layout"]').click()
+  await keys.locator('button[aria-label="Lock the widget"]').click()
+  await page.waitForTimeout(900)
+
+  await expect(keys).toHaveAttribute('data-locked-height', /.+/u)
+
+  // the step is on the viewer, and only on the viewer
+  await menu.click()
+  await expect(viewerRow.locator('.step').first()).toBeEnabled()
+  await expect(editorRow.locator('.step').first()).toBeDisabled()
+
+  // the undo takes the lock away, the redo puts it back (the menu stays open through a step)
+  await viewerRow.locator('.step').first().click()
+  await page.waitForTimeout(700)
+  await expect(keys).not.toHaveAttribute('data-locked-height', /.+/u)
+
+  await viewerRow.locator('.step').last().click()
+  await page.waitForTimeout(700)
+  await expect(keys).toHaveAttribute('data-locked-height', /.+/u)
+
+  // switching away and back keeps the history of the viewer
+  await editorRow.locator('.choose').click()
+  await page.waitForTimeout(700)
+
+  await expect(page.locator('header button[aria-label="Presets"] .name')).toHaveText('Editor')
+
+  await menu.click()
+  await viewerRow.locator('.choose').click()
+  await page.waitForTimeout(700)
+
+  await expect(page.locator('header button[aria-label="Presets"] .name')).toHaveText('Viewer')
+  await expect(keys).toHaveAttribute('data-locked-height', /.+/u)
+
+  // and the history is in the browser, so a reload brings the layout back as it was left
+  await page.reload()
+  await page.waitForTimeout(900)
+
+  await expect(page.locator('header button[aria-label="Presets"] .name')).toHaveText('Viewer')
+  await expect(page.locator('[data-widget-kind="keyboard-shortcuts"]')).toHaveAttribute('data-locked-height', /.+/u)
+
+  await page.locator('header button[aria-label="Presets"]').click()
+  await expect(page.locator('.preset-row', { hasText: 'Viewer' }).locator('.step').first()).toBeEnabled()
 })

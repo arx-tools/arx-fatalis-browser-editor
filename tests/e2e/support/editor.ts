@@ -1,6 +1,6 @@
 import { expect, type Locator, type Page } from '@playwright/test'
-import { editorLayout } from '../../../src/editor/modules/layout/layoutPresets.ts'
-import type { LayoutNode } from '../../../src/editor/modules/layout/layoutNode.ts'
+import { editorLayout, factoryPresets } from '../../../src/editor/modules/layout/layoutPresets.ts'
+import { layoutEquals, type LayoutNode } from '../../../src/editor/modules/layout/layoutNode.ts'
 import { WIDGET_KINDS } from '../../../src/editor/modules/layout/widgetKinds.ts'
 import { ORIGINAL_LEVEL_PARAMETER } from '../../../src/editor/modules/level/source/levelSource.ts'
 
@@ -38,22 +38,37 @@ export function editorUrl(): string {
 }
 
 /**
- * Puts a layout into the storage the editor reads at start.
+ * Puts a layout into the storage the editor reads at start: the active preset, and the history of that preset.
+ *
+ * @remarks
+ * Every layout carries its **own** history now: the seeded tree is the only state of the preset it belongs to (its
+ * factory tree when the tree is one of them, the `Editor` otherwise — a test that builds its own tree works on the
+ * editor preset).
  *
  * @param page The page to prepare.
  * @param layout The tree the editor should start with.
  */
 export async function seedLayout(page: Page, layout: LayoutNode): Promise<void> {
-  await page.addInitScript((seeded: unknown) => {
-    // a navigation (a reload included) runs this script again: the layout of the editor is only seeded when there is
-    // none, so a test that reloads keeps what the editor wrote in the first round
-    if (localStorage.getItem('layout') !== null) {
-      return
-    }
+  const preset =
+    factoryPresets.find((candidate) => {
+      return layoutEquals(candidate.layout, layout)
+    })?.id ?? 'editor'
+  const histories = { [preset]: { states: [layout], index: 0 } }
 
-    localStorage.clear()
-    localStorage.setItem('layout', JSON.stringify(seeded))
-  }, layout)
+  await page.addInitScript(
+    (seeded: { preset: string; histories: unknown }) => {
+      // a navigation (a reload included) runs this script again: the layout of the editor is only seeded when there is
+      // none, so a test that reloads keeps what the editor wrote in the first round
+      if (localStorage.getItem('layoutPreset') !== null) {
+        return
+      }
+
+      localStorage.clear()
+      localStorage.setItem('layoutPreset', JSON.stringify(seeded.preset))
+      localStorage.setItem('layoutHistories', JSON.stringify(seeded.histories))
+    },
+    { preset, histories },
+  )
 }
 
 /**

@@ -218,11 +218,12 @@ test('the lock is in the stored layout, so a reload keeps it', async ({ page }) 
 
   const locked = await heightOf(page, 'left-view')
 
-  // the stored tree says the size is fixed
+  // the stored history of the preset says the size is fixed
   const stored: string | null = await page.evaluate(() => {
-    return localStorage.getItem('layout')
+    return localStorage.getItem('layoutHistories')
   })
 
+  expect(stored).not.toBeNull()
   expect(stored).toContain(`"kind":"fixed","px":${String(locked)}`)
 
   await page.reload()

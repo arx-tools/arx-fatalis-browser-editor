@@ -226,11 +226,6 @@ export const factoryPresets: readonly FactoryPreset[] = [
 ]
 
 /**
- * The name of the slot the editor stores the last modified layout in.
- */
-export const CUSTOM_PRESET_LABEL = 'Custom'
-
-/**
  * Finds a factory preset by its identifier.
  *
  * @param id The identifier to look up.

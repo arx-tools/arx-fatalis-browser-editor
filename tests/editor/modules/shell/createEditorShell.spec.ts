@@ -156,49 +156,55 @@ void describe('dockWidgets', () => {
   })
 })
 
+/**
+ * Waits for the step of a layout change on a preset: the shell records a step when the pass of the sizes settled (a
+ * quarter of a second, and the pass waits for a frame), and the polls make the wait independent of the load of the
+ * machine.
+ *
+ * @param shell The shell to wait on.
+ * @param id The preset the step belongs to.
+ */
+async function settled(shell: ReturnType<typeof createEditorShell>, id: string): Promise<void> {
+  const deadline = Date.now() + 3000
+
+  while (Date.now() < deadline) {
+    const preset = shell.presets.value.find((candidate) => {
+      return candidate.id === id
+    })
+
+    if (preset?.canUndo === true) {
+      return
+    }
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 25)
+    })
+  }
+
+  throw new Error(`the layout change of ${id} did not become a step`)
+}
+
 void describe('the layout of the shell', () => {
-  void it('starts from the viewer layout', () => {
+  void it('starts on the viewer layout, with the factory presets and no step', () => {
     const { shell } = buildShell()
 
-    assert.equal(shell.isLayoutModified.value, false)
-    assert.deepEqual([...shell.placedKinds.value].toSorted(), [
-      '3d-view',
-      'jump-to-location',
-      'keyboard-shortcuts',
-      'top-view',
-    ])
-    shell.dispose()
-  })
-
-  void it('shows the modified state after a widget was added', () => {
-    const { shell } = buildShell()
-
-    shell.addWidget('camera-controls')
-
-    assert.equal(shell.isLayoutModified.value, true)
-    shell.dispose()
-  })
-
-  void it('offers the factory presets, without a custom one at the start', () => {
-    const { shell } = buildShell()
-
+    assert.equal(shell.selectedPreset.value, 'viewer')
     assert.deepEqual(
       shell.presets.value.map((preset) => {
         return preset.label
       }),
       ['Editor', 'Viewer', 'Painter'],
     )
-    assert.equal(shell.selectedPreset.value, 'viewer')
-    shell.dispose()
-  })
-
-  void it('puts the viewer layout on the dock', () => {
-    const { shell } = buildShell()
-
-    shell.applyPreset('viewer')
-
-    assert.equal(shell.selectedPreset.value, 'viewer')
-    assert.equal(shell.isLayoutModified.value, false)
+    assert.deepEqual(
+      shell.presets.value.map((preset) => {
+        return [preset.canUndo, preset.canRedo]
+      }),
+      [
+        [false, false],
+        [false, false],
+        [false, false],
+      ],
+    )
     assert.deepEqual([...shell.placedKinds.value].toSorted(), [
       '3d-view',
       'jump-to-location',
@@ -208,25 +214,28 @@ void describe('the layout of the shell', () => {
     shell.dispose()
   })
 
-  void it('gives a custom preset to a modified factory layout', () => {
+  void it('keeps the preset of the dock when a widget is added, and gives it one step', async () => {
     const { shell } = buildShell()
 
     shell.addWidget('camera-controls')
-
-    assert.equal(shell.selectedPreset.value, 'custom')
+    await settled(shell, 'viewer')
+    assert.equal(shell.selectedPreset.value, 'viewer')
     assert.deepEqual(
       shell.presets.value.map((preset) => {
-        return preset.label
+        return [preset.id, preset.canUndo, preset.canRedo]
       }),
-      ['Editor', 'Viewer', 'Painter', 'Custom'],
+      [
+        ['editor', false, false],
+        ['viewer', true, false],
+        ['painter', false, false],
+      ],
     )
     shell.dispose()
   })
 
-  void it('keeps the custom layout when a factory preset is chosen', () => {
+  void it('puts the editor layout on the dock', () => {
     const { shell } = buildShell()
 
-    shell.addWidget('right-view')
     shell.applyPreset('editor')
 
     assert.equal(shell.selectedPreset.value, 'editor')
@@ -241,30 +250,77 @@ void describe('the layout of the shell', () => {
       'polygon-inspector',
       'top-view',
     ])
-    // the custom is still there, so switching back brings the modified layout again
-    assert.equal(shell.presets.value.length, 4)
+    shell.dispose()
+  })
 
-    shell.applyPreset('custom')
+  void it('keeps the history of every layout when the preset changes', async () => {
+    const { shell } = buildShell()
 
-    assert.equal(shell.selectedPreset.value, 'custom')
+    shell.addWidget('camera-controls')
+    await settled(shell, 'viewer')
+    shell.applyPreset('editor')
+    shell.addWidget('right-view')
+    await settled(shell, 'editor')
+
+    assert.deepEqual(
+      shell.presets.value.map((preset) => {
+        return [preset.id, preset.canUndo]
+      }),
+      [
+        ['editor', true],
+        ['viewer', true],
+        ['painter', false],
+      ],
+    )
+
+    // the viewer comes back as it was left: the camera form of the tweak is still there
+    shell.applyPreset('viewer')
+
+    assert.equal(shell.placedKinds.value.includes('camera-controls'), true)
+    assert.equal(shell.placedKinds.value.includes('right-view'), false)
+
+    shell.applyPreset('editor')
+
     assert.equal(shell.placedKinds.value.includes('right-view'), true)
     shell.dispose()
   })
 
-  void it('replaces the custom layout when a factory preset is modified again', () => {
+  void it('takes the active layout a step back and makes it again', async () => {
     const { shell } = buildShell()
 
     shell.addWidget('camera-controls')
-    shell.applyPreset('editor')
-    shell.addWidget('keyboard-shortcuts')
+    await settled(shell, 'viewer')
 
-    assert.equal(shell.selectedPreset.value, 'custom')
-    assert.equal(shell.presets.value.length, 4)
+    shell.undoPreset('viewer')
+
+    assert.deepEqual([...shell.placedKinds.value].toSorted(), [
+      '3d-view',
+      'jump-to-location',
+      'keyboard-shortcuts',
+      'top-view',
+    ])
+
+    shell.redoPreset('viewer')
+
+    assert.equal(shell.placedKinds.value.includes('camera-controls'), true)
     shell.dispose()
   })
 
-  void it('comes back on the custom preset after a reload', () => {
-    const custom = {
+  void it('does nothing on a row that is not the active one', async () => {
+    const { shell } = buildShell()
+
+    shell.addWidget('camera-controls')
+    await settled(shell, 'viewer')
+
+    shell.undoPreset('editor')
+
+    assert.equal(shell.selectedPreset.value, 'viewer')
+    assert.equal(shell.placedKinds.value.includes('camera-controls'), true)
+    shell.dispose()
+  })
+
+  void it('starts from the histories of the browser, at the state each one is on', async () => {
+    const tweak = {
       type: 'split',
       orientation: 'vertical',
       sizes: flexSizes(0.7, 0.3),
@@ -274,23 +330,48 @@ void describe('the layout of the shell', () => {
       ],
     }
 
-    localStorage.setItem('layout', JSON.stringify(custom))
-    localStorage.setItem('layoutCustom', JSON.stringify(custom))
-    localStorage.setItem('layoutPreset', 'custom')
+    localStorage.setItem('layoutPreset', JSON.stringify('viewer'))
+    localStorage.setItem(
+      'layoutHistories',
+      JSON.stringify({
+        viewer: {
+          states: [{ type: 'widget', kind: 'keyboard-shortcuts' }, tweak],
+          index: 1,
+        },
+      }),
+    )
 
     const { shell } = buildShell()
 
-    assert.equal(shell.selectedPreset.value, 'custom')
-    assert.deepEqual(
-      shell.presets.value.map((preset) => {
-        return preset.id
-      }),
-      ['editor', 'viewer', 'painter', 'custom'],
+    await settled(shell, 'viewer')
+
+    assert.equal(shell.selectedPreset.value, 'viewer')
+    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['camera-controls', 'keyboard-shortcuts'])
+    assert.equal(
+      shell.presets.value.find((preset) => {
+        return preset.id === 'viewer'
+      })?.canUndo,
+      true,
     )
     shell.dispose()
   })
 
-  void it('restores the layout that was in the storage', () => {
+  void it('falls back to the factory trees for a broken history value', () => {
+    localStorage.setItem('layoutHistories', 'not json at all')
+
+    const { shell } = buildShell()
+
+    assert.deepEqual([...shell.placedKinds.value].toSorted(), [
+      '3d-view',
+      'jump-to-location',
+      'keyboard-shortcuts',
+      'top-view',
+    ])
+    assert.equal(shell.selectedPreset.value, 'viewer')
+    shell.dispose()
+  })
+
+  void it('ignores the layout of the old model', () => {
     localStorage.setItem(
       'layout',
       JSON.stringify({
@@ -306,71 +387,13 @@ void describe('the layout of the shell', () => {
 
     const { shell } = buildShell()
 
-    assert.deepEqual([...shell.placedKinds.value].toSorted(), ['camera-controls', 'keyboard-shortcuts'])
-    assert.equal(shell.isLayoutModified.value, true)
-    shell.dispose()
-  })
-
-  void it('starts from the default when the stored layout has only unknown kinds', () => {
-    localStorage.setItem(
-      'layout',
-      JSON.stringify({
-        type: 'split',
-        orientation: 'vertical',
-        sizes: flexSizes(0.7, 0.3),
-        children: [
-          { type: 'widget', kind: 'help' },
-          { type: 'widget', kind: 'view3d' },
-        ],
-      }),
-    )
-
-    const { shell } = buildShell()
-
-    // the kind rename does not keep the old names alive: the unknown kinds drop out and, with nothing
-    // left, the default (viewer) layout takes over (the editor is not 1.0.0 yet)
+    // the owner's decision: a layout starts from the presets, with its own history — the old key is not read
     assert.deepEqual([...shell.placedKinds.value].toSorted(), [
       '3d-view',
       'jump-to-location',
       'keyboard-shortcuts',
       'top-view',
     ])
-    assert.equal(shell.isLayoutModified.value, false)
-    shell.dispose()
-  })
-
-  void it('falls back to the default layout for a broken storage value', () => {
-    localStorage.setItem('layout', 'not json at all')
-
-    const { shell } = buildShell()
-
-    assert.deepEqual([...shell.placedKinds.value].toSorted(), [
-      '3d-view',
-      'jump-to-location',
-      'keyboard-shortcuts',
-      'top-view',
-    ])
-    assert.equal(shell.isLayoutModified.value, false)
-    shell.dispose()
-  })
-
-  void it('drops a stored kind that is not in the registry', () => {
-    localStorage.setItem(
-      'layout',
-      JSON.stringify({
-        type: 'split',
-        orientation: 'horizontal',
-        sizes: flexSizes(0.5, 0.5),
-        children: [
-          { type: 'widget', kind: 'keyboard-shortcuts' },
-          { type: 'widget', kind: 'nonsense' },
-        ],
-      }),
-    )
-
-    const { shell } = buildShell()
-
-    assert.deepEqual([...shell.placedKinds.value], ['keyboard-shortcuts'])
     shell.dispose()
   })
 })

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { Check, ChevronDown, LockKeyhole, LockKeyholeOpen, Settings } from 'lucide-vue-next'
+import { Check, ChevronDown, LockKeyhole, LockKeyholeOpen, Redo2, Settings, Undo2 } from 'lucide-vue-next'
+import type { PresetId } from '../modules/layout/layoutPresets.ts'
 import { useEditorShell } from '../modules/shell/editorShellContext.ts'
 import WidgetPicker from './WidgetPicker.vue'
 
@@ -55,6 +56,24 @@ const selectedLabel = computed(() => {
 function choosePreset(id: string): void {
   shell.value?.applyPreset(id)
   isPresetOpen.value = false
+}
+
+/**
+ * Takes a layout one step back in its own history.
+ *
+ * @param id The identifier of the preset.
+ */
+function undoPreset(id: PresetId): void {
+  shell.value?.undoPreset(id)
+}
+
+/**
+ * Makes the step a layout took back again.
+ *
+ * @param id The identifier of the preset.
+ */
+function redoPreset(id: PresetId): void {
+  shell.value?.redoPreset(id)
 }
 
 /**
@@ -214,21 +233,41 @@ onBeforeUnmount(() => {
         <ChevronDown :size="12" />
       </button>
       <div v-if="isPresetOpen" class="preset-menu" role="menu">
-        <template v-for="preset in presets" :key="preset.id">
-          <!-- the custom slot is the one level of history, so it is set apart from the factory presets -->
-          <hr v-if="preset.id === 'custom'" class="divider" />
-          <button
-            class="preset-row"
-            :class="{ 'is-selected': preset.id === selectedPreset }"
-            type="button"
-            role="menuitem"
-            @click="choosePreset(preset.id)"
-          >
+        <!-- every layout carries its own history: the row is the chip of the preset and its two steps, and the steps
+             only work on the active one (the keys of the browser belong to the map, not to the layout) -->
+        <div
+          v-for="preset in presets"
+          :key="preset.id"
+          class="preset-row"
+          :class="{ 'is-selected': preset.id === selectedPreset }"
+          role="menuitem"
+        >
+          <button class="choose" type="button" @click="choosePreset(preset.id)">
             <Check v-if="preset.id === selectedPreset" :size="12" />
             <span v-else class="spacer"></span>
             <span class="name">{{ preset.label }}</span>
           </button>
-        </template>
+          <button
+            class="step"
+            type="button"
+            :disabled="preset.id !== selectedPreset || !preset.canUndo"
+            :aria-label="`Undo the ${preset.label} layout`"
+            v-tooltip="`Undo the ${preset.label} layout`"
+            @click="undoPreset(preset.id)"
+          >
+            <Undo2 :size="13" />
+          </button>
+          <button
+            class="step"
+            type="button"
+            :disabled="preset.id !== selectedPreset || !preset.canRedo"
+            :aria-label="`Redo the ${preset.label} layout`"
+            v-tooltip="`Redo the ${preset.label} layout`"
+            @click="redoPreset(preset.id)"
+          >
+            <Redo2 :size="13" />
+          </button>
+        </div>
       </div>
     </span>
 
@@ -290,7 +329,8 @@ onBeforeUnmount(() => {
     right: 0;
     display: flex;
     flex-direction: column;
-    min-width: 150px;
+    // wider than the button: the row is the name and its two steps, and they have to fit without a squeeze
+    min-width: 232px;
     padding: 4px;
     background: $surface-float;
     border: 1px solid $border;
@@ -301,22 +341,36 @@ onBeforeUnmount(() => {
   .preset-row {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 6px;
-    color: $text;
-    font: inherit;
-    font-size: 12px;
-    text-align: left;
-    background: transparent;
-    border: 0;
+    gap: 2px;
+    padding: 2px;
     border-radius: 4px;
-    cursor: pointer;
 
     &:hover {
       background: $surface-panel;
     }
 
     &.is-selected {
+      background: $surface-panel;
+    }
+
+    // the chip of the preset: the check, the name, and the whole left side of the row
+    .choose {
+      display: flex;
+      flex: 1;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 6px;
+      color: $text;
+      font: inherit;
+      font-size: 12px;
+      text-align: left;
+      background: transparent;
+      border: 0;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    &.is-selected .choose {
       color: $text-strong;
     }
 
@@ -324,12 +378,30 @@ onBeforeUnmount(() => {
     .spacer {
       width: 12px;
     }
-  }
 
-  .divider {
-    margin: 4px 2px;
-    border: 0;
-    border-top: 1px solid $border;
+    // the two steps of the history: they are only live on the active row (and when the layout has the step)
+    .step {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      color: $text;
+      background: transparent;
+      border: 0;
+      border-radius: 4px;
+      cursor: pointer;
+
+      &:hover:not(:disabled) {
+        color: $text-strong;
+        background: $surface-float;
+      }
+
+      &:disabled {
+        opacity: 0.3;
+        cursor: default;
+      }
+    }
   }
 
   // the icon buttons of the group: every button that hangs directly on the manager looks like this, so a

@@ -9,7 +9,7 @@ import type { Widget } from '@lumino/widgets'
  * leaves are widget kinds, and a kind exists at most once on the dock, so a leaf is unambiguous
  * - the tree is what the `persistedRef` stores (a state of the `layoutHistories` key), what `restoreLayout` is built
  * from, and what the default layout is written as
- * - a layout may also be **empty** (`{ type: 'empty' }`, the `Custom` preset): then it has no leaf at all, and it is
+ * - a layout may also be **empty** (`{ type: 'empty' }`, the `Blank` preset): then it has no leaf at all, and it is
  * the root of the tree, never a child of a split
  *
  * @example
@@ -40,8 +40,8 @@ export type LayoutNode = LayoutNodeEmpty | LayoutNodeSplit | LayoutNodeWidget
  * A layout without a single widget.
  *
  * @remarks
- * The `Custom` preset starts here (2026-11-06, the owner's request): the dock is empty, and every widget of the screen
- * is dragged in from the picker. It is a node of its own and not `undefined`, so a state of a history is always a
+ * The `Blank` preset starts here (2026-11-06, the owner's request; `Custom` before the owner renamed it): the dock is
+ * empty, and every widget of the screen is dragged in from the picker. It is a node of its own and not `undefined`, so a state of a history is always a
  * layout, and the parser, the equality and the storage keep one shape.
  *
  * The node is only ever the **root** of a layout: a split drops it the way it drops an unknown kind, so no walk of the

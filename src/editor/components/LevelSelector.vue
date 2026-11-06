@@ -69,7 +69,6 @@ async function loadZip(event: Event): Promise<void> {
 
 <template>
   <div class="LevelSelector">
-    <span class="label">Open from ZIP</span>
     <button
       class="open-level"
       type="button"
@@ -78,6 +77,7 @@ async function loadZip(event: Event): Promise<void> {
       @click="chooseZip"
     >
       <FolderOpen :size="14" />
+      <span class="label">Import from ZIP</span>
     </button>
     <input
       ref="zipInput"
@@ -104,15 +104,16 @@ async function loadZip(event: Event): Promise<void> {
     opacity: 0.65;
   }
 
-  // the way in of a level: the same frame as the buttons of the widget manager, so the two groups read as one tool bar
+  // the way in of a level: the same frame as the buttons of the widget manager, so the two groups read as one tool bar.
+  // The button carries its **label** too (2026-11-06), so it grows with it: a fixed width broke the text into three lines
   .open-level {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    width: 26px;
+    gap: 5px;
     height: 22px;
-    padding: 0;
+    padding: 0 8px 0 6px;
     color: $text-icon;
+    white-space: nowrap;
     background: transparent;
     border: 1px solid $border;
     border-radius: 4px;
@@ -120,6 +121,11 @@ async function loadZip(event: Event): Promise<void> {
 
     &:hover {
       background: $surface-panel;
+    }
+
+    .label {
+      color: $text;
+      opacity: 0.85;
     }
   }
 

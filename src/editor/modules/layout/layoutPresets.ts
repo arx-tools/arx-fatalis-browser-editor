@@ -208,7 +208,7 @@ export const painterLayout: LayoutNode = {
 export const defaultLayout: LayoutNode = viewerLayout
 
 /**
- * The layout of an empty dock: the `Custom` preset.
+ * The layout of an empty dock: the `Blank` preset.
  *
  * @remarks
  * The owner's request (2026-11-06): a layout with **no widget at all**, so the dock starts as a bare canvas and every
@@ -223,14 +223,16 @@ export const customLayout: LayoutNode = emptyLayout
  * @remarks
  * The `Viewer` is first because it is the one the editor starts with ({@link defaultLayout}): the row of the active
  * layout is the top of the list, so the dropdown opens on the entry the header shows. The `Editor` (the layout of the
- * level work) follows it, the `Painter` (the texture work, 2026-11-04) closes the factory ones, and the `Custom`
- * ({@link customLayout}, 2026-11-06) is the last row: the empty dock the user builds on his own.
+ * level work) follows it, the `Painter` (the texture work, 2026-11-04) closes the factory ones, and the `Blank`
+ * ({@link customLayout}, 2026-11-06; `Custom` until the owner renamed it) is the last row: the empty dock the user
+ * builds on his own. The identifier of that row stays `custom`, because it is the key the browser stores the active
+ * layout and its history under.
  */
 export const factoryPresets: readonly FactoryPreset[] = [
   { id: 'viewer', label: 'Viewer', layout: viewerLayout },
   { id: 'editor', label: 'Editor', layout: editorLayout },
   { id: 'painter', label: 'Painter', layout: painterLayout },
-  { id: 'custom', label: 'Custom', layout: customLayout },
+  { id: 'custom', label: 'Blank', layout: customLayout },
 ]
 
 /**

@@ -246,7 +246,7 @@ async function loadDir(event: Event): Promise<void> {
 
       <button class="browse" type="button" @click="chooseDir">
         <FolderOpen :size="16" />
-        Browse Arx Data Dir
+        Browse Arx data dir
       </button>
     </Modal>
   </div>

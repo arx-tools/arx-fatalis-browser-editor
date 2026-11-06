@@ -234,40 +234,38 @@ onBeforeUnmount(() => {
       </button>
       <div v-if="isPresetOpen" class="preset-menu" role="menu">
         <!-- every layout carries its own history: the row is the chip of the preset and its two steps, and a row shows
-             how far its own history got (the keys of the browser belong to the map, not to the layout) -->
-        <div
-          v-for="preset in presets"
-          :key="preset.id"
-          class="preset-row"
-          :class="{ 'is-selected': preset.id === selectedPreset }"
-          role="menuitem"
-        >
-          <button class="choose" type="button" @click="choosePreset(preset.id)">
-            <Check v-if="preset.id === selectedPreset" :size="12" />
-            <span v-else class="spacer"></span>
-            <span class="name">{{ preset.label }}</span>
-          </button>
-          <button
-            class="step"
-            type="button"
-            :disabled="!preset.canUndo"
-            :aria-label="`Undo the ${preset.label} layout`"
-            v-tooltip="`Undo the ${preset.label} layout`"
-            @click="undoPreset(preset.id)"
-          >
-            <Undo2 :size="13" />
-          </button>
-          <button
-            class="step"
-            type="button"
-            :disabled="!preset.canRedo"
-            :aria-label="`Redo the ${preset.label} layout`"
-            v-tooltip="`Redo the ${preset.label} layout`"
-            @click="redoPreset(preset.id)"
-          >
-            <Redo2 :size="13" />
-          </button>
-        </div>
+             how far its own history got (the keys of the browser belong to the map, not to the layout). The blank layout
+             is set apart from the presets that carry a tree, the way the custom slot was before the histories -->
+        <template v-for="preset in presets" :key="preset.id">
+          <hr v-if="preset.id === 'custom'" class="divider" />
+          <div class="preset-row" :class="{ 'is-selected': preset.id === selectedPreset }" role="menuitem">
+            <button class="choose" type="button" @click="choosePreset(preset.id)">
+              <Check v-if="preset.id === selectedPreset" :size="12" />
+              <span v-else class="spacer"></span>
+              <span class="name">{{ preset.label }}</span>
+            </button>
+            <button
+              class="step"
+              type="button"
+              :disabled="!preset.canUndo"
+              :aria-label="`Undo the ${preset.label} layout`"
+              v-tooltip="`Undo the ${preset.label} layout`"
+              @click="undoPreset(preset.id)"
+            >
+              <Undo2 :size="13" />
+            </button>
+            <button
+              class="step"
+              type="button"
+              :disabled="!preset.canRedo"
+              :aria-label="`Redo the ${preset.label} layout`"
+              v-tooltip="`Redo the ${preset.label} layout`"
+              @click="redoPreset(preset.id)"
+            >
+              <Redo2 :size="13" />
+            </button>
+          </div>
+        </template>
       </div>
     </span>
 
@@ -336,6 +334,13 @@ onBeforeUnmount(() => {
     border: 1px solid $border;
     border-radius: 6px;
     box-shadow: 0 10px 28px rgba($ink, 0.55);
+  }
+
+  // the line between the presets that carry a tree and the blank one (the old look of the custom slot)
+  .divider {
+    margin: 4px 2px;
+    border: 0;
+    border-top: 1px solid $border;
   }
 
   .preset-row {

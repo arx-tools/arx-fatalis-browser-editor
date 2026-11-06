@@ -13,4 +13,9 @@ export const levelSeed = persistedRef<string | undefined>({
   key: 'seed',
   persistInUrl: true,
   persistInLocalStorage: true,
+  // the seed is text everywhere it is shown (the field of the export, the manifest of the archive), so the url is read
+  // as the text it carries: the default reader parses a number, and `Settings` takes a string (2026-11-06)
+  urlDeserialize: (raw) => {
+    return raw
+  },
 })

@@ -6,6 +6,7 @@ import JSZip from 'jszip'
 import { createBlankLevelFiles, FLAT_PRESET } from '../../../../src/editor/modules/level/blankLevel.ts'
 import {
   buildExportDlf,
+  buildExportManifest,
   buildExportFts,
   buildExportLlf,
   exportLevelFiles,
@@ -122,6 +123,45 @@ void describe('buildExportDlf', () => {
     assert.equal(exported.header.numberOfPolygonsInFTS, 120)
     // everything else is the description of the loaded level
     assert.deepEqual(exported.interactiveObjects, map.dlf.interactiveObjects)
+    assert.equal(exported.header.levelIdx, map.dlf.header.levelIdx)
+  })
+
+  void it('writes the index the user gave the level', () => {
+    const map = flatMap()
+    const exported = buildExportDlf(map.dlf, 120, 13)
+
+    assert.equal(exported.header.levelIdx, 13)
+    assert.equal(exported.header.numberOfPolygonsInFTS, 120)
+  })
+})
+
+void describe('buildExportManifest', () => {
+  void it('lists the files of the level and the seed of the field', () => {
+    const manifest = buildExportManifest(13, '590085197')
+
+    assert.deepEqual(manifest, {
+      files: [levelFilePath(13, 'fts'), levelFilePath(13, 'dlf'), levelFilePath(13, 'llf')],
+      seed: 590_085_197,
+    })
+  })
+
+  void it('leaves the seed out when there is none', () => {
+    assert.deepEqual(buildExportManifest(8, undefined), {
+      files: [levelFilePath(8, 'fts'), levelFilePath(8, 'dlf'), levelFilePath(8, 'llf')],
+    })
+    assert.deepEqual(buildExportManifest(8, '  '), {
+      files: [levelFilePath(8, 'fts'), levelFilePath(8, 'dlf'), levelFilePath(8, 'llf')],
+    })
+  })
+
+  void it('keeps a seed that is not a number as the text it is', () => {
+    const manifest = buildExportManifest(8, 'the seed of my map')
+
+    assert.equal(manifest.seed, 'the seed of my map')
+  })
+
+  void it('writes a seed of digits as the number the generator writes', () => {
+    assert.equal(buildExportManifest(8, '590085197').seed, 590_085_197)
   })
 })
 
@@ -194,6 +234,14 @@ void describe('exportLevelFiles', () => {
     assert.equal(description.header.numberOfPolygonsInFTS, 120)
     assert.equal(lighting.header.numberOfPolygonsInFTS, 120)
   })
+
+  void it('writes the index of the dialog into the description', () => {
+    const map = flatMap()
+    const files = exportLevelFiles(map, { levelIndex: 13 })
+    const description = DLF.load(unpackArxFile(files.dlf, 'dlf'))
+
+    assert.equal(description.header.levelIdx, 13)
+  })
 })
 
 void describe('exportLevelZip', () => {
@@ -224,12 +272,39 @@ void describe('exportLevelZip', () => {
           return entry.name
         })
         .toSorted(),
-      [levelFilePath(level, 'dlf'), levelFilePath(level, 'fts'), levelFilePath(level, 'llf')].toSorted(),
+      [
+        levelFilePath(level, 'dlf'),
+        levelFilePath(level, 'fts'),
+        levelFilePath(level, 'llf'),
+        'manifest.json',
+      ].toSorted(),
     )
 
     const scene = await archive.file(levelFilePath(level, 'fts'))?.async('arraybuffer')
 
     assert.notEqual(scene, undefined)
     assert.ok((scene?.byteLength ?? 0) > 0)
+  })
+
+  void it('writes the level under the index and the seed of the dialog', async () => {
+    const map = flatMap()
+    const { data } = await exportLevelZip(map, undefined, { levelIndex: 13, seed: '590085197' })
+    const archive = await JSZip.loadAsync(data)
+    const manifest = await archive.file('manifest.json')?.async('string')
+
+    // the manifest says what the level is made with, and the three files are under the index of the dialog
+    assert.deepEqual(JSON.parse(manifest ?? '{}'), {
+      files: [levelFilePath(13, 'fts'), levelFilePath(13, 'dlf'), levelFilePath(13, 'llf')],
+      seed: 590_085_197,
+    })
+    assert.notEqual(archive.file(levelFilePath(13, 'fts')), null)
+    assert.notEqual(archive.file(levelFilePath(13, 'dlf')), null)
+    assert.notEqual(archive.file(levelFilePath(13, 'llf')), null)
+
+    // the description carries the index too, so the game reads the level as the level 13
+    const description = (await archive.file(levelFilePath(13, 'dlf'))?.async('arraybuffer')) ?? new ArrayBuffer(0)
+
+    assert.ok(description.byteLength > 0)
+    assert.equal(DLF.load(unpackArxFile(description, 'dlf')).header.levelIdx, 13)
   })
 })

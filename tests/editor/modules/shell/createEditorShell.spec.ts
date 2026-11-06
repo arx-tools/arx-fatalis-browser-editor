@@ -193,7 +193,7 @@ void describe('the layout of the shell', () => {
       shell.presets.value.map((preset) => {
         return preset.label
       }),
-      ['Viewer', 'Editor', 'Painter', 'Custom'],
+      ['Viewer', 'Editor', 'Painter', 'Blank'],
     )
     assert.deepEqual(
       shell.presets.value.map((preset) => {

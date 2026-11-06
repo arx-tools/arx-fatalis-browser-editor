@@ -8,8 +8,9 @@ import { onBeforeUnmount, onMounted } from 'vue'
  * @remarks
  * The editor is a dense surface of small targets, so a dialog is not a card that floats: the cover takes every click
  * (nothing behind it reacts while it is open) and dims the screen a little, so the dialog is what the eye finds. It
- * closes with the **X** of its corner, or with **Escape** — the two ways the owner asked for — and a dialog that needs an
- * answer puts its buttons in the `actions` slot.
+ * closes with the **X** of its corner, with **Escape**, or with a click on the **cover** (2026-11-06: a dialog that does
+ * not wait for a critical answer gets out of the way by a click) — and a dialog that needs an answer puts its buttons in
+ * the `actions` slot.
  */
 defineProps<{
   /**
@@ -50,7 +51,7 @@ onBeforeUnmount(() => {
        would be laid out inside the header instead of over the page (the dock would paint over the dialog) -->
   <Teleport to="body">
     <div class="Modal">
-      <div class="cover" />
+      <div class="cover" @click="emit('close')" />
       <div class="dialog" role="dialog" aria-modal="true" :aria-label="title">
         <header class="head">
           <h2>{{ title }}</h2>

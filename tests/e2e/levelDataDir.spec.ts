@@ -84,7 +84,7 @@ test('the button of the header shows the state of the data directory', async ({ 
   await expect(dialog.locator('.intro')).toContainText('nothing is uploaded')
   await expect(dialog.locator('.state-title')).toHaveText('No Arx data dir yet')
   await expect(dialog.locator('.state-name')).toHaveCount(0)
-  await expect(dialog.locator('.browse')).toHaveText(/Browse Arx Data Dir/u)
+  await expect(dialog.locator('.browse')).toHaveText(/Browse Arx data dir/u)
 
   const more = dialog.locator('.read-more')
 
@@ -93,6 +93,12 @@ test('the button of the header shows the state of the data directory', async ({ 
 
   // and it closes on Escape, the way the dialogs of the editor do
   await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+
+  // a click on the cover gets out of it too: the dialog does not wait for a critical answer
+  await setup.click()
+  await expect(dialog).toBeVisible()
+  await page.mouse.click(10, 10)
   await expect(dialog).toHaveCount(0)
 })
 

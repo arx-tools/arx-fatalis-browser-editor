@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { editorUrl } from './support/editor.ts'
 
 /**
- * The `Custom` preset: a dock without a single widget, and the invitation in the middle of it.
+ * The `Blank` preset: a dock without a single widget, and the invitation in the middle of it.
  *
  * @remarks
  * The owner's request (2026-11-06): the last row of the preset menu is an **empty** layout, so a layout is built from
@@ -22,13 +22,13 @@ test.setTimeout(120_000)
 const INVITATION = 'Drag and drop widgets from the widget list to form your own layout!'
 
 /**
- * Takes the editor to the `Custom` preset.
+ * Takes the editor to the `Blank` preset.
  *
  * @param page The page to move.
  */
-async function chooseCustom(page: Page): Promise<void> {
+async function chooseBlank(page: Page): Promise<void> {
   await page.locator('header button[aria-label="Presets"]').click()
-  await page.locator('.preset-menu .preset-row', { hasText: 'Custom' }).click()
+  await page.locator('.preset-menu .preset-row', { hasText: 'Blank' }).click()
 }
 
 /**
@@ -82,11 +82,11 @@ test('the custom preset empties the dock and shows the invitation in the middle'
   await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(4)
   await expect(page.locator('.empty-hint')).toHaveCount(0)
 
-  await chooseCustom(page)
+  await chooseBlank(page)
 
   // no widget at all, the invitation in the middle of the whole dock, and the header keeps the name of the layout
   await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(0)
-  await expect(page.locator('header button[aria-label="Presets"] .name')).toHaveText('Custom')
+  await expect(page.locator('header button[aria-label="Presets"] .name')).toHaveText('Blank')
 
   const hint = page.locator('.empty-hint')
   const dock = await page.locator('.Dock').boundingBox()
@@ -136,10 +136,10 @@ test('the custom preset empties the dock and shows the invitation in the middle'
   // a layout nothing was dragged into has no step yet, and the row of the custom one is the selected row
   await openMenu(page)
 
-  const customRow = page.locator('.preset-row', { hasText: 'Custom' })
+  const blankRow = page.locator('.preset-row', { hasText: 'Blank' })
 
-  await expect(customRow.locator('.step').first()).toBeDisabled()
-  await expect(customRow).toHaveClass(/is-selected/u)
+  await expect(blankRow.locator('.step').first()).toBeDisabled()
+  await expect(blankRow).toHaveClass(/is-selected/u)
 
   await page.locator('header button[aria-label="Presets"]').click()
 
@@ -154,7 +154,7 @@ test('the custom preset empties the dock and shows the invitation in the middle'
   await page.waitForTimeout(900)
 
   await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(0)
-  await expect(page.locator('header button[aria-label="Presets"] .name')).toHaveText('Custom')
+  await expect(page.locator('header button[aria-label="Presets"] .name')).toHaveText('Blank')
   await expect(page.locator('.empty-hint')).toHaveText(INVITATION)
 })
 
@@ -163,7 +163,7 @@ test('a widget dropped on the empty dock is the first step, and the step back em
   await page.goto(editorUrl())
 
   await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(4)
-  await chooseCustom(page)
+  await chooseBlank(page)
   await expect(page.locator('.empty-hint')).toBeVisible()
 
   const dock = await page.locator('.Dock').boundingBox()
@@ -194,11 +194,11 @@ test('a widget dropped on the empty dock is the first step, and the step back em
   // the drop is a step of the custom layout, and it is the first one
   await openMenu(page)
 
-  const customRow = page.locator('.preset-row', { hasText: 'Custom' })
+  const blankRow = page.locator('.preset-row', { hasText: 'Blank' })
 
-  await expect(customRow.locator('.step').first()).toBeEnabled()
+  await expect(blankRow.locator('.step').first()).toBeEnabled()
 
-  await customRow.locator('.step').first().click()
+  await blankRow.locator('.step').first().click()
   await page.waitForTimeout(700)
 
   await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(0)
@@ -206,7 +206,7 @@ test('a widget dropped on the empty dock is the first step, and the step back em
 
   // the redo puts the widget back, so the step is a real state of the layout
   await openMenu(page)
-  await page.locator('.preset-row', { hasText: 'Custom' }).locator('.step').last().click()
+  await page.locator('.preset-row', { hasText: 'Blank' }).locator('.step').last().click()
   await page.waitForTimeout(700)
 
   await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(1)

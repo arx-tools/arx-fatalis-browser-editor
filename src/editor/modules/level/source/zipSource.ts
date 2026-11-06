@@ -46,8 +46,12 @@ export interface LevelManifest {
   readonly author?: string
   /**
    * The seed the generator made the level with.
+   *
+   * @remarks
+   * The generator writes a number, and the editor can write the text the user typed into the export dialog: the seed of
+   * a level is whatever text starts its random numbers, not only a number.
    */
-  readonly seed?: number
+  readonly seed?: number | string
   /**
    * The paths the generator wrote, the level files among them.
    *
@@ -148,7 +152,7 @@ async function readManifest(archive: JSZip): Promise<LevelManifest | undefined> 
   let version: string | undefined
   let description: string | undefined
   let author: string | undefined
-  let seed: number | undefined
+  let seed: number | string | undefined
   let files: string[] | undefined
 
   if (typeof candidate.name === 'string') {
@@ -167,7 +171,7 @@ async function readManifest(archive: JSZip): Promise<LevelManifest | undefined> 
     author = candidate.author
   }
 
-  if (typeof candidate.seed === 'number') {
+  if (typeof candidate.seed === 'number' || typeof candidate.seed === 'string') {
     seed = candidate.seed
   }
 

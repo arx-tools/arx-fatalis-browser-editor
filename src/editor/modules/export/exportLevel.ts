@@ -5,6 +5,7 @@ import { getHeaderSize } from 'arx-header-size'
 import JSZip from 'jszip'
 import type { ArxMap } from '../../../generator/ArxMap.ts'
 import type { LevelFiles } from '../level/source/levelSource.ts'
+import type { LevelManifest } from '../level/source/zipSource.ts'
 import { packLevelFile, packWholeFile } from '../level/source/packedFile.ts'
 
 /**
@@ -211,6 +212,34 @@ export function buildExportLlf(llf: ArxLLF, polygons: readonly ArxPolygon[]): Ar
 }
 
 /**
+ * The values the export dialog lets the user change before the archive is written.
+ */
+export interface ExportOptions {
+  /**
+   * The index the level gets: the paths inside the archive, and the header of the description.
+   *
+   * @remarks
+   * A level is `levelN` in the data directory, and the game reads the number from the files; the editor opens a level
+   * with its own index (`map.dlf.header.levelIdx`), and a mod that replaces another level is written with the number the
+   * user gives. Without it the loaded index stays.
+   */
+  readonly levelIndex?: number
+  /**
+   * The seed the manifest of the archive carries, the way the url carries it.
+   */
+  readonly seed?: string
+}
+
+/**
+ * The name of the manifest inside the archive.
+ *
+ * @remarks
+ * It is the name the generator writes, and the one the loader of the zips reads: the archive says what the level was
+ * made with, so a level opened from it comes back with its seed.
+ */
+const MANIFEST_NAME = 'manifest.json'
+
+/**
  * Rebuilds the description of a level.
  *
  * @remarks
@@ -219,11 +248,16 @@ export function buildExportLlf(llf: ArxLLF, polygons: readonly ArxPolygon[]): Ar
  *
  * @param dlf The description as it was loaded.
  * @param polygonCount The number of polygons the exported scene has.
+ * @param levelIndex The index the level takes, when the user gave one.
  *
  * @returns The description of the file to write.
  */
-export function buildExportDlf(dlf: ArxDLF, polygonCount: number): ArxDLF {
-  return { ...dlf, header: { ...dlf.header, numberOfPolygonsInFTS: polygonCount } }
+export function buildExportDlf(dlf: ArxDLF, polygonCount: number, levelIndex?: number): ArxDLF {
+  if (levelIndex === undefined) {
+    return { ...dlf, header: { ...dlf.header, numberOfPolygonsInFTS: polygonCount } }
+  }
+
+  return { ...dlf, header: { ...dlf.header, numberOfPolygonsInFTS: polygonCount, levelIdx: levelIndex } }
 }
 
 /**
@@ -239,16 +273,17 @@ export function buildExportDlf(dlf: ArxDLF, polygonCount: number): ArxDLF {
  * lighting has none: the whole file is compressed.
  *
  * @param map The map to write.
+ * @param options The values of the dialog, when the caller has them.
  *
  * @returns The three files, ready to be zipped.
  *
  * @throws When the level has no polygon left (`buildExportFts` throws).
  */
-export function exportLevelFiles(map: ArxMap): LevelFiles {
+export function exportLevelFiles(map: ArxMap, options: ExportOptions = {}): LevelFiles {
   const { polygons } = map
   const scene = FTS.save(buildExportFts(map.fts, polygons))
   const lighting = LLF.save(buildExportLlf(map.llf, polygons))
-  const description = DLF.save(buildExportDlf(map.dlf, polygons.length))
+  const description = DLF.save(buildExportDlf(map.dlf, polygons.length, options.levelIndex))
 
   return {
     dlf: packLevelFile(description, getHeaderSize(description, 'dlf').total),
@@ -280,6 +315,34 @@ export function levelFilePath(level: number, kind: 'dlf' | 'fts' | 'llf'): strin
 }
 
 /**
+ * Builds the manifest of the archive: the files of the level, and the seed it was made with.
+ *
+ * @remarks
+ * The seed of the dialog is **any text** (the generator starts its random numbers from a text), so a seed that is all
+ * digits is written as the number the generator itself writes, and every other text stays text. Without a seed the
+ * manifest lists the files only: a level without a seed is one the game makes one for.
+ *
+ * @param levelIndex The index the level gets.
+ * @param seed The seed of the level, or `undefined` when there is none.
+ *
+ * @returns The manifest, ready to be written as JSON.
+ */
+export function buildExportManifest(levelIndex: number, seed: string | undefined): LevelManifest {
+  const files = [levelFilePath(levelIndex, 'fts'), levelFilePath(levelIndex, 'dlf'), levelFilePath(levelIndex, 'llf')]
+  const value = seed?.trim() ?? ''
+
+  if (value === '') {
+    return { files }
+  }
+
+  if (/^\d+$/u.test(value)) {
+    return { files, seed: Number.parseInt(value, 10) }
+  }
+
+  return { files, seed: value }
+}
+
+/**
  * Zips the three files of a level, the way the game reads them.
  *
  * @remarks
@@ -289,6 +352,7 @@ export function levelFilePath(level: number, kind: 'dlf' | 'fts' | 'llf'): strin
  *
  * @param map The map to write.
  * @param onProgress Called with the percentage of the export, at each step.
+ * @param options The values of the export dialog: the index of the level and the seed of the manifest.
  *
  * @returns The bytes of the archive and the name the browser saves it under.
  *
@@ -297,6 +361,7 @@ export function levelFilePath(level: number, kind: 'dlf' | 'fts' | 'llf'): strin
 export async function exportLevelZip(
   map: ArxMap,
   onProgress?: ExportProgressHandler,
+  options: ExportOptions = {},
 ): Promise<{ readonly name: string; readonly data: ArrayBuffer }> {
   const { polygons } = map
 
@@ -320,19 +385,22 @@ export async function exportLevelZip(
   onProgress?.(EXPORT_PROGRESS.lightingPacked)
   await nextPaint()
 
-  // the description: the entities of the level, and the count of the polygons it names
-  const description = DLF.save(buildExportDlf(map.dlf, polygons.length))
+  // the index of the level: the one the user gave in the dialog, or the one it was opened with
+  const levelIndex = options.levelIndex ?? map.dlf.header.levelIdx
+
+  // the description: the entities of the level, the count of the polygons it names and the index it takes
+  const description = DLF.save(buildExportDlf(map.dlf, polygons.length, levelIndex))
   const dlf = packLevelFile(description, getHeaderSize(description, 'dlf').total)
 
   onProgress?.(EXPORT_PROGRESS.descriptionPacked)
   await nextPaint()
 
-  const { levelIdx } = map.dlf.header
   const archive = new JSZip()
 
-  archive.file(levelFilePath(levelIdx, 'fts'), fts)
-  archive.file(levelFilePath(levelIdx, 'dlf'), dlf)
-  archive.file(levelFilePath(levelIdx, 'llf'), llf)
+  archive.file(levelFilePath(levelIndex, 'fts'), fts)
+  archive.file(levelFilePath(levelIndex, 'dlf'), dlf)
+  archive.file(levelFilePath(levelIndex, 'llf'), llf)
+  archive.file(MANIFEST_NAME, JSON.stringify(buildExportManifest(levelIndex, options.seed), undefined, 2))
 
   const data = await archive.generateAsync({ type: 'arraybuffer' })
 

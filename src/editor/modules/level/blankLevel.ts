@@ -6,6 +6,16 @@ import type { LevelFiles } from './source/levelSource.ts'
 import { packLevelFile, packWholeFile } from './source/packedFile.ts'
 
 /**
+ * The index a blank level carries, and the level the game starts a new quest on.
+ *
+ * @remarks
+ * A map that is made from nothing is the map of a new quest, so it takes the level the game opens first (2026-11-06, the
+ * owner's request: a blank map was the level 0, which the game never loads by itself). The export dialog offers the same
+ * index for an empty field, and says how to make the game load the map at the start of a quest.
+ */
+export const NEW_QUEST_LEVEL_INDEX = 1
+
+/**
  * The side of one tile of a blank level, in game units.
  *
  * @remarks
@@ -167,7 +177,7 @@ function blankScene(preset: NewLevelPreset): ArxFTS {
   }
 
   return {
-    header: { levelIdx: 0, mScenePosition: { x: middle, y: 0, z: middle } },
+    header: { levelIdx: NEW_QUEST_LEVEL_INDEX, mScenePosition: { x: middle, y: 0, z: middle } },
     textureContainers: [FLOOR_TEXTURE],
     polygons,
     // every cell of the grid has to be in the file, an empty one carries no polygon and no anchor
@@ -206,7 +216,7 @@ function blankDescription(preset: NewLevelPreset): ArxDLF {
       lastModifiedAt: 0,
       player: PLAYER,
       numberOfPolygonsInFTS: preset.tiles * preset.tiles,
-      levelIdx: 0,
+      levelIdx: NEW_QUEST_LEVEL_INDEX,
     },
     interactiveObjects: [],
     fogs: [],

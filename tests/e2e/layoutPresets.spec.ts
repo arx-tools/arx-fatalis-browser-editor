@@ -11,7 +11,7 @@ import { editorUrl } from './support/editor.ts'
  * jump at 200 x 50, the statistics at 350 x 210 and the inspector at 350 x 190, and the painter (2026-11-04) with the
  * polygon inspector at 360 x 185, the keys at 360 x 430 and the uv mapper at 400 x 430. The widgets the owner did not
  * size stay free, and the header has to keep the name of the preset after the locks are applied — a layout that comes
- * back differently from the preset would show up as `Custom` — the name now says which layout is active, and a tweak
+ * back differently from the preset would show up as `Blank` — the name now says which layout is active, and a tweak
  * belongs to the preset it was made on (see `layoutHistory.ts`).
  */
 test.setTimeout(120_000)

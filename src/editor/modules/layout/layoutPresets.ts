@@ -215,13 +215,13 @@ export const defaultLayout: LayoutNode = viewerLayout
  * The presets the header offers, in the order of the dropdown.
  *
  * @remarks
- * The order is the one of the header: the `Editor` first (the layout of the level work), the `Viewer` second and the
- * `Painter` third (the texture work, 2026-11-04).
- * Which of them the editor starts with is {@link defaultLayout}, not this order.
+ * The `Viewer` is first because it is the one the editor starts with ({@link defaultLayout}): the row of the active
+ * layout is the top of the list, so the dropdown opens on the entry the header shows. The `Editor` (the layout of the
+ * level work) follows it and the `Painter` (the texture work, 2026-11-04) closes the list.
  */
 export const factoryPresets: readonly FactoryPreset[] = [
-  { id: 'editor', label: 'Editor', layout: editorLayout },
   { id: 'viewer', label: 'Viewer', layout: viewerLayout },
+  { id: 'editor', label: 'Editor', layout: editorLayout },
   { id: 'painter', label: 'Painter', layout: painterLayout },
 ]
 

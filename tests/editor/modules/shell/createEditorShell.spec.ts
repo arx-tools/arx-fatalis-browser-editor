@@ -193,7 +193,7 @@ void describe('the layout of the shell', () => {
       shell.presets.value.map((preset) => {
         return preset.label
       }),
-      ['Editor', 'Viewer', 'Painter'],
+      ['Viewer', 'Editor', 'Painter'],
     )
     assert.deepEqual(
       shell.presets.value.map((preset) => {
@@ -225,8 +225,8 @@ void describe('the layout of the shell', () => {
         return [preset.id, preset.canUndo, preset.canRedo]
       }),
       [
-        ['editor', false, false],
         ['viewer', true, false],
+        ['editor', false, false],
         ['painter', false, false],
       ],
     )
@@ -267,8 +267,8 @@ void describe('the layout of the shell', () => {
         return [preset.id, preset.canUndo]
       }),
       [
-        ['editor', true],
         ['viewer', true],
+        ['editor', true],
         ['painter', false],
       ],
     )
@@ -321,8 +321,8 @@ void describe('the layout of the shell', () => {
         return [preset.id, preset.canUndo]
       }),
       [
-        ['editor', true],
         ['viewer', true],
+        ['editor', true],
         ['painter', false],
       ],
     )

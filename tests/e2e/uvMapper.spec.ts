@@ -303,6 +303,52 @@ test('a corner dragged on the texture moves the uv of the face, and the undo tak
     })
     .toBe(`${uBeforeTurn} ${vBeforeTurn}`)
 
+  // the two buttons of a quad: the corners in a quarter of the texture, and over the whole of it
+  const quarterButton = mapper.locator('button[aria-label="Lay the corners in a quarter of the texture"]')
+  const maximizeButton = mapper.locator('button[aria-label="Stretch the corners to the whole texture"]')
+
+  await expect(quarterButton).toBeEnabled()
+
+  // a face that is not on a quarter jumps to the top left one: every corner of the field is a corner of that quarter
+  await quarterButton.click()
+
+  await expect
+    .poll(async () => {
+      return await uField.inputValue()
+    })
+    .toMatch(/^(?:0\.000|0\.500)$/u)
+
+  // and every click takes the corners to the next quarter, clockwise: the corner 0 walks the quarters
+  await quarterButton.click()
+
+  await expect
+    .poll(async () => {
+      return `${await uField.inputValue()} ${await vField.inputValue()}`
+    })
+    .toBe('0.500 0.000')
+
+  await quarterButton.click()
+  await quarterButton.click()
+  await quarterButton.click()
+
+  await expect
+    .poll(async () => {
+      return `${await uField.inputValue()} ${await vField.inputValue()}`
+    })
+    .toBe('0.000 0.000')
+
+  // the whole texture: the corner 4 takes the bottom right point of it
+  await maximizeButton.click()
+  await cornerSelect.selectOption('3')
+
+  await expect
+    .poll(async () => {
+      return `${await uField.inputValue()} ${await vField.inputValue()}`
+    })
+    .toBe('1.000 1.000')
+
+  await cornerSelect.selectOption('0')
+
   // with the shift held the corner goes along the four axes only: a drag up keeps the u and moves the v
   //
   // the corner goes to the middle of the face first: the undo of the fields put it back on the edge of the texture, where

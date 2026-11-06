@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, shallowRef, useTemplateRef, watch } from 'vue'
-import { RotateCcw, RotateCw, SquareCenterlineDashedHorizontal, SquareCenterlineDashedVertical } from 'lucide-vue-next'
+import {
+  LayoutGrid,
+  Maximize,
+  RotateCcw,
+  RotateCw,
+  SquareCenterlineDashedHorizontal,
+  SquareCenterlineDashedVertical,
+} from 'lucide-vue-next'
 import { commandOf } from '../../../modules/history/commands.ts'
 import { createSetUvRecord } from '../../../modules/history/records.ts'
 import { bumpLevelRevision, levelRevision, runStep } from '../../../modules/level/edit/editing.ts'
@@ -12,6 +19,8 @@ import {
   DEFAULT_ZOOM,
   mismatchMessageOf,
   screenOfUv,
+  maximizedUvs,
+  quarteredUvs,
   turnedUvs,
   uvsOfFace,
   uvSelectionOf,
@@ -54,6 +63,18 @@ const shown = shallowRef<ShownFace | undefined>(undefined)
  * The uv of the corners of the face, as the model holds them.
  */
 const corners = shallowRef<readonly UvPoint[]>([])
+
+/**
+ * Whether the face on the screen is a quad.
+ *
+ * @remarks
+ * The two buttons of the footer that lay the corners in a quarter of the texture and over the whole of it work on the
+ * four corners of a quad only (2026-11-06, the owner's request): a triangle has three, and there is no quarter of a
+ * texture to give them.
+ */
+const isQuad = computed(() => {
+  return shown.value !== undefined && corners.value.length === 4
+})
 
 /**
  * The side of the square, in pixels.
@@ -370,16 +391,16 @@ const activeCorner = computed({
 })
 
 /**
- * Lays the corners of the face on other corners of it: the four buttons of the footer.
+ * Writes the corners of the face, and makes the change a step of the history.
  *
  * @remarks
- * The uv values do not change, only which corner holds which: a texture that came in rotated or mirrored is fixed by
- * this, and the step goes on the history so the undo puts the corners back (2026-11-05, the owner). The faces of a
- * selection that share their corners all take the same layout, the way a drag of one corner moves all of them.
+ * The faces of a selection that share their corners all take the same layout, the way a drag of one corner moves all of
+ * them; the step goes on the history, so the undo puts the corners back. The four turns and the two buttons of the
+ * footer share this: they only work out the corners they want.
  *
- * @param turn Which way to lay the corners.
+ * @param next The corners the face takes.
  */
-function onTurn(turn: UvTurn): void {
+function placeCorners(next: UvPoint[]): void {
   const current = shown.value
 
   if (current === undefined) {
@@ -390,7 +411,7 @@ function onTurn(turn: UvTurn): void {
     return { ...corner }
   })
 
-  corners.value = turnedUvs(corners.value, turn)
+  corners.value = next
 
   for (const face of current.indices) {
     current.map.setFaceUvs(face, uvsOfFace(corners.value))
@@ -404,6 +425,33 @@ function onTurn(turn: UvTurn): void {
   if (command !== undefined) {
     runStep(command)
   }
+}
+
+/**
+ * Lays the corners of the face on other corners of it: the four buttons of the footer.
+ *
+ * @remarks
+ * The uv values do not change, only which corner holds which: a texture that came in rotated or mirrored is fixed by
+ * this, and the step goes on the history so the undo puts the corners back (2026-11-05, the owner).
+ *
+ * @param turn Which way to lay the corners.
+ */
+function onTurn(turn: UvTurn): void {
+  placeCorners(turnedUvs(corners.value, turn))
+}
+
+/**
+ * Lays the corners of a quad in one quarter of the texture, and takes them to the next quarter on every click.
+ */
+function onQuarter(): void {
+  placeCorners(quarteredUvs(corners.value))
+}
+
+/**
+ * Stretches the corners of a quad over the whole texture.
+ */
+function onMaximize(): void {
+  placeCorners(maximizedUvs(corners.value))
 }
 
 /**
@@ -604,6 +652,27 @@ watch(
           @click="onTurn('flip-v')"
         >
           <SquareCenterlineDashedVertical :size="13" />
+        </button>
+        <!-- the two buttons of the quad: a face that draws a quarter of its texture, and one that draws all of it -->
+        <button
+          class="turn"
+          type="button"
+          aria-label="Lay the corners in a quarter of the texture"
+          v-tooltip="'Lay the corners in a quarter of the texture (the next quarter on every click)'"
+          :disabled="!isQuad"
+          @click="onQuarter"
+        >
+          <LayoutGrid :size="13" />
+        </button>
+        <button
+          class="turn"
+          type="button"
+          aria-label="Stretch the corners to the whole texture"
+          v-tooltip="'Stretch the corners to the whole texture'"
+          :disabled="!isQuad"
+          @click="onMaximize"
+        >
+          <Maximize :size="13" />
         </button>
       </div>
     </div>
@@ -846,13 +915,15 @@ watch(
     border-radius: 4px;
     cursor: pointer;
 
-    &:hover {
+    &:hover:not(:disabled) {
       color: $text-strong;
       background: $surface-widget;
     }
 
+    // the two buttons of the quad are off for a triangle
     &:disabled {
       opacity: 0.45;
+      cursor: default;
     }
   }
 }

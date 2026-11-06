@@ -3,12 +3,15 @@ import { describe, it } from 'node:test'
 import { ArxPolygonFlags, type ArxPolygon } from 'arx-convert/types'
 import {
   clampUv,
+  maximizedUvs,
   mismatchMessageOf,
   MAX_ZOOM,
   MIN_ZOOM,
   movedCorner,
   numberOfText,
   pannedBy,
+  quarteredUvs,
+  quarterOfUvs,
   sameUvs,
   screenOfUv,
   snappedPoint,
@@ -581,5 +584,123 @@ void describe('turnedUvs', () => {
     ;(turned[0] as { u: number }).u = 0.5
 
     assert.equal(corners[1]?.u, 1)
+  })
+})
+
+void describe('quarteredUvs', () => {
+  /**
+   * Four corners of a quad, in the stored order (top left, top right, bottom left, bottom right).
+   *
+   * @param u0 The left edge.
+   * @param v0 The top edge.
+   * @param u1 The right edge.
+   * @param v1 The bottom edge.
+   *
+   * @returns The corners of a rectangle of the texture.
+   */
+  function rect(u0: number, v0: number, u1: number, v1: number): Array<{ u: number; v: number }> {
+    return [
+      { u: u0, v: v0 },
+      { u: u1, v: v0 },
+      { u: u0, v: v1 },
+      { u: u1, v: v1 },
+    ]
+  }
+
+  /**
+   * The uv of the corners, as `u,v` strings.
+   *
+   * @param corners The corners to read.
+   *
+   * @returns The uv of each corner, in the stored order.
+   */
+  function uvOf(corners: ReadonlyArray<{ readonly u: number; readonly v: number }>): string[] {
+    return corners.map((corner) => {
+      return `${corner.u}/${corner.v}`
+    })
+  }
+
+  void it('puts a quad that is not on a quarter on the top left one, each corner on its nearest point', () => {
+    const quartered = quarteredUvs(rect(0, 0, 1, 1))
+
+    assert.deepEqual(uvOf(quartered), ['0/0', '0.5/0', '0/0.5', '0.5/0.5'])
+  })
+
+  void it('gives every point of the quarter its own corner, even when two corners are close', () => {
+    // two corners near the middle of the texture: without the pairing they would take the same point of the quarter
+    const quartered = quarteredUvs([
+      { u: 0.45, v: 0.45 },
+      { u: 0.42, v: 0.48 },
+      { u: 0.05, v: 0.05 },
+      { u: 0.06, v: 0.02 },
+    ])
+
+    assert.deepEqual(uvOf(quartered).toSorted(), ['0/0', '0/0.5', '0.5/0', '0.5/0.5'].toSorted())
+  })
+
+  void it('walks the quarters clockwise on every click', () => {
+    const topLeft = rect(0, 0, 0.5, 0.5)
+    const topRight = quarteredUvs(topLeft)
+    const bottomRight = quarteredUvs(topRight)
+    const bottomLeft = quarteredUvs(bottomRight)
+    const back = quarteredUvs(bottomLeft)
+
+    assert.deepEqual(uvOf(topRight), ['0.5/0', '1/0', '0.5/0.5', '1/0.5'])
+    assert.deepEqual(uvOf(bottomRight), ['0.5/0.5', '1/0.5', '0.5/1', '1/1'])
+    assert.deepEqual(uvOf(bottomLeft), ['0/0.5', '0.5/0.5', '0/1', '0.5/1'])
+    assert.deepEqual(uvOf(back), uvOf(topLeft))
+  })
+
+  void it('keeps the points a corner already has, whatever order they come in', () => {
+    // the points of the top left quarter, in another order: the click takes them to the next quarter, and the corners
+    // keep their own point of the square
+    const shuffled = [
+      { u: 0.5, v: 0.5 },
+      { u: 0, v: 0 },
+      { u: 0.5, v: 0 },
+      { u: 0, v: 0.5 },
+    ]
+
+    assert.equal(quarterOfUvs(shuffled), 0)
+    assert.equal(quarterOfUvs(rect(0, 0, 1, 1)), undefined)
+    assert.equal(quarterOfUvs(shuffled.slice(0, 3)), undefined)
+  })
+
+  void it('leaves a triangle alone', () => {
+    const triangle = [
+      { u: 0, v: 0 },
+      { u: 1, v: 0 },
+      { u: 0, v: 1 },
+    ]
+
+    assert.deepEqual(quarteredUvs(triangle), triangle)
+  })
+})
+
+void describe('maximizedUvs', () => {
+  void it('stretches the quad over the whole texture', () => {
+    const stretched = maximizedUvs([
+      { u: 0.2, v: 0.1 },
+      { u: 0.4, v: 0.1 },
+      { u: 0.2, v: 0.3 },
+      { u: 0.4, v: 0.3 },
+    ])
+
+    assert.deepEqual(
+      stretched.map((corner) => {
+        return `${corner.u}/${corner.v}`
+      }),
+      ['0/0', '1/0', '0/1', '1/1'],
+    )
+  })
+
+  void it('leaves a triangle alone', () => {
+    const triangle = [
+      { u: 0, v: 0 },
+      { u: 1, v: 0 },
+      { u: 0, v: 1 },
+    ]
+
+    assert.deepEqual(maximizedUvs(triangle), triangle)
   })
 })

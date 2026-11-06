@@ -11,7 +11,14 @@ import {
   type PresetId,
 } from '../layout/layoutPresets.ts'
 import { LayoutEditor, type MountWidgetOverlay } from '../layout/layoutEditor.ts'
-import { layoutEquals, parseLayoutNode, toLayoutNode, type LayoutNode } from '../layout/layoutNode.ts'
+import {
+  layoutEquals,
+  lockedBoxOf,
+  lockWidgetTo,
+  parseLayoutNode,
+  toLayoutNode,
+  type LayoutNode,
+} from '../layout/layoutNode.ts'
 import { createWidget, widgetKind, type WidgetDefinition } from '../layout/widgetDefinition.ts'
 import { persistedRef } from '../persistedRef/persistedRef.ts'
 
@@ -450,6 +457,36 @@ export function createEditorShell(
   apply.applyLayout(storedLayout.value)
 
   /**
+   * Writes the size a locked widget has now into its lock.
+   *
+   * @remarks
+   * A change of the layout by the user (a widget dropped beside a locked one, a widget removed, a border dragged) is
+   * **stronger** than a lock: the size it gave a locked widget becomes its new lock, the way a border drag writes its
+   * end (`applyDragEdges`). Without this the pass of the sizes puts the old lock back a quarter of a second later, and
+   * the widget that was just added beside it is squeezed to the leftover room. A widget whose box did not change keeps
+   * the lock it had, so the pin of a column survives a change on the other side of the dock.
+   */
+  function refreshLocks(): void {
+    for (const widget of dockWidgets(dock)) {
+      const box = lockedBoxOf(widget)
+
+      if (box === undefined) {
+        continue
+      }
+
+      const rect = widget.node.getBoundingClientRect()
+      const width = Math.round(rect.width)
+      const height = Math.round(rect.height)
+
+      if (width <= 0 || height <= 0 || (width === box.width && height === box.height)) {
+        continue
+      }
+
+      lockWidgetTo(widget, { width, height })
+    }
+  }
+
+  /**
    * Asks for the sizes to be worked out when the user stops dragging a border.
    *
    * @remarks
@@ -457,6 +494,10 @@ export function createEditorShell(
    * the drag would stop after the first pixel, and the layout would jump back to where it was. So a change that comes
    * from a drag waits for the drag to end — a quarter of a second without a change — and only the last position of the
    * border is applied.
+   *
+   * The wait is also where a **drop** settles: the new split is on the screen a moment after the widget was added, and
+   * the locks are read from the boxes then (see {@link refreshLocks}), so the pass works the layout out from the sizes
+   * the user just made instead of the sizes the preset pinned.
    */
   function requestManagedSizesAfterDrag(): void {
     if (sizesTimer !== undefined) {
@@ -466,6 +507,11 @@ export function createEditorShell(
     sizesTimer = setTimeout(() => {
       sizesTimer = undefined
 
+      // the sizes the dock settled on are the new locks, and the tree has to be read again before the pass works the
+      // layout out from it: the boxes of a drop are only final once the browser laid the dock out (the signal of the
+      // layout comes before that), so this is the place where the lock can follow the user
+      refreshLocks()
+      syncLayout()
       apply.applyManagedSizes()
     }, 250)
   }

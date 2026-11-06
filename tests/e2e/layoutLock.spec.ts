@@ -28,6 +28,73 @@ async function heightOf(page: Page, kind: string): Promise<number> {
 }
 
 /**
+ * The box of a widget on the dock, in whole pixels.
+ */
+interface Box {
+  readonly left: number
+  readonly top: number
+  readonly width: number
+  readonly height: number
+}
+
+/**
+ * Reads the box of a widget on the dock.
+ *
+ * @param page The page to read.
+ * @param kind The kind of the widget.
+ *
+ * @returns The box of its node.
+ */
+async function boxOf(page: Page, kind: string): Promise<Box> {
+  return await page.locator(`.lm-DockPanel-widget[data-widget-kind="${kind}"]`).evaluate((node) => {
+    const box = node.getBoundingClientRect()
+
+    return {
+      left: Math.round(box.left),
+      top: Math.round(box.top),
+      width: Math.round(box.width),
+      height: Math.round(box.height),
+    }
+  })
+}
+
+/**
+ * Adds a widget of a kind to the dock, by dragging its row of the picker onto the bottom of a widget.
+ *
+ * @param page The page to drag in.
+ * @param kind The kind of the widget to add.
+ * @param target The widget whose bottom edge the drop lands on: the new widget takes the lower half of it.
+ * @param target.left The left edge of the widget, in window pixels.
+ * @param target.top The top edge of the widget, in window pixels.
+ * @param target.width The width of the widget, in pixels.
+ * @param target.height The height of the widget, in pixels.
+ */
+async function dropWidget(page: Page, kind: string, target: Box): Promise<void> {
+  if ((await page.locator('.WidgetPicker').count()) === 0) {
+    await page.locator('button[aria-label="Add a widget"]').click()
+  }
+
+  const row = page.locator(`.WidgetPicker [data-picker-kind="${kind}"]`).first()
+  const box = await row.boundingBox()
+
+  if (box === null) {
+    throw new Error(`the picker has no row for ${kind}`)
+  }
+
+  const halfWidth = box.width / 2
+  const halfHeight = box.height / 2
+  const rowCentre = { x: box.x + halfWidth, y: box.y + halfHeight }
+  const targetHalf = target.width / 2
+  const targetCentre = { x: target.left + targetHalf, y: target.top + target.height - 20 }
+
+  await page.mouse.move(rowCentre.x, rowCentre.y)
+  await page.mouse.down()
+  await page.mouse.move(targetCentre.x, targetCentre.y, { steps: 12 })
+  await page.waitForTimeout(150)
+  await page.mouse.up()
+}
+
+/**
  * The size a widget shows in the badge of its plate.
  *
  * @param page The page to read.
@@ -40,6 +107,82 @@ async function badgeOf(page: Page, kind: string): Promise<string> {
 
   return (await badge.textContent()) ?? ''
 }
+
+test('a widget dropped beside a locked one keeps the split the drop made', async ({ page }) => {
+  await page.setViewportSize({ width: 1631, height: 850 })
+
+  // the blank level: a drop is a layout question, the level is not part of it
+  await page.goto('/editor/')
+  await page.locator('header button[aria-label="Presets"]').click()
+  await page.locator('.preset-menu .preset-row', { hasText: 'Painter' }).click()
+
+  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(6)
+  await page.waitForTimeout(900)
+
+  // the uv mapper is alone in its column, so it takes the whole height (and its lock follows, after the pass)
+  await page.locator('header button[aria-label="Unlock the layout"]').click()
+  await page.locator('[data-widget-kind="textures"] button[aria-label="Remove the Textures widget"]').click()
+  await page.waitForTimeout(800)
+
+  const mapper = await boxOf(page, 'uv-mapper')
+
+  // the texture list goes under the uv mapper: the two take a half of the column each
+  await dropWidget(page, 'textures', mapper)
+
+  const dropped = await boxOf(page, 'textures')
+  const mapped = await boxOf(page, 'uv-mapper')
+
+  expect(Math.abs(dropped.height - mapped.height)).toBeLessThanOrEqual(4)
+
+  // the pass of the sizes runs a quarter of a second later: the split has to stay, not the size of the old lock
+  await page.waitForTimeout(900)
+
+  const settled = await boxOf(page, 'textures')
+  const settledMapper = await boxOf(page, 'uv-mapper')
+
+  expect(Math.abs(settled.height - settledMapper.height)).toBeLessThanOrEqual(4)
+
+  // the lock followed the drag of the split, so a reload keeps what the user just made
+  expect(
+    Number(await page.locator('[data-widget-kind="uv-mapper"]').getAttribute('data-locked-height')),
+  ).toBeLessThanOrEqual(settledMapper.height)
+})
+
+test('a lock survives a reload when the widget is alone in its column', async ({ page }) => {
+  await page.setViewportSize({ width: 1631, height: 850 })
+  await page.goto('/editor/')
+  await page.locator('header button[aria-label="Presets"]').click()
+  await page.locator('.preset-menu .preset-row', { hasText: 'Painter' }).click()
+
+  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(6)
+  await page.waitForTimeout(900)
+
+  // the column of the uv mapper collapses when the texture list goes: its height has no split to live in any more
+  await page.locator('header button[aria-label="Unlock the layout"]').click()
+  await page.locator('[data-widget-kind="textures"] button[aria-label="Remove the Textures widget"]').click()
+  await page.waitForTimeout(800)
+
+  const mapper = await boxOf(page, 'uv-mapper')
+  const view = await boxOf(page, '3d-view')
+
+  expect(mapper.width).toBe(400)
+  expect(Number(await page.locator('[data-widget-kind="uv-mapper"]').getAttribute('data-locked-height'))).toBe(
+    mapper.height,
+  )
+
+  await page.reload()
+  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(5)
+  await page.waitForTimeout(1000)
+
+  // the lock came back with the box: the mapper keeps its width, and it does not grow over the walkable view
+  const reloaded = await boxOf(page, 'uv-mapper')
+  const reloadedView = await boxOf(page, '3d-view')
+
+  expect(reloaded.width).toBe(400)
+  expect(reloaded.height).toBe(mapper.height)
+  expect(reloadedView.width).toBe(view.width)
+  expect(await page.locator('[data-widget-kind="uv-mapper"]').getAttribute('data-locked-width')).toBe('400')
+})
 
 test('a locked widget keeps its size, the others take the rest', async ({ page }) => {
   await seedLayout(page, editorLayout)

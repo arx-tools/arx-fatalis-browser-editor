@@ -95,6 +95,18 @@ export interface LayoutNodeWidget {
    * The identifier of the widget kind.
    */
   readonly kind: string
+  /**
+   * The box the widget was locked to, when it was locked.
+   *
+   * @remarks
+   * The sizes of the split a widget is in can carry only **one** side of its lock: the width comes from the horizontal
+   * split above it and the height from the vertical one. A widget that ends up as a direct child of a horizontal split
+   * (the column around it collapsed, or a level of the tree went away) has no vertical ancestor to remember its height,
+   * so the lock would be lost on the next load — and a lost lock turns the `fixed` pixels of the split into an `auto`
+   * share, which is a very different number (400 shares against the 1 of a flexible neighbour fills the screen). The
+   * box lives here, on the widget, so both sides survive whatever the tree looks like.
+   */
+  readonly lock?: LockBox
 }
 
 /**
@@ -445,7 +457,13 @@ export function toLayoutNode(
       return null
     }
 
-    return { type: 'widget', kind }
+    const box = lockedBoxOf(widget)
+
+    if (box === undefined) {
+      return { type: 'widget', kind }
+    }
+
+    return { type: 'widget', kind, lock: box }
   }
 
   const children: LayoutNode[] = []
@@ -630,7 +648,23 @@ export function parseLayoutNode(value: unknown): LayoutNode | null {
       return null
     }
 
-    return { type: 'widget', kind: candidate.kind }
+    const box = candidate.lock
+
+    if (box === undefined) {
+      return { type: 'widget', kind: candidate.kind }
+    }
+
+    if (typeof box !== 'object' || box === null) {
+      return null
+    }
+
+    const { width, height } = box as Record<string, unknown>
+
+    if (typeof width !== 'number' || typeof height !== 'number' || !isLockSize(width) || !isLockSize(height)) {
+      return null
+    }
+
+    return { type: 'widget', kind: candidate.kind, lock: { width, height } }
   }
 
   if (candidate.type !== 'split') {

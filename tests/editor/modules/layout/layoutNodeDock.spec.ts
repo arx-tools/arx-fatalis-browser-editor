@@ -6,8 +6,16 @@ installDom()
 
 const { DockLayout, DockPanel, Widget } = await import('@lumino/widgets')
 const { editorLayout } = await import('../../../../src/editor/modules/layout/layoutPresets.ts')
-const { collectKinds, flexSizes, lockedBoxOf, lockWidgetTo, toDockConfig, toLayoutNode } =
-  await import('../../../../src/editor/modules/layout/layoutNode.ts')
+const {
+  collectKinds,
+  flexSizes,
+  layoutEquals,
+  lockedBoxOf,
+  lockWidgetTo,
+  parseLayoutNode,
+  toDockConfig,
+  toLayoutNode,
+} = await import('../../../../src/editor/modules/layout/layoutNode.ts')
 const { createWidget, widgetKind } = await import('../../../../src/editor/modules/layout/widgetDefinition.ts')
 
 /**
@@ -272,10 +280,84 @@ void describe('the lock of a widget', () => {
         { kind: 'auto', ratio: 1 },
       ],
       children: [
-        { type: 'widget', kind: 'a' },
+        // the box of the lock goes on the widget too: the splits can carry only the side that is along their axis
+        { type: 'widget', kind: 'a', lock: { width: 400, height: 300 } },
         { type: 'widget', kind: 'b' },
       ],
     })
+  })
+
+  void it('keeps the whole box of a lock that has no split for one of its sides', () => {
+    // the mapper of the painter sits alone in its column: the horizontal split carries its width, and nothing carries
+    // its height. Without the box on the widget the height would be lost, and the `fixed` pixels of the split would
+    // come back as an `auto` share
+    const widgets = makeWidgets(['a', 'b'])
+    const locked = widgets.get('a')
+    const free = widgets.get('b')
+
+    if (locked === undefined || free === undefined) {
+      throw new Error('the test needs its two widgets')
+    }
+
+    lockWidgetTo(locked, { width: 400, height: 430 })
+
+    const node = toLayoutNode(
+      {
+        main: {
+          type: 'split-area',
+          orientation: 'horizontal',
+          sizes: [0.68, 400],
+          children: [
+            { type: 'tab-area', widgets: [free], currentIndex: 0 },
+            { type: 'tab-area', widgets: [locked], currentIndex: 0 },
+          ],
+        },
+      },
+      widgetKind,
+    )
+
+    assert.deepEqual(node, {
+      type: 'split',
+      orientation: 'horizontal',
+      sizes: [
+        // the flexible shares are normalized against each other: one free child is all of the free space
+        { kind: 'auto', ratio: 1 },
+        { kind: 'fixed', px: 400 },
+      ],
+      children: [
+        { type: 'widget', kind: 'b' },
+        { type: 'widget', kind: 'a', lock: { width: 400, height: 430 } },
+      ],
+    })
+
+    // the stored layout reads the lock back, so a reload can put it on the widget again
+    const parsed = parseLayoutNode(node)
+
+    assert.deepEqual(parsed, node)
+  })
+
+  void it('reads a lock that is not a box as an unknown layout', () => {
+    assert.equal(parseLayoutNode({ type: 'widget', kind: 'a', lock: { width: 0, height: 300 } }), null)
+    assert.equal(parseLayoutNode({ type: 'widget', kind: 'a', lock: { width: 400 } }), null)
+    assert.equal(parseLayoutNode({ type: 'widget', kind: 'a', lock: 'big' }), null)
+    assert.deepEqual(parseLayoutNode({ type: 'widget', kind: 'a', lock: { width: 400, height: 300 } }), {
+      type: 'widget',
+      kind: 'a',
+      lock: { width: 400, height: 300 },
+    })
+  })
+
+  void it('counts two trees with the same shape as equal, whatever box the widgets carry', () => {
+    // the presets spell the lock on the splits only: a tree saved from the dock carries the box too, and the header has
+    // to keep the name of the preset
+    const withBox = {
+      type: 'widget' as const,
+      kind: 'a',
+      lock: { width: 400, height: 300 },
+    }
+
+    assert.equal(layoutEquals(withBox, { type: 'widget', kind: 'a' }), true)
+    assert.equal(layoutEquals(withBox, { type: 'widget', kind: 'b' }), false)
   })
 
   void it('gives a fixed size its pixels as the weight of the config', () => {

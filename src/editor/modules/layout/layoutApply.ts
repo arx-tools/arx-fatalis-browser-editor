@@ -293,6 +293,11 @@ export function createLayoutApply(context: LayoutApplyContext): LayoutApply {
    * locks between two runs, so it is read back here. A widget that is not in a fixed size of the tree is not locked,
    * so a layout that comes from the storage or from a preset can not keep a lock of an earlier one.
    *
+   * A widget node may carry its **own** box: the splits around it can only remember one side of the lock (the width
+   * from the horizontal ancestor, the height from the vertical one), and a widget whose column collapsed has neither.
+   * The box on the node is the whole lock, so it wins over what the walk inherited; a preset (which has no boxes on its
+   * widgets) keeps reading the sides from the splits, the way it always did.
+   *
    * @param node The tree the dock was built from.
    */
   function applyLocks(node: LayoutNode): void {
@@ -313,9 +318,10 @@ export function createLayoutApply(context: LayoutApplyContext): LayoutApply {
         const widget = dockWidgets(dock).find((candidate) => {
           return widgetKind(candidate) === current.kind
         })
+        const locked = current.lock ?? box
 
-        if (widget !== undefined && box.width > 0 && box.height > 0) {
-          lockWidgetTo(widget, box)
+        if (widget !== undefined && locked.width > 0 && locked.height > 0) {
+          lockWidgetTo(widget, locked)
         }
 
         return

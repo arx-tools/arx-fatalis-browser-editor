@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ChevronDown } from 'lucide-vue-next'
-import { computed, ref, watch } from 'vue'
+import { computed, ref, useTemplateRef, watch } from 'vue'
 import {
   currentMapId,
   mapCount,
@@ -31,6 +31,11 @@ import {
 const selected = ref(currentMapId.value)
 
 /**
+ * The select of the list, so a click on the group prefix can open it.
+ */
+const list = useTemplateRef<HTMLSelectElement>('list')
+
+/**
  * The map the control shows, so its group can be written before it.
  */
 const current = computed(() => {
@@ -49,6 +54,31 @@ const prefix = computed(() => {
 
   return MAP_GROUP_PREFIXES[entry.group]
 })
+
+/**
+ * Opens the list with a click on the group prefix.
+ *
+ * @remarks
+ * The prefix is a caption, not a control, and a caption that does nothing would make the left half of the box a dead
+ * spot (the owner's remark, 2026-11-06). The picker of a native select can only be opened by the browser, so the click
+ * asks for it (`showPicker`, which needs the activation of the click), and a browser that refuses it leaves the focus:
+ * the keys of the select open the list then.
+ */
+function openList(): void {
+  const element = list.value
+
+  if (element === null) {
+    return
+  }
+
+  element.focus()
+
+  try {
+    element.showPicker()
+  } catch {
+    // the focus is already on the select: its own keys open the list
+  }
+}
 
 /**
  * What the whole control says, for a reader that can not see it: `Blank: Flat Plane`.
@@ -116,9 +146,10 @@ watch(currentMapId, (id) => {
     <span class="label">Maps ({{ mapCount }})</span>
     <div class="list" :title="title">
       <!-- a map the list does not have (a level of a folder that is not there yet) has no row: the control shows only
-           the empty box, the way it did before the group was written before the name -->
-      <span v-if="prefix !== ''" class="group" aria-hidden="true">{{ prefix }}:</span>
-      <select v-model="selected" :aria-label="ariaLabel" @change="choose">
+           the empty box, the way it did before the group was written before the name. The prefix opens the list too: the
+           whole box is a control, not a caption with a dead left half -->
+      <span v-if="prefix !== ''" class="group" aria-hidden="true" @click="openList">{{ prefix }}:</span>
+      <select ref="list" v-model="selected" :aria-label="ariaLabel" @change="choose">
         <optgroup v-for="group in mapGroups" :key="group.group" :label="group.label">
           <option v-for="entry in group.entries" :key="entry.id" :value="entry.id">
             {{ entry.label }}
@@ -150,7 +181,6 @@ watch(currentMapId, (id) => {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    padding-left: 6px;
     color: $text;
     border: 1px solid $border;
     border-radius: 4px;
@@ -159,11 +189,21 @@ watch(currentMapId, (id) => {
       background: $surface-panel;
     }
 
-    // the name of the group is a caption, not a choice: only the select under it can be opened. The space after its
-    // colon is the gap of the row (the owner asked for `Blank: Flat Plane`, with the space always there)
+    // the focus is the ring of the **whole box**, not of the select inside it: a ring around the select (Firefox draws
+    // one for a focus that comes from a click, too) would cut the box in two and the prefix would read as a caption of
+    // a different control (2026-11-06, the owner's screenshot)
+    &:focus-within {
+      border-color: $interactive;
+    }
+
+    // the name of the group is the caption of the control, and it **opens the list** as well (a dead left half would
+    // make the box read as half a control): the padding it carries is the left end of the box, so the click is on it.
+    // The space after its colon is the gap of the row (the owner asked for `Blank: Flat Plane`, always with the space)
     .group {
+      padding-left: 6px;
       color: $text-subtle;
       white-space: nowrap;
+      cursor: pointer;
     }
 
     select {
@@ -178,6 +218,11 @@ watch(currentMapId, (id) => {
 
       &:hover {
         background: $surface-panel;
+      }
+
+      // the ring of the browser is taken off here: the box around it shows the focus (see `:focus-within` above)
+      &:focus {
+        outline: none;
       }
     }
 

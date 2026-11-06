@@ -95,6 +95,12 @@ test('the map control names the chosen map with its group, and the list keeps th
 
   expect(shown).toBe('Flat Plane')
 
+  // the prefix is a part of the control, not a caption with a dead left half: a click on it goes to the select (the
+  // picker of a native select is the browser's, so the focus is what a test sees of that click)
+  await map.locator('.group').click()
+  await expect(map.locator('select')).toBeFocused()
+  await page.keyboard.press('Escape')
+
   // the sections of the middle bar are separated by a dot
   await expect(page.locator('.levels .dot')).toHaveCount(3)
 

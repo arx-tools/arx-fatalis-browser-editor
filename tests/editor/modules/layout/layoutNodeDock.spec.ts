@@ -6,16 +6,9 @@ installDom()
 
 const { DockLayout, DockPanel, Widget } = await import('@lumino/widgets')
 const { editorLayout } = await import('../../../../src/editor/modules/layout/layoutPresets.ts')
-const {
-  collectKinds,
-  flexSizes,
-  layoutEquals,
-  lockedBoxOf,
-  lockWidgetTo,
-  parseLayoutNode,
-  toDockConfig,
-  toLayoutNode,
-} = await import('../../../../src/editor/modules/layout/layoutNode.ts')
+const { collectKinds, flexSizes, layoutEquals, lockedBoxOf, lockWidgetTo, parseLayoutNode } =
+  await import('../../../../src/editor/modules/layout/layoutNode.ts')
+const { toDockConfig, toLayoutNode } = await import('../../../../src/editor/modules/layout/dockConfig.ts')
 const { createWidget, widgetKind } = await import('../../../../src/editor/modules/layout/widgetDefinition.ts')
 
 /**

@@ -1,15 +1,8 @@
 import { DockLayout, type DockPanel, type Widget } from '@lumino/widgets'
 import { MIN_WIDGET_HEIGHT, MIN_WIDGET_WIDTH, planLayout, type WidgetFit } from './contentFit.ts'
+import { toDockConfig, toLayoutNode } from './dockConfig.ts'
 import { dockWidgets } from './dockWidgets.ts'
-import {
-  collectKinds,
-  lockedBoxOf,
-  lockWidgetTo,
-  toDockConfig,
-  toLayoutNode,
-  type LayoutNode,
-  type LockBox,
-} from './layoutNode.ts'
+import { collectKinds, lockedBoxOf, lockWidgetTo, type LayoutNode, type LockBox } from './layoutNode.ts'
 import { defaultLayout } from './layoutPresets.ts'
 import { createWidget, widgetKind, type WidgetDefinition } from './widgetDefinition.ts'
 

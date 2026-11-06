@@ -2,6 +2,7 @@ import { DockLayout, DockPanel, Widget } from '@lumino/widgets'
 import { computed, ref, shallowRef, type ComputedRef, type Ref } from 'vue'
 import { watchBorderDrag, type BorderDragWatcher } from '../layout/borderDrag/drag.ts'
 import { dockWidgets } from '../layout/dockWidgets.ts'
+import { toLayoutNode } from '../layout/dockConfig.ts'
 import { createLayoutApply } from '../layout/layoutApply.ts'
 import {
   CUSTOM_PRESET_LABEL,
@@ -11,14 +12,7 @@ import {
   type PresetId,
 } from '../layout/layoutPresets.ts'
 import { LayoutEditor, type MountWidgetOverlay } from '../layout/layoutEditor.ts'
-import {
-  layoutEquals,
-  lockedBoxOf,
-  lockWidgetTo,
-  parseLayoutNode,
-  toLayoutNode,
-  type LayoutNode,
-} from '../layout/layoutNode.ts'
+import { layoutEquals, lockedBoxOf, lockWidgetTo, parseLayoutNode, type LayoutNode } from '../layout/layoutNode.ts'
 import { createWidget, widgetKind, type WidgetDefinition } from '../layout/widgetDefinition.ts'
 import { persistedRef } from '../persistedRef/persistedRef.ts'
 

@@ -1,12 +1,8 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { BorderDragWatcher } from '../../../../src/editor/modules/layout/borderDrag/drag.ts'
-import type {
-  BorderDragTarget,
-  DragBoard,
-  DragRect,
-  HeldSplit,
-} from '../../../../src/editor/modules/layout/borderDrag/model.ts'
+import type { DragRect } from '../../../../src/editor/modules/layout/borderDrag/geometry.ts'
+import type { BorderDragTarget, DragBoard, HeldSplit } from '../../../../src/editor/modules/layout/borderDrag/locks.ts'
 import type { LayoutNode } from '../../../../src/editor/modules/layout/layoutNode.ts'
 import type { WidgetDefinition } from '../../../../src/editor/modules/layout/widgetDefinition.ts'
 import { installDom } from '../../../support/dom.ts'
@@ -17,8 +13,10 @@ const { Widget } = await import('@lumino/widgets')
 const { editorLayout } = await import('../../../../src/editor/modules/layout/layoutPresets.ts')
 const { lockWidgetTo, lockedBoxOf } = await import('../../../../src/editor/modules/layout/layoutNode.ts')
 const { createWidget } = await import('../../../../src/editor/modules/layout/widgetDefinition.ts')
-const { applyDragEdges, borderAxisOf, dragTargetsOf, gapBetween, heldSizes, nodeBoxes } =
-  await import('../../../../src/editor/modules/layout/borderDrag/model.ts')
+const { borderAxisOf, gapBetween, nodeBoxes } =
+  await import('../../../../src/editor/modules/layout/borderDrag/geometry.ts')
+const { applyDragEdges, dragTargetsOf, heldSizes } =
+  await import('../../../../src/editor/modules/layout/borderDrag/locks.ts')
 const { boardOf, heldSplitsOf, holdSplit, visibleHandles, watchBorderDrag } =
   await import('../../../../src/editor/modules/layout/borderDrag/drag.ts')
 

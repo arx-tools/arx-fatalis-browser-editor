@@ -2,22 +2,24 @@ import type { Widget } from '@lumino/widgets'
 import { lockedBoxOf, type LayoutNode, type LayoutNodeSplit } from '../layoutNode.ts'
 import { widgetKind } from '../widgetDefinition.ts'
 import {
-  type BorderAxis,
-  type BorderDragTarget,
-  type DragBoard,
-  type DragRect,
-  type HeldChild,
-  type HeldSplit,
-  applyDragEdges,
   axisOfSplit,
-  dragTargetsOf,
   gapsOf,
-  heldSizes,
   isNear,
   isSameBox,
   nodeBoxes,
   unionOf,
-} from './model.ts'
+  type BorderAxis,
+  type DragRect,
+} from './geometry.ts'
+import {
+  applyDragEdges,
+  dragTargetsOf,
+  heldSizes,
+  type BorderDragTarget,
+  type DragBoard,
+  type HeldChild,
+  type HeldSplit,
+} from './locks.ts'
 
 /**
  * The pointer side of a border drag of the dock.

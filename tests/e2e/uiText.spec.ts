@@ -63,20 +63,48 @@ async function dashesOf(page: Page): Promise<string[]> {
   }, DASHES)
 }
 
-test('the level picker names the blank presets with a colon', async ({ page }) => {
+test('the map control names the chosen map with its group, and the list keeps the bare names', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
-  await page.goto(editorUrl())
 
-  const labels = await page.locator('select option').evaluateAll((options) => {
+  // the path without a level: the editor opens its own blank map, which is a row of the list
+  await page.goto('/')
+
+  const labels = await page.locator('.MapsToOpen select option').evaluateAll((options) => {
     return options.map((option) => {
-      return option.textContent ?? ''
+      return option.textContent?.trim() ?? ''
     })
   })
   const blanks = labels.filter((label) => {
     return label.includes('Minimal') || label.includes('Flat')
   })
 
-  expect(blanks).toEqual(['Minimal: one quad under the player', 'Flat: 11×11 tiles'])
+  // the rows of the list are the bare names: the `<optgroup>` above them says where they come from
+  expect(blanks).toEqual(['Minimal', 'Flat Plane'])
+
+  // the closed control is the group and the name of the map on the screen, with the space after the colon
+  const map = page.locator('.MapsToOpen')
+
+  await expect(map.locator('.label')).toHaveText(`Maps (${String(labels.length)})`)
+  await expect(map.locator('.group')).toHaveText('Blank:')
+
+  const shown = await map.locator('select').evaluate((select) => {
+    const element = select as HTMLSelectElement
+
+    return element.selectedOptions[0]?.textContent?.trim() ?? ''
+  })
+
+  expect(shown).toBe('Flat Plane')
+
+  // the sections of the middle bar are separated by a dot
+  await expect(page.locator('.levels .dot')).toHaveCount(3)
+
+  const dots = await page.locator('.levels .dot').evaluateAll((nodes) => {
+    return nodes.map((node) => {
+      return node.textContent
+    })
+  })
+
+  expect(dots).toEqual(['·', '·', '·'])
 })
 
 test('the interface shows no em dash and no en dash', async ({ page }) => {

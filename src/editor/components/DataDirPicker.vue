@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Check, FolderOpen, HelpCircle, X } from 'lucide-vue-next'
+import { Check, FolderOpen, TriangleAlert } from 'lucide-vue-next'
 import { computed, ref, useTemplateRef } from 'vue'
 import { dataDirState, setPickedDataDir, type DataDirFile } from '../modules/level/source/dataDir.ts'
 import { paintLevel, repaintLevelTextures } from '../modules/level/edit/levelTextures.ts'
@@ -23,10 +23,11 @@ import Modal from './Modal.vue'
  * The data directory of the game: the folder the level files and the textures are read from.
  *
  * @remarks
- * The label, a `?` that says what the folder is (and what the browser asks when it is picked), the button of the
- * folder, and a mark that says whether the editor has one: a red cross without, a green check with it. A picked folder
- * is read on the page (the browser gives the files of it, nothing is uploaded), and the editor paints the level again
- * with the textures of the folder — or loads it, when it could not be without one.
+ * One button in the middle bar (2026-11-06, the owner's request): the **state** of the folder as its icon — a green
+ * check when the editor has one, a warning triangle when it has not — and the label. The button opens the **setup
+ * dialog**, which says what the folder is and where the state is, and holds the folder picker: a picked folder is read
+ * on the page (the browser gives the files of it, nothing is uploaded), and the editor paints the level again with the
+ * textures of the folder — or loads it, when it could not be without one.
  */
 const dirInput = useTemplateRef<HTMLInputElement>('dirInput')
 
@@ -42,12 +43,12 @@ const hasFolder = computed(() => {
 })
 
 /**
- * Whether the explanation of the folder is open.
+ * Whether the setup dialog of the folder is open.
  */
-const isExplaining = ref(false)
+const isSettingUp = ref(false)
 
 /**
- * The class of the mark: the green check or the red cross of the state.
+ * The class of the state: the green check or the warning triangle of it.
  */
 const stateClass = computed(() => {
   let name = 'is-missing'
@@ -60,16 +61,47 @@ const stateClass = computed(() => {
 })
 
 /**
- * What the mark says, for a reader that can not see the icon.
+ * What the icon says, for a reader that can not see it.
  */
 const stateLabel = computed(() => {
-  let label = 'No data directory'
+  let label = 'No Arx data dir yet'
 
   if (hasFolder.value) {
-    label = 'A data directory is set'
+    label = 'The Arx data dir is set'
   }
 
   return label
+})
+
+/**
+ * The name of the folder the editor reads, or `undefined` when it has none.
+ *
+ * @remarks
+ * The value is the **name** of the picked folder (or the path of the url), which can be long: the dialog shows it in one
+ * line with an ellipsis, and the whole value is in the `title` of the line. Without a folder the panel is only the icon
+ * and the sentence: the line that says what the folder is stands above the panel.
+ */
+const folderName = computed(() => {
+  const name = dataDirState.value
+
+  if (name === undefined || name.length === 0) {
+    return undefined
+  }
+
+  return name
+})
+
+/**
+ * What the button says in a tooltip: the state of the folder and what pressing it does.
+ */
+const buttonTooltip = computed(() => {
+  let text = 'Set up the Arx data dir'
+
+  if (hasFolder.value) {
+    text = `The Arx data dir is set (${dataDirState.value ?? ''}). Press to change it`
+  }
+
+  return text
 })
 
 /**
@@ -162,23 +194,19 @@ async function loadDir(event: Event): Promise<void> {
 
 <template>
   <div class="DataDirPicker">
-    <span class="label">set Arx data dir</span>
-    <button class="what" type="button" aria-label="What is the data directory?" @click="isExplaining = true">
-      <HelpCircle :size="14" />
-    </button>
     <button
-      class="open-data-dir"
+      class="setup"
       type="button"
-      v-tooltip="'Pick the data directory of the game'"
-      aria-label="Pick the data directory of the game"
-      @click="chooseDir"
+      :class="stateClass"
+      v-tooltip="buttonTooltip"
+      :aria-label="`${stateLabel}. Set up the Arx data dir`"
+      @click="isSettingUp = true"
     >
-      <FolderOpen :size="14" />
-    </button>
-    <span class="state" :class="stateClass" :aria-label="stateLabel">
       <Check v-if="hasFolder" :size="13" />
-      <X v-else :size="13" />
-    </span>
+      <TriangleAlert v-else :size="13" />
+      <span class="name">Arx data dir</span>
+    </button>
+
     <input
       ref="dirInput"
       class="dir-input"
@@ -188,35 +216,38 @@ async function loadDir(event: Event): Promise<void> {
       @change="loadDir"
     />
 
-    <Modal v-if="isExplaining" title="What is the Arx data dir?" @close="isExplaining = false">
-      <p>
-        The level files of Arx Fatalis and the textures it draws with are in the folder the game keeps its data in
-        (<code>graph/levels/…</code>, <code>graph/obj3d/textures/…</code>). The editor can not read a folder of your
-        disk by itself: pick it here, and every level and texture it needs is read from it.
-      </p>
-      <p>
-        The browser asks whether the site may read every file of the folder. <strong>Nothing is uploaded</strong>: the
-        files stay on your disk, the page gets a handle of each one, and the editor reads only the few it needs (the
-        level files and the textures of the level on the screen).
-      </p>
-      <p>
-        The folder is remembered for the session: a reload asks for it again (the level in the url, a later round, will
-        not).
-      </p>
-      <p>
-        What the folders of the game are and where they live is on the wiki:
-        <a
-          class="about"
-          href="https://wiki.arx-libertatis.org/Data_directories"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Data directories
-        </a>
-      </p>
-      <template #actions>
-        <button class="close-help" type="button" @click="isExplaining = false">Got it</button>
-      </template>
+    <Modal v-if="isSettingUp" title="Setting up Arx data dir" @close="isSettingUp = false">
+      <!-- what the folder is, and where the wiki says more: the two quiet lines of the dialog, under its title and above
+           the state (2026-11-06, the owner's request) -->
+      <div class="intro">
+        <p>
+          The levels and the textures of the game are read from this folder, and <strong>nothing is uploaded</strong>.
+        </p>
+        <p class="read-more">
+          Read more about data directories
+          <a
+            class="wiki-link"
+            href="https://wiki.arx-libertatis.org/Data_directories"
+            target="_blank"
+            rel="noopener noreferrer"
+            >on the Arx Libertatis wiki</a
+          >.
+        </p>
+      </div>
+
+      <!-- the state of the folder is the point of the dialog: it is the first thing on it, in the middle, with air
+           around it, so a reader sees at once whether the editor has the files of the game -->
+      <div class="state-panel" :class="stateClass">
+        <Check v-if="hasFolder" class="state-icon" :size="28" />
+        <TriangleAlert v-else class="state-icon" :size="28" />
+        <span class="state-title">{{ stateLabel }}</span>
+        <span v-if="folderName !== undefined" class="state-name" :title="folderName">{{ folderName }}</span>
+      </div>
+
+      <button class="browse" type="button" @click="chooseDir">
+        <FolderOpen :size="16" />
+        Browse Arx Data Dir
+      </button>
     </Modal>
   </div>
 </template>
@@ -224,26 +255,21 @@ async function loadDir(event: Event): Promise<void> {
 <style scoped lang="scss">
 @use '../palette' as *;
 
-// the way in of the game's own files, beside the level: the label, what it is, the folder, and whether there is one
+// the way in of the game's own files, as one button of the middle bar: the state as its icon, and the label. The dialog
+// it opens is the setup, with the folder picker inside it (2026-11-06, the owner's request).
 .DataDirPicker {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
 
-  .label {
-    white-space: nowrap;
-    opacity: 0.65;
-  }
-
-  .what,
-  .open-data-dir {
+  .setup {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    width: 26px;
+    gap: 5px;
     height: 22px;
-    padding: 0;
-    color: $text-icon;
+    padding: 0 7px 0 5px;
+    color: $text;
+    font: inherit;
+    white-space: nowrap;
     background: transparent;
     border: 1px solid $border;
     border-radius: 4px;
@@ -252,24 +278,15 @@ async function loadDir(event: Event): Promise<void> {
     &:hover {
       background: $surface-panel;
     }
-  }
 
-  .what {
-    border-color: transparent;
-  }
+    // the state of the folder: the green check when it is there, the amber triangle when it is not
+    &.is-set svg {
+      color: $ok;
+    }
 
-  // the mark of the folder: a red cross without one, a green check with it
-  .state {
-    display: inline-flex;
-    align-items: center;
-  }
-
-  .is-set {
-    color: $ok;
-  }
-
-  .is-missing {
-    color: $danger-bright;
+    &.is-missing svg {
+      color: $accent;
+    }
   }
 
   // the input is the file picker the button presses: a one pixel, transparent box (a `display: none` one is not
@@ -281,28 +298,94 @@ async function loadDir(event: Event): Promise<void> {
     opacity: 0;
     pointer-events: none;
   }
+}
 
-  // the link of the help: the interactive blue of the palette, the only colour a link may have
-  .about {
-    color: $interactive;
+// the dialog of the setup: `Modal.vue` teleports its content to the body, so these elements are **not** under
+// `.DataDirPicker` — a nested selector would not reach them, and the styles live at the top level of the block
 
-    &:hover {
-      text-decoration: underline;
-    }
+// what the folder is, and where the wiki says more: the two quiet lines under the title, in the grey of the caption
+.intro {
+  margin: 0 0 10px;
+  color: $text-subtle;
+  font-size: 0.9em;
+
+  p {
+    margin: 0;
   }
 
-  .close-help {
-    padding: 4px 10px;
-    color: $text;
-    font: inherit;
-    background: $surface-panel;
-    border: 1px solid $border;
-    border-radius: 4px;
-    cursor: pointer;
+  p + p {
+    margin-top: 2px;
+  }
+}
 
-    &:hover {
-      background: $surface-float;
-    }
+// the state of the folder in the dialog: the icon, the sentence and the name, in the middle, with air around them
+.state-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0 16px;
+  padding: 22px 16px;
+  text-align: center;
+  background: $surface-panel;
+  border: 1px solid $border-dark;
+  border-radius: 6px;
+
+  .state-icon {
+    margin-bottom: 2px;
+  }
+
+  &.is-set .state-icon {
+    color: $ok;
+  }
+
+  &.is-missing .state-icon {
+    color: $accent;
+  }
+
+  .state-title {
+    color: $text-strong;
+    font-size: 1.05em;
+  }
+
+  // the name of the folder can be a whole path: one line with an ellipsis, and the whole value in the title
+  .state-name {
+    max-width: 100%;
+    overflow: hidden;
+    color: $text-subtle;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+// the way in: the one big button of the dialog
+.browse {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  color: $text-strong;
+  font: inherit;
+  font-size: 1em;
+  background: $surface-raised;
+  border: 1px solid $border-strong;
+  border-radius: 5px;
+  cursor: pointer;
+
+  &:hover {
+    background: $surface-float;
+    border-color: $interactive;
+  }
+}
+
+// the link of the help: the interactive blue of the palette, the only colour a link may have
+.wiki-link {
+  color: $interactive;
+
+  &:hover {
+    text-decoration: underline;
   }
 }
 </style>

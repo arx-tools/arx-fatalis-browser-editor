@@ -64,6 +64,38 @@ test('a data directory without the level says what happened', async ({ page }, t
   await expect(page.locator('[data-widget-kind="3d-view"] .status')).toContainText('has no level 8')
 })
 
+test('the button of the header shows the state of the data directory', async ({ page }) => {
+  await seedLayout(page, editorLayout)
+
+  // no folder at all: the level of the url has nothing to load from, and the button carries that state
+  await page.goto('/?fromOriginalArxLevel=0')
+
+  const setup = page.locator('header button[aria-label*="Arx data dir"]')
+
+  await expect(setup).toHaveAttribute('aria-label', /No Arx data dir yet/u)
+
+  await setup.click()
+
+  const dialog = page.locator('[role="dialog"][aria-label="Setting up Arx data dir"]')
+
+  await expect(dialog).toBeVisible()
+
+  // what the folder is, then the state of it, then the way in, then where the wiki says more
+  await expect(dialog.locator('.intro')).toContainText('nothing is uploaded')
+  await expect(dialog.locator('.state-title')).toHaveText('No Arx data dir yet')
+  await expect(dialog.locator('.state-name')).toHaveCount(0)
+  await expect(dialog.locator('.browse')).toHaveText(/Browse Arx Data Dir/u)
+
+  const more = dialog.locator('.read-more')
+
+  await expect(more).toHaveText('Read more about data directories on the Arx Libertatis wiki.')
+  await expect(more.locator('a')).toHaveAttribute('href', 'https://wiki.arx-libertatis.org/Data_directories')
+
+  // and it closes on Escape, the way the dialogs of the editor do
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+})
+
 test('the data directory of the header opens the level of the url', async ({ page, browserName }, testInfo) => {
   // a `webkitdirectory` input keeps the relative path of a file only when the **user** picks the folder: chromium
   // drops the paths of the files a test assigns, so the folder of the header can not be driven there. Firefox keeps
@@ -78,8 +110,20 @@ test('the data directory of the header opens the level of the url', async ({ pag
   await page.goto(`/?fromOriginalArxLevel=0&dataDir=${encodeURIComponent('/no/such/folder')}`)
   await expect(page.locator('[data-widget-kind="3d-view"] .status')).toContainText('has no level 0')
 
-  // the folder button of the header is there, and its input takes a whole directory
-  await expect(page.locator('header button[aria-label="Pick the data directory of the game"]')).toBeVisible()
+  // the button of the header opens the setup dialog, and the state there is the one of the url: a folder is named, even
+  // though the level it should hold is not in it
+  const setup = page.locator('header button[aria-label*="Arx data dir"]')
+
+  await expect(setup).toBeVisible()
+  await expect(setup).toHaveAttribute('aria-label', /The Arx data dir is set/u)
+
+  await setup.click()
+
+  const dialog = page.locator('[role="dialog"][aria-label="Setting up Arx data dir"]')
+
+  await expect(dialog).toBeVisible()
+  await expect(dialog.locator('.state-title')).toHaveText('The Arx data dir is set')
+  await expect(dialog.locator('.state-name')).toContainText('no/such/folder')
 
   // the folder picker itself is the browser's; the test gives the input the list a pick would (the relative paths and
   // the files), because a directory upload is not the same call in every engine
@@ -95,6 +139,8 @@ test('the data directory of the header opens the level of the url', async ({ pag
     }),
   )
 
+  // the input of the folder is in the header (the dialog only holds the button that presses it: the dialog is teleported
+  // to the body, the input is not)
   await page.locator('header input[aria-label="The data directory of the game"]').evaluate((input, list) => {
     // the window of the input, so the test does not reach for the globals of the page
     const view = input.ownerDocument.defaultView
@@ -120,6 +166,11 @@ test('the data directory of the header opens the level of the url', async ({ pag
     element.files = transfer.files
     element.dispatchEvent(new view.Event('change', { bubbles: true }))
   }, entries)
+
+  // the dialog shows the folder as set, and the button of the header carries the state as its icon
+  await expect(dialog.locator('.state-title')).toHaveText('The Arx data dir is set')
+  await expect(dialog.locator('.state-name')).toHaveText('header-data')
+  await expect(setup).toHaveAttribute('aria-label', /The Arx data dir is set/u)
 
   // the level of the url loads from the folder of the header, no url change needed
   await expect

@@ -44,8 +44,11 @@ const buildInfo = BUILD_INFO
 
     <div class="levels">
       <LevelSelector />
+      <span class="dot" aria-hidden="true">·</span>
       <DataDirPicker />
+      <span class="dot" aria-hidden="true">·</span>
       <MapsToOpen />
+      <span class="dot" aria-hidden="true">·</span>
       <DownloadLevel />
     </div>
 
@@ -75,8 +78,15 @@ const buildInfo = BUILD_INFO
     left: 50%;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
     transform: translateX(-50%);
+  }
+
+  // the separator between the sections of the middle bar (2026-11-06, the owner's request): a quiet dot, and not a
+  // border, so it reads as a divider without drawing a line between the groups
+  .levels .dot {
+    color: $text-subtle;
+    user-select: none;
   }
 
   // the brand takes the free space, so the widget manager ends up on the right side

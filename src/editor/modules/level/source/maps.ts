@@ -62,6 +62,64 @@ export interface MapEntry {
 }
 
 /**
+ * The name of the group of a map, the way the header writes it before the name of the map (`Blank: Flat Plane`).
+ *
+ * @remarks
+ * The rows of the list do not carry it (the `<optgroup>` of a section says where the map comes from), the **chosen**
+ * map does: the header shows `Blank: Flat Plane` with the select, and the list under it only `Minimal`, `Flat Plane`.
+ */
+export const MAP_GROUP_PREFIXES: Readonly<Record<MapGroup, string>> = {
+  blank: 'Blank',
+  arx: 'Arx',
+  custom: 'Custom',
+}
+
+/**
+ * Writes a name in Pascal Case: `lalee-s_minigame.zip` → `Lalee S Minigame`.
+ *
+ * @remarks
+ * The maps of the session are named after the zip they came from, and a file name is lowercase with dashes more often
+ * than not. The extension goes, and the name is cut into words at the dashes, the underscores, the dots and the spaces;
+ * every word keeps its own letters (only the first one is upper), so a name that was written with care survives.
+ *
+ * @param name The name of the file or the map.
+ *
+ * @returns The name in Pascal Case, or an empty string when it has no letter or number in it.
+ */
+export function pascalCaseOf(name: string): string {
+  const withoutExtension = name.replace(/\.[^.]*$/u, '')
+  const words = withoutExtension.split(/[^\p{Letter}\p{Number}]+/u).filter((word) => {
+    return word.length > 0
+  })
+
+  return words
+    .map((word) => {
+      return word.charAt(0).toUpperCase() + word.slice(1)
+    })
+    .join(' ')
+}
+
+/**
+ * Finds the map of the list by its value.
+ *
+ * @param id The value of the map, like `blank:flat`.
+ * @param groups The groups of the list.
+ *
+ * @returns The entry, or `undefined` when the list has no such map.
+ */
+export function mapEntryOf(id: string, groups: readonly MapGroupEntry[]): MapEntry | undefined {
+  for (const group of groups) {
+    for (const entry of group.entries) {
+      if (entry.id === id) {
+        return entry
+      }
+    }
+  }
+
+  return undefined
+}
+
+/**
  * One group of the list.
  */
 export interface MapGroupEntry {
@@ -83,12 +141,13 @@ export interface MapGroupEntry {
  * The blank presets the list brings, by the name of the preset.
  *
  * @remarks
- * The two the generator defines: the `Minimal` one (a single quad) and the `Flat` one (the 11×11 floor the editor opens
- * with nothing in the url).
+ * The two the generator defines: the `Minimal` one (a single quad under the player) and the `Flat Plane` one (the 11×11
+ * floor the editor opens with nothing in the url). The name in the list is only the name, because the row of the list is
+ * under the `<optgroup>` of its group and the header puts the `Blank:` before the chosen one (2026-11-06).
  */
 const BLANK_PRESETS: ReadonlyArray<{ id: string; label: string; preset: NewLevelPreset }> = [
-  { id: 'minimal', label: 'Minimal: one quad under the player', preset: MINIMAL_PRESET },
-  { id: 'flat', label: 'Flat: 11×11 tiles', preset: FLAT_PRESET },
+  { id: 'minimal', label: 'Minimal', preset: MINIMAL_PRESET },
+  { id: 'flat', label: 'Flat Plane', preset: FLAT_PRESET },
 ]
 
 /**
@@ -220,12 +279,12 @@ export const mapGroups = computed<MapGroupEntry[]>(() => {
   const arx: MapEntry[] = arxLevels.value.map((level) => {
     const id = `arx:${String(level)}`
 
-    return { id, group: 'arx', label: `arx level ${String(level)}`, edited: edited.has(id) }
+    return { id, group: 'arx', label: `Level ${String(level)}`, edited: edited.has(id) }
   })
   const custom: MapEntry[] = customMaps.value.map((entry, index) => {
     const id = `custom:${String(index)}`
 
-    return { id, group: 'custom', label: entry.label, edited: edited.has(id) }
+    return { id, group: 'custom', label: pascalCaseOf(entry.label), edited: edited.has(id) }
   })
 
   const groups: MapGroupEntry[] = [
@@ -253,7 +312,7 @@ export const mapCount = computed(() => {
  *
  * @remarks
  * A level is a folder with the three files of it: the scene (`fast.fts`), the dlf and the llf. The number of a level is
- * its folder's, so the list can say `arx level 8` and open it by that.
+ * its folder's, so the list can say `Level 8` and open it by that.
  *
  * @returns The numbers of the levels, in order.
  */

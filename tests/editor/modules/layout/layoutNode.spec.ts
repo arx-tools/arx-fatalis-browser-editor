@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
   collectKinds,
+  emptyLayout,
   flexSizes,
   layoutEquals,
   parseLayoutNode,
@@ -68,6 +69,10 @@ function lockOfKind(tree: LayoutNode, kind: string): { width: number; height: nu
     width: number | undefined,
     height: number | undefined,
   ): { width: number; height: number } | undefined {
+    if (node.type === 'empty') {
+      return undefined
+    }
+
     if (node.type === 'widget') {
       if (width === undefined || height === undefined || node.kind !== kind) {
         return undefined
@@ -188,6 +193,10 @@ void describe('collectKinds', () => {
 
     assert.deepEqual(collectKinds(tree), ['help', 'camera'])
   })
+
+  void it('gives nothing for the empty layout', () => {
+    assert.deepEqual(collectKinds(emptyLayout), [])
+  })
 })
 
 void describe('layoutEquals', () => {
@@ -225,6 +234,15 @@ void describe('layoutEquals', () => {
 
     assert.equal(layoutEquals(first, second), false)
   })
+
+  void it('takes two empty layouts for the same, and never an empty one for a tree', () => {
+    const tree = split('horizontal', [widget('a'), widget('b')])
+
+    assert.equal(layoutEquals(emptyLayout, { type: 'empty' }), true)
+    assert.equal(layoutEquals(emptyLayout, widget('help')), false)
+    assert.equal(layoutEquals(widget('help'), emptyLayout), false)
+    assert.equal(layoutEquals(emptyLayout, tree), false)
+  })
 })
 
 void describe('parseLayoutNode', () => {
@@ -254,6 +272,22 @@ void describe('parseLayoutNode', () => {
       children: [widget('help'), { type: 'nonsense' }],
     })
 
+    assert.deepEqual(parsed, widget('help'))
+  })
+
+  void it('reads the empty layout back', () => {
+    assert.deepEqual(parseLayoutNode({ type: 'empty' }), emptyLayout)
+  })
+
+  void it('drops the empty layout from the children of a split', () => {
+    const parsed = parseLayoutNode({
+      type: 'split',
+      orientation: 'horizontal',
+      sizes: flexSizes(0.5, 0.5),
+      children: [widget('help'), { type: 'empty' }],
+    })
+
+    // the empty layout is the root of a layout, never a child of a split: a stored one is dropped like an unknown kind
     assert.deepEqual(parsed, widget('help'))
   })
 

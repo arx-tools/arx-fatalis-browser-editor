@@ -14,9 +14,14 @@ import type { FaceUv } from '../../../../generator/arxMap/uvs.ts'
 export const MIN_ZOOM = 0.5
 
 /**
- * The zoom the mapper opens at: the texture at the size of the square.
+ * The zoom the mapper opens at: the texture a little **inside** the square, with a margin of the repeat around it.
+ *
+ * @remarks
+ * It was the whole square (1), and the owner asked for 0.8 (2026-11-06): the border of the face stays visible on the
+ * screenshot of the texture, so a corner on the edge of the face is easier to aim at than a corner on the edge of the
+ * square.
  */
-export const DEFAULT_ZOOM = 1
+export const DEFAULT_ZOOM = 0.8
 
 /**
  * How far it can zoom in: a corner a few pixels apart on the texture.

@@ -131,15 +131,16 @@ test('a corner dragged on the texture moves the uv of the face, and the undo tak
     })
     .toBe(1)
 
-  // the wheel zooms the square, the way the fixed views zoom
-  await expect(mapper.locator('.head .zoom')).toHaveText('1.0×')
+  // the wheel zooms the square, the way the fixed views zoom: the widget opens at 0.8 (the owner's request), and the
+  // wheel takes it away from there
+  await expect(mapper.locator('.head .zoom')).toHaveText('0.8×')
   await mapper.hover()
   await page.mouse.wheel(0, -300)
   await expect
     .poll(async () => {
       return await mapper.locator('.head .zoom').textContent()
     })
-    .not.toBe('1.0×')
+    .not.toBe('0.8×')
 
   // the drag of the texture (not a corner) pans the whole view: the face slides with the pointer, and the uv of the
   // corner stays where it was

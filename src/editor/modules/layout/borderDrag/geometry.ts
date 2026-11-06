@@ -220,6 +220,10 @@ export function nodeBoxes(tree: LayoutNode, rectOf: (kind: string) => DragRect |
    * @returns The box of the node, or `undefined` when nothing under it is on the dock.
    */
   function walk(node: LayoutNode): DragRect | undefined {
+    if (node.type === 'empty') {
+      return undefined
+    }
+
     if (node.type === 'widget') {
       const rect = rectOf(node.kind)
 
@@ -272,7 +276,8 @@ export function parentSplitsOf(tree: LayoutNode): Map<string, LayoutNodeSplit> {
    * @param node The node to walk.
    */
   function walk(node: LayoutNode): void {
-    if (node.type === 'widget') {
+    // only a split has children: a widget is a leaf, and the empty layout is the root of an empty dock
+    if (node.type !== 'split') {
       return
     }
 
@@ -306,7 +311,8 @@ export function parentOfSplits(tree: LayoutNode): Map<LayoutNode, LayoutNodeSpli
    * @param node The node to walk.
    */
   function walk(node: LayoutNode): void {
-    if (node.type === 'widget') {
+    // only a split has children: a widget is a leaf, and the empty layout is the root of an empty dock
+    if (node.type !== 'split') {
       return
     }
 

@@ -51,6 +51,11 @@ export function fitOfNode(
     return axisOf(fitOf(node.kind), orientation)
   }
 
+  // the empty layout has nothing to measure: it is the root of an empty dock, and the walk never asks for its children
+  if (node.type === 'empty') {
+    return { hint: 0, min: 0, floor: 0, max: 0 }
+  }
+
   const children = node.children.map((child) => {
     return fitOfNode(child, orientation, fitOf)
   })
@@ -143,7 +148,8 @@ interface PlanContext {
  * @param context The map of the sizes, the limits of the widgets and the spacing of the splits.
  */
 function walk(current: LayoutNode, box: LayoutSpace, context: PlanContext): void {
-  if (current.type === 'widget') {
+  // only a split hands out sizes: a widget is a leaf, and the empty layout has no child at all
+  if (current.type !== 'split') {
     return
   }
 

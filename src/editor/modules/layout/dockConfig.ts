@@ -1,5 +1,6 @@
 import type { DockLayout, Widget } from '@lumino/widgets'
 import {
+  emptyLayout,
   lockedBoxOf,
   pickSizes,
   type ChildSize,
@@ -135,7 +136,8 @@ function sizeOfChild(
  * @param config The config of a `DockLayout.saveLayout()` call.
  * @param kindOf Reads the kind of a widget.
  *
- * @returns The tree, or `null` when there is nothing usable in the config.
+ * @returns The tree, or `null` when there is nothing usable in the config. An unparented dock has no root, and it is
+ * read back as the empty layout: from the `Custom` preset on (2026-11-06) an empty dock is a layout like any other.
  */
 export function toLayoutNode(
   config: DockLayout.ILayoutConfig,
@@ -144,7 +146,7 @@ export function toLayoutNode(
   const { main } = config
 
   if (main === null) {
-    return null
+    return emptyLayout
   }
 
   if (main.type === 'tab-area') {
@@ -243,7 +245,8 @@ function weightsOf(
  * @remarks
  * A widget whose kind has no live instance is dropped, and so is the split that loses a child: the
  * caller gets `null` when nothing is left, and falls back to the default layout, so the screen is never
- * empty.
+ * empty. The **empty layout** is the one exception: it has no config at all (the dock is cleared, not
+ * restored), so it gives `null` and the caller builds that on its own.
  *
  * @param node The node to build from.
  * @param widgetOf Finds the live widget of a kind.
@@ -256,6 +259,10 @@ export function toDockConfig(
   widgetOf: (kind: string) => Widget | undefined,
   sizes?: ReadonlyMap<LayoutNode, number>,
 ): DockLayout.ILayoutConfig | null {
+  if (node.type === 'empty') {
+    return null
+  }
+
   if (node.type === 'widget') {
     const widget = widgetOf(node.kind)
 

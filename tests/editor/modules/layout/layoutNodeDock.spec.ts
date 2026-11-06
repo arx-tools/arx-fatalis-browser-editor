@@ -6,7 +6,7 @@ installDom()
 
 const { DockLayout, DockPanel, Widget } = await import('@lumino/widgets')
 const { editorLayout } = await import('../../../../src/editor/modules/layout/layoutPresets.ts')
-const { collectKinds, flexSizes, layoutEquals, lockedBoxOf, lockWidgetTo, parseLayoutNode } =
+const { collectKinds, emptyLayout, flexSizes, layoutEquals, lockedBoxOf, lockWidgetTo, parseLayoutNode } =
   await import('../../../../src/editor/modules/layout/layoutNode.ts')
 const { toDockConfig, toLayoutNode } = await import('../../../../src/editor/modules/layout/dockConfig.ts')
 const { createWidget, widgetKind } = await import('../../../../src/editor/modules/layout/widgetDefinition.ts')
@@ -97,8 +97,8 @@ void describe('toLayoutNode', () => {
     assert.equal(node.type, 'split')
   })
 
-  void it('gives null for an empty config', () => {
-    assert.equal(toLayoutNode({ main: null }, kindOf), null)
+  void it('reads an unparented dock as the empty layout', () => {
+    assert.deepEqual(toLayoutNode({ main: null }, kindOf), emptyLayout)
   })
 
   void it('gives null when the kind of the widget is unknown', () => {
@@ -162,6 +162,17 @@ void describe('toDockConfig', () => {
       }),
     )
     assert.deepEqual(main.children.length, root.children.length)
+  })
+
+  void it('gives no config for the empty layout (the dock is cleared instead)', () => {
+    const widgets = makeWidgets(['help'])
+
+    assert.equal(
+      toDockConfig(emptyLayout, (kind) => {
+        return widgets.get(kind)
+      }),
+      null,
+    )
   })
 
   void it('gives null for a tree without a live widget', () => {

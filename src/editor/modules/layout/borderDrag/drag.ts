@@ -354,7 +354,8 @@ export function heldSplitsOf(board: DragBoard): HeldSplit[] {
    * @param node The node to walk.
    */
   function walk(node: LayoutNode): void {
-    if (node.type === 'widget') {
+    // only a split has children: a widget is a leaf, and the empty layout is the root of an empty dock
+    if (node.type !== 'split') {
       return
     }
 

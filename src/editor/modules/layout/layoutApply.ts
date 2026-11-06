@@ -308,6 +308,11 @@ export function createLayoutApply(context: LayoutApplyContext): LayoutApply {
      * @param box The sides the ancestors have already fixed.
      */
     function collect(current: LayoutNode, box: LockBox): void {
+      // the empty layout has no widget to lock, and no side to carry down
+      if (current.type === 'empty') {
+        return
+      }
+
       if (current.type === 'widget') {
         const widget = dockWidgets(dock).find((candidate) => {
           return widgetKind(candidate) === current.kind
@@ -345,11 +350,35 @@ export function createLayoutApply(context: LayoutApplyContext): LayoutApply {
   }
 
   /**
+   * Takes every widget off the dock, so the empty layout of the `Custom` preset has a screen to be dropped onto.
+   *
+   * @remarks
+   * An empty layout is not a config: `restoreLayout({ main: null })` is what lumino calls an unparented dock. The widgets
+   * were disposed by the caller already, so this is the half of the rebuild that has no widget and no size to work out.
+   */
+  function clearDock(): void {
+    isRebuilding = true
+
+    try {
+      dock.restoreLayout({ main: null })
+    } finally {
+      isRebuilding = false
+    }
+
+    // the echo of this rebuild is not a change of the user (the `layoutModified` of the removed widgets arrives a
+    // message later, when the flag above is already down)
+    appliedTree = toLayoutNode(dock.saveLayout(), widgetKind)
+    syncLayout()
+  }
+
+  /**
    * Creates the widgets of the tree, decorates them for the edit mode and rebuilds the dock from them.
    *
    * @remarks
    * A kind that is no longer in the registry is dropped with its share; when nothing is left, the
-   * default layout takes over, so the screen is never empty.
+   * default layout takes over, so the screen is never empty by accident. An **empty** tree is not an
+   * accident: it clears the dock and leaves it bare, with the placeholder of the dock in the middle
+   * (`Dock.vue`) as the only thing on it.
    *
    * @param node The tree to build.
    * @param fallback `false` when the default layout is already being applied (no second fallback).
@@ -358,6 +387,12 @@ export function createLayoutApply(context: LayoutApplyContext): LayoutApply {
     for (const widget of dockWidgets(dock)) {
       undecorate(widget)
       widget.dispose()
+    }
+
+    if (node.type === 'empty') {
+      clearDock()
+
+      return
     }
 
     const widgets = new Map<string, Widget>()

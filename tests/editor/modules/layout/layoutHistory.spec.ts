@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { factoryPresets } from '../../../../src/editor/modules/layout/layoutPresets.ts'
+import { customLayout, factoryPresets } from '../../../../src/editor/modules/layout/layoutPresets.ts'
 import {
   canRedoOf,
   canUndoOf,
@@ -13,7 +13,7 @@ import {
   withHistory,
   withLayoutState,
 } from '../../../../src/editor/modules/layout/layoutHistory.ts'
-import { flexSizes, type LayoutNode } from '../../../../src/editor/modules/layout/layoutNode.ts'
+import { emptyLayout, flexSizes, type LayoutNode } from '../../../../src/editor/modules/layout/layoutNode.ts'
 
 /**
  * A layout of the test: two widgets one under the other.
@@ -153,5 +153,32 @@ void describe('the histories of the presets', () => {
     const histories = parseLayoutHistories(JSON.stringify({ nonsense: { states: [column(0.5)], index: 0 } }))
 
     assert.deepEqual(histories, {})
+  })
+
+  void it('starts the custom layout from the empty dock, and the first widget is its first step', () => {
+    const start = historyOf({}, 'custom')
+
+    assert.equal(start.states.length, 1)
+    assert.deepEqual(stateOf(start), emptyLayout)
+    assert.deepEqual(customLayout, emptyLayout)
+
+    const withOne = withLayoutState(start, { type: 'widget', kind: '3d-view' })
+
+    assert.equal(canUndoOf(withOne), true)
+    assert.deepEqual(stateOf(undoOf(withOne)), emptyLayout)
+
+    const again = redoOf(undoOf(withOne))
+
+    assert.deepEqual(stateOf(again), { type: 'widget', kind: '3d-view' })
+  })
+
+  void it('reads the stored history of the empty layout back', () => {
+    const histories = parseLayoutHistories(
+      JSON.stringify({
+        custom: { states: [emptyLayout, { type: 'widget', kind: '3d-view' }], index: 0 },
+      }),
+    )
+
+    assert.deepEqual(histories?.custom, { states: [emptyLayout, { type: 'widget', kind: '3d-view' }], index: 0 })
   })
 })

@@ -193,13 +193,14 @@ void describe('the layout of the shell', () => {
       shell.presets.value.map((preset) => {
         return preset.label
       }),
-      ['Viewer', 'Editor', 'Painter'],
+      ['Viewer', 'Editor', 'Painter', 'Custom'],
     )
     assert.deepEqual(
       shell.presets.value.map((preset) => {
         return [preset.canUndo, preset.canRedo]
       }),
       [
+        [false, false],
         [false, false],
         [false, false],
         [false, false],
@@ -228,8 +229,48 @@ void describe('the layout of the shell', () => {
         ['viewer', true, false],
         ['editor', false, false],
         ['painter', false, false],
+        ['custom', false, false],
       ],
     )
+    shell.dispose()
+  })
+
+  void it('empties the dock on the custom preset, and the first widget of it is a step', async () => {
+    const { shell } = buildShell()
+
+    shell.applyPreset('custom')
+
+    assert.equal(shell.selectedPreset.value, 'custom')
+    assert.deepEqual([...shell.placedKinds.value], [])
+    assert.equal(dockWidgets(shell.dock).length, 0)
+
+    // the empty layout is the base of the history: the row has no step yet
+    assert.deepEqual(
+      shell.presets.value.map((preset) => {
+        return [preset.id, preset.canUndo]
+      }),
+      [
+        ['viewer', false],
+        ['editor', false],
+        ['painter', false],
+        ['custom', false],
+      ],
+    )
+
+    // a widget dropped on the empty dock is the first step, and the step back is the empty dock again
+    shell.addWidget('3d-view')
+    await settled(shell, 'custom')
+
+    assert.deepEqual([...shell.placedKinds.value], ['3d-view'])
+
+    shell.undoPreset('custom')
+
+    assert.deepEqual([...shell.placedKinds.value], [])
+    assert.equal(shell.selectedPreset.value, 'custom')
+
+    shell.redoPreset('custom')
+
+    assert.deepEqual([...shell.placedKinds.value], ['3d-view'])
     shell.dispose()
   })
 
@@ -270,6 +311,7 @@ void describe('the layout of the shell', () => {
         ['viewer', true],
         ['editor', true],
         ['painter', false],
+        ['custom', false],
       ],
     )
 
@@ -324,6 +366,7 @@ void describe('the layout of the shell', () => {
         ['viewer', true],
         ['editor', true],
         ['painter', false],
+        ['custom', false],
       ],
     )
 

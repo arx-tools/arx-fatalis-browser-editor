@@ -7,8 +7,10 @@ import type { Widget } from '@lumino/widgets'
  * - lumino's own `saveLayout()` is **not** serializable: a tab area carries `widgets: Widget[]`, so the
  * config is circular and `JSON.stringify` blows up on it. This tree is the serializable form: the
  * leaves are widget kinds, and a kind exists at most once on the dock, so a leaf is unambiguous
- * - the tree is what the `persistedRef` stores (`key: 'layout'`), what `restoreLayout` is built from,
- * and what the default layout is written as
+ * - the tree is what the `persistedRef` stores (a state of the `layoutHistories` key), what `restoreLayout` is built
+ * from, and what the default layout is written as
+ * - a layout may also be **empty** (`{ type: 'empty' }`, the `Custom` preset): then it has no leaf at all, and it is
+ * the root of the tree, never a child of a split
  *
  * @example
  * ```ts
@@ -32,7 +34,34 @@ import type { Widget } from '@lumino/widgets'
  * }
  * ```
  */
-export type LayoutNode = LayoutNodeSplit | LayoutNodeWidget
+export type LayoutNode = LayoutNodeEmpty | LayoutNodeSplit | LayoutNodeWidget
+
+/**
+ * A layout without a single widget.
+ *
+ * @remarks
+ * The `Custom` preset starts here (2026-11-06, the owner's request): the dock is empty, and every widget of the screen
+ * is dragged in from the picker. It is a node of its own and not `undefined`, so a state of a history is always a
+ * layout, and the parser, the equality and the storage keep one shape.
+ *
+ * The node is only ever the **root** of a layout: a split drops it the way it drops an unknown kind, so no walk of the
+ * tree has to deal with an empty child.
+ */
+export interface LayoutNodeEmpty {
+  /**
+   * The discriminated type of the node.
+   */
+  readonly type: 'empty'
+}
+
+/**
+ * The layout of an empty dock.
+ *
+ * @remarks
+ * It is a constant, so two empty layouts are the same object: the shell compares the tree of the dock with the tree of
+ * the pass ({@link layoutEquals}), and an empty dock has no widget to tell one empty tree from another.
+ */
+export const emptyLayout: LayoutNodeEmpty = { type: 'empty' }
 
 /**
  * The size of one child of a split.
@@ -200,6 +229,10 @@ export function collectKinds(node: LayoutNode): string[] {
     return [node.kind]
   }
 
+  if (node.type === 'empty') {
+    return []
+  }
+
   const kinds = node.children.flatMap((child) => {
     return collectKinds(child)
   })
@@ -252,6 +285,11 @@ function sizeEquals(first: ChildSize, second: ChildSize | undefined): boolean {
  * @returns `true` when the trees have the same shape, the same kinds and close enough sizes.
  */
 export function layoutEquals(first: LayoutNode, second: LayoutNode): boolean {
+  // the empty layout has nothing to compare: two empty layouts are the same, an empty one and a tree never are
+  if (first.type === 'empty' || second.type === 'empty') {
+    return first.type === 'empty' && second.type === 'empty'
+  }
+
   if (first.type === 'widget' || second.type === 'widget') {
     return first.type === 'widget' && second.type === 'widget' && first.kind === second.kind
   }
@@ -348,12 +386,45 @@ function isChildSize(value: unknown): value is ChildSize {
 }
 
 /**
+ * Reads the leaf of a widget from an unknown value.
+ *
+ * @param candidate The value, as a record.
+ *
+ * @returns The leaf, or `null` when the value is not a widget.
+ */
+function parseWidgetNode(candidate: Record<string, unknown>): LayoutNodeWidget | null {
+  if (typeof candidate.kind !== 'string' || candidate.kind.length === 0) {
+    return null
+  }
+
+  const box = candidate.lock
+
+  if (box === undefined) {
+    return { type: 'widget', kind: candidate.kind }
+  }
+
+  if (typeof box !== 'object' || box === null) {
+    return null
+  }
+
+  const { width, height } = box as Record<string, unknown>
+
+  if (typeof width !== 'number' || typeof height !== 'number' || !isLockSize(width) || !isLockSize(height)) {
+    return null
+  }
+
+  return { type: 'widget', kind: candidate.kind, lock: { width, height } }
+}
+
+/**
  * Reads a layout tree from an unknown value (the parsed content of the storage).
  *
  * @remarks
  * The shape is validated, not the kinds: whether a kind is known is a question for
  * {@link toDockConfig}, which has the live widgets. Everything that is not a valid layout gives
- * `null`, and the caller falls back to the default.
+ * `null`, and the caller falls back to the default. The empty layout is read back as
+ * {@link emptyLayout}, and it is dropped from the children of a split, where it would be a shape this build does not
+ * write.
  *
  * @param value The value to read.
  *
@@ -366,28 +437,12 @@ export function parseLayoutNode(value: unknown): LayoutNode | null {
 
   const candidate = value as Record<string, unknown>
 
+  if (candidate.type === 'empty') {
+    return emptyLayout
+  }
+
   if (candidate.type === 'widget') {
-    if (typeof candidate.kind !== 'string' || candidate.kind.length === 0) {
-      return null
-    }
-
-    const box = candidate.lock
-
-    if (box === undefined) {
-      return { type: 'widget', kind: candidate.kind }
-    }
-
-    if (typeof box !== 'object' || box === null) {
-      return null
-    }
-
-    const { width, height } = box as Record<string, unknown>
-
-    if (typeof width !== 'number' || typeof height !== 'number' || !isLockSize(width) || !isLockSize(height)) {
-      return null
-    }
-
-    return { type: 'widget', kind: candidate.kind, lock: { width, height } }
+    return parseWidgetNode(candidate)
   }
 
   if (candidate.type !== 'split') {
@@ -409,7 +464,8 @@ export function parseLayoutNode(value: unknown): LayoutNode | null {
       return parseLayoutNode(child)
     })
     .filter((child): child is LayoutNode => {
-      return child !== null
+      // an empty child is dropped like an unknown kind: the empty layout is only ever the root
+      return child !== null && child.type !== 'empty'
     })
 
   if (children.length < 2) {

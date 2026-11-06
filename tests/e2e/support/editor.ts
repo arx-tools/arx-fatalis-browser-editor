@@ -147,6 +147,10 @@ export async function selectionCount(page: Page): Promise<number | undefined> {
  * @returns The tree, with the kinds of `renames` in the place of the ones they replace.
  */
 function renameKinds(layout: LayoutNode, renames: Readonly<Record<string, string>>): LayoutNode {
+  if (layout.type === 'empty') {
+    return layout
+  }
+
   if (layout.type === 'widget') {
     return { type: 'widget', kind: renames[layout.kind] ?? layout.kind }
   }

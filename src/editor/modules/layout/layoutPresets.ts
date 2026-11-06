@@ -1,12 +1,8 @@
-import type { ChildSize, LayoutNode } from './layoutNode.ts'
+import { emptyLayout, type ChildSize, type LayoutNode } from './layoutNode.ts'
 import { WIDGET_KINDS } from './widgetKinds.ts'
 
 /**
  * The identifier of a preset of the dock layout.
- *
- * @remarks
- * `custom` is not a constant: it is the slot the editor stores the last layout that is not a factory one
- * in, so the header can offer it back next to the factory presets.
  */
 export type PresetId = 'custom' | 'editor' | 'painter' | 'viewer'
 
@@ -17,7 +13,7 @@ export interface FactoryPreset {
   /**
    * The identifier the header selects it by.
    */
-  readonly id: Exclude<PresetId, 'custom'>
+  readonly id: PresetId
   /**
    * The name shown in the dropdown of the header.
    */
@@ -212,17 +208,29 @@ export const painterLayout: LayoutNode = {
 export const defaultLayout: LayoutNode = viewerLayout
 
 /**
+ * The layout of an empty dock: the `Custom` preset.
+ *
+ * @remarks
+ * The owner's request (2026-11-06): a layout with **no widget at all**, so the dock starts as a bare canvas and every
+ * widget of it is dragged in from the picker. The dock shows the invitation of `Dock.vue` in the middle while it is
+ * empty, locked and unlocked alike.
+ */
+export const customLayout: LayoutNode = emptyLayout
+
+/**
  * The presets the header offers, in the order of the dropdown.
  *
  * @remarks
  * The `Viewer` is first because it is the one the editor starts with ({@link defaultLayout}): the row of the active
  * layout is the top of the list, so the dropdown opens on the entry the header shows. The `Editor` (the layout of the
- * level work) follows it and the `Painter` (the texture work, 2026-11-04) closes the list.
+ * level work) follows it, the `Painter` (the texture work, 2026-11-04) closes the factory ones, and the `Custom`
+ * ({@link customLayout}, 2026-11-06) is the last row: the empty dock the user builds on his own.
  */
 export const factoryPresets: readonly FactoryPreset[] = [
   { id: 'viewer', label: 'Viewer', layout: viewerLayout },
   { id: 'editor', label: 'Editor', layout: editorLayout },
   { id: 'painter', label: 'Painter', layout: painterLayout },
+  { id: 'custom', label: 'Custom', layout: customLayout },
 ]
 
 /**
@@ -230,7 +238,7 @@ export const factoryPresets: readonly FactoryPreset[] = [
  *
  * @param id The identifier to look up.
  *
- * @returns The preset, or `undefined` when the identifier is the custom slot or unknown.
+ * @returns The preset, or `undefined` when the identifier is unknown.
  */
 export function factoryPreset(id: string): FactoryPreset | undefined {
   return factoryPresets.find((preset) => {

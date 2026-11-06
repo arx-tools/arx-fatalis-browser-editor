@@ -4,13 +4,13 @@ import { history } from '../../history/history.ts'
 import { mapHistoryRecords } from '../../history/mapHistory.ts'
 import type { HistoryRecord } from '../../history/records.ts'
 import { persistedRef } from '../../persistedRef/persistedRef.ts'
-import { getLocalStorage, type StorageLike } from '../../persistedRef/storage.ts'
-import { getUrlAdapter, readUrlValue, writeUrlValue, type UrlAdapter } from '../../persistedRef/url.ts'
+import { getUrlAdapter, writeUrlValue } from '../../persistedRef/url.ts'
 import { FLAT_PRESET, MINIMAL_PRESET, type NewLevelPreset } from '../blankLevel.ts'
 import { restoreMapHistory, saveMapHistory } from '../edit/editing.ts'
 import { paintLevel } from '../edit/levelTextures.ts'
 import { levelStore } from '../edit/levelStore.ts'
 import { clearDataDirScan, readDataFile, scanLevelNumbers } from './dataDir.ts'
+import { MAP_PARAMETER, mapSlugOf, rememberMapId } from './maps/mapId.ts'
 import {
   createBlankLevelSource,
   createOriginalLevelSource,
@@ -117,17 +117,6 @@ export const customMaps = shallowRef<Array<{ readonly label: string; readonly da
  * list does not have falls back here.
  */
 export const DEFAULT_MAP_ID = 'blank:flat'
-
-/**
- * The url parameter that carries the map on the screen, like `?map=arx:8`.
- *
- * @remarks
- * It is the value of the list ({@link MapEntry.id}), so a link says which map it is about. The map of the url is read
- * at start and written when the map changes; a value the list does not have (a map of a data directory the browser no
- * longer has, or a zip of a previous session) falls back to {@link DEFAULT_MAP_ID} — the message about it is the todo
- * of a later round.
- */
-export const MAP_PARAMETER = 'map'
 
 /**
  * The map the store holds now.
@@ -426,132 +415,6 @@ export async function openMap(id: string, options: OpenMapOptions = {}): Promise
   if (options.camera !== 'keep') {
     cameraStore.moveToSpawn()
   }
-}
-
-/**
- * Reads the map the url names.
- *
- * @param url The query string to read, the one of the page by default.
- *
- * @returns The value of the map, or `undefined` when the url says nothing usable.
- */
-/**
- * The key the map of the last visit is kept under in the browser.
- */
-const MAP_STORAGE_KEY = 'map'
-
-/**
- * The name a map carries in the url, with hyphens instead of the colon of its value.
- *
- * @remarks
- * The value of a map is an id of the editor (`arx:8`, `blank:flat`, `custom:0`), and the colon of it is escaped in a
- * url (`arx%3A8`), which reads badly in a bar a link is copied from. The name is the same map without the escape:
- * `arx-fatalis-level-8`, `blank-flat`, `custom-0`.
- *
- * @param id The value of the map.
- *
- * @returns The name the url and the storage carry.
- */
-export function mapSlugOf(id: string): string {
-  if (id.startsWith('arx:')) {
-    return `arx-fatalis-level-${id.slice(4)}`
-  }
-
-  return id.replace(':', '-')
-}
-
-/**
- * The value of a map, from the name a url or the storage carries.
- *
- * @remarks
- * The old form of the value (`arx:8`) is read too, so a link of before the names keeps working.
- *
- * @param slug The name the url or the storage carries.
- *
- * @returns The value of the map, or `undefined` when the name is not one.
- */
-export function mapIdOfSlug(slug: string): string | undefined {
-  const value = slug.trim()
-
-  if (value.startsWith('arx-fatalis-level-')) {
-    return `arx:${value.slice('arx-fatalis-level-'.length)}`
-  }
-
-  if (value.startsWith('arx-')) {
-    return `arx:${value.slice(4)}`
-  }
-
-  if (value.includes(':')) {
-    return value
-  }
-
-  if (value.startsWith('blank-')) {
-    return `blank:${value.slice(6)}`
-  }
-
-  if (value.startsWith('custom-')) {
-    return `custom:${value.slice(7)}`
-  }
-
-  return undefined
-}
-
-/**
- * The map of the last visit, from the storage of the browser.
- *
- * @param storage The storage to read, the local storage of the page by default.
- *
- * @returns The value of the map, or `undefined` when the browser has none.
- */
-export function storedMapId(storage: StorageLike | undefined = getLocalStorage(undefined)): string | undefined {
-  if (storage === undefined) {
-    return undefined
-  }
-
-  try {
-    const stored = storage.getItem(MAP_STORAGE_KEY)
-
-    if (stored === null || stored.trim() === '') {
-      return undefined
-    }
-
-    return mapIdOfSlug(stored)
-  } catch {
-    return undefined
-  }
-}
-
-/**
- * Remembers the map of the session for the next visit.
- *
- * @param id The value of the map.
- * @param storage The storage to write, the local storage of the page by default.
- */
-export function rememberMapId(id: string, storage: StorageLike | undefined = getLocalStorage(undefined)): void {
-  if (storage === undefined) {
-    return
-  }
-
-  try {
-    storage.setItem(MAP_STORAGE_KEY, mapSlugOf(id))
-  } catch {
-    // a browser that refuses to write keeps the url only: the next visit starts from the default
-  }
-}
-
-export function mapIdFromUrl(url: UrlAdapter | undefined = getUrlAdapter(undefined)): string | undefined {
-  if (url === undefined) {
-    return undefined
-  }
-
-  const raw = readUrlValue(url, MAP_PARAMETER)
-
-  // an empty parameter (`?map=`) says nothing, the same as no parameter at all
-  if (raw === undefined || raw.trim() === '') {
-    return undefined
-  }
-
-  return mapIdOfSlug(raw) ?? raw.trim()
 }
 
 /**

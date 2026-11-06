@@ -12,11 +12,11 @@ import {
   arxLevels,
   currentMapId,
   forgetArxLevels,
-  mapIdFromUrl,
   openMap,
   refreshDataDir,
   startupSource,
 } from '../modules/level/source/maps.ts'
+import { mapIdFromUrl } from '../modules/level/source/maps/mapId.ts'
 import Modal from './Modal.vue'
 
 /**

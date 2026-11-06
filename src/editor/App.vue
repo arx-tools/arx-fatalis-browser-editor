@@ -8,6 +8,7 @@ import { startLevelDisplay } from './components/widgets/shared/levelDisplay.ts'
 import { startLevelEditing } from './modules/level/edit/editing.ts'
 import { startSelection } from './modules/selection/selectionStore.ts'
 import { paintLevel, startLevelTextures } from './modules/level/edit/levelTextures.ts'
+import { MAP_PARAMETER, mapIdFromUrl, mapSlugOf, storedMapId } from './modules/level/source/maps/mapId.ts'
 import { levelStore } from './modules/level/edit/levelStore.ts'
 import { startTextureCatalog } from './modules/textures/textureCatalog.ts'
 import {
@@ -29,10 +30,6 @@ import {
   currentMapId,
   DEFAULT_MAP_ID,
   lastMapId,
-  MAP_PARAMETER,
-  mapIdFromUrl,
-  mapSlugOf,
-  storedMapId,
   openMap,
   refreshDataDir,
   rememberCustomMap,

@@ -10,14 +10,13 @@ import {
 } from '../../../../../src/editor/modules/level/blankLevel.ts'
 import { applyColourKey } from '../../../../../src/editor/modules/textures/image.ts'
 import { paintKeyOf, type PaintKey } from '../../../../../src/editor/modules/level/edit/levelTextures/paint.ts'
+import { paintLevelTextures, unpaintLevelTextures } from '../../../../../src/editor/modules/level/edit/levelTextures.ts'
 import {
   drawnRunsOf,
   faceRunsOf,
-  paintLevelTextures,
   solidPolygonsOf,
   textureNamesOf,
-  unpaintLevelTextures,
-} from '../../../../../src/editor/modules/level/edit/levelTextures.ts'
+} from '../../../../../src/editor/modules/level/edit/levelTextures/runs.ts'
 import { Settings } from '../../../../../src/generator/Settings.ts'
 
 /**

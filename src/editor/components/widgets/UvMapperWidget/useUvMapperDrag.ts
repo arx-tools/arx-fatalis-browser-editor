@@ -3,7 +3,9 @@ import { commandOf } from '../../../modules/history/commands.ts'
 import { createSetUvRecord } from '../../../modules/history/records.ts'
 import { runStep } from '../../../modules/level/edit/editing.ts'
 import {
+  containsFacePoint,
   movedCorner,
+  movedUvs,
   pannedBy,
   sameUvs,
   screenOfUv,
@@ -25,8 +27,12 @@ import {
  * follows the hand), and the release puts the change on the history. With `Shift` the corner is laid on the nearest 45
  * degree ray of the drag: a wall's texture is as wide as the wall above it, not a degree off (2026-11-05, the owner).
  *
- * The **texture** is dragged when no corner is under the pointer: the whole view slides, the way a map is dragged, and
- * what is under the hand stays under it.
+ * The **texture** is dragged when no corner is under the pointer and the press is not on the face: the whole view
+ * slides, the way a map is dragged, and what is under the hand stays under it.
+ *
+ * The **face** is dragged when the press lands on its yellow: every corner of it moves by the same step, so a face that
+ * draws a piece of a wall keeps its shape (2026-11-06, the owner's request). The middle button pans the view from
+ * anywhere, so a face that covers the whole square does not take the only way to slide the texture away.
  *
  * The widget owns the view (the size, the zoom, the pan and the reframe); the composable owns the gesture and the
  * corner/pan state it moves while it runs.
@@ -61,13 +67,17 @@ export interface UvMapperDragContext {
    */
   readonly zoom: ShallowRef<number>
   /**
-   * How far the view was dragged away from the face, in uv units.
+   * The uv the square is centred on: the drag of the texture moves it.
    */
-  readonly pan: ShallowRef<UvPoint>
+  readonly centre: ShallowRef<UvPoint>
   /**
    * Whether the texture is being dragged.
    */
   readonly panning: ShallowRef<boolean>
+  /**
+   * Whether the pointer is over the yellow of the face: a press there moves the whole face.
+   */
+  readonly overFace: ShallowRef<boolean>
   /**
    * The corner the pointer drags, or `undefined` when nothing is dragged.
    */
@@ -143,12 +153,31 @@ export interface UvMapperDrag {
  * @returns The handlers the widget binds.
  */
 export function useUvMapperDrag(context: UvMapperDragContext): UvMapperDrag {
-  const { canvas, shown, corners, view, size, zoom, pan, panning, dragged, active, reframe, requestRedraw } = context
+  const {
+    canvas,
+    shown,
+    corners,
+    view,
+    size,
+    zoom,
+    centre,
+    panning,
+    overFace,
+    dragged,
+    active,
+    reframe,
+    requestRedraw,
+  } = context
 
   /**
    * Where the drag of the texture started, in pixels of the square.
    */
   let panFrom: StagePoint | undefined
+
+  /**
+   * Where the drag of the face started: the uv under the pointer, and the corners it started from.
+   */
+  let moveFrom: { readonly uv: UvPoint; readonly corners: readonly UvPoint[] } | undefined
 
   /**
    * The corners the drag started from, so the step can be undone to the state before it.
@@ -272,26 +301,66 @@ export function useUvMapperDrag(context: UvMapperDragContext): UvMapperDrag {
     onPanStart: (event): void => {
       event.preventDefault()
       ;(event.currentTarget as Element | null)?.setPointerCapture(event.pointerId)
-      panning.value = true
-      panFrom = pointOf(event)
-    },
-    onPanMove: (event): void => {
-      const from = panFrom
-
-      if (from === undefined) {
-        return
-      }
 
       const point = pointOf(event)
 
-      pan.value = pannedBy(pan.value, { x: point.x - from.x, y: point.y - from.y }, size.value, zoom.value)
+      // a press on the yellow of the face moves the face; the middle button slides the view from anywhere, and so does a
+      // press on the texture around the face
+      if (event.button !== 1 && containsFacePoint(corners.value, view.value, point)) {
+        moveFrom = {
+          uv: uvOfScreen(view.value, point),
+          corners: corners.value.map((corner) => {
+            return { ...corner }
+          }),
+        }
+
+        return
+      }
+
+      panning.value = true
+      panFrom = point
+    },
+    onPanMove: (event): void => {
+      const point = pointOf(event)
+      const origin = moveFrom
+
+      if (origin !== undefined) {
+        const uv = uvOfScreen(view.value, point)
+
+        corners.value = movedUvs(origin.corners, { u: uv.u - origin.uv.u, v: uv.v - origin.uv.v })
+        writeCorners()
+        reframe()
+        requestRedraw()
+
+        return
+      }
+
+      const from = panFrom
+
+      if (from === undefined) {
+        // nothing is dragged: the pointer only says whether it rests on the yellow of the face (the cursor follows it)
+        overFace.value = shown.value !== undefined && containsFacePoint(corners.value, view.value, point)
+
+        return
+      }
+
+      centre.value = pannedBy(centre.value, { x: point.x - from.x, y: point.y - from.y }, size.value, zoom.value)
       panFrom = point
       reframe()
     },
     onPanEnd: (event): void => {
+      const moved = moveFrom
+
       ;(event.currentTarget as Element | null)?.releasePointerCapture(event.pointerId)
+      moveFrom = undefined
       panning.value = false
       panFrom = undefined
+
+      if (moved !== undefined && !sameUvs(moved.corners, corners.value)) {
+        commit(moved.corners)
+      }
+
+      reframe()
     },
     onWheel: (event): void => {
       // the wheel must not scroll the dock under the widget

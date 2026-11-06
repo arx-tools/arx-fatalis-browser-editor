@@ -35,6 +35,16 @@ export interface FactoryPreset {
 const THIN_ROW_HEIGHT = 50
 
 /**
+ * The height of the row of the undo and redo buttons in the `Painter`, in pixels.
+ *
+ * @remarks
+ * The buttons are 22 px high with 8 px of padding around them, and the owner asked for a **locked** 60 px row under the
+ * uv mapper (2026-11-06): the two steps of the history are a click away from the texture work, and the texture list
+ * below them takes what is left.
+ */
+const UNDO_ROW_HEIGHT = 60
+
+/**
  * A child of a split that follows the layout, as a share of the space the locks leave.
  *
  * @remarks
@@ -158,14 +168,16 @@ export const viewerLayout: LayoutNode = {
 }
 
 /**
- * The layout of the texture work: the two inspectors on the left, the walkable view in the middle, the texture list and
- * the uv mapper on the right.
+ * The layout of the texture work: the two inspectors on the left, the walkable view in the middle, and the uv mapper,
+ * the steps of the history and the texture list on the right.
  *
  * @remarks
  * The owner arranged this one in the editor (2026-11-04): the column of the work is the **right** one — the texture list
  * with the uv mapper above it — and the left column has the two inspectors and the keys. The numbers are the sizes he
  * read off the plates of the edit mode: the polygon inspector 360 x 185, the keys 360 x 430 (which is the width of the
- * left column too) and the uv mapper 400 x 430 (the width of the right column). The painters do not need the six fixed
+ * left column too) and the uv mapper 400 x 430 (the width of the right column). The **undo and redo** row under the uv
+ * mapper is his later request (2026-11-06): a locked 60 px strip, so the two steps of the history are a click away from
+ * the texture work. The painters do not need the six fixed
  * views, and the middle column is the **walkable view alone**: the camera form is not in this layout (the pose of the
  * view is on its HUD), so no widget of the middle is locked and it takes what the two columns leave.
  */
@@ -188,9 +200,10 @@ export const painterLayout: LayoutNode = {
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: [fixed(430), auto(1)],
+      sizes: [fixed(430), fixed(UNDO_ROW_HEIGHT), auto(1)],
       children: [
         { type: 'widget', kind: WIDGET_KINDS.uvMapper },
+        { type: 'widget', kind: WIDGET_KINDS.undoRedo },
         { type: 'widget', kind: WIDGET_KINDS.textures },
       ],
     },

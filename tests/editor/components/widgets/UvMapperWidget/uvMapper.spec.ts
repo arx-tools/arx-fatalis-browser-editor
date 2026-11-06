@@ -3,13 +3,16 @@ import { describe, it } from 'node:test'
 import { ArxPolygonFlags, type ArxPolygon } from 'arx-convert/types'
 import {
   clampUv,
+  containsFacePoint,
   maximizedUvs,
   mismatchMessageOf,
   MAX_ZOOM,
   MIN_ZOOM,
   movedCorner,
+  movedUvs,
   numberOfText,
   pannedBy,
+  perimeterOf,
   quarteredUvs,
   quarterOfUvs,
   sameUvs,
@@ -702,5 +705,128 @@ void describe('maximizedUvs', () => {
     ]
 
     assert.deepEqual(maximizedUvs(triangle), triangle)
+  })
+})
+
+void describe('perimeterOf', () => {
+  void it('walks a quad as a, b, d, c, and a triangle as it is stored', () => {
+    assert.deepEqual(
+      perimeterOf([
+        { u: 0, v: 0 },
+        { u: 1, v: 0 },
+        { u: 0, v: 1 },
+        { u: 1, v: 1 },
+      ]),
+      [0, 1, 3, 2],
+    )
+    assert.deepEqual(
+      perimeterOf([
+        { u: 0, v: 0 },
+        { u: 1, v: 0 },
+        { u: 0, v: 1 },
+      ]),
+      [0, 1, 2],
+    )
+  })
+})
+
+void describe('containsFacePoint', () => {
+  /**
+   * The view of the test: a 100 pixel square, the whole texture on it.
+   *
+   * @returns The view of the test, the whole texture on the hundred pixels.
+   */
+  function view(): { size: number; zoom: number; centre: { u: number; v: number } } {
+    return { size: 100, zoom: 1, centre: { u: 0.5, v: 0.5 } }
+  }
+
+  void it('takes a point inside the quad', () => {
+    const corners = [
+      { u: 0, v: 0 },
+      { u: 1, v: 0 },
+      { u: 0, v: 1 },
+      { u: 1, v: 1 },
+    ]
+
+    // the stored order is a bowtie, and the shape is the perimeter: the middle of the square is inside it
+    assert.equal(containsFacePoint(corners, view(), { x: 50, y: 50 }), true)
+    assert.equal(containsFacePoint(corners, view(), { x: 10, y: 10 }), true)
+  })
+
+  void it('leaves a point outside of it', () => {
+    // the left half of the texture: the perimeter of these four corners is the right half of the square
+    const corners = [
+      { u: 0.5, v: 0 },
+      { u: 1, v: 0 },
+      { u: 0.5, v: 1 },
+      { u: 1, v: 1 },
+    ]
+
+    assert.equal(containsFacePoint(corners, view(), { x: 40, y: 40 }), false)
+    assert.equal(containsFacePoint(corners, view(), { x: 75, y: 50 }), true)
+    assert.equal(containsFacePoint(corners, view(), { x: 20, y: 50 }), false)
+  })
+
+  void it('takes nothing when the face has no corner', () => {
+    assert.equal(containsFacePoint([], view(), { x: 50, y: 50 }), false)
+  })
+})
+
+void describe('movedUvs', () => {
+  void it('moves every corner by the same step', () => {
+    const moved = movedUvs(
+      [
+        { u: 0.2, v: 0.2 },
+        { u: 0.4, v: 0.2 },
+        { u: 0.2, v: 0.4 },
+        { u: 0.4, v: 0.4 },
+      ],
+      { u: 0.1, v: -0.1 },
+    )
+
+    assert.deepEqual(
+      moved.map((corner) => {
+        return `${corner.u.toFixed(3)}/${corner.v.toFixed(3)}`
+      }),
+      ['0.300/0.100', '0.500/0.100', '0.300/0.300', '0.500/0.300'],
+    )
+  })
+
+  void it('stops the face at the edge of the texture, without deforming it', () => {
+    const moved = movedUvs(
+      [
+        { u: 0.8, v: 0.8 },
+        { u: 0.9, v: 0.8 },
+        { u: 0.8, v: 0.9 },
+        { u: 0.9, v: 0.9 },
+      ],
+      { u: 0.5, v: 0.5 },
+    )
+
+    assert.deepEqual(
+      moved.map((corner) => {
+        return `${corner.u}/${corner.v}`
+      }),
+      ['0.9/0.9', '1/0.9', '0.9/1', '1/1'],
+    )
+  })
+
+  void it('moves a face that is wider than the texture freely, it can not be kept inside it', () => {
+    const moved = movedUvs(
+      [
+        { u: 0, v: 0 },
+        { u: 2, v: 0 },
+        { u: 0, v: 1 },
+        { u: 2, v: 1 },
+      ],
+      { u: 0.3, v: 0 },
+    )
+
+    assert.deepEqual(
+      moved.map((corner) => {
+        return `${corner.u}/${corner.v}`
+      }),
+      ['0.3/0', '2.3/0', '0.3/1', '2.3/1'],
+    )
   })
 })

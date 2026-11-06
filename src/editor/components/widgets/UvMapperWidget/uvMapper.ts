@@ -66,6 +66,35 @@ export interface StagePoint {
 }
 
 /**
+ * The uv in the middle of the corners of a face.
+ *
+ * @remarks
+ * It is where the square is centred **when a face arrives** (the selection, the level, a reload). After that the view
+ * stays where it is, and the corners move under it: a face dragged by its yellow must not chase the view (2026-11-06,
+ * the owner: *"mindig középre akarja igazítani a kijelölést … csak inicializáláskor igazítsa"*).
+ *
+ * @param corners The uv of the corners, as the model holds them.
+ *
+ * @returns The middle of them, or the middle of the texture when the face has no corner.
+ */
+export function centreOfUvs(corners: readonly UvPoint[]): UvPoint {
+  if (corners.length === 0) {
+    return { u: 0.5, v: 0.5 }
+  }
+
+  const u =
+    corners.reduce((sum, corner) => {
+      return sum + corner.u
+    }, 0) / corners.length
+  const v =
+    corners.reduce((sum, corner) => {
+      return sum + corner.v
+    }, 0) / corners.length
+
+  return { u, v }
+}
+
+/**
  * What the mapper draws: the square of the widget, the zoom and the place the view is centred on.
  */
 export interface UvView {
@@ -155,21 +184,9 @@ export function clampUv(point: UvPoint): UvPoint {
  * @returns The view, ready to map a uv to a pixel.
  */
 export function viewOf(size: number, zoom: number, corners: readonly UvPoint[], pan: UvPoint = NO_PAN): UvView {
-  let u = 0.5
-  let v = 0.5
+  const centre = centreOfUvs(corners)
 
-  if (corners.length > 0) {
-    u =
-      corners.reduce((sum, corner) => {
-        return sum + corner.u
-      }, 0) / corners.length
-    v =
-      corners.reduce((sum, corner) => {
-        return sum + corner.v
-      }, 0) / corners.length
-  }
-
-  return { size, zoom, centre: { u: u + pan.u, v: v + pan.v } }
+  return { size, zoom, centre: { u: centre.u + pan.u, v: centre.v + pan.v } }
 }
 
 /**
@@ -193,6 +210,146 @@ export function screenOfUv(view: UvView, uv: UvPoint): StagePoint {
 }
 
 /**
+ * The corners of a face, in the order of its perimeter.
+ *
+ * @remarks
+ * The four corners of a quad are **not** around it: `a` and `b` are one edge and `c` and `d` the one across, so the
+ * perimeter is `a, b, d, c` (the stored order `a, b, c, d` crosses itself and draws a bow tie). A triangle walks its
+ * stored order.
+ *
+ * @param corners The uv of the corners, as the model holds them.
+ *
+ * @returns The corner indices, walked around the face.
+ */
+export function perimeterOf(corners: readonly UvPoint[]): number[] {
+  if (corners.length === 4) {
+    return [0, 1, 3, 2]
+  }
+
+  return corners.map((_corner, index) => {
+    return index
+  })
+}
+
+/**
+ * The points of the perimeter of the face, on the square.
+ *
+ * @param corners The uv of the corners, as the model holds them.
+ * @param view What the square draws.
+ *
+ * @returns The place of each of them on the square, in pixels.
+ */
+function perimeterPoints(corners: readonly UvPoint[], view: UvView): StagePoint[] {
+  return perimeterOf(corners).map((index) => {
+    return screenOfUv(view, corners[index] ?? { u: 0, v: 0 })
+  })
+}
+
+/**
+ * Tells whether a point of the square is inside the face.
+ *
+ * @remarks
+ * The yellow of the square is the face itself, and a press on it moves the whole face (2026-11-06, the owner's request),
+ * so the point is tested against the **perimeter** of the corners — the shape the square fills — with a ray cast: an
+ * edge of the perimeter counts when it crosses the ray under the point, and an odd number of crossings means inside.
+ *
+ * @param corners The uv of the corners, as the model holds them.
+ * @param view What the square draws.
+ * @param point Where the pointer is, in the pixels of the square.
+ *
+ * @returns True when the point is inside the face.
+ */
+export function containsFacePoint(corners: readonly UvPoint[], view: UvView, point: StagePoint): boolean {
+  if (corners.length < 3) {
+    return false
+  }
+
+  const polygon = perimeterPoints(corners, view)
+  let inside = false
+  let last = polygon.at(-1)
+
+  for (const current of polygon) {
+    const previous = last
+
+    last = current
+
+    if (previous === undefined) {
+      continue
+    }
+
+    // a horizontal edge crosses no ray, and the slope below would be the one of a zero rise
+    const below = previous.y > point.y
+    const above = current.y > point.y
+
+    if (below === above) {
+      continue
+    }
+
+    const run = current.x - previous.x
+    const rise = current.y - previous.y
+    const slope = run / rise
+    const along = slope * (point.y - previous.y)
+    const crossing = along + previous.x
+
+    if (point.x < crossing) {
+      inside = !inside
+    }
+  }
+
+  return inside
+}
+
+/**
+ * The step one coordinate of the corners may take and still stay on the 0..1 of the texture.
+ *
+ * @param step The step the pointer asked for.
+ * @param min The smallest uv of the corners along the axis.
+ * @param max The biggest one.
+ *
+ * @returns The step, shortened when a corner would leave the texture. A face that is wider than the texture can not be
+ * kept inside it, and it moves freely.
+ */
+function limitedStep(step: number, min: number, max: number): number {
+  const lower = -min
+  const upper = 1 - max
+
+  if (lower > upper) {
+    return step
+  }
+
+  return Math.min(Math.max(step, lower), upper)
+}
+
+/**
+ * Moves the corners of a face together, as far as the texture lets them.
+ *
+ * @remarks
+ * The owner's request (2026-11-06): the yellow of the square is the face, and dragging it moves **every corner** by the
+ * same step, so a face that draws a piece of a wall keeps its shape. A face that fits in the texture slides until one of
+ * its corners reaches the edge — no corner leaves the 0..1 of the texture, the way a single corner does not either
+ * (`clampUv`); a face that is wider than the texture has no placement inside it, and it moves freely.
+ *
+ * @param corners The uv of the corners, as the model holds them.
+ * @param delta The step of the pointer, in uv.
+ *
+ * @returns The corners, moved.
+ */
+export function movedUvs(corners: readonly UvPoint[], delta: UvPoint): UvPoint[] {
+  const us = corners.map((corner) => {
+    return corner.u
+  })
+  const vs = corners.map((corner) => {
+    return corner.v
+  })
+  const du = limitedStep(delta.u, Math.min(...us), Math.max(...us))
+  const dv = limitedStep(delta.v, Math.min(...vs), Math.max(...vs))
+
+  return corners.map((corner) => {
+    return { u: corner.u + du, v: corner.v + dv }
+  })
+}
+
+/**
  * The uv of a pixel of the view.
  *
  * @param view The view of the widget.
@@ -210,14 +367,14 @@ export function uvOfScreen(view: UvView, point: StagePoint): UvPoint {
 }
 
 /**
- * The pan after the texture was dragged.
+ * The centre of the view after the texture was dragged.
  *
  * @remarks
  * The drag moves the **content** with the pointer: the texture under the hand stays under it, and the view slides the
- * other way. The drag is in pixels of the square, and the pan is in uv: one pixel of the square is `1 / (size * zoom)` of
- * the texture, so a zoomed square pans the same picture with a smaller step of the uv.
+ * other way. The drag is in pixels of the square, and the centre is in uv: one pixel of the square is `1 / (size * zoom)`
+ * of the texture, so a zoomed square pans the same picture with a smaller step of the uv.
  *
- * @param pan The pan now.
+ * @param pan The uv the view is centred on now.
  * @param delta How far the pointer went, in pixels of the square.
  * @param size The side of the square, in pixels.
  * @param zoom How far the view is zoomed in.
@@ -492,7 +649,7 @@ function pointOrder(left: UvPoint, right: UvPoint): number {
 /**
  * Copies the corners, so a caller can not change the state of the widget through the list it gets back.
  *
- * @param corners The corners of the face.
+ * @param corners The uv of the corners, as the model holds them.
  *
  * @returns A copy of every corner.
  */
@@ -528,7 +685,7 @@ function samePoints(first: readonly UvPoint[], second: readonly UvPoint[]): bool
 /**
  * The quarter of the texture the corners of a quad sit on, when they sit on one.
  *
- * @param corners The corners of the face.
+ * @param corners The uv of the corners, as the model holds them.
  *
  * @returns The quarter (0: top left, 1: top right, 2: bottom right, 3: bottom left), or `undefined` when the corners
  * are not the four points of one quarter.
@@ -606,7 +763,7 @@ function placeInTopLeftQuarter(corners: readonly UvPoint[]): UvPoint[] {
  * left** quarter, each on the 0 or the 0.5 point it is closer to — and they stay in the order they are, so the same
  * corner keeps the same point.
  *
- * @param corners The corners of the face.
+ * @param corners The uv of the corners, as the model holds them.
  *
  * @returns The corners of the quarter, or the corners themselves when the face is not a quad.
  */
@@ -633,7 +790,7 @@ export function quarteredUvs(corners: readonly UvPoint[]): UvPoint[] {
  * takes the top left point, 1 the top right, 2 the bottom left and 3 the bottom right, so a face that was mirrored on
  * the texture is not mirrored any more.
  *
- * @param corners The corners of the face.
+ * @param corners The uv of the corners, as the model holds them.
  *
  * @returns The four corners of the texture, or the corners themselves when the face is not a quad.
  */
@@ -686,7 +843,7 @@ export function snappedPoint(origin: StagePoint, point: StagePoint): StagePoint 
 /**
  * The uv of the corners of a face after one of them moved.
  *
- * @param corners The corners of the face.
+ * @param corners The uv of the corners, as the model holds them.
  * @param index Which one moved.
  * @param uv The place it takes.
  *

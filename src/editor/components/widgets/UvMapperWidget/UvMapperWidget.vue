@@ -18,14 +18,16 @@ import type { TextureEntry } from '../../../modules/textures/textureEntry.ts'
 import {
   DEFAULT_ZOOM,
   mismatchMessageOf,
+  centreOfUvs,
+  perimeterOf,
   screenOfUv,
   maximizedUvs,
   quarteredUvs,
   turnedUvs,
   uvsOfFace,
   uvSelectionOf,
-  viewOf,
   type ShownFace,
+  type UvView,
   type UvPoint,
   type UvTurn,
 } from './uvMapper.ts'
@@ -87,19 +89,25 @@ const size = shallowRef(240)
 const zoom = shallowRef(DEFAULT_ZOOM)
 
 /**
- * How far the view was dragged away from the face, in uv units.
+ * The uv the square is centred on.
  *
  * @remarks
- * The zoom of the widget turns around the face, so a zoomed view only ever shows the neighbourhood of the face. The drag
- * of the **texture** (not a corner) slides the whole view, the way a map is dragged: what is under the hand stays under
- * it. A new face starts again in the middle.
+ * It is the middle of the face **when a face arrives** (a selection, a level, a reload) — `centreOnFace` —, and after
+ * that it only moves when the texture is dragged or the wheel zooms: the corners move under a picture that stays, so
+ * dragging the yellow of a face does not chase the view (2026-11-06, the owner's request).
  */
-const pan = shallowRef<UvPoint>({ u: 0, v: 0 })
+const centre = shallowRef<UvPoint>({ u: 0.5, v: 0.5 })
 
 /**
  * Whether the texture is being dragged.
  */
 const panning = shallowRef(false)
+
+/**
+ * Whether the pointer rests on the yellow of the face: the canvas then shows the move cursor, and a press moves the
+ * whole face instead of sliding the texture.
+ */
+const overFace = shallowRef(false)
 
 /**
  * The corner the pointer drags, or `undefined` when nothing is dragged.
@@ -117,9 +125,9 @@ const active = shallowRef<number | undefined>(undefined)
 let redrawFrame = 0
 
 /**
- * What the view draws: the corners of the face in the middle of the square.
+ * What the view draws: the zoom, and the uv the square is centred on.
  */
-const view = shallowRef(viewOf(size.value, zoom.value, corners.value, pan.value))
+const view = shallowRef<UvView>({ size: size.value, zoom: zoom.value, centre: centre.value })
 
 /**
  * The corner handles, at their place on the square.
@@ -215,8 +223,10 @@ function refresh(): void {
   })
   hint.value = ''
 
+  // a new face is the one time the square goes back to the middle of the face: after that the picture stays where the
+  // user left it (2026-11-06, the owner: the view must not chase a drag)
   if (isNewFace) {
-    pan.value = { u: 0, v: 0 }
+    centre.value = centreOfUvs(corners.value)
   }
 
   const name = map.textureNameOf(polygon.textureContainerId)
@@ -294,15 +304,9 @@ function draw(): void {
 
   // the face: the same translucent yellow as the selection fill of the 3D view
   if (corners.value.length >= 3) {
-    // the four corners of a quad are **not** around it: `a` and `b` are one edge and `c` and `d` the one across, so the
-    // perimeter is `a, b, d, c` (the stored order `a, b, c, d` crosses itself and draws a bow tie)
-    let order = [0, 1, 2]
-
-    if (corners.value.length === 4) {
-      order = [0, 1, 3, 2]
-    }
-
-    const points = order.map((index) => {
+    // the perimeter of a quad is `a, b, d, c` (the stored order `a, b, c, d` crosses itself and draws a bow tie), and
+    // `perimeterOf` is where that rule lives: the hit test of the press reads the same shape
+    const points = perimeterOf(corners.value).map((index) => {
       return screenOfUv(current, corners.value[index] ?? { u: 0, v: 0 })
     })
 
@@ -337,10 +341,14 @@ function requestRedraw(): void {
 }
 
 /**
- * Moves the view and the handles to the corners and the zoom.
+ * Moves the view and the handles to the centre, the zoom and the corners.
+ *
+ * @remarks
+ * The view is the zoom and the uv the square is centred on — **not** the corners: a corner that moves stays on the
+ * screen, and a face that is dragged does not drag the picture with it.
  */
 function reframe(): void {
-  const next = viewOf(size.value, zoom.value, corners.value, pan.value)
+  const next: UvView = { size: size.value, zoom: zoom.value, centre: centre.value }
 
   view.value = next
   handles.value = corners.value.map((corner, index) => {
@@ -363,8 +371,9 @@ const drag = useUvMapperDrag({
   view,
   size,
   zoom,
-  pan,
+  centre,
   panning,
+  overFace,
   dragged,
   active,
   reframe,
@@ -552,7 +561,7 @@ watch(
         <canvas
           ref="canvas"
           class="texture"
-          :class="{ 'is-panning': panning }"
+          :class="{ 'is-panning': panning, 'is-over-face': overFace }"
           :style="{ width: `${size}px`, height: `${size}px` }"
           @pointerdown="onPanStart"
           @pointermove="onPanMove"
@@ -767,6 +776,10 @@ watch(
   display: block;
   cursor: grab;
   touch-action: none;
+
+  &.is-over-face {
+    cursor: move;
+  }
 
   &.is-panning {
     cursor: grabbing;

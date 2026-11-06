@@ -71,6 +71,10 @@ export const WIDGET_KINDS = {
    */
   uvMapper: 'uv-mapper',
   /**
+   * The two steps of the history: undo and redo, next to each other.
+   */
+  undoRedo: 'undo-redo',
+  /**
    * The key table of the editor.
    */
   keyboardShortcuts: 'keyboard-shortcuts',

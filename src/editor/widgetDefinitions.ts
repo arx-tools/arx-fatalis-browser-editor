@@ -8,6 +8,7 @@ import MapStatisticsWidget from './components/widgets/MapStatisticsWidget/MapSta
 import RenderPerformanceWidget from './components/widgets/RenderPerformanceWidget/RenderPerformanceWidget.vue'
 import SelectionInspectorWidget from './components/widgets/SelectionInspectorWidget/SelectionInspectorWidget.vue'
 import TextureBrowserWidget from './components/widgets/TextureBrowserWidget/TextureBrowserWidget.vue'
+import UndoRedoWidget from './components/widgets/UndoRedoWidget/UndoRedoWidget.vue'
 import UvMapperWidget from './components/widgets/UvMapperWidget/UvMapperWidget.vue'
 import View3DWidget from './components/widgets/View3DWidget/View3DWidget.vue'
 import type { CameraViewMode } from './components/widgets/FixedViewWidget/cameraAlign.ts'
@@ -99,6 +100,15 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
     group: 'controls',
     create: (): Widget => {
       return new VueWidget(JumpToLocationWidget)
+    },
+  },
+  {
+    kind: WIDGET_KINDS.undoRedo,
+    label: 'Undo and Redo',
+    contentSized: true,
+    group: 'controls',
+    create: (): Widget => {
+      return new VueWidget(UndoRedoWidget)
     },
   },
   {

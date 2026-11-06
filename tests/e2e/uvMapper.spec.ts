@@ -142,8 +142,15 @@ test('a corner dragged on the texture moves the uv of the face, and the undo tak
     })
     .not.toBe('0.8×')
 
-  // the drag of the texture (not a corner) pans the whole view: the face slides with the pointer, and the uv of the
-  // corner stays where it was
+  // the uv of a corner, as the two fields of it show it
+  async function cornerUv(index: number): Promise<string> {
+    await cornerSelect.selectOption(String(index))
+
+    return `${await uField.inputValue()} ${await vField.inputValue()}`
+  }
+
+  // the drag of the texture (not a corner, and not the yellow of the face) pans the whole view: the face slides with the
+  // pointer, and the uv of the corner stays where it was
   const stage = mapper.locator('canvas')
   const stageBox = await stage.boundingBox()
 
@@ -154,14 +161,15 @@ test('a corner dragged on the texture moves the uv of the face, and the undo tak
   }
 
   const cornerBefore = await corner.boundingBox()
-  const halfStageWidth = stageBox.width / 2
-  const halfStageHeight = stageBox.height / 2
-  const stageCentreX = stageBox.x + halfStageWidth
-  const stageCentreY = stageBox.y + halfStageHeight
+  const uBeforePan = await cornerUv(0)
 
-  await page.mouse.move(stageCentreX, stageCentreY)
+  // the corner of the square, where the repeat of the texture is and the face is not: the press there slides the view
+  const panFromX = stageBox.x + 8
+  const panFromY = stageBox.y + 8
+
+  await page.mouse.move(panFromX, panFromY)
   await page.mouse.down()
-  await page.mouse.move(stageCentreX + 40, stageCentreY + 25, { steps: 8 })
+  await page.mouse.move(panFromX + 40, panFromY + 25, { steps: 8 })
   await page.mouse.up()
 
   const cornerAfter = await corner.boundingBox()
@@ -175,7 +183,70 @@ test('a corner dragged on the texture moves the uv of the face, and the undo tak
   }
 
   // and the uv of the corner is the one the undo left there: the pan moved the view, not the face
-  expect(await cornerSelect.inputValue()).toBe('0')
+  expect(await cornerUv(0)).toBe(uBeforePan)
+
+  await cornerSelect.selectOption('0')
+
+  // the yellow of the face moves the whole face: every corner takes the same step, so the shape of the face stays
+  const middleOfFace = await mapper.locator('.corner').evaluateAll((nodes) => {
+    const boxes = nodes.map((node) => {
+      return node.getBoundingClientRect()
+    })
+
+    return {
+      x:
+        boxes.reduce((sum, box) => {
+          return sum + box.x
+        }, 0) / boxes.length,
+      y:
+        boxes.reduce((sum, box) => {
+          return sum + box.y
+        }, 0) / boxes.length,
+    }
+  })
+  const firstBefore = await cornerUv(0)
+  const lastBefore = await cornerUv(3)
+
+  await page.mouse.move(middleOfFace.x, middleOfFace.y)
+  await page.mouse.down()
+  await page.mouse.move(middleOfFace.x + 24, middleOfFace.y + 12, { steps: 8 })
+  await page.mouse.up()
+  await page.waitForTimeout(300)
+
+  const firstAfter = await cornerUv(0)
+  const lastAfter = await cornerUv(3)
+
+  // the step is the same for both corners: the numbers of the two moved by the same amount
+  function stepOf(before: string, after: string): number[] {
+    const [beforeU = '', beforeV = ''] = before.split(' ', 2)
+    const [afterU = '', afterV = ''] = after.split(' ', 2)
+
+    return [Number(afterU) - Number(beforeU), Number(afterV) - Number(beforeV)]
+  }
+
+  const firstStep = stepOf(firstBefore, firstAfter)
+  const lastStep = stepOf(lastBefore, lastAfter)
+
+  expect(firstStep[0]).toBeCloseTo(lastStep[0] ?? 0, 2)
+  expect(firstStep[1]).toBeCloseTo(lastStep[1] ?? 0, 2)
+  expect(Math.abs(firstStep[0] ?? 0) + Math.abs(firstStep[1] ?? 0)).toBeGreaterThan(0.01)
+
+  // one press is one step of the history
+  await page.keyboard.press('Control+z')
+
+  await expect
+    .poll(async () => {
+      return await cornerUv(0)
+    })
+    .toBe(firstBefore)
+
+  await expect
+    .poll(async () => {
+      return await cornerUv(3)
+    })
+    .toBe(lastBefore)
+
+  await cornerSelect.selectOption('0')
 
   // the list picks the corner to edit: the third one has its own uv, and the fields follow the choice
   const firstU = await uField.inputValue()

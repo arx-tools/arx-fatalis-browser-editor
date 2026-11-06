@@ -116,12 +116,15 @@ test('a widget dropped beside a locked one keeps the split the drop made', async
   await page.locator('header button[aria-label="Presets"]').click()
   await page.locator('.preset-menu .preset-row', { hasText: 'Painter' }).click()
 
-  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(6)
+  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(7)
   await page.waitForTimeout(900)
 
-  // the uv mapper is alone in its column, so it takes the whole height (and its lock follows, after the pass)
+  // the uv mapper is alone in its column, so it takes the whole height (and its lock follows, after the pass). The
+  // texture list and the row of the history go, or the column keeps a split under the mapper and the drop below would
+  // halve that split, not the column
   await page.locator('header button[aria-label="Unlock the layout"]').click()
   await page.locator('[data-widget-kind="textures"] button[aria-label="Remove the Textures widget"]').click()
+  await page.locator('[data-widget-kind="undo-redo"] button[aria-label="Remove the Undo and Redo widget"]').click()
   await page.waitForTimeout(800)
 
   const mapper = await boxOf(page, 'uv-mapper')
@@ -154,12 +157,14 @@ test('a lock survives a reload when the widget is alone in its column', async ({
   await page.locator('header button[aria-label="Presets"]').click()
   await page.locator('.preset-menu .preset-row', { hasText: 'Painter' }).click()
 
-  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(6)
+  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(7)
   await page.waitForTimeout(900)
 
-  // the column of the uv mapper collapses when the texture list goes: its height has no split to live in any more
+  // the column of the uv mapper collapses when the texture list and the row of the history go: its height has no split
+  // to live in any more
   await page.locator('header button[aria-label="Unlock the layout"]').click()
   await page.locator('[data-widget-kind="textures"] button[aria-label="Remove the Textures widget"]').click()
+  await page.locator('[data-widget-kind="undo-redo"] button[aria-label="Remove the Undo and Redo widget"]').click()
   await page.waitForTimeout(800)
 
   const mapper = await boxOf(page, 'uv-mapper')

@@ -152,7 +152,7 @@ test('the painter preset comes with the sizes the owner measured', async ({ page
   await page.locator('header button[aria-label="Presets"]').click()
   await page.locator('.preset-menu .preset-row', { hasText: 'Painter' }).click()
 
-  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(6)
+  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(7)
   await page.waitForTimeout(800)
 
   expect(await presetName(page)).toBe('Painter')
@@ -160,6 +160,7 @@ test('the painter preset comes with the sizes the owner measured', async ({ page
   const inspector = await boxOf(page, 'polygon-inspector')
   const keys = await boxOf(page, 'keyboard-shortcuts')
   const mapper = await boxOf(page, 'uv-mapper')
+  const undo = await boxOf(page, 'undo-redo')
 
   // the three boxes of the arrangement: the two inspectors and the keys on the left, the uv mapper on the right
   expect(inspector.width).toBe(360)
@@ -172,6 +173,11 @@ test('the painter preset comes with the sizes the owner measured', async ({ page
   expect(await page.locator('[data-widget-kind="polygon-inspector"]').getAttribute('data-locked-height')).toBe('185')
   expect(await page.locator('[data-widget-kind="uv-mapper"]').getAttribute('data-locked-width')).toBe('400')
 
+  // the row of the undo and the redo: a locked 60 pixel strip under the uv mapper (2026-11-06, the owner's request)
+  expect(undo.width).toBe(400)
+  expect(undo.height).toBe(60)
+  expect(await page.locator('[data-widget-kind="undo-redo"]').getAttribute('data-locked-height')).toBe('60')
+
   // the selection inspector and the texture list are free: they take what the two locked neighbours leave
   expect(await page.locator('[data-widget-kind="selection-inspector"]').getAttribute('data-locked-height')).toBeNull()
   expect(await page.locator('[data-widget-kind="textures"]').getAttribute('data-locked-height')).toBeNull()
@@ -181,7 +187,8 @@ test('the painter preset comes with the sizes the owner measured', async ({ page
 
   expect(selection.top).toBe(inspector.top + inspector.height + 4)
   expect(keys.top).toBe(selection.top + selection.height + 4)
-  expect(textures.top).toBe(mapper.top + mapper.height + 4)
+  expect(undo.top).toBe(mapper.top + mapper.height + 4)
+  expect(textures.top).toBe(undo.top + undo.height + 4)
 
   // the walkable view is the middle column alone: no camera form, and it takes the room the columns leave
   const view = await boxOf(page, '3d-view')

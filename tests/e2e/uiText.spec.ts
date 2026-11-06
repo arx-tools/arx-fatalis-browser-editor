@@ -126,7 +126,7 @@ test('the interface shows no em dash and no en dash', async ({ page }) => {
   await page.locator('header button[aria-label="Presets"]').click()
   await page.locator('.preset-menu .preset-row', { hasText: 'Painter' }).click()
 
-  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(6)
+  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(7)
   await page.waitForTimeout(800)
 
   expect(await dashesOf(page)).toEqual([])

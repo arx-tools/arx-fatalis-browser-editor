@@ -354,10 +354,13 @@ function permutationOf(count: number, turn: UvTurn): number[] {
 
   const result = [...identity]
 
-  // the uv of a corner goes to the one after it around the face (cw), or to the one before it (ccw)
+  // the corners of a face go around it **counter-clockwise** as the face is seen (the mapper draws the texture the way
+  // the 3D view shows it, see `screenOfUv`), so the picture on the face turns **clockwise** when every corner takes the
+  // uv of the one after it: the content of a corner moves a step back on the ring. The name is the way the **picture**
+  // turns, not the way the uvs travel (2026-11-06, the owner: the icons were the other way around).
   let step = 1
 
-  if (turn === 'rotate-cw') {
+  if (turn === 'rotate-ccw') {
     step = around.length - 1
   }
 
@@ -376,9 +379,9 @@ function permutationOf(count: number, turn: UvTurn): number[] {
  * @remarks
  * A turn is a **permutation of the corners**, not a new uv: a texture that came in rotated or mirrored on a face is
  * fixed by laying its corners on other corners, so the area of the texture the face takes stays the same (2026-11-05,
- * the owner: *"csak a vertexeket cserélgeti … az UV értékek nem változnak"*). `rotate-cw` sends the uv of a corner to
- * the one after it around the face, `rotate-ccw` to the one before it, and the two flips swap the pairs that sit across
- * the middle of the face.
+ * the owner: *"csak a vertexeket cserélgeti … az UV értékek nem változnak"*). `rotate-cw` turns the **picture on the
+ * face** a quarter clockwise, `rotate-ccw` the other way (the uvs travel the opposite way, because the picture moves
+ * to where the uvs came from), and the two flips swap the pairs that sit across the middle of the face.
  *
  * @param corners The corners as they are.
  * @param turn Which way to lay them.

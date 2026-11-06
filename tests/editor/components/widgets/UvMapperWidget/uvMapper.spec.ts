@@ -513,12 +513,12 @@ void describe('turnedUvs', () => {
     })
   }
 
-  void it('rotates the quad clockwise: every corner takes the uv of the one before it around', () => {
-    // the way around is a, b, d, c: the top left takes the uv of the bottom left, the top right the top left's, and so
-    // on — the picture on the face turns a quarter clockwise
+  void it('turns the picture clockwise: every corner takes the uv of the one after it around', () => {
+    // the way around is a, b, d, c, and it is counter-clockwise as the face is seen (a v of 0 is the top of the image),
+    // so the picture turns clockwise when the content of a corner moves a step back on the ring
     const turned = turnedUvs(quad(), 'rotate-cw')
 
-    assert.deepEqual(uvOf(turned), ['0/0', '0/1', '1/0', '1/1'])
+    assert.deepEqual(uvOf(turned), ['1/1', '1/0', '0/1', '0/0'])
   })
 
   void it('rotates it back counter-clockwise', () => {
@@ -526,6 +526,11 @@ void describe('turnedUvs', () => {
     const back = turnedUvs(once, 'rotate-ccw')
 
     assert.deepEqual(uvOf(back), uvOf(quad()))
+
+    // the two turns are each other's inverse: the counter-clockwise one is the other permutation
+    const other = turnedUvs(quad(), 'rotate-ccw')
+
+    assert.deepEqual(uvOf(other), ['0/0', '0/1', '1/0', '1/1'])
   })
 
   void it('flips the quad horizontally', () => {
@@ -563,7 +568,7 @@ void describe('turnedUvs', () => {
     const flippedH = turnedUvs(triangle, 'flip-h')
     const flippedV = turnedUvs(triangle, 'flip-v')
 
-    assert.deepEqual(uvOf(rotated), ['0/0', '0/1', '1/0'])
+    assert.deepEqual(uvOf(rotated), ['1/0', '0/0', '0/1'])
     assert.deepEqual(uvOf(back), uvOf(triangle))
     assert.deepEqual(uvOf(flippedH), ['1/0', '0/1', '0/0'])
     assert.deepEqual(uvOf(flippedV), ['0/0', '1/0', '0/1'])

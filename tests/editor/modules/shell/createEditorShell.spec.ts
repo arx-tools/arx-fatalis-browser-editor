@@ -306,16 +306,32 @@ void describe('the layout of the shell', () => {
     shell.dispose()
   })
 
-  void it('does nothing on a row that is not the active one', async () => {
+  void it('shows the step of a layout that is not on the screen, and switches to it when it is taken', async () => {
     const { shell } = buildShell()
 
     shell.addWidget('camera-controls')
     await settled(shell, 'viewer')
+    shell.applyPreset('editor')
+    shell.addWidget('right-view')
+    await settled(shell, 'editor')
 
-    shell.undoPreset('editor')
+    // the row of the viewer is not the active one, but the menu shows that it has a step
+    assert.deepEqual(
+      shell.presets.value.map((preset) => {
+        return [preset.id, preset.canUndo]
+      }),
+      [
+        ['editor', true],
+        ['viewer', true],
+        ['painter', false],
+      ],
+    )
 
+    shell.undoPreset('viewer')
+
+    // the step of the viewer takes the dock to the viewer, a step back
     assert.equal(shell.selectedPreset.value, 'viewer')
-    assert.equal(shell.placedKinds.value.includes('camera-controls'), true)
+    assert.equal(shell.placedKinds.value.includes('camera-controls'), false)
     shell.dispose()
   })
 

@@ -233,8 +233,8 @@ onBeforeUnmount(() => {
         <ChevronDown :size="12" />
       </button>
       <div v-if="isPresetOpen" class="preset-menu" role="menu">
-        <!-- every layout carries its own history: the row is the chip of the preset and its two steps, and the steps
-             only work on the active one (the keys of the browser belong to the map, not to the layout) -->
+        <!-- every layout carries its own history: the row is the chip of the preset and its two steps, and a row shows
+             how far its own history got (the keys of the browser belong to the map, not to the layout) -->
         <div
           v-for="preset in presets"
           :key="preset.id"
@@ -250,7 +250,7 @@ onBeforeUnmount(() => {
           <button
             class="step"
             type="button"
-            :disabled="preset.id !== selectedPreset || !preset.canUndo"
+            :disabled="!preset.canUndo"
             :aria-label="`Undo the ${preset.label} layout`"
             v-tooltip="`Undo the ${preset.label} layout`"
             @click="undoPreset(preset.id)"
@@ -260,7 +260,7 @@ onBeforeUnmount(() => {
           <button
             class="step"
             type="button"
-            :disabled="preset.id !== selectedPreset || !preset.canRedo"
+            :disabled="!preset.canRedo"
             :aria-label="`Redo the ${preset.label} layout`"
             v-tooltip="`Redo the ${preset.label} layout`"
             @click="redoPreset(preset.id)"

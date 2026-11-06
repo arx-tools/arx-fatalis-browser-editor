@@ -99,15 +99,15 @@ export interface EditorShell {
    */
   applyPreset: (id: string) => void
   /**
-   * Takes the active layout one step back in its own history.
+   * Takes a layout one step back in its own history (a row that is not on the screen switches to it first).
    *
-   * @param id The preset of the row the button belongs to (a row that is not active does nothing).
+   * @param id The preset of the row the button belongs to.
    */
   undoPreset: (id: PresetId) => void
   /**
-   * Makes the step the active layout took back again.
+   * Makes the step of a layout again.
    *
-   * @param id The preset of the row the button belongs to (a row that is not active does nothing).
+   * @param id The preset of the row the button belongs to.
    */
   redoPreset: (id: PresetId) => void
   /**
@@ -509,15 +509,15 @@ export function createEditorShell(
   }
 
   /**
-   * Takes the active layout one step back.
+   * Takes a layout one step back in its own history.
    *
-   * @param id The preset of the row: a row that is not active does nothing.
+   * @remarks
+   * The steps of a row are **its own**: the menu shows the state of every layout (which one has a step to take), and a
+   * step of a row that is not on the screen switches to it first, so the button does what it says.
+   *
+   * @param id The preset of the row.
    */
   function undoPreset(id: PresetId): void {
-    if (id !== activePreset.value) {
-      return
-    }
-
     const history = historyFor(id)
 
     if (!canUndoOf(history)) {
@@ -526,20 +526,17 @@ export function createEditorShell(
 
     const next = undoOf(history)
 
+    activePreset.value = id
     saveHistory(id, next)
     apply.applyLayout(stateOf(next))
   }
 
   /**
-   * Makes the step the active layout took back again.
+   * Makes the step of a layout again.
    *
-   * @param id The preset of the row: a row that is not active does nothing.
+   * @param id The preset of the row (a row that is not on the screen switches to it first).
    */
   function redoPreset(id: PresetId): void {
-    if (id !== activePreset.value) {
-      return
-    }
-
     const history = historyFor(id)
 
     if (!canRedoOf(history)) {
@@ -548,6 +545,7 @@ export function createEditorShell(
 
     const next = redoOf(history)
 
+    activePreset.value = id
     saveHistory(id, next)
     apply.applyLayout(stateOf(next))
   }

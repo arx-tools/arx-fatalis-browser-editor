@@ -202,9 +202,18 @@ test('every layout keeps its own history, and the steps of the menu take it back
   const editorRow = page.locator('.preset-row', { hasText: 'Editor' })
   const keys = page.locator('[data-widget-kind="keyboard-shortcuts"]')
 
+  /**
+   * Opens the menu of the presets, when it is closed.
+   */
+  async function openMenu(): Promise<void> {
+    if ((await page.locator('.preset-menu').count()) === 0) {
+      await menu.click()
+    }
+  }
+
   // the viewer comes from the preset: the keys are free, and the menu has no step to take
   await expect(keys).not.toHaveAttribute('data-locked-height', /.+/u)
-  await menu.click()
+  await openMenu()
   await expect(viewerRow.locator('.step').first()).toBeDisabled()
   await menu.click()
 
@@ -216,7 +225,7 @@ test('every layout keeps its own history, and the steps of the menu take it back
   await expect(keys).toHaveAttribute('data-locked-height', /.+/u)
 
   // the step is on the viewer, and only on the viewer
-  await menu.click()
+  await openMenu()
   await expect(viewerRow.locator('.step').first()).toBeEnabled()
   await expect(editorRow.locator('.step').first()).toBeDisabled()
 
@@ -235,7 +244,30 @@ test('every layout keeps its own history, and the steps of the menu take it back
 
   await expect(page.locator('header button[aria-label="Presets"] .name')).toHaveText('Editor')
 
+  // a step on the editor too, so both rows have one
+  await keys.locator('button[aria-label="Lock the widget"]').click()
+  await page.waitForTimeout(900)
+
+  await expect(keys).toHaveAttribute('data-locked-height', /.+/u)
+
   await menu.click()
+  await viewerRow.locator('.choose').click()
+  await page.waitForTimeout(700)
+
+  await expect(page.locator('header button[aria-label="Presets"] .name')).toHaveText('Viewer')
+  await expect(keys).toHaveAttribute('data-locked-height', /.+/u)
+
+  // the row of the editor is not the active one, and the menu still shows that it has a step: taking it switches over
+  await openMenu()
+  await expect(editorRow.locator('.step').first()).toBeEnabled()
+  await editorRow.locator('.step').first().click()
+  await page.waitForTimeout(700)
+
+  await expect(page.locator('header button[aria-label="Presets"] .name')).toHaveText('Editor')
+  await expect(page.locator('[data-widget-kind="keyboard-shortcuts"]')).not.toHaveAttribute('data-locked-height', /.+/u)
+
+  // the viewer is the one with the lock now, and the dock is back on it for the reload
+  await openMenu()
   await viewerRow.locator('.choose').click()
   await page.waitForTimeout(700)
 
@@ -249,6 +281,6 @@ test('every layout keeps its own history, and the steps of the menu take it back
   await expect(page.locator('header button[aria-label="Presets"] .name')).toHaveText('Viewer')
   await expect(page.locator('[data-widget-kind="keyboard-shortcuts"]')).toHaveAttribute('data-locked-height', /.+/u)
 
-  await page.locator('header button[aria-label="Presets"]').click()
+  await openMenu()
   await expect(page.locator('.preset-row', { hasText: 'Viewer' }).locator('.step').first()).toBeEnabled()
 })

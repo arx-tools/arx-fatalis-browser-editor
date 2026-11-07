@@ -25,6 +25,7 @@ export type KeyboardActionId =
   | 'toggleLights'
   | 'toggleMesh'
   | 'togglePortals'
+  | 'toggleRooms'
   | 'toggleWireframe'
   | 'redo'
   | 'undo'
@@ -78,6 +79,13 @@ export const keyboardActions: readonly KeyboardAction[] = [
     label: 'Toggle the wireframe',
     group: 'view',
     keys: [{ code: 'KeyX' }],
+    modes: ['editor', 'pointerLocked'],
+  },
+  {
+    id: 'toggleRooms',
+    label: 'Toggle the areas',
+    group: 'view',
+    keys: [{ code: 'KeyR' }],
     modes: ['editor', 'pointerLocked'],
   },
   {

@@ -6,6 +6,7 @@ import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { cameraStore } from '../camera/cameraStore.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
+import { currentMapId } from '../../../modules/level/source/maps.ts'
 import { centreOfBounds, type CameraBounds } from '../shared/cameraBounds.ts'
 import { gamePositionToWorld } from '../camera/cameraPose.ts'
 import {
@@ -16,10 +17,11 @@ import {
   viewMeshesOf,
   type LevelWireframe,
 } from '../shared/levelScene.ts'
-import { isMeshVisible, isWireframeVisible } from '../shared/levelDisplay.ts'
+import { isMeshVisible, isRoomColorsVisible, isWireframeVisible } from '../shared/levelDisplay.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { createPolygonSelectionOverlay, type PolygonSelectionOverlay } from '../View3DWidget/polygonSelection.ts'
+import { createRoomOverlay, type RoomOverlay } from '../shared/roomOverlay.ts'
 import {
   FIELD_OF_VIEW,
   createViewScene,
@@ -77,6 +79,7 @@ const zoomLabel = computed(() => {
 
 let view: ViewScene<OrthographicCamera> | undefined
 let shown: Mesh[] = []
+let rooms: RoomOverlay | undefined
 let wireframe: LevelWireframe | undefined
 let player: ArxVector3 | undefined
 let bounds: CameraBounds | undefined
@@ -87,6 +90,8 @@ let stopWatching: (() => void) | undefined
 let stopWatchingCamera: (() => void) | undefined
 let stopWatchingWireframe: (() => void) | undefined
 let stopWatchingMesh: (() => void) | undefined
+let stopWatchingRooms: (() => void) | undefined
+let stopWatchingMapId: (() => void) | undefined
 let stopWatchingEdit: (() => void) | undefined
 let stopWatchingSelection: (() => void) | undefined
 
@@ -274,8 +279,36 @@ function selectedPolygonsOf(map: ArxMap): ArxPolygon[] {
  * @param visible Whether the level's surfaces should be drawn.
  */
 function setMeshVisible(visible: boolean): void {
+  const showRooms = visible && isRoomColorsVisible.value
+
   for (const mesh of shown) {
-    mesh.visible = visible
+    mesh.visible = visible && !showRooms
+  }
+
+  if (rooms !== undefined) {
+    rooms.mesh.visible = showRooms
+  }
+}
+
+/**
+ * Recolours the room map after an edit.
+ *
+ * @remarks
+ * An edit refills the geometry of the level in place: the colour attribute of the room map is not refilled with it,
+ * so the map is coloured again when its vertex count no longer matches the geometry.
+ */
+function repaintRooms(): void {
+  const map = levelStore.map.value
+
+  if (map === undefined || rooms === undefined) {
+    return
+  }
+
+  const vertexCount = map.solidMeshes[0].geometry.getAttribute('position').count
+  const colorCount = rooms.mesh.geometry.getAttribute('color')?.count
+
+  if (colorCount !== vertexCount) {
+    rooms.repaint(map, currentMapId.value)
   }
 }
 
@@ -296,11 +329,14 @@ function showMap(map: ArxMap): void {
   // map is a silhouette, and the few faces of a stairwell do not change it
   shown = viewMeshesOf(map.solidMeshes, previewMaterial())
 
-  setMeshVisible(isMeshVisible.value)
-
   for (const mesh of shown) {
     view.scene.add(mesh)
   }
+
+  // the room map shares the geometry of the level, so the small views show the same areas
+  rooms = createRoomOverlay(map, currentMapId.value)
+  view.scene.add(rooms.mesh)
+  setMeshVisible(isMeshVisible.value)
 
   // the small views draw the same wireframe as the walkable one, from the same geometry
   wireframe = attachWireframe(view.scene, map.wireframeGeometry)
@@ -334,6 +370,13 @@ function hideMap(): void {
   }
 
   shown = []
+
+  if (rooms !== undefined) {
+    view?.scene.remove(rooms.mesh)
+    rooms.dispose()
+    rooms = undefined
+  }
+
   wireframe?.dispose()
   wireframe = undefined
   selectionOverlay?.dispose()
@@ -428,12 +471,29 @@ stopWatchingWireframe = watch(isWireframeVisible, (visible) => {
 // so the mesh and the wireframe of the scene already draw the new faces. What an edit does need is a frame:
 // the views draw on demand, so without this the canvas would keep the picture of the level before the edit.
 stopWatchingEdit = watch(levelRevision, () => {
+  repaintRooms()
   requestRender()
 })
 
 // the mesh is a switch of every view as well: off, the map keeps the wireframe and the marker only
-stopWatchingMesh = watch(isMeshVisible, (visible) => {
-  setMeshVisible(visible)
+stopWatchingMesh = watch(isMeshVisible, () => {
+  setMeshVisible(isMeshVisible.value)
+  requestRender()
+})
+
+stopWatchingRooms = watch(isRoomColorsVisible, () => {
+  setMeshVisible(isMeshVisible.value)
+  requestRender()
+})
+
+// the colours are keyed with the id of the level, and the id of a zip arrives after the level
+stopWatchingMapId = watch(currentMapId, () => {
+  const map = levelStore.map.value
+
+  if (map !== undefined && rooms !== undefined) {
+    rooms.repaint(map, currentMapId.value)
+  }
+
   requestRender()
 })
 
@@ -446,6 +506,10 @@ onBeforeUnmount(() => {
   stopWatchingWireframe = undefined
   stopWatchingMesh?.()
   stopWatchingMesh = undefined
+  stopWatchingRooms?.()
+  stopWatchingRooms = undefined
+  stopWatchingMapId?.()
+  stopWatchingMapId = undefined
   stopWatchingSelection?.()
   stopWatchingSelection = undefined
 

@@ -6,14 +6,16 @@ import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
+import { currentMapId } from '../../../modules/level/source/maps.ts'
 import { WIDGET_KINDS } from '../../../modules/layout/widgetKinds.ts'
 import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
 import { getModifierOfKey } from '../../../modules/keyboard/functions.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import { cameraStore } from '../camera/cameraStore.ts'
 import { renderPerformanceStore } from '../shared/renderPerformance.ts'
-import { isMeshVisible, isWireframeVisible } from '../shared/levelDisplay.ts'
+import { isMeshVisible, isRoomColorsVisible, isWireframeVisible } from '../shared/levelDisplay.ts'
 import { addPreviewLights, attachWireframe, viewMeshesOf, type LevelWireframe } from '../shared/levelScene.ts'
+import { createRoomOverlay, type RoomOverlay } from '../shared/roomOverlay.ts'
 import {
   FIELD_OF_VIEW,
   createViewScene,
@@ -77,6 +79,7 @@ let view: ViewScene<PerspectiveCamera> | undefined
 let gizmo: OrientationGizmo | undefined
 let shown: Mesh[] = []
 let wireframe: LevelWireframe | undefined
+let rooms: RoomOverlay | undefined
 let selection: PolygonSelectionOverlay | undefined
 
 let loadedMap: ArxMap | undefined
@@ -87,6 +90,8 @@ let observer: ResizeObserver | undefined
 let stopWatching: (() => void) | undefined
 let stopWatchingWireframe: (() => void) | undefined
 let stopWatchingMesh: (() => void) | undefined
+let stopWatchingRooms: (() => void) | undefined
+let stopWatchingMapId: (() => void) | undefined
 let stopWatchingEdit: (() => void) | undefined
 
 /**
@@ -197,13 +202,45 @@ function createScene(): void {
 }
 
 /**
- * Shows or hides the meshes of the level.
+ * Shows the level with the textures or as the room map, or hides both.
  *
- * @param visible Whether the level's surfaces should be drawn.
+ * @remarks
+ * The two faces of the level are exclusive: the textured mesh is what the game draws, and the room map is the flat
+ * colour of the areas, so only one of them is on at a time. The mesh switch of the key help turns off both.
  */
-function setMeshVisible(visible: boolean): void {
+function updateVisibility(): void {
+  const visible = isMeshVisible.value
+  const showRooms = visible && isRoomColorsVisible.value
+
   for (const mesh of shown) {
-    mesh.visible = visible
+    mesh.visible = visible && !showRooms
+  }
+
+  if (rooms !== undefined) {
+    rooms.mesh.visible = showRooms
+  }
+}
+
+/**
+ * Recolours the room map after an edit.
+ *
+ * @remarks
+ * An edit refills the geometry of the level in place: the colour attribute of the room map is not refilled with it,
+ * so the map is coloured again when its vertex count no longer matches the geometry. A texture or a uv edit does not
+ * change the vertex buffers, so the map is not read again for it.
+ */
+function repaintRooms(): void {
+  const map = loadedMap
+
+  if (map === undefined || rooms === undefined) {
+    return
+  }
+
+  const vertexCount = map.solidMeshes[0].geometry.getAttribute('position').count
+  const colorCount = rooms.mesh.geometry.getAttribute('color')?.count
+
+  if (colorCount !== vertexCount) {
+    rooms.repaint(map, currentMapId.value)
   }
 }
 
@@ -220,11 +257,15 @@ function showMap(map: ArxMap): void {
   }
 
   shown = viewMeshesOf(map.meshes)
-  setMeshVisible(isMeshVisible.value)
 
   for (const mesh of shown) {
     view.scene.add(mesh)
   }
+
+  // the room map shares the geometry of the level: it is one more mesh over the same buffers
+  rooms = createRoomOverlay(map, currentMapId.value)
+  view.scene.add(rooms.mesh)
+  updateVisibility()
 
   // the wireframe is a switch: the view puts it over the mesh only while it is on
   wireframe = attachWireframe(view.scene, map.wireframeGeometry)
@@ -288,6 +329,13 @@ function hideMap(): void {
   }
 
   shown = []
+
+  if (rooms !== undefined) {
+    view?.scene.remove(rooms.mesh)
+    rooms.dispose()
+    rooms = undefined
+  }
+
   wireframe?.dispose()
   wireframe = undefined
   selection?.dispose()
@@ -344,12 +392,28 @@ onMounted(() => {
   // frame: the view draws on demand, so without this the canvas would keep the picture of the level before
   // the edit (a walk away and back would refresh it, which is exactly what a still picture can not do)
   stopWatchingEdit = watch(levelRevision, () => {
+    repaintRooms()
     loop.requestRender()
   })
 
   // the mesh is a switch too: off, the level keeps the wireframe and the overlays only
-  stopWatchingMesh = watch(isMeshVisible, (visible) => {
-    setMeshVisible(visible)
+  stopWatchingMesh = watch(isMeshVisible, () => {
+    updateVisibility()
+    loop.requestRender()
+  })
+
+  stopWatchingRooms = watch(isRoomColorsVisible, () => {
+    updateVisibility()
+    loop.requestRender()
+  })
+
+  // the colours are keyed with the id of the level, and the id of a zip arrives after the level: the map is coloured
+  // again when it lands, so two visits of the same level always show the same colours
+  stopWatchingMapId = watch(currentMapId, () => {
+    if (rooms !== undefined && loadedMap !== undefined) {
+      rooms.repaint(loadedMap, currentMapId.value)
+    }
+
     loop.requestRender()
   })
 
@@ -375,6 +439,10 @@ onBeforeUnmount(() => {
   stopWatchingWireframe = undefined
   stopWatchingMesh?.()
   stopWatchingMesh = undefined
+  stopWatchingRooms?.()
+  stopWatchingRooms = undefined
+  stopWatchingMapId?.()
+  stopWatchingMapId = undefined
   stopWatchingEdit?.()
   stopWatchingEdit = undefined
   stopWatchingSelection?.()

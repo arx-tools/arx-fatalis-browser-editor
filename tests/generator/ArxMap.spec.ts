@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { getBVHExtremes } from 'three-mesh-bvh'
-import { Raycaster, Triangle, Vector3 } from 'three'
+import { BufferAttribute, Raycaster, Triangle, Vector3 } from 'three'
 import { createBlankLevelFiles, FLAT_PRESET } from '../../src/editor/modules/level/blankLevel.ts'
 import { ArxMap } from '../../src/generator/ArxMap.ts'
 import { Settings } from '../../src/generator/Settings.ts'
@@ -54,6 +54,30 @@ void describe('ArxMap', () => {
       }
 
       assert.equal(getBVHExtremes(geometry.boundsTree).length, 1)
+    })
+
+    void it('puts a face back when the geometry carries an attribute of the editor', () => {
+      // the area map writes its colours into a `color` attribute of the solid geometry, and the undo splices the kept
+      // faces with the ones it rebuilds: the rebuilt ones bring only the attributes of the generator. An attribute the
+      // slices can not provide is dropped instead of failing the step (the reader of it writes it back)
+      const map = flatMap()
+      const { geometry } = map.solidMeshes[0]
+      const before = map.polygons.length
+      const vertexCount = geometry.getAttribute('position').count
+
+      geometry.setAttribute('color', new BufferAttribute(new Float32Array(vertexCount * 3), 3))
+
+      const polygon = map.polygons[0]
+
+      map.deletePolygons([0])
+
+      assert.equal(map.polygons.length, before - 1)
+
+      map.insertPolygons([{ index: 0, polygon }])
+
+      assert.equal(map.polygons.length, before)
+      assert.equal(geometry.getAttribute('position').count, vertexCount)
+      assert.equal(geometry.getAttribute('color'), undefined)
     })
 
     void it('indexes the solid faces in the order of their texture containers', () => {

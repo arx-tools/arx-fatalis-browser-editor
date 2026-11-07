@@ -1,5 +1,5 @@
 import { computed, type ComputedRef, type ShallowRef } from 'vue'
-import { onKeyboardToggle, startKeyboard } from '../../../modules/keyboard/keyboard.ts'
+import { onKeyboardAction, onKeyboardToggle, startKeyboard } from '../../../modules/keyboard/keyboard.ts'
 import { persistedRef } from '../../../modules/persistedRef/persistedRef.ts'
 
 /**
@@ -32,6 +32,21 @@ export const isMeshVisible = persistedRef<boolean>({
 })
 
 /**
+ * Whether the level is drawn as a map of its rooms.
+ *
+ * @remarks
+ * It is a view preference like the wireframe: a `persistedRef` in the `localStorage`, so the editor comes back
+ * the way it was left. The rooms are coloured so that two rooms joined by a portal never share a colour (see
+ * `generator/rooms.ts`), and every face takes a flat colour of its room: the textures are not drawn while the map
+ * is on, because the point is to see the areas of the level.
+ */
+export const isRoomColorsVisible = persistedRef<boolean>({
+  key: 'roomColorsVisible',
+  defaultValue: false,
+  persistInLocalStorage: true,
+})
+
+/**
  * The switches of the View section of the key help, with the value each one starts from.
  *
  * @remarks
@@ -42,6 +57,7 @@ export const isMeshVisible = persistedRef<boolean>({
 export const viewSwitches = {
   mesh: { ref: isMeshVisible, defaultValue: true },
   wireframe: { ref: isWireframeVisible, defaultValue: false },
+  roomColors: { ref: isRoomColorsVisible, defaultValue: false },
 } as const satisfies Record<string, { readonly ref: ShallowRef<boolean>; readonly defaultValue: boolean }>
 
 /**
@@ -87,4 +103,13 @@ export function startLevelDisplay(): void {
   startKeyboard()
   onKeyboardToggle('toggleWireframe', isWireframeVisible)
   onKeyboardToggle('toggleMesh', isMeshVisible)
+  // the room map sits under the mesh: it is not drawn without it, so the key does not turn it on either. The switch
+  // keeps its value, so turning the mesh back on brings the map back the way it was left.
+  onKeyboardAction('toggleRooms', () => {
+    if (!isMeshVisible.value) {
+      return
+    }
+
+    isRoomColorsVisible.value = !isRoomColorsVisible.value
+  })
 }

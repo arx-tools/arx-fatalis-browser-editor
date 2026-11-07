@@ -117,17 +117,41 @@ export function refillGeometry(target: BufferGeometry, slices: readonly Geometry
     return
   }
 
-  const names = Object.keys(first.geometry.attributes)
+  // the names come from the target and from the slices: a target that is built for the first time has none yet, and an
+  // edit can add an attribute of its own (the colour of the area map) that a polygon rebuilt for an undo does not
+  // bring. An attribute a slice does not have is dropped: it can not be assembled from the slices, and the reader of
+  // it puts it back.
+  const names = new Set([...Object.keys(target.attributes), ...Object.keys(first.geometry.attributes)])
 
   target.dispose()
   target.setIndex(null)
   target.clearGroups()
 
   for (const name of names) {
-    const reference = first.geometry.getAttribute(name)
-    const segments = slices.map((slice): VertexSegment => {
-      return { source: slice.geometry.getAttribute(name).array as Float32Array, from: slice.from, count: slice.count }
-    })
+    const reference = target.getAttribute(name) ?? first.geometry.getAttribute(name)
+
+    if (reference === undefined) {
+      continue
+    }
+
+    const segments: VertexSegment[] = []
+    let complete = true
+
+    for (const slice of slices) {
+      const attribute = slice.geometry.getAttribute(name)
+
+      if (attribute === undefined) {
+        complete = false
+        break
+      }
+
+      segments.push({ source: attribute.array as Float32Array, from: slice.from, count: slice.count })
+    }
+
+    if (!complete) {
+      target.deleteAttribute(name)
+      continue
+    }
 
     target.setAttribute(
       name,

@@ -39,6 +39,14 @@ interface HelpRow {
    */
   readonly toggle?: HelpToggle
   /**
+   * The switch this row sits under, if it is a child of one.
+   *
+   * @remarks
+   * The row is drawn as a folder child of its parent (indented, with a corner at the end of its label), and its switch
+   * only works while the parent switch is on: a view over a level that is not drawn has nothing to show.
+   */
+  readonly parent?: HelpToggle
+  /**
    * The history command the row runs, if it has one: the row then shows an undo or a redo button.
    *
    * @remarks
@@ -77,6 +85,7 @@ const icons = { command: Command, 'mouse-left': MouseLeft }
 const switchNames: Record<HelpToggle, string> = {
   mesh: 'the mesh',
   wireframe: 'the wireframe',
+  roomColors: 'the areas',
 }
 
 /**
@@ -114,8 +123,9 @@ const sections = computed<readonly HelpSection[]>(() => {
       title: 'View',
       resettable: true,
       rows: [
-        { keys: [{ kind: 'text', text: 'M' }], action: 'Mesh', toggle: 'mesh' },
         { keys: [{ kind: 'text', text: 'X' }], action: 'Wireframe', toggle: 'wireframe' },
+        { keys: [{ kind: 'text', text: 'M' }], action: 'Mesh', toggle: 'mesh' },
+        { keys: [{ kind: 'text', text: 'R' }], action: 'Areas (rooms)', toggle: 'roomColors', parent: 'mesh' },
       ],
     },
     {
@@ -230,6 +240,53 @@ function buttonTitle(toggle: HelpToggle): string {
 
   return `Show ${switchNames[toggle]}`
 }
+
+/**
+ * Tells whether the switch of a row can be flipped.
+ *
+ * @param row The row to read.
+ *
+ * @returns False when the switch of the row sits under a switch that is off: the eye is disabled then, but the state
+ * of the row stays as it was, so turning the parent back on brings the row back the way it was.
+ */
+function isToggleEnabled(row: HelpRow): boolean {
+  if (row.parent === undefined) {
+    return true
+  }
+
+  return isOn(row.parent)
+}
+
+/**
+ * Tells whether the whole row is disabled.
+ *
+ * @param row The row to read.
+ *
+ * @returns True when the row has a switch under a switch that is off: the row then greys out, so it reads as one
+ * block that is waiting for its parent.
+ */
+function isRowDisabled(row: HelpRow): boolean {
+  return row.toggle !== undefined && !isToggleEnabled(row)
+}
+
+/**
+ * The tooltip of the switch of a row, which says why it is disabled.
+ *
+ * @param row The row to read.
+ *
+ * @returns The tooltip of its eye button.
+ */
+function toggleTitle(row: HelpRow): string {
+  if (row.toggle === undefined) {
+    return ''
+  }
+
+  if (!isToggleEnabled(row)) {
+    return `${switchNames[row.parent ?? row.toggle]} is off`
+  }
+
+  return buttonTitle(row.toggle)
+}
 </script>
 
 <template>
@@ -252,7 +309,7 @@ function buttonTitle(toggle: HelpToggle): string {
       </div>
       <dl>
         <template v-for="row in section.rows" :key="row.action">
-          <dt>
+          <dt :class="{ 'is-disabled': isRowDisabled(row) }">
             <template v-for="(key, index) in row.keys" :key="index">
               <span v-if="index > 0" class="plus">+</span>
               <component :is="icons[key.icon]" v-if="key.kind === 'icon'" class="key-icon" />
@@ -260,8 +317,9 @@ function buttonTitle(toggle: HelpToggle): string {
             </template>
             <span v-if="row.suffix !== undefined" class="suffix">{{ row.suffix }}</span>
           </dt>
-          <dd>
+          <dd :class="{ 'is-disabled': isRowDisabled(row) }">
             <span class="action">{{ row.action }}</span>
+            <span v-if="row.parent !== undefined" class="branch" aria-hidden="true">┘</span>
             <button
               v-if="row.button !== undefined"
               class="history-button"
@@ -278,9 +336,10 @@ function buttonTitle(toggle: HelpToggle): string {
               class="visibility"
               :class="{ 'is-on': isOn(row.toggle) }"
               type="button"
+              :disabled="!isToggleEnabled(row)"
               :aria-pressed="isOn(row.toggle)"
-              :aria-label="buttonTitle(row.toggle)"
-              v-tooltip="buttonTitle(row.toggle)"
+              :aria-label="toggleTitle(row)"
+              v-tooltip="toggleTitle(row)"
               @click="flip(row.toggle)"
             >
               <component :is="isOn(row.toggle) ? Eye : EyeOff" class="visibility-icon" />
@@ -383,6 +442,20 @@ function buttonTitle(toggle: HelpToggle): string {
     padding-bottom: 4px;
   }
 
+  // a child of a switch that is off: the whole row greys out, so it reads as one block that waits for its parent
+  dt.is-disabled,
+  dd.is-disabled {
+    opacity: 0.45;
+  }
+
+  // the corner of a child, after its label: it pulls the label a little left of the edge the other rows end at, so the
+  // child reads as one under the row above it
+  .branch {
+    margin-right: 10px;
+    color: $text-subtle;
+    font-size: 12px;
+  }
+
   // the action sits at the right edge, with the switch of the row after it
   dd {
     display: flex;
@@ -444,13 +517,19 @@ function buttonTitle(toggle: HelpToggle): string {
     border-radius: 4px;
     cursor: pointer;
 
-    &:hover {
+    &:hover:not(:disabled) {
       background: $surface-panel;
     }
 
     // only the eye turns orange: the frame stays the neutral border of every button
     &.is-on {
       color: $accent;
+    }
+
+    // the child of a switch that is off: the eye keeps its look but says it can not be used now
+    &:disabled {
+      color: $border;
+      cursor: default;
     }
   }
 

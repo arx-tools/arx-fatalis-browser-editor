@@ -186,6 +186,52 @@ void describe('buildExportFts', () => {
     )
   })
 
+  void it('measures the rooms through the portals, so a wall is a wall in the game too', () => {
+    const map = flatMap()
+    const polygons = map.polygons.map((polygon, index) => {
+      const third = Math.floor((index / map.polygons.length) * 3)
+
+      return { ...polygon, room: third + 1 }
+    })
+
+    /**
+     * Builds a portal with its crossing point at a place on the x axis.
+     *
+     * @param first One room.
+     * @param second The other room.
+     * @param x Where the quad crosses.
+     *
+     * @returns The door between the two rooms.
+     */
+    function portalOf(first: number, second: number, x: number): (typeof map.fts.portals)[number] {
+      const corner = { position: { x, y: 0, z: 0 } }
+
+      return {
+        room1: first,
+        room2: second,
+        usePortal: 0,
+        polygon: { type: 0, vertices: [corner, corner, corner, corner] },
+      } as unknown as (typeof map.fts.portals)[number]
+    }
+
+    // a chain of three rooms: 1 and 3 are only reachable through 2, so their pair has a path distance and the pairs
+    // that share a portal keep the straight line
+    const fts = {
+      ...map.fts,
+      rooms: [...map.fts.rooms, { portals: [], polygons: [] }, { portals: [], polygons: [] }],
+      portals: [portalOf(1, 2, 0), portalOf(2, 3, 10)],
+    }
+    const exported = buildExportFts(fts, polygons)
+    const size = exported.rooms.length
+    const secondRow = size * 2
+    const thirdRow = size * 3
+
+    assert.equal(size, 4)
+    assert.equal(exported.roomDistances[1 + secondRow].distance, -1)
+    assert.equal(exported.roomDistances[2 + size].distance, -1)
+    assert.ok(exported.roomDistances[1 + thirdRow].distance > 0)
+  })
+
   void it('drops a portal of a room that lost its polygons', () => {
     const map = flatMap()
 

@@ -4,6 +4,7 @@ import { getCellCoords, isQuad, MAP_WIDTH_IN_CELLS } from 'arx-convert/utils'
 import { getHeaderSize } from 'arx-header-size'
 import JSZip from 'jszip'
 import type { ArxMap } from '../../../generator/ArxMap.ts'
+import { roomCentersOf, roomDistancesOf } from '../../../generator/roomDistances.ts'
 import type { LevelFiles } from '../level/source/levelSource.ts'
 import type { LevelManifest } from '../level/source/zipSource.ts'
 import { packLevelFile, packWholeFile } from '../level/source/packedFile.ts'
@@ -97,7 +98,7 @@ function colorCountOf(polygon: ArxPolygon): number {
  * - the **cells** are written by `arx-convert` from the polygons, so they are not touched here;
  * - the **rooms** list the polygons of a room by cell (`cellX`, `cellY` and the index of the polygon inside the cell);
  * - a **portal** joins two rooms, so a portal of a room that lost its every polygon goes, and the list is remapped;
- * - the **room distances** are the sound cache: `-1` says "use the true distance", so every pair gets that.
+ * - the **room distances** are the sound and **interaction** cache: the game measures an entity through them, and `-1` means "the straight line" (so the player could reach through a wall), so they are computed from the portal graph (see `generator/roomDistances.ts`).
  *
  * @param fts The scene as it was loaded.
  * @param polygons The polygons of the screen, solid first and the invisible walls after them.
@@ -158,13 +159,9 @@ export function buildExportFts(fts: ArxFTS, polygons: readonly ArxPolygon[]): Ar
       })
   }
 
-  const roomDistances = Array.from({ length: (maxRoomId + 1) ** 2 }, () => {
-    return {
-      distance: -1,
-      startPosition: { x: 0, y: 0, z: 0 },
-      endPosition: { x: 0, y: 0, z: 0 },
-    }
-  })
+  // the distances are what the game measures an entity with, and a `-1` would measure the straight line through
+  // the wall: the path through the portals is the one the game's own bake wrote
+  const roomDistances = roomDistancesOf(roomCentersOf(polygons), portals, rooms.length)
 
   return {
     ...fts,

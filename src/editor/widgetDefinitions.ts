@@ -1,4 +1,5 @@
 import type { Widget } from '@lumino/widgets'
+import AreasWidget from './components/widgets/AreasWidget/AreasWidget.vue'
 import CameraControlsWidget from './components/widgets/CameraControlsWidget/CameraControlsWidget.vue'
 import FixedViewWidget from './components/widgets/FixedViewWidget/FixedViewWidget.vue'
 import KeyboardShortcutsWidget from './components/widgets/KeyboardShortcutsWidget/KeyboardShortcutsWidget.vue'
@@ -109,6 +110,15 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
     group: 'controls',
     create: (): Widget => {
       return new VueWidget(UndoRedoWidget)
+    },
+  },
+  {
+    kind: WIDGET_KINDS.areas,
+    label: 'Areas',
+    contentSized: true,
+    group: 'info',
+    create: (label): Widget => {
+      return new VueWidget(AreasWidget, { label })
     },
   },
   {

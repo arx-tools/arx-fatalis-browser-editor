@@ -1,7 +1,16 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import seedrandom from 'seedrandom'
-import { roomAdjacencyOf, roomColoringOf, roomIdsOf, type RoomLink } from '../../src/generator/rooms.ts'
+import type { ArxPolygon } from 'arx-convert/types'
+import {
+  roomAdjacencyOf,
+  roomColoringForLevel,
+  roomColoringOf,
+  roomIdsOf,
+  roomPaletteOf,
+  roomSummaryOf,
+  type RoomLink,
+} from '../../src/generator/rooms.ts'
 
 /**
  * Builds a portal between two rooms.
@@ -186,5 +195,51 @@ void describe('roomColoringOf', () => {
 
     assert.deepEqual(new Map(first.colors), new Map(second.colors))
     assert.equal(first.colorCount, second.colorCount)
+  })
+})
+
+void describe('roomSummaryOf', () => {
+  void it('counts the faces of every room, in the order of the ids', () => {
+    const polygons = [{ room: 3 }, { room: 1 }, { room: 3 }, { room: 2 }] as unknown as ArxPolygon[]
+
+    assert.deepEqual(roomSummaryOf(polygons), [
+      { room: 1, faceCount: 1 },
+      { room: 2, faceCount: 1 },
+      { room: 3, faceCount: 2 },
+    ])
+  })
+
+  void it('leaves the faces without a room out', () => {
+    const polygons = [{ room: -1 }, { room: 1 }] as unknown as ArxPolygon[]
+
+    assert.deepEqual(roomSummaryOf(polygons), [{ room: 1, faceCount: 1 }])
+  })
+
+  void it('reads no room from no face', () => {
+    assert.deepEqual(roomSummaryOf([]), [])
+  })
+})
+
+void describe('roomPaletteOf', () => {
+  void it('reads the colour of a room from the colouring, keyed with the id of the level', () => {
+    const portals = [portalBetween(1, 2)]
+    const coloring = roomColoringForLevel(portals, [1, 2], 'arx:2')
+
+    assert.notEqual(roomPaletteOf(1, coloring), undefined)
+    assert.notEqual(roomPaletteOf(1, coloring), roomPaletteOf(2, coloring))
+  })
+
+  void it('gives nothing for a room the colouring does not hold', () => {
+    const coloring = roomColoringForLevel([], [1], 'arx:2')
+
+    assert.equal(roomPaletteOf(9, coloring), undefined)
+  })
+
+  void it('keeps the colours of the same level, whatever the seed', () => {
+    // the colouring is keyed with the id and not with the seed: the same level paints the same map on every visit
+    const a = roomColoringForLevel([], [1, 2, 3], 'arx:2')
+    const b = roomColoringForLevel([], [1, 2, 3], 'arx:2')
+
+    assert.deepEqual([...a.colors], [...b.colors])
   })
 })

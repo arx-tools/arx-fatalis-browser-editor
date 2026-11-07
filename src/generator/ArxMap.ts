@@ -271,6 +271,29 @@ export class ArxMap {
   }
 
   /**
+   * How many rooms the level uses: the rooms a face belongs to.
+   *
+   * @remarks
+   * The file holds more room records than the level uses: the 0 is reserved and empty, and an edit can leave a gap
+   * between two ids. The count here is what the author sees (the statistics, and the areas panel later): the rooms
+   * that have a face, so a level built on one floor is one room and not two.
+   *
+   * It is read from the polygons on every call: the widget draws when the level or an edit changed, not every frame,
+   * and a face that moves to another room is counted without a rebuild.
+   */
+  get roomCount(): number {
+    const rooms = new Set<number>()
+
+    for (const polygon of this.polygons) {
+      if (polygon.room >= 0) {
+        rooms.add(polygon.room)
+      }
+    }
+
+    return rooms.size
+  }
+
+  /**
    * Unpacks, parses and builds the three files of a level.
    *
    * @param dlf The packed DLF file: the general description of the level.

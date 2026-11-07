@@ -19,6 +19,7 @@ import {
 } from '../shared/levelScene.ts'
 import { isMeshVisible, isRoomColorsVisible, isWireframeVisible } from '../shared/levelDisplay.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
+import { selectedRoom } from '../../../modules/rooms/roomStore.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { createPolygonSelectionOverlay, type PolygonSelectionOverlay } from '../View3DWidget/polygonSelection.ts'
 import { createRoomOverlay, type RoomOverlay } from '../shared/roomOverlay.ts'
@@ -92,6 +93,7 @@ let stopWatchingWireframe: (() => void) | undefined
 let stopWatchingMesh: (() => void) | undefined
 let stopWatchingRooms: (() => void) | undefined
 let stopWatchingMapId: (() => void) | undefined
+let stopWatchingRoom: (() => void) | undefined
 let stopWatchingEdit: (() => void) | undefined
 let stopWatchingSelection: (() => void) | undefined
 
@@ -335,6 +337,7 @@ function showMap(map: ArxMap): void {
 
   // the room map shares the geometry of the level, so the small views show the same areas
   rooms = createRoomOverlay(map, currentMapId.value)
+  rooms.setHighlight(selectedRoom.value)
   view.scene.add(rooms.mesh)
   setMeshVisible(isMeshVisible.value)
 
@@ -486,6 +489,12 @@ stopWatchingRooms = watch(isRoomColorsVisible, () => {
   requestRender()
 })
 
+// the areas panel picks a room: the small views dim the others like the walkable one
+stopWatchingRoom = watch(selectedRoom, (room) => {
+  rooms?.setHighlight(room)
+  requestRender()
+})
+
 // the colours are keyed with the id of the level, and the id of a zip arrives after the level
 stopWatchingMapId = watch(currentMapId, () => {
   const map = levelStore.map.value
@@ -510,6 +519,8 @@ onBeforeUnmount(() => {
   stopWatchingRooms = undefined
   stopWatchingMapId?.()
   stopWatchingMapId = undefined
+  stopWatchingRoom?.()
+  stopWatchingRoom = undefined
   stopWatchingSelection?.()
   stopWatchingSelection = undefined
 

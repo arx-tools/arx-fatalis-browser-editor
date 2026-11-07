@@ -1,7 +1,6 @@
-import seedrandom from 'seedrandom'
 import { BufferAttribute, Color, Mesh, MeshLambertMaterial } from 'three'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
-import { ROOM_COLORS, roomColoringOf, roomIdsOf, type RoomColoring } from '../../../../generator/rooms.ts'
+import { ROOM_COLORS, roomColoringForLevel, roomIdsOf, type RoomColoring } from '../../../../generator/rooms.ts'
 
 /**
  * The colour of a face whose room has no colour: a room id that is not in the colouring (a polygon with no room, or
@@ -26,6 +25,15 @@ const COLOR_ITEM_SIZE = 3
  * so the triangle of a vertex is `floor(vertex / 3)`, the same index the picking uses.
  */
 const VERTICES_PER_TRIANGLE = 3
+
+/**
+ * How much of its colour a room keeps while another one is highlighted.
+ *
+ * @remarks
+ * The list of the areas highlights one room at a time: the map stays readable around it (the geometry is still there),
+ * but the eye goes to the picked area. The value is a dim, not a hide, so a face outside the area is still seen.
+ */
+const DIMMED = 0.35
 
 /**
  * The room map of a level, as a mesh a view can draw.
@@ -62,6 +70,12 @@ export interface RoomOverlay {
    */
   readonly repaint: (map: ArxMap, mapId: string) => void
   /**
+   * Picks the room the map highlights, or clears the highlight.
+   *
+   * @param room The room to show at full colour, or `undefined` to show every room the same.
+   */
+  readonly setHighlight: (room: number | undefined) => void
+  /**
    * Frees the material of the overlay.
    *
    * @remarks
@@ -81,26 +95,38 @@ export interface RoomOverlay {
  *
  * @param map The level to read.
  * @param coloring The colour of every room.
+ * @param highlight The room to keep at full colour, or `undefined` to show them all the same.
  */
-function writeRoomColors(map: ArxMap, coloring: RoomColoring): void {
+function writeRoomColors(map: ArxMap, coloring: RoomColoring, highlight: number | undefined): void {
   const { geometry } = map.solidMeshes[0]
   const positions = geometry.getAttribute('position')
   const colors = new Float32Array(positions.count * COLOR_ITEM_SIZE)
   const palette = ROOM_COLORS.map((color) => {
     return new Color(color)
   })
+  const dimmedPalette = palette.map((color) => {
+    return color.clone().multiplyScalar(DIMMED)
+  })
   const unassigned = new Color(UNASSIGNED_COLOR)
+  const dimmedUnassigned = unassigned.clone().multiplyScalar(DIMMED)
 
   for (let vertex = 0; vertex < positions.count; vertex++) {
     const triangle = Math.floor(vertex / VERTICES_PER_TRIANGLE)
     const polygon = map.polygons[map.triangleToPolygon[triangle]]
+    const away = highlight !== undefined && polygon?.room !== highlight
+    let roomPalette = palette
     let color = unassigned
+
+    if (away) {
+      roomPalette = dimmedPalette
+      color = dimmedUnassigned
+    }
 
     if (polygon !== undefined) {
       const colorIndex = coloring.colors.get(polygon.room)
 
       if (colorIndex !== undefined) {
-        color = palette[colorIndex % palette.length]
+        color = roomPalette[colorIndex % roomPalette.length]
       }
     }
 
@@ -130,27 +156,26 @@ export function createRoomOverlay(map: ArxMap, mapId: string): RoomOverlay {
   mesh.visible = false
 
   let coloring: RoomColoring = { colors: new Map(), colorCount: 0 }
+  let level = map
+  let highlighted: number | undefined
 
   /**
    * Colours the rooms of a level and writes the colours into the geometry.
    *
-   * @param level The level to read.
+   * @param next The level to read.
    * @param id The id of the level in the editor.
    */
-  function repaint(level: ArxMap, id: string): void {
+  function repaint(next: ArxMap, id: string): void {
     const rooms = roomIdsOf(
-      level.polygons.map((polygon) => {
+      next.polygons.map((polygon) => {
         return polygon.room
       }),
     )
 
-    // the tie breaks come from the id of the level, not from its seed: the seed is what a level is generated from, and
-    // the same level can arrive with another one (a link, a reload of an older tab), while its id is the level itself
-    coloring = roomColoringOf(level.fts.portals, rooms, {
-      random: seedrandom(`${id}:rooms`),
-    })
+    coloring = roomColoringForLevel(next.fts.portals, rooms, id)
+    level = next
 
-    writeRoomColors(level, coloring)
+    writeRoomColors(next, coloring, highlighted)
   }
 
   repaint(map, mapId)
@@ -161,6 +186,14 @@ export function createRoomOverlay(map: ArxMap, mapId: string): RoomOverlay {
       return coloring
     },
     repaint,
+    setHighlight: (room: number | undefined): void => {
+      if (room === highlighted) {
+        return
+      }
+
+      highlighted = room
+      writeRoomColors(level, coloring, highlighted)
+    },
     dispose: (): void => {
       material.dispose()
     },

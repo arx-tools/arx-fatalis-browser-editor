@@ -11,6 +11,7 @@ import { WIDGET_KINDS } from '../../../modules/layout/widgetKinds.ts'
 import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
 import { getModifierOfKey } from '../../../modules/keyboard/functions.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
+import { selectedRoom } from '../../../modules/rooms/roomStore.ts'
 import { cameraStore } from '../camera/cameraStore.ts'
 import { renderPerformanceStore } from '../shared/renderPerformance.ts'
 import { isMeshVisible, isRoomColorsVisible, isWireframeVisible } from '../shared/levelDisplay.ts'
@@ -92,6 +93,7 @@ let stopWatchingWireframe: (() => void) | undefined
 let stopWatchingMesh: (() => void) | undefined
 let stopWatchingRooms: (() => void) | undefined
 let stopWatchingMapId: (() => void) | undefined
+let stopWatchingRoom: (() => void) | undefined
 let stopWatchingEdit: (() => void) | undefined
 
 /**
@@ -264,6 +266,7 @@ function showMap(map: ArxMap): void {
 
   // the room map shares the geometry of the level: it is one more mesh over the same buffers
   rooms = createRoomOverlay(map, currentMapId.value)
+  rooms.setHighlight(selectedRoom.value)
   view.scene.add(rooms.mesh)
   updateVisibility()
 
@@ -409,6 +412,12 @@ onMounted(() => {
 
   // the colours are keyed with the id of the level, and the id of a zip arrives after the level: the map is coloured
   // again when it lands, so two visits of the same level always show the same colours
+  // the areas panel picks a room: the map dims the others, so the picked area reads at a glance
+  stopWatchingRoom = watch(selectedRoom, (room) => {
+    rooms?.setHighlight(room)
+    loop.requestRender()
+  })
+
   stopWatchingMapId = watch(currentMapId, () => {
     if (rooms !== undefined && loadedMap !== undefined) {
       rooms.repaint(loadedMap, currentMapId.value)
@@ -443,6 +452,8 @@ onBeforeUnmount(() => {
   stopWatchingRooms = undefined
   stopWatchingMapId?.()
   stopWatchingMapId = undefined
+  stopWatchingRoom?.()
+  stopWatchingRoom = undefined
   stopWatchingEdit?.()
   stopWatchingEdit = undefined
   stopWatchingSelection?.()

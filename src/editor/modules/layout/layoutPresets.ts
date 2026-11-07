@@ -4,7 +4,7 @@ import { WIDGET_KINDS } from './widgetKinds.ts'
 /**
  * The identifier of a preset of the dock layout.
  */
-export type PresetId = 'custom' | 'editor' | 'painter' | 'viewer'
+export type PresetId = 'custom' | 'editor' | 'painter' | 'rooms' | 'viewer'
 
 /**
  * One factory preset of the layout.
@@ -211,6 +211,57 @@ export const painterLayout: LayoutNode = {
 }
 
 /**
+ * The layout of the room work: the plan views, the walkable view and the areas beside them.
+ *
+ * @remarks
+ * It is the `Editor` preset with the **Areas** panel where the inspector and the keys are: the level work is reading
+ * the rooms of a level (the list, the room under the crosshair, the problems), and the split of the level is decided
+ * here. The `Rooms` name is what the header shows (2026-11-07, the owner).
+ */
+export const roomsLayout: LayoutNode = {
+  type: 'split',
+  orientation: 'horizontal',
+  sizes: [fixed(350), auto(1), fixed(350)],
+  children: [
+    {
+      type: 'split',
+      orientation: 'vertical',
+      sizes: [fixed(350), auto(1)],
+      children: [
+        { type: 'widget', kind: WIDGET_KINDS.topView },
+        { type: 'widget', kind: WIDGET_KINDS.frontView },
+      ],
+    },
+    {
+      type: 'split',
+      orientation: 'vertical',
+      sizes: [fixed(THIN_ROW_HEIGHT), auto(1)],
+      children: [
+        {
+          type: 'split',
+          orientation: 'horizontal',
+          sizes: [auto(1), fixed(200)],
+          children: [
+            { type: 'widget', kind: WIDGET_KINDS.cameraControls },
+            { type: 'widget', kind: WIDGET_KINDS.jumpToLocation },
+          ],
+        },
+        { type: 'widget', kind: WIDGET_KINDS.view3d },
+      ],
+    },
+    {
+      type: 'split',
+      orientation: 'vertical',
+      sizes: [fixed(210), auto(1)],
+      children: [
+        { type: 'widget', kind: WIDGET_KINDS.mapStatistics },
+        { type: 'widget', kind: WIDGET_KINDS.areas },
+      ],
+    },
+  ],
+}
+
+/**
  * The layout the editor starts with.
  *
  * @remarks
@@ -245,6 +296,7 @@ export const factoryPresets: readonly FactoryPreset[] = [
   { id: 'viewer', label: 'Viewer', layout: viewerLayout },
   { id: 'editor', label: 'Editor', layout: editorLayout },
   { id: 'painter', label: 'Painter', layout: painterLayout },
+  { id: 'rooms', label: 'Rooms', layout: roomsLayout },
   { id: 'custom', label: 'Blank', layout: customLayout },
 ]
 

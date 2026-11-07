@@ -59,6 +59,10 @@ export const WIDGET_KINDS = {
    */
   polygonInspector: 'polygon-inspector',
   /**
+   * The rooms of the level: the list, the one the player stands in, and the problems.
+   */
+  areas: 'areas',
+  /**
    * The textures a face can be painted with.
    */
   textures: 'textures',

@@ -1,4 +1,5 @@
-import type { ArxPortal } from 'arx-convert/types'
+import type { ArxPolygon, ArxPortal } from 'arx-convert/types'
+import seedrandom from 'seedrandom'
 
 /**
  * The colours a room of the room map takes, in the order a colouring picks them.
@@ -352,4 +353,90 @@ export function roomIdsOf(rooms: readonly number[]): number[] {
   return [...ids].toSorted((first, second) => {
     return first - second
   })
+}
+
+/**
+ * One room of the level, as the areas panel lists it.
+ */
+export interface RoomSummary {
+  /**
+   * The id the level uses for the room.
+   */
+  readonly room: number
+  /**
+   * How many faces the room holds.
+   */
+  readonly faceCount: number
+}
+
+/**
+ * Reads the rooms of a level, with the faces they hold.
+ *
+ * @remarks
+ * It is the list the areas panel shows: every room a face belongs to, once, in the order of the ids. The rooms the
+ * file reserves (the 0, and the gaps an edit leaves) are not here, because the author edits areas and not records.
+ *
+ * @param polygons The polygons of the level.
+ *
+ * @returns The rooms, in ascending order, with the number of their faces.
+ */
+export function roomSummaryOf(polygons: readonly ArxPolygon[]): RoomSummary[] {
+  const counts = new Map<number, number>()
+
+  for (const polygon of polygons) {
+    if (polygon.room < 0) {
+      continue
+    }
+
+    counts.set(polygon.room, (counts.get(polygon.room) ?? 0) + 1)
+  }
+
+  return counts
+    .keys()
+    .toArray()
+    .toSorted((first, second) => {
+      return first - second
+    })
+    .map((room) => {
+      return { room, faceCount: counts.get(room) ?? 0 }
+    })
+}
+
+/**
+ * Colours the rooms of a level the way the editor shows them.
+ *
+ * @remarks
+ * The tie breaks come from the **id of the level**, not from its seed: the same level paints the same map on every
+ * visit (a link, a reload, another tab), and a level keeps its colours when it is generated again with another seed.
+ *
+ * @param portals The links the level is built from.
+ * @param rooms Which ids take a colour.
+ * @param mapId The name the level is stored under (`arx:2`, `custom:0`, …).
+ *
+ * @returns The colour of every room in the level.
+ */
+export function roomColoringForLevel(
+  portals: readonly RoomLink[],
+  rooms: readonly number[],
+  mapId: string,
+): RoomColoring {
+  return roomColoringOf(portals, rooms, { random: seedrandom(`${mapId}:rooms`) })
+}
+
+/**
+ * The colour of one room in a colouring.
+ *
+ * @param room The room to read.
+ * @param coloring The colouring of the level.
+ *
+ * @returns The css colour of the room, or `undefined` when the colouring does not hold it.
+ */
+export function roomPaletteOf(room: number, coloring: RoomColoring): string | undefined {
+  const index = coloring.colors.get(room)
+
+  if (index === undefined) {
+    return undefined
+  }
+
+  return ROOM_COLORS[index % ROOM_COLORS.length]
 }

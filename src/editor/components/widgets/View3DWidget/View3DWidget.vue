@@ -218,9 +218,6 @@ function updateVisibility(): void {
     mesh.visible = visible && !showRooms
   }
 
-  // the lines follow the mesh: the grey over the black of a hidden level, the inverse of the texture over a shown one
-  wireframe?.setMode(visible)
-
   if (rooms !== undefined) {
     rooms.mesh.visible = showRooms
   }

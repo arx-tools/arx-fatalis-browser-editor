@@ -7,7 +7,8 @@ import { editorUrl } from './support/editor.ts'
  * @remarks
  * The lock of a widget is a box, and a preset spells it on two levels of the tree: the width on the horizontal split
  * the widget sits in and the height on the vertical one. These tests are the acceptance of the numbers (2026-11-01):
- * the viewer comes with the plan at 350 x 285 and the jump at 350 x 80, the editor with the plan at 350 x 350, the
+ * the viewer comes with the plan at 350 x 285, the jump at 350 x 80 and the render performance readout at 350 x 210
+ * (2026-11-08, the owner asked for it there), the editor with the plan at 350 x 350, the
  * jump at 200 x 50, the statistics at 350 x 210 and the inspector at 350 x 190, and the painter (2026-11-04) with the
  * polygon inspector at 360 x 185, the keys at 360 x 430 and the uv mapper at 400 x 430. The widgets the owner did not
  * size stay free, and the header has to keep the name of the preset after the locks are applied — a layout that comes
@@ -63,7 +64,7 @@ test('the default layout is the viewer, with the plan and the jump of the owner 
   await page.goto(editorUrl())
 
   // the shell builds the dock before the level is downloaded, which is all this test needs
-  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(4)
+  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(5)
   await expect(page.locator('[data-widget-kind="top-view"]')).toBeVisible()
   await page.waitForTimeout(600)
 
@@ -71,27 +72,32 @@ test('the default layout is the viewer, with the plan and the jump of the owner 
 
   const plan = await boxOf(page, 'top-view')
   const jump = await boxOf(page, 'jump-to-location')
+  const numbers = await boxOf(page, 'render-performance')
 
   expect(plan.width).toBe(350)
   expect(plan.height).toBe(285)
   expect(jump.width).toBe(350)
   expect(jump.height).toBe(80)
+  expect(numbers.width).toBe(350)
+  expect(numbers.height).toBe(210)
   expect(await page.locator('[data-widget-kind="top-view"]').getAttribute('data-locked-width')).toBe('350')
   expect(await page.locator('[data-widget-kind="jump-to-location"]').getAttribute('data-locked-height')).toBe('80')
+  expect(await page.locator('[data-widget-kind="render-performance"]').getAttribute('data-locked-height')).toBe('210')
 
-  // the two follow each other, and the walkable view takes what the locked column does not
+  // the three follow each other, and the walkable view takes what the locked column does not
   expect(jump.top).toBe(plan.top + plan.height + 4)
+  expect(numbers.top).toBe(jump.top + jump.height + 4)
 
   const view = await boxOf(page, '3d-view')
 
   expect(view.width).toBeGreaterThan(350)
   expect(view.left + view.width + 4).toBe(plan.left)
 
-  // the keys are free: they keep what the two locked widgets leave
+  // the keys are free: they keep what the locked widgets leave
   const keys = await boxOf(page, 'keyboard-shortcuts')
 
   expect(await page.locator('[data-widget-kind="keyboard-shortcuts"]').getAttribute('data-locked-height')).toBeNull()
-  expect(keys.top).toBe(jump.top + jump.height + 4)
+  expect(keys.top).toBe(numbers.top + numbers.height + 4)
 })
 
 test('the editor preset comes with the four sizes the owner measured', async ({ page }) => {
@@ -201,7 +207,7 @@ test('every layout keeps its own history, and the steps of the menu take it back
   await page.setViewportSize({ width: 1631, height: 850 })
   await page.goto(editorUrl())
 
-  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(4)
+  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(5)
   await page.waitForTimeout(800)
 
   const menu = page.locator('header button[aria-label="Presets"]')

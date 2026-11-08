@@ -117,7 +117,7 @@ test('the interface shows no em dash and no en dash', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
   await page.goto(editorUrl())
 
-  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(4)
+  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(5)
 
   // the header (and the level picker, which is a native select: its options are on the page too)
   expect(await dashesOf(page)).toEqual([])

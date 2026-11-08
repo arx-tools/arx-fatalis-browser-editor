@@ -79,7 +79,7 @@ test('the custom preset empties the dock and shows the invitation in the middle'
   await page.setViewportSize({ width: 1631, height: 850 })
   await page.goto(editorUrl())
 
-  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(4)
+  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(5)
   await expect(page.locator('.empty-hint')).toHaveCount(0)
 
   await chooseBlank(page)
@@ -162,7 +162,7 @@ test('a widget dropped on the empty dock is the first step, and the step back em
   await page.setViewportSize({ width: 1631, height: 850 })
   await page.goto(editorUrl())
 
-  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(4)
+  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(5)
   await chooseBlank(page)
   await expect(page.locator('.empty-hint')).toBeVisible()
 

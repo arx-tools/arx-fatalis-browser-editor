@@ -143,8 +143,9 @@ export const editorLayout: LayoutNode = {
  * @remarks
  * - the left 70% is the walkable view, the whole height of the dock: this layout is not for editing, it is
  * for walking around and reading the number under the crosshair
- * - the right column is locked to 350 wide (the plan and the jump), the plan to 285 high and the jump to 80: the plan
- * sits above, the jump under it, and the keyboard shortcuts take the rest of the column
+ * - the right column is locked to 350 wide (the plan and the jump), the plan to 285 high, the jump to 80 and the render
+ * performance readout to 210 (2026-11-08, the owner asked for it here): the plan sits above, under it the jump, then
+ * the numbers of the renderer, and the keyboard shortcuts take the rest of the column
  *
  * The locks are the sizes the owner read off the badge of the plate (2026-11-01).
  */
@@ -157,10 +158,11 @@ export const viewerLayout: LayoutNode = {
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: [fixed(285), fixed(80), auto(1)],
+      sizes: [fixed(285), fixed(80), fixed(210), auto(1)],
       children: [
         { type: 'widget', kind: WIDGET_KINDS.topView },
         { type: 'widget', kind: WIDGET_KINDS.jumpToLocation },
+        { type: 'widget', kind: WIDGET_KINDS.renderPerformance },
         { type: 'widget', kind: WIDGET_KINDS.keyboardShortcuts },
       ],
     },

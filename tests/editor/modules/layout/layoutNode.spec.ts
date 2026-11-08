@@ -140,12 +140,14 @@ void describe('the editor preset', () => {
 })
 
 void describe('the presets', () => {
-  void it('keeps the render performance readout off the dock until the user adds it', () => {
+  void it('puts the render performance readout on the viewer, and not on the editor', () => {
+    // 2026-11-08, the owner: the viewer is the layout for looking at a level, so the numbers of the renderer are there;
+    // the editor keeps its two numbers (the statistics and the inspector) instead
     assert.deepEqual(
       [editorLayout, viewerLayout].map((tree) => {
         return collectKinds(tree).includes('render-performance')
       }),
-      [false, false],
+      [false, true],
     )
   })
 })

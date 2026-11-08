@@ -13,7 +13,7 @@ import {
   Vector3,
 } from 'three'
 import { Color } from '../../../../generator/Color.ts'
-import { createWireframeMaterial } from '../../../../generator/meshes.ts'
+import { createWireframeMaterial, setWireframeMode } from '../../../../generator/meshes.ts'
 import { worldPositionToGame } from '../camera/cameraPose.ts'
 import type { CameraBounds } from './cameraBounds.ts'
 
@@ -207,6 +207,12 @@ export interface LevelWireframe {
    */
   readonly setVisible: (visible: boolean) => void
   /**
+   * Switches the look of the lines to the mesh under them.
+   *
+   * @param meshVisible Whether the mesh of the level is on the screen.
+   */
+  readonly setMode: (meshVisible: boolean) => void
+  /**
    * Takes the wireframe out of the scene and frees its material. The geometry stays: it is the map's.
    */
   readonly dispose: () => void
@@ -242,6 +248,9 @@ export function attachWireframe(scene: Scene, geometry: BufferGeometry): LevelWi
       } else {
         scene.remove(lines)
       }
+    },
+    setMode: (meshVisible: boolean): void => {
+      setWireframeMode(lines.material, meshVisible)
     },
     dispose: (): void => {
       scene.remove(lines)

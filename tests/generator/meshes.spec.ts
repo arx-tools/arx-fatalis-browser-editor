@@ -1,7 +1,21 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { ArxPolygonFlags, type ArxPolygon, type ArxVector3 } from 'arx-convert/types'
-import { Mesh, MeshLambertMaterial, PerspectiveCamera, PlaneGeometry, Raycaster, Vector2, Vector3 } from 'three'
+import {
+  AddEquation,
+  CustomBlending,
+  Mesh,
+  MeshLambertMaterial,
+  NormalBlending,
+  OneFactor,
+  PerspectiveCamera,
+  PlaneGeometry,
+  Raycaster,
+  SubtractEquation,
+  Vector2,
+  Vector3,
+  ZeroFactor,
+} from 'three'
 import {
   accelerateRaycast,
   arxPolygonsToGeometry,
@@ -9,6 +23,7 @@ import {
   keptRuns,
   arxPolygonsToWireframeGeometry,
   createWireframeMaterial,
+  setWireframeMode,
   arxVector3toVector3,
   createLevelMaterial,
 } from '../../src/generator/meshes.ts'
@@ -291,5 +306,42 @@ void describe('createWireframeMaterial', () => {
     // the views dispose their own material with the wrapper, so they can not share one
     assert.notEqual(first, second)
     assert.equal(first.type, 'LineBasicMaterial')
+  })
+
+  void it('starts as the plain grey of a hidden mesh', () => {
+    // without the mesh the level is a black field, and a neutral grey reads on it (2026-11-08, the owner)
+    const material = createWireframeMaterial()
+
+    assert.equal(material.color.getHex(), 0xaa_aa_aa)
+    assert.equal(material.blending, NormalBlending)
+  })
+
+  void it('draws the complement of the pixel under it over the mesh', () => {
+    // over the mesh the lines subtract the surface from a white source (2026-11-08, the owner): their luminance is the
+    // inverse of the pixel under them, so they read over stone, ice and snow alike
+    const material = createWireframeMaterial()
+
+    setWireframeMode(material, true)
+
+    assert.equal(material.color.getHex(), 0xff_ff_ff)
+    assert.equal(material.blending, CustomBlending)
+    assert.equal(material.blendEquation, SubtractEquation)
+    assert.equal(material.blendSrc, OneFactor)
+    assert.equal(material.blendDst, OneFactor)
+
+    // the inversion is the colour: the alpha of the line is what it is, or the line would erase its own pixels
+    assert.equal(material.blendEquationAlpha, AddEquation)
+    assert.equal(material.blendSrcAlpha, OneFactor)
+    assert.equal(material.blendDstAlpha, ZeroFactor)
+  })
+
+  void it('goes back to the grey when the mesh goes away', () => {
+    const material = createWireframeMaterial()
+
+    setWireframeMode(material, true)
+    setWireframeMode(material, false)
+
+    assert.equal(material.color.getHex(), 0xaa_aa_aa)
+    assert.equal(material.blending, NormalBlending)
   })
 })

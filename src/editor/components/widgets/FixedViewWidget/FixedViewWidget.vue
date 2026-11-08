@@ -343,6 +343,10 @@ function showMap(map: ArxMap): void {
 
   // the small views draw the same wireframe as the walkable one, from the same geometry
   wireframe = attachWireframe(view.scene, map.wireframeGeometry)
+
+  // these views draw the flat preview of the level, not its textures: the plain grey reads on it, the complement would be
+  // the half of a mid grey and disappear
+  wireframe.setMode(false)
   wireframe.setVisible(isWireframeVisible.value)
 
   // the fill of the selection, in the space of the same meshes

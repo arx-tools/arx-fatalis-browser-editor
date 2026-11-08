@@ -218,6 +218,9 @@ function updateVisibility(): void {
     mesh.visible = visible && !showRooms
   }
 
+  // the lines follow the mesh: the grey over the black of a hidden level, the inverse of the texture over a shown one
+  wireframe?.setMode(visible)
+
   if (rooms !== undefined) {
     rooms.mesh.visible = showRooms
   }
@@ -268,11 +271,14 @@ function showMap(map: ArxMap): void {
   rooms = createRoomOverlay(map, currentMapId.value)
   rooms.setHighlight(selectedRoom.value)
   view.scene.add(rooms.mesh)
-  updateVisibility()
 
   // the wireframe is a switch: the view puts it over the mesh only while it is on
   wireframe = attachWireframe(view.scene, map.wireframeGeometry)
   wireframe.setVisible(isWireframeVisible.value)
+
+  // the switches read the wireframe too (its lines follow the mesh), so they come after it is there: a fresh load
+  // with the mesh on then starts in the inverted look, not in the grey of a hidden level
+  updateVisibility()
 
   loadedMap = map
   loop.resetPick()

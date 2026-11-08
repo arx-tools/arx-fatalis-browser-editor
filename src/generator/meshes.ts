@@ -1,10 +1,16 @@
 import type { ArxPolygon, ArxVector3 } from 'arx-convert/types'
 import { isQuad } from 'arx-convert/utils'
 import {
+  AddEquation,
   BufferAttribute,
   BufferGeometry,
+  CustomBlending,
   LineBasicMaterial,
   MeshLambertMaterial,
+  NormalBlending,
+  OneFactor,
+  SubtractEquation,
+  ZeroFactor,
   Vector2,
   Vector3,
   type Mesh,
@@ -282,47 +288,71 @@ export function createLevelMaterial(options: LevelMaterialOptions = {}): MeshLam
 }
 
 /**
- * The colour of the wireframe.
+ * The colour of the wireframe over a hidden mesh: a neutral grey.
  *
  * @remarks
- * The flat grey of the mesh, darkened by half: the lines then read on it, and the look is the one the
- * archived editor had (`createPolygonWireframe`, deleted from `src/_old/` on 2026-11-05).
+ * Without the mesh the level is a black field, and the lines only have to read on it (2026-11-08, the owner: a plain
+ * `#aaa`).
  */
-const WIREFRAME_COLOR = Color.white.darken(50)
+const WIREFRAME_OVER_BLACK = 0xaa_aa_aa
+
+/**
+ * The colour the wireframe subtracts from the surface under it.
+ *
+ * @remarks
+ * White, so the blend is the plain inversion of the destination: its **luminance** is the inverse of the surface, which
+ * is what the owner asked for over a textured level.
+ */
+const WIREFRAME_INVERT = 0xff_ff_ff
 
 /**
  * Builds the material of a wireframe.
  *
  * @remarks
- * A new instance per view: the level meshes share their geometry, and the wireframe is a `LineSegments`
- * wrapper like them, but a disposed wrapper takes its material with it.
+ * A new instance per view: the level meshes share their geometry, and the wireframe is a `LineSegments` wrapper like
+ * them, but a disposed wrapper takes its material with it. The look starts as the plain grey of the hidden mesh; the
+ * view switches it with {@link setWireframeMode}.
  *
  * @returns The material of the wireframe lines.
  */
 export function createWireframeMaterial(): LineBasicMaterial {
-  // `transparent` is not about blending (the colour is opaque): three draws the transparent objects after
-  // the opaque ones, which is what puts these lines over the translucent fill of the selection. The
-  // selection's fill has the lower `renderOrder`, so a selected face shows the wireframe in its own grey
-  // instead of a tint of it.
-  return new LineBasicMaterial({ color: WIREFRAME_COLOR.getHex(), transparent: true })
+  // `transparent` is not about the alpha (the line is opaque): three draws the transparent objects after the opaque
+  // ones, which is what puts these lines over the translucent fill of the selection, and over the mesh
+  return new LineBasicMaterial({ color: WIREFRAME_OVER_BLACK, transparent: true })
 }
 
 /**
- * Builds the wireframe of a set of Arx polygons.
+ * Switches the look of a wireframe: the complement over the mesh, the grey over the black.
  *
  * @remarks
- * The **perimeter of every source polygon** instead of the triangles of the merged geometry: this keeps
- * the quad edges visible without the diagonal the triangle split introduces, so the wireframe shows the
- * polygons the level stores (the archived editor did the same in its `createWireframe`, deleted on 2026-11-05).
+ * Over a **hidden** mesh the level is a black field, so the lines draw in a plain neutral grey (2026-11-08, the owner).
+ * Over a **shown** mesh the textures are all over the level, and a grey line disappears on them: the lines then subtract
+ * the surface from a white source, so their luminance is the inverse of the pixel under them, and they read over stone,
+ * ice and snow alike.
  *
- * The perimeter follows {@link polygonPerimeter} (`0-1-2` for a triangle, `0-1-3-2` for a quad), and
- * the segments go into the geometry as pairs of points, which is what a `LineSegments` reads.
- *
- * @param polygons The polygons to convert.
- * @param offset The scene position of the level, already mirrored.
- *
- * @returns The segments, ready for a `LineSegments`.
+ * @param material The lines' material to switch.
+ * @param meshVisible Whether the level's mesh is on the screen.
  */
+export function setWireframeMode(material: LineBasicMaterial, meshVisible: boolean): void {
+  if (!meshVisible) {
+    material.color.setHex(WIREFRAME_OVER_BLACK)
+    material.blending = NormalBlending
+
+    return
+  }
+
+  material.color.setHex(WIREFRAME_INVERT)
+  material.blending = CustomBlending
+  material.blendEquation = SubtractEquation
+  material.blendSrc = OneFactor
+  material.blendDst = OneFactor
+
+  // the inversion is the colour: the alpha of the line stays its own, or the line would erase its pixels
+  material.blendEquationAlpha = AddEquation
+  material.blendSrcAlpha = OneFactor
+  material.blendDstAlpha = ZeroFactor
+}
+
 export function arxPolygonsToWireframeGeometry(polygons: readonly ArxPolygon[], offset: Vector3): BufferGeometry {
   const positions: number[] = []
 

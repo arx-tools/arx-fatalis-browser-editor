@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, shallowRef, useTemplateRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, shallowRef, useTemplateRef, watch } from 'vue'
 import {
   LayoutGrid,
   Maximize,
@@ -57,9 +57,38 @@ const stage = useTemplateRef<HTMLDivElement>('stage')
 const canvas = useTemplateRef<HTMLCanvasElement>('canvas')
 
 /**
+ * The picture of the texture, when the editor could decode it.
+ *
+ * @remarks
+ * The square is the texture: without a picture there is nothing to drag a corner on, so the widget shows only its line
+ * instead of an empty frame (a frame that waits for a texture that may never come is the shape of a loaded texture that
+ * is not loaded, which reads as a bug).
+ */
+const imageShown = shallowRef<ImageBitmap | undefined>(undefined)
+
+/**
  * The face of the widget, or `undefined` when the selection is not one face.
  */
 const shown = shallowRef<ShownFace | undefined>(undefined)
+
+/**
+ * The line the widget shows when it has no picture to draw.
+ *
+ * @remarks
+ * The hint of the selection comes first (it says what the user has to do, or why the face can not be edited); a face
+ * with a texture the editor has no file for gets its own line, because the square is not there for it.
+ */
+const lineShown = computed(() => {
+  if (hint.value !== '') {
+    return hint.value
+  }
+
+  if (shown.value !== undefined && imageShown.value === undefined) {
+    return 'The texture of this face is not loaded.'
+  }
+
+  return ''
+})
 
 /**
  * The uv of the corners of the face, as the model holds them.
@@ -265,13 +294,7 @@ function draw(): void {
   context.clearRect(0, 0, side, side)
 
   const current = view.value
-  const texture = entry.value
-  let image: ImageBitmap | undefined
-
-  if (texture !== undefined) {
-    image = bitmapOf(texture).value
-  }
-
+  const image = imageShown.value
   const scale = side * current.zoom
 
   context.imageSmoothingQuality = 'high'
@@ -538,8 +561,15 @@ watch(size, () => {
 watch(
   entry,
   async (value) => {
+    imageShown.value = undefined
+
     if (value !== undefined) {
       await loadBitmap(value)
+      imageShown.value = bitmapOf(value).value
+
+      // the square is not in the page while there is no picture (it is hidden with a `v-if`): the canvas of it can only be
+      // drawn after the tick that puts it there
+      await nextTick()
       reframe()
     }
   },
@@ -557,7 +587,7 @@ watch(
     </div>
 
     <div ref="stage" class="stage">
-      <div class="square" :style="{ width: `${size}px`, height: `${size}px` }">
+      <div v-if="imageShown !== undefined" class="square" :style="{ width: `${size}px`, height: `${size}px` }">
         <canvas
           ref="canvas"
           class="texture"
@@ -586,7 +616,7 @@ watch(
         </button>
       </div>
 
-      <p v-if="hint !== ''" class="hint">{{ hint }}</p>
+      <p v-if="lineShown !== ''" class="hint">{{ lineShown }}</p>
     </div>
 
     <div class="fields">
@@ -768,7 +798,7 @@ watch(
   position: relative;
   flex: 0 0 auto;
   border: 1px solid $border-dark;
-  background: $surface-panel;
+  background: $surface-app;
   overflow: hidden;
 }
 

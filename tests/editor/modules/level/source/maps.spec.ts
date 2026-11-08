@@ -41,11 +41,18 @@ void describe('availableMapIdOf', () => {
 void describe('editedMapIdsOf', () => {
   void it('marks the maps that have steps on them', () => {
     const saved = new Map([
-      ['arx:8', [record()]],
-      ['arx:11', []],
+      ['arx:8', { records: [record()], position: 1 }],
+      ['arx:11', { records: [], position: 0 }],
     ])
 
     assert.deepEqual(editedMapIdsOf(saved, 'blank:flat', false), new Set(['arx:8']))
+  })
+
+  void it('does not mark a map whose every step was taken back', () => {
+    // the steps are still there (they are the redo of the author), but the level is the one of its files
+    const saved = new Map([['arx:8', { records: [record()], position: 0 }]])
+
+    assert.deepEqual(editedMapIdsOf(saved, 'blank:flat', false), new Set())
   })
 
   void it('marks the map on the screen from its live history', () => {
@@ -53,7 +60,7 @@ void describe('editedMapIdsOf', () => {
   })
 
   void it('clears the map on the screen when every step was taken back', () => {
-    const saved = new Map([['arx:8', [record()]]])
+    const saved = new Map([['arx:8', { records: [record()], position: 1 }]])
 
     assert.deepEqual(editedMapIdsOf(saved, 'arx:8', false), new Set())
   })

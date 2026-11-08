@@ -13,6 +13,7 @@ import {
 import { type TextureRun, indexSolidGeometryInTextureOrder, readTextureRuns } from './arxMap/textureRuns.ts'
 import { type FaceUv, writeFaceUvs } from './arxMap/uvs.ts'
 import { unpackArxFile } from './files.ts'
+import { fingerprintOf } from './fingerprint.ts'
 import {
   accelerateRaycast,
   arxPolygonsToGeometry,
@@ -183,6 +184,16 @@ export class ArxMap {
    */
   readonly fts: ArxFTS
   /**
+   * The fingerprint of the file the level was loaded from.
+   *
+   * @remarks
+   * The stored steps of the history are polygon indices of this level, so they may only be replayed on the same file:
+   * the fingerprint says whether the level the editor opens is the one those steps were made on (see
+   * `generator/fingerprint.ts`). It comes from the packed scene: that file carries the polygons, in their order.
+   */
+  readonly fingerprint: string
+
+  /**
    * The lighting of the level, as it was loaded.
    *
    * @remarks
@@ -308,6 +319,7 @@ export class ArxMap {
     // from the seed they carry
     this.settings = settings
 
+    this.fingerprint = fingerprintOf(fts)
     this.dlf = DLF.load(unpackArxFile(dlf, 'dlf'))
     this.fts = FTS.load(unpackArxFile(fts, 'fts'))
     this.llf = LLF.load(unpackArxFile(llf, 'llf'))

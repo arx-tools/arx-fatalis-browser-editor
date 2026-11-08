@@ -2,7 +2,7 @@
 import { Command, Eye, EyeOff, MouseLeft, Redo2, Undo2, UndoDot } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { history } from '../../../modules/history/history.ts'
-import { redoLastStep, undoLastStep } from '../../../modules/level/edit/editing.ts'
+import { redoLastStep, resetHistorySteps, undoLastStep } from '../../../modules/level/edit/editing.ts'
 import { isMacKeyboard } from '../../../modules/keyboard/keyboard.ts'
 import WidgetHeading from '../../WidgetHeading.vue'
 import { isViewAtDefault, resetViewSwitches, viewSwitches, type ViewSwitch } from '../shared/levelDisplay.ts'
@@ -69,9 +69,27 @@ interface HelpSection {
    */
   readonly rows: readonly HelpRow[]
   /**
-   * Whether the section holds view switches, so its header carries the reset button.
+   * The reset of the section, when its header carries a button for it.
    */
-  readonly resettable?: boolean
+  readonly reset?: HelpReset
+}
+
+/**
+ * The reset button of a section: what it is called, when it can be pressed, and what it does.
+ */
+interface HelpReset {
+  /**
+   * The tooltip and the screen reader name of the button.
+   */
+  readonly title: string
+  /**
+   * Whether the button is disabled: there is nothing to reset.
+   */
+  readonly disabled: () => boolean
+  /**
+   * The reset itself.
+   */
+  readonly run: () => void
 }
 
 /**
@@ -107,6 +125,13 @@ if (isMacKeyboard()) {
 const leftButton: HelpKey = { kind: 'icon', icon: 'mouse-left' }
 
 /**
+ * Whether the history has nothing to take back, so its reset button is disabled.
+ */
+function isHistoryAtStart(): boolean {
+  return !history.canUndo.value
+}
+
+/**
  * The modifier of a shortcut: `Ctrl` everywhere, and the `Cmd` of the mac.
  */
 let primaryKey: HelpKey = { kind: 'text', text: 'Ctrl' }
@@ -121,7 +146,13 @@ const sections = computed<readonly HelpSection[]>(() => {
   return [
     {
       title: 'View',
-      resettable: true,
+      reset: {
+        title: 'Reset view',
+        disabled: (): boolean => {
+          return isViewAtDefault.value
+        },
+        run: resetViewSwitches,
+      },
       rows: [
         { keys: [{ kind: 'text', text: 'X' }], action: 'Wireframe', toggle: 'wireframe' },
         { keys: [{ kind: 'text', text: 'M' }], action: 'Mesh', toggle: 'mesh' },
@@ -130,6 +161,7 @@ const sections = computed<readonly HelpSection[]>(() => {
     },
     {
       title: 'History',
+      reset: { title: 'Take every step back', disabled: isHistoryAtStart, run: resetHistorySteps },
       rows: [
         { keys: [primaryKey, { kind: 'text', text: 'Z' }], action: 'Undo', button: 'undo' },
         { keys: [primaryKey, { kind: 'text', text: 'Y' }], action: 'Redo', button: 'redo' },
@@ -296,13 +328,13 @@ function toggleTitle(row: HelpRow): string {
       <div class="section-head">
         <h3 class="section-title">{{ section.title }}</h3>
         <button
-          v-if="section.resettable === true"
+          v-if="section.reset !== undefined"
           class="reset-view"
           type="button"
-          :disabled="isViewAtDefault"
-          aria-label="Reset view"
-          v-tooltip="'Reset view'"
-          @click="resetViewSwitches()"
+          :disabled="section.reset.disabled()"
+          :aria-label="section.reset.title"
+          v-tooltip="section.reset.title"
+          @click="section.reset.run()"
         >
           <UndoDot class="reset-icon" />
         </button>

@@ -237,3 +237,198 @@ test('the help runs the steps too, and a new delete drops the redo side', async 
 
   await expect(historyButtonOf(page, 'Redo')).toBeDisabled()
 })
+
+test('a step of the history survives a reload', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'the pointer lock of the walkable view needs chromium here')
+
+  // the blank level: it is there without a folder, and it is the same file on every load, so the stored steps may come
+  // back on it (a level of the network has no value in the list to load again)
+  await seedLayout(page, layoutWithSelectionInspector())
+  await page.goto('/?map=blank-flat')
+  await waitForLevel(page)
+
+  const view = page.locator('[data-widget-kind="3d-view"] canvas').first()
+  const before = await facesOf(page)
+  const spawn = await readPose(page)
+
+  await lockPointer(page, view)
+
+  // the blank level is a floor under the player: the crosshair looks down to take a face of it
+  await writePose(page, { ...spawn, pitch: '60' })
+  await clickCrosshair(view)
+
+  await expect
+    .poll(async () => {
+      return await selectionCount(page)
+    })
+    .toBeGreaterThan(0)
+
+  await page.keyboard.press('Delete')
+
+  await expect
+    .poll(async () => {
+      return await facesOf(page)
+    })
+    .toBeLessThan(before ?? 0)
+
+  const afterDelete = await facesOf(page)
+
+  // the level is loaded again, and its step comes back: the editor writes the steps down, and replays the stored ones
+  // after the level is on the screen and painted
+  await page.reload()
+  await waitForLevel(page)
+
+  await expect
+    .poll(async () => {
+      return await facesOf(page)
+    })
+    .toBe(afterDelete)
+
+  await expect(historyButtonOf(page, 'Undo')).toBeEnabled()
+
+  // and the step is a real one, not a stale number: the undo takes the faces back
+  await page.keyboard.press('Control+z')
+
+  await expect
+    .poll(async () => {
+      return await facesOf(page)
+    })
+    .toBe(before)
+})
+
+test('the steps taken back are still the redo after a reload', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'the pointer lock of the walkable view needs chromium here')
+
+  // the blank level: it is there without a folder, and it is the same file on every load, so the stored steps may come
+  // back on it (a level of the network has no value in the list to load again)
+  await seedLayout(page, layoutWithSelectionInspector())
+  await page.goto('/?map=blank-flat')
+  await waitForLevel(page)
+
+  const view = page.locator('[data-widget-kind="3d-view"] canvas').first()
+  const before = await facesOf(page)
+  const spawn = await readPose(page)
+
+  await lockPointer(page, view)
+
+  // the blank level is a floor under the player: the crosshair looks down to take a face of it
+  await writePose(page, { ...spawn, pitch: '60' })
+  await clickCrosshair(view)
+
+  await expect
+    .poll(async () => {
+      return await selectionCount(page)
+    })
+    .toBeGreaterThan(0)
+
+  await page.keyboard.press('Delete')
+
+  await expect
+    .poll(async () => {
+      return await facesOf(page)
+    })
+    .toBeLessThan(before ?? 0)
+
+  const afterDelete = await facesOf(page)
+
+  // every step is taken back: the level is the one of its file again, and the step is the redo of the author
+  await page.keyboard.press('Control+z')
+
+  await expect
+    .poll(async () => {
+      return await facesOf(page)
+    })
+    .toBe(before)
+
+  await expect(historyButtonOf(page, 'Redo')).toBeEnabled()
+  await expect(historyButtonOf(page, 'Undo')).toBeDisabled()
+
+  // the reload keeps the line of the steps: the level is the file again, and the redo is still there
+  await page.reload()
+  await waitForLevel(page)
+
+  await expect
+    .poll(async () => {
+      return await facesOf(page)
+    })
+    .toBe(before)
+
+  await expect(historyButtonOf(page, 'Redo')).toBeEnabled()
+  await expect(historyButtonOf(page, 'Undo')).toBeDisabled()
+
+  // the redo makes the step again, and the undo takes it back: the restored redo is a real step
+  await page.keyboard.press('Control+y')
+
+  await expect
+    .poll(async () => {
+      return await facesOf(page)
+    })
+    .toBe(afterDelete)
+
+  await expect(historyButtonOf(page, 'Undo')).toBeEnabled()
+
+  await page.keyboard.press('Control+z')
+
+  await expect
+    .poll(async () => {
+      return await facesOf(page)
+    })
+    .toBe(before)
+})
+
+test('the reset of the help takes every step back and keeps the redo', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'the pointer lock of the walkable view needs chromium here')
+
+  await openTheEditor(page)
+
+  const view = page.locator('[data-widget-kind="3d-view"] canvas').first()
+  const before = await facesOf(page)
+  const spawn = await readPose(page)
+
+  await lockPointer(page, view)
+  await writePose(page, spawn)
+  await clickCrosshair(view)
+
+  await expect
+    .poll(async () => {
+      return await selectionCount(page)
+    })
+    .toBeGreaterThan(0)
+
+  await page.keyboard.press('Delete')
+
+  await expect
+    .poll(async () => {
+      return await facesOf(page)
+    })
+    .toBeLessThan(before ?? 0)
+
+  const afterDelete = await facesOf(page)
+  const reset = page.locator('[data-widget-kind="keyboard-shortcuts"] button[aria-label="Take every step back"]')
+
+  // the reset is one click, and it goes while the pointer is free
+  await page.evaluate(() => {
+    globalThis.document.exitPointerLock()
+  })
+
+  await expect(reset).toBeEnabled()
+  await reset.click()
+
+  await expect
+    .poll(async () => {
+      return await facesOf(page)
+    })
+    .toBe(before)
+
+  await expect(historyButtonOf(page, 'Undo')).toBeDisabled()
+  await expect(historyButtonOf(page, 'Redo')).toBeEnabled()
+
+  // the steps are still there: the redo makes the step again
+  await page.keyboard.press('Control+y')
+
+  await expect
+    .poll(async () => {
+      return await facesOf(page)
+    })
+    .toBe(afterDelete)
+})

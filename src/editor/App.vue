@@ -33,9 +33,11 @@ import {
   openMap,
   refreshDataDir,
   rememberCustomMap,
+  restorePersistedHistory,
   setStartupSource,
   startMapPersistence,
 } from './modules/level/source/maps.ts'
+import { startMapHistoryPersistence } from './modules/history/mapHistoryPersistence.ts'
 import { getUrlAdapter, writeUrlValue } from './modules/persistedRef/url.ts'
 import { isZipLevelSource } from './modules/level/source/zipSource.ts'
 import { cameraAngle, cameraPosition } from './components/widgets/camera/cameraState.ts'
@@ -90,6 +92,7 @@ onMounted(() => {
   startLevelDisplay()
   startSelection()
   startLevelEditing()
+  startMapHistoryPersistence()
   startLevelTextures()
   startTextureCatalog()
   startMapPersistence()
@@ -165,6 +168,10 @@ onMounted(() => {
             // the store keeps the error of the load, the walkable view shows it
           })
       }
+
+      // a reload keeps the steps of the level: they were written down, and they come back once the level is on the
+      // screen and painted (the map of the url goes through `openMap`, which restores them the same way)
+      await restorePersistedHistory()
     } else {
       // a map the list does not have (a level the folder lost, a zip of a previous session) falls back to the level the
       // editor opens with; the message about it is the toast of a later round. The camera keeps the pose of the url:

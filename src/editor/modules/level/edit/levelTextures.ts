@@ -5,7 +5,7 @@ import { decodeTextureBitmap } from '../../textures/image.ts'
 import { publishLevelTextures } from '../../textures/textureCatalog.ts'
 import { readDataFile } from '../source/dataDir.ts'
 import { TEXTURE_FOLDER } from '../source/dataDir/url.ts'
-import { textureRevision } from './editing.ts'
+import { bumpLevelRevision, textureRevision } from './editing.ts'
 import {
   createLevelTexture,
   decodeTextures,
@@ -343,6 +343,90 @@ export async function registerLevelTexture(name: string, bytes: ArrayBuffer): Pr
 }
 
 /**
+ * Whether the paint is loading the textures it met but does not have, so two revisions do not load them twice.
+ */
+let filling = false
+
+/**
+ * Loads the textures the paint meets but does not have.
+ *
+ * @remarks
+ * A paint builds its materials from the containers the level has **at that moment**. A container can arrive later: a
+ * step of the history read back after a reload adds the container of the texture the author painted, and the paint has
+ * no bytes for it (the file of the level never had that container). The name of the container says where to look, so the
+ * missing ones are read from the zip of the level, then from the data directory of the game: without this the face
+ * would draw with the placeholder of the generator, and the author would see the paint of the last session lost.
+ */
+async function fillMissingTextures(): Promise<void> {
+  const map = levelStore.map.value
+  const paint = current
+
+  if (map === undefined || paint === undefined) {
+    return
+  }
+
+  const names = textureNamesOf(map).filter((name) => {
+    return !paint.textures.has(name)
+  })
+
+  if (names.length === 0) {
+    return
+  }
+
+  let zipFiles = new Map<string, ArrayBuffer>()
+
+  if (lastZipData !== undefined) {
+    zipFiles = await findTextureFiles(lastZipData, names)
+  }
+
+  for (const name of names) {
+    const fromZip = zipFiles.get(name)
+
+    if (fromZip !== undefined) {
+      await registerLevelTexture(name, fromZip)
+
+      continue
+    }
+
+    try {
+      const bytes = await readDataFile(`${TEXTURE_FOLDER}/${name}`)
+
+      if (bytes !== undefined) {
+        await registerLevelTexture(name, bytes)
+      }
+    } catch {
+      // a folder that can not be read leaves the texture flat, the level is still complete
+    }
+  }
+}
+
+/**
+ * Paints the level again after an edit, with the textures it may have met since the last paint.
+ */
+async function repaintForRevision(): Promise<void> {
+  if (filling) {
+    return
+  }
+
+  filling = true
+
+  try {
+    await fillMissingTextures()
+  } finally {
+    filling = false
+  }
+
+  if (current !== undefined) {
+    paintLevelTextures(current.map, current.textures, current.missing)
+
+    // the paint of the level came after the step that asked for it (the texture was still on its way), so the views drew
+    // the level before this: the step is what they follow, and it has to hear about the paint that followed it. Without
+    // this the face draws with the texture it had, and only the next click (a step of its own) shows the new one
+    bumpLevelRevision()
+  }
+}
+
+/**
  * Starts the paint of the level, so the textures of a zip follow the level.
  *
  * @remarks
@@ -372,9 +456,9 @@ export function startLevelTextures(): void {
   )
 
   watch(textureRevision, () => {
-    if (current !== undefined) {
-      paintLevelTextures(current.map, current.textures, current.missing)
-    }
+    // the steps of a history are applied in a row (a reload replays them): the load of the textures they met waits for
+    // the one that is running, and the paint that follows is the one of the last state
+    void repaintForRevision()
   })
 }
 

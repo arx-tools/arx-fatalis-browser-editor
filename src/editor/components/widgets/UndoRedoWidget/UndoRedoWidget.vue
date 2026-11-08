@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { Redo2, Undo2 } from 'lucide-vue-next'
+import { Redo2, Undo2, UndoDot } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { history } from '../../../modules/history/history.ts'
-import { redoLastStep, undoLastStep } from '../../../modules/level/edit/editing.ts'
+import { redoLastStep, resetHistorySteps, undoLastStep } from '../../../modules/level/edit/editing.ts'
 import { isMacKeyboard } from '../../../modules/keyboard/keyboard.ts'
 
 /**
@@ -35,39 +35,58 @@ if (isMacKeyboard()) {
 }
 
 /**
- * The tooltip of the undo button.
+ * The label and the tooltip of the undo button: the name of the step and the keys of it.
  */
-const undoTooltip = `Undo (${primary}+Z)`
+const undoLabel = `Undo (${primary}+Z)`
 
 /**
- * The tooltip of the redo button.
+ * The label and the tooltip of the redo button.
  */
-const redoTooltip = `Redo (${primary}+Y)`
+const redoLabel = `Redo (${primary}+Y)`
+
+/**
+ * The tooltip of the reset button.
+ *
+ * @remarks
+ * The reset takes every step back and keeps them: the level is the one of its files again, and the author can walk the
+ * steps again with the redo. That is why it is not called a discard.
+ */
+const resetTooltip = 'Take every step back'
 </script>
 
 <template>
   <div class="UndoRedoWidget">
     <button
+      class="step reset"
+      type="button"
+      :disabled="!canUndo"
+      :aria-label="resetTooltip"
+      v-tooltip="resetTooltip"
+      @click="resetHistorySteps()"
+    >
+      <UndoDot :size="14" />
+    </button>
+    <button
       class="step"
       type="button"
       :disabled="!canUndo"
-      :aria-label="undoTooltip"
-      v-tooltip="undoTooltip"
+      :aria-label="undoLabel"
+      v-tooltip="undoLabel"
       @click="undoLastStep()"
     >
       <Undo2 :size="14" />
-      <span class="label">Undo</span>
+      <span class="label">Undo ({{ primary }}+Z)</span>
     </button>
     <button
       class="step"
       type="button"
       :disabled="!canRedo"
-      :aria-label="redoTooltip"
-      v-tooltip="redoTooltip"
+      :aria-label="redoLabel"
+      v-tooltip="redoLabel"
       @click="redoLastStep()"
     >
       <Redo2 :size="14" />
-      <span class="label">Redo</span>
+      <span class="label">Redo ({{ primary }}+Y)</span>
     </button>
   </div>
 </template>

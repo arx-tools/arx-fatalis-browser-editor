@@ -1,7 +1,8 @@
 import { shallowRef, watch, type ShallowRef } from 'vue'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { history, type HistoryCommand } from '../../history/history.ts'
-import { historyOfMap, rememberMapHistory } from '../../history/mapHistory.ts'
+import { historyOfMap, rememberMapHistory, type HistorySnapshot } from '../../history/mapHistory.ts'
+import { dropStoredHistory, readStoredHistory } from '../../history/mapHistoryStorage.ts'
 import { commandOf } from '../../history/commands.ts'
 import { createDeleteFacesRecord } from '../../history/records.ts'
 import { onKeyboardAction } from '../../keyboard/keyboard.ts'
@@ -162,6 +163,40 @@ export function redoLastStep(): void {
 }
 
 /**
+ * Takes every step of the history back, so the level is the one of its files again.
+ *
+ * @remarks
+ * The steps stay in the history: the author can walk them again with the redo, or with the buttons of the help. It is
+ * the reset of the level without the loss of the work, and it is the same walk the undo takes one step at a time, so
+ * the selection follows it the same way.
+ */
+export function resetHistorySteps(): void {
+  while (history.canUndo.value) {
+    undoLastStep()
+  }
+}
+
+/**
+ * The steps of the history as a snapshot: the line of the steps, and how many of them are on the level.
+ *
+ * @remarks
+ * The undone steps are part of the line: a reload may only keep the position, and the steps after it are the redo of
+ * the author. A line of steps that is entirely taken back is still a line.
+ *
+ * @returns The steps of the editor, oldest first, and the length of the applied part.
+ */
+export function snapshotOfHistory(): HistorySnapshot {
+  const applied = history.undoStack.value.map((command) => {
+    return command.record
+  })
+  const undone = history.redoStack.value.map((command) => {
+    return command.record
+  })
+
+  return { records: [...applied, ...undone], position: applied.length }
+}
+
+/**
  * Writes down the steps of the map that is going away.
  *
  * @remarks
@@ -172,7 +207,44 @@ export function redoLastStep(): void {
  * @param id The value of the map in the list, like `arx:8`.
  */
 export function saveMapHistory(id: string): void {
-  rememberMapHistory(id, history.records.value)
+  rememberMapHistory(id, snapshotOfHistory())
+}
+
+/**
+ * Reads the steps of a map: the ones of the session first, the stored ones after a reload.
+ *
+ * @remarks
+ * The steps of the session are the true ones (they carry the polygons the editor holds), so they win. The stored ones
+ * are the same steps written down, and they may only be replayed on the file they were made on: the fingerprint of the
+ * map says whether the file is the same, and the steps of another build of the level are dropped, not guessed at. The
+ * dropped ones would change other faces than the ones the author picked, which is worse than losing them.
+ *
+ * @param id The value of the map in the list.
+ * @param map The map that was just loaded.
+ *
+ * @returns The steps of the map and how many of them are on it, or `undefined` when the map has none.
+ */
+function storedSnapshotOf(id: string, map: ArxMap): HistorySnapshot | undefined {
+  const memory = historyOfMap(id)
+
+  if (memory !== undefined) {
+    return memory
+  }
+
+  const stored = readStoredHistory(id)
+
+  if (stored === undefined) {
+    return undefined
+  }
+
+  if (stored.fingerprint !== map.fingerprint) {
+    dropStoredHistory(id)
+    console.warn(`[history] the stored steps of ${id} were made on another version of the level, they were dropped.`)
+
+    return undefined
+  }
+
+  return { records: stored.records, position: stored.position }
 }
 
 /**
@@ -191,12 +263,40 @@ export function saveMapHistory(id: string): void {
  * @param map The map that was just loaded.
  */
 export function restoreMapHistory(id: string, map: ArxMap): void {
-  for (const record of historyOfMap(id)) {
+  const snapshot = storedSnapshotOf(id, map)
+  const records = snapshot?.records ?? []
+  const position = snapshot?.position ?? 0
+  let applied = 0
+
+  for (const record of records.slice(0, position)) {
     const command = commandOf(record, map)
 
     if (command !== undefined) {
       history.run(withRevision(command))
+      applied = applied + 1
     }
+  }
+
+  // the steps the author took back before the reload are still theirs to make again: they go on the redo stack, built
+  // from the state the replay left behind (the state they were taken back from)
+  const undoneCommands: HistoryCommand[] = []
+
+  for (const record of records.slice(position)) {
+    const command = commandOf(record, map)
+
+    if (command !== undefined) {
+      undoneCommands.push(withRevision(command))
+    }
+  }
+
+  history.redoStack.value = undoneCommands
+
+  const skipped = records.length - applied - undoneCommands.length
+
+  if (skipped > 0) {
+    // a step of another build (an unknown kind or version) can not be replayed: the rest is on the level, and the
+    // author is told instead of the step being lost silently (the toast of the editor is TODO 66)
+    console.warn(`[history] ${String(skipped)} stored steps of ${id} could not be applied.`)
   }
 
   selectionStore.clear()

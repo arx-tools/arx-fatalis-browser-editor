@@ -25,26 +25,33 @@ void describe('rememberMapHistory', () => {
   })
 
   void it('keeps the steps of a map by the value of the map', () => {
-    rememberMapHistory('arx:8', [recordOf([1, 2])])
+    rememberMapHistory('arx:8', { records: [recordOf([1, 2])], position: 1 })
 
-    assert.deepEqual(historyOfMap('arx:8'), [recordOf([1, 2])])
-    assert.deepEqual(historyOfMap('arx:11'), [])
+    assert.deepEqual(historyOfMap('arx:8'), { records: [recordOf([1, 2])], position: 1 })
+    assert.equal(historyOfMap('arx:11'), undefined)
+  })
+
+  void it('keeps the steps taken back, and the position of the line', () => {
+    // the author made two steps and took one back: both are the history, the second one is the redo
+    rememberMapHistory('arx:8', { records: [recordOf([1]), recordOf([2])], position: 1 })
+
+    assert.deepEqual(historyOfMap('arx:8'), { records: [recordOf([1]), recordOf([2])], position: 1 })
   })
 
   void it('forgets a map that has no steps any more', () => {
-    rememberMapHistory('arx:8', [recordOf([1])])
-    rememberMapHistory('arx:8', [])
+    rememberMapHistory('arx:8', { records: [recordOf([1])], position: 1 })
+    rememberMapHistory('arx:8', { records: [], position: 0 })
 
-    assert.deepEqual(historyOfMap('arx:8'), [])
+    assert.equal(historyOfMap('arx:8'), undefined)
     assert.equal(mapHistoryRecords.value.has('arx:8'), false)
   })
 
   void it('copies the list, so the caller can not change the store', () => {
     const records = [recordOf([3])]
 
-    rememberMapHistory('blank:flat', records)
+    rememberMapHistory('blank:flat', { records, position: 1 })
     records.push(recordOf([4]))
 
-    assert.equal(historyOfMap('blank:flat').length, 1)
+    assert.equal(historyOfMap('blank:flat')?.records.length, 1)
   })
 })

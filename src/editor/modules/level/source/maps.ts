@@ -1,8 +1,7 @@
 import { computed, nextTick, ref, shallowRef, watch } from 'vue'
 import { cameraStore } from '../../../components/widgets/camera/cameraStore.ts'
 import { history } from '../../history/history.ts'
-import { mapHistoryRecords } from '../../history/mapHistory.ts'
-import type { HistoryRecord } from '../../history/records.ts'
+import { mapHistoryRecords, type HistorySnapshot } from '../../history/mapHistory.ts'
 import { persistedRef } from '../../persistedRef/persistedRef.ts'
 import { getUrlAdapter, writeUrlValue } from '../../persistedRef/url.ts'
 import { FLAT_PRESET, MINIMAL_PRESET, type NewLevelPreset } from '../blankLevel.ts'
@@ -238,14 +237,15 @@ export function startupSource(): LevelSource | undefined {
  * @returns The values of the maps that have changes on them.
  */
 export function editedMapIdsOf(
-  saved: ReadonlyMap<string, readonly HistoryRecord[]>,
+  saved: ReadonlyMap<string, HistorySnapshot>,
   currentId: string,
   currentEdited: boolean,
 ): ReadonlySet<string> {
   const ids = new Set<string>()
 
-  for (const [id, records] of saved) {
-    if (records.length > 0) {
+  for (const [id, snapshot] of saved) {
+    // a map whose every step was taken back is the level of its files again: it has no changes to show
+    if (snapshot.position > 0) {
       ids.add(id)
     }
   }
@@ -474,6 +474,27 @@ export async function openMap(id: string, options: OpenMapOptions = {}): Promise
   if (options.camera !== 'keep') {
     cameraStore.moveToSpawn()
   }
+}
+
+/**
+ * Puts the stored steps of the map on the screen back on it, after a reload.
+ *
+ * @remarks
+ * It is the reload half of {@link openMap}: the level is on the screen and painted, and the steps that were written down
+ * come back on it. The tick is the one of `openMap`: the map change clears the live history first (the steps of the
+ * level that went away are not the steps of this one), and only then can the stored ones be replayed; the second tick
+ * lets the views follow the replay before anything else happens.
+ */
+export async function restorePersistedHistory(): Promise<void> {
+  const map = levelStore.map.value
+
+  if (map === undefined) {
+    return
+  }
+
+  await nextTick()
+  restoreMapHistory(currentMapId.value, map)
+  await nextTick()
 }
 
 /**

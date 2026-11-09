@@ -183,3 +183,11 @@ body.is-dragging {
     cursor: default;
   }
 }
+
+// a tooltip is decoration: the pointer goes through it to the control under it. floating-vue only takes the pointer out
+// of a tooltip that is hidden, so a shown one used to eat the click of the button it belongs to — a button pressed after
+// the pointer rested on it long enough for the tooltip to appear did nothing (the step buttons of the preset menu, the
+// owner's bug, 2026-11-09).
+.v-popper--theme-tooltip {
+  pointer-events: none;
+}

@@ -106,6 +106,22 @@ const definitions: readonly WidgetDefinition[] = [
       return new Widget()
     },
   },
+  {
+    kind: 'selection-inspector',
+    label: 'Selection Inspector',
+    group: 'info',
+    create: (): LuminoWidget => {
+      return new Widget()
+    },
+  },
+  {
+    kind: 'undo-redo',
+    label: 'Undo and Redo',
+    group: 'controls',
+    create: (): LuminoWidget => {
+      return new Widget()
+    },
+  },
 ]
 
 /**
@@ -289,11 +305,12 @@ void describe('the layout of the shell', () => {
       'camera-controls',
       'front-view',
       'jump-to-location',
-      'keyboard-shortcuts',
       'left-view',
       'map-statistics',
       'polygon-inspector',
+      'selection-inspector',
       'top-view',
+      'undo-redo',
     ])
     shell.dispose()
   })

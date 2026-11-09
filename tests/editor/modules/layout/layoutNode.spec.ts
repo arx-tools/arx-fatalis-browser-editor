@@ -119,19 +119,21 @@ void describe('the editor preset', () => {
       '3d-view',
       'map-statistics',
       'polygon-inspector',
-      'keyboard-shortcuts',
+      'undo-redo',
+      'selection-inspector',
     ])
   })
 
   void it('locks the widgets to the sizes the owner measured off the plate', () => {
     assert.deepEqual(lockOfKind(editorLayout, 'top-view'), { width: 350, height: 350 })
     assert.deepEqual(lockOfKind(editorLayout, 'jump-to-location'), { width: 200, height: 50 })
-    assert.deepEqual(lockOfKind(editorLayout, 'map-statistics'), { width: 350, height: 210 })
-    assert.deepEqual(lockOfKind(editorLayout, 'polygon-inspector'), { width: 350, height: 190 })
+    assert.deepEqual(lockOfKind(editorLayout, 'map-statistics'), { width: 350, height: 200 })
+    assert.deepEqual(lockOfKind(editorLayout, 'polygon-inspector'), { width: 350, height: 180 })
+    assert.deepEqual(lockOfKind(editorLayout, 'undo-redo'), { width: 350, height: 60 })
   })
 
   void it('leaves the widgets the owner did not size free', () => {
-    const locks = ['camera-controls', '3d-view', 'left-view', 'front-view', 'keyboard-shortcuts'].map((kind) => {
+    const locks = ['camera-controls', '3d-view', 'left-view', 'front-view', 'selection-inspector'].map((kind) => {
       return lockOfKind(editorLayout, kind)
     })
 
@@ -171,11 +173,12 @@ void describe('collectKinds', () => {
       'camera-controls',
       'front-view',
       'jump-to-location',
-      'keyboard-shortcuts',
       'left-view',
       'map-statistics',
       'polygon-inspector',
+      'selection-inspector',
       'top-view',
+      'undo-redo',
     ])
   })
 

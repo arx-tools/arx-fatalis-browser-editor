@@ -167,41 +167,62 @@ function renameKinds(layout: LayoutNode, renames: Readonly<Record<string, string
 }
 
 /**
- * The editor preset, with the selection inspector in the place of the polygon inspector.
+ * The editor preset, which carries the selection inspector since 2026-11-09.
  *
  * @remarks
- * The count of the selected faces moved out of the statistics with the texture round, so a test that selects faces reads
- * it in the selection inspector (see {@link selectionCount}). The two widgets of the round are not in a preset of the
- * factory ones (the owner lays out the `Painter` one later), so the test seeds the editor preset with the kind swapped:
- * the inspector takes the slot of the polygon inspector, which keeps the size the owner measured (350 × 190) and the
- * camera form the tests aim the camera with.
+ * The count of the selected faces lives in the selection inspector (see {@link selectionCount}), and the owner put it on
+ * the factory `Editor` itself: the row under the undo and redo takes what the locks leave, so a test that selects faces
+ * reads it there and seeds the preset as it is.
  *
  * @returns The tree to put into the storage.
  */
 export function layoutWithSelectionInspector(): LayoutNode {
-  return renameKinds(editorLayout, { [WIDGET_KINDS.polygonInspector]: WIDGET_KINDS.selectionInspector })
+  return editorLayout
 }
 
 /**
- * The editor preset with both widgets of the texture round on the dock.
+ * The editor preset with the key table on the dock.
  *
  * @remarks
- * The selection inspector takes the place of the polygon inspector (the same size) and the texture list the place of the
- * keys: a test that paints faces needs both, and nothing in it reads the key table.
+ * The keys are not in the factory `Editor` any more (2026-11-09): the polygon inspector gives its row to them, so a test
+ * that drives the help of the history (its undo, redo and reset buttons) has the table on the screen. The camera form,
+ * the jump and the statistics stay where the preset puts them.
+ *
+ * @returns The tree to put into the storage.
+ */
+export function layoutWithTheKeys(): LayoutNode {
+  return renameKinds(editorLayout, { [WIDGET_KINDS.polygonInspector]: WIDGET_KINDS.keyboardShortcuts })
+}
+
+/**
+ * The editor preset with the texture list on the dock.
+ *
+ * @remarks
+ * The texture list takes the row of the polygon inspector: a test that paints faces needs the list and the selection
+ * inspector, and nothing in it reads the inspector of one face.
  *
  * @returns The tree to put into the storage.
  */
 export function painterLayout(): LayoutNode {
-  return renameKinds(layoutWithSelectionInspector(), { [WIDGET_KINDS.keyboardShortcuts]: WIDGET_KINDS.textures })
+  return renameKinds(editorLayout, { [WIDGET_KINDS.polygonInspector]: WIDGET_KINDS.textures })
 }
 
 /**
- * The layout of a test of the uv mapper: the painter layout, with the uv mapper in the place of the texture list.
+ * The layout of a test of the uv mapper: the selected face in the row of the undo, the uv mapper in the room the
+ * selection inspector leaves.
+ *
+ * @remarks
+ * The mapper needs a tall widget: the square it draws shrinks with the box, and a corner of it has to stay inside the
+ * widget for the drag of the test. The selection inspector is only read for the count of the selected faces, so the 60
+ * pixel row carries it.
  *
  * @returns The tree to put into the storage.
  */
 export function uvLayout(): LayoutNode {
-  return renameKinds(painterLayout(), { [WIDGET_KINDS.textures]: WIDGET_KINDS.uvMapper })
+  return renameKinds(editorLayout, {
+    [WIDGET_KINDS.undoRedo]: WIDGET_KINDS.selectionInspector,
+    [WIDGET_KINDS.selectionInspector]: WIDGET_KINDS.uvMapper,
+  })
 }
 
 /**

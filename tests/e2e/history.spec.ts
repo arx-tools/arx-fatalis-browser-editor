@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 import {
   clickCrosshair,
   editorUrl,
-  layoutWithSelectionInspector,
+  layoutWithTheKeys,
   lockPointer,
   readPose,
   seedLayout,
@@ -65,7 +65,7 @@ function historyButtonOf(page: Page, word: string): Locator {
  * @param page The page to prepare.
  */
 async function openTheEditor(page: Page): Promise<void> {
-  await seedLayout(page, layoutWithSelectionInspector())
+  await seedLayout(page, layoutWithTheKeys())
   await page.goto(editorUrl())
   await waitForLevel(page)
 }
@@ -243,7 +243,7 @@ test('a step of the history survives a reload', async ({ page, browserName }) =>
 
   // the blank level: it is there without a folder, and it is the same file on every load, so the stored steps may come
   // back on it (a level of the network has no value in the list to load again)
-  await seedLayout(page, layoutWithSelectionInspector())
+  await seedLayout(page, layoutWithTheKeys())
   await page.goto('/?map=blank-flat')
   await waitForLevel(page)
 
@@ -301,7 +301,7 @@ test('the steps taken back are still the redo after a reload', async ({ page, br
 
   // the blank level: it is there without a folder, and it is the same file on every load, so the stored steps may come
   // back on it (a level of the network has no value in the list to load again)
-  await seedLayout(page, layoutWithSelectionInspector())
+  await seedLayout(page, layoutWithTheKeys())
   await page.goto('/?map=blank-flat')
   await waitForLevel(page)
 

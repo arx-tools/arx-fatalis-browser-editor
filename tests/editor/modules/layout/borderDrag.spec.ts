@@ -31,7 +31,8 @@ const SPACING = 4
  * @remarks
  * The dock starts at y = 31 (the header is above it), the columns are 254 / 763 / 254 wide with a 4px gap, and the
  * thin row of the middle column is 50 high. The boxes are the boxes of the widget nodes, which is what the browser
- * gives at the press of a border.
+ * gives at the press of a border. The right column carries the four rows of the preset as it is since 2026-11-09: the
+ * statistics, the inspector, the 60 pixel row of the undo and redo, and the selection inspector below them.
  */
 const BOXES: Record<string, DragRect> = {
   'top-view': { left: 0, top: 31, width: 254, height: 270 },
@@ -42,7 +43,8 @@ const BOXES: Record<string, DragRect> = {
   '3d-view': { left: 258, top: 85, width: 763, height: 765 },
   'map-statistics': { left: 1026, top: 31, width: 254, height: 212 },
   'polygon-inspector': { left: 1026, top: 247, width: 254, height: 201 },
-  'keyboard-shortcuts': { left: 1026, top: 452, width: 254, height: 398 },
+  'undo-redo': { left: 1026, top: 452, width: 254, height: 60 },
+  'selection-inspector': { left: 1026, top: 516, width: 254, height: 334 },
 }
 
 /**
@@ -66,6 +68,7 @@ const HANDLES = {
   middleRight: { left: 1022, top: 31, width: 4, height: 819 },
   rightColumnTop: { left: 1026, top: 243, width: 254, height: 4 },
   rightColumnMiddle: { left: 1026, top: 448, width: 254, height: 4 },
+  rightColumnBottom: { left: 1026, top: 512, width: 254, height: 4 },
 } satisfies Record<string, DragRect>
 
 /**
@@ -352,6 +355,11 @@ void describe('dragTargetsOf', () => {
     },
     { line: 'the top of the left column (another split)', handle: HANDLES.leftColumnTop, expected: undefined },
     { line: 'the middle of the right column (another split)', handle: HANDLES.rightColumnMiddle, expected: undefined },
+    {
+      line: 'the undo row of the right column (another split)',
+      handle: HANDLES.rightColumnBottom,
+      expected: undefined,
+    },
   ]
 
   for (const border of borders) {

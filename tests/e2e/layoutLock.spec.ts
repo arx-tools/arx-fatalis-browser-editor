@@ -247,31 +247,32 @@ test('a locked widget shows its size on the plate, and an unlocked one shows non
 
   await page.locator('header button[aria-label="Unlock the layout"]').click()
 
-  // the preset locks four widgets, and every one of them carries the size the owner measured
-  await expect(page.locator('.WidgetOverlay .size')).toHaveCount(4)
+  // the preset locks five widgets, and every one of them carries the size the owner measured
+  await expect(page.locator('.WidgetOverlay .size')).toHaveCount(5)
   expect(await badgeOf(page, 'top-view')).toBe('350 × 350')
   expect(await badgeOf(page, 'jump-to-location')).toBe('200 × 50')
-  expect(await badgeOf(page, 'map-statistics')).toBe('350 × 210')
-  expect(await badgeOf(page, 'polygon-inspector')).toBe('350 × 190')
+  expect(await badgeOf(page, 'map-statistics')).toBe('350 × 200')
+  expect(await badgeOf(page, 'polygon-inspector')).toBe('350 × 180')
+  expect(await badgeOf(page, 'undo-redo')).toBe('350 × 60')
 
   // a widget the preset left free has no badge
-  await expect(page.locator('[data-widget-kind="keyboard-shortcuts"] .WidgetOverlay .size')).toHaveCount(0)
+  await expect(page.locator('[data-widget-kind="selection-inspector"] .WidgetOverlay .size')).toHaveCount(0)
 
   // the lock goes: the badge goes with it
   await page.locator('[data-widget-kind="map-statistics"] button[aria-label="Unlock the widget"]').click()
   await expect(page.locator('[data-widget-kind="map-statistics"] .WidgetOverlay .size')).toHaveCount(0)
-  await expect(page.locator('.WidgetOverlay .size')).toHaveCount(3)
+  await expect(page.locator('.WidgetOverlay .size')).toHaveCount(4)
 
   // and the plate of a free widget puts a badge back on it
-  await page.locator('[data-widget-kind="keyboard-shortcuts"] button[aria-label="Lock the widget"]').click()
+  await page.locator('[data-widget-kind="selection-inspector"] button[aria-label="Lock the widget"]').click()
 
-  const width = await page.locator('[data-widget-kind="keyboard-shortcuts"]').evaluate((node) => {
+  const width = await page.locator('[data-widget-kind="selection-inspector"]').evaluate((node) => {
     return Math.round(node.getBoundingClientRect().width)
   })
-  const height = await heightOf(page, 'keyboard-shortcuts')
+  const height = await heightOf(page, 'selection-inspector')
 
-  expect(await badgeOf(page, 'keyboard-shortcuts')).toBe(`${String(width)} × ${String(height)}`)
-  await expect(page.locator('.WidgetOverlay .size')).toHaveCount(4)
+  expect(await badgeOf(page, 'selection-inspector')).toBe(`${String(width)} × ${String(height)}`)
+  await expect(page.locator('.WidgetOverlay .size')).toHaveCount(5)
 })
 
 test('a smaller window squeezes the widgets, it does not cut them', async ({ page }) => {

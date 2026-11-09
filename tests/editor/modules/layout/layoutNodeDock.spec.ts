@@ -88,11 +88,12 @@ void describe('toLayoutNode', () => {
       'camera-controls',
       'front-view',
       'jump-to-location',
-      'keyboard-shortcuts',
       'left-view',
       'map-statistics',
       'polygon-inspector',
+      'selection-inspector',
       'top-view',
+      'undo-redo',
     ])
     assert.equal(node.type, 'split')
   })

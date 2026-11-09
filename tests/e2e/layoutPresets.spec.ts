@@ -9,8 +9,9 @@ import { editorUrl } from './support/editor.ts'
  * the widget sits in and the height on the vertical one. These tests are the acceptance of the numbers (2026-11-01):
  * the viewer comes with the plan at 350 x 285, the jump at 350 x 80 and the render performance readout at 350 x 210
  * (2026-11-08, the owner asked for it there), the editor with the plan at 350 x 350, the
- * jump at 200 x 50, the statistics at 350 x 210 and the inspector at 350 x 190, and the painter (2026-11-04) with the
- * polygon inspector at 360 x 185, the keys at 360 x 430 and the uv mapper at 400 x 430. The widgets the owner did not
+ * jump at 200 x 50, the statistics at 350 x 200, the inspector at 350 x 180 and the undo and redo row at 350 x 60
+ * (2026-11-09), and the painter (2026-11-04) with the polygon inspector at 360 x 185, the keys at 360 x 430 and the
+ * uv mapper at 400 x 430. The widgets the owner did not
  * size stay free, and the header has to keep the name of the preset after the locks are applied — a layout that comes
  * back differently from the preset would show up as `Blank` — the name now says which layout is active, and a tweak
  * belongs to the preset it was made on (see `layoutHistory.ts`).
@@ -107,7 +108,7 @@ test('the editor preset comes with the four sizes the owner measured', async ({ 
   await page.locator('header button[aria-label="Presets"]').click()
   await page.locator('.preset-menu .preset-row', { hasText: 'Editor' }).click()
 
-  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(9)
+  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(10)
   await page.waitForTimeout(800)
 
   expect(await presetName(page)).toBe('Editor')
@@ -116,26 +117,35 @@ test('the editor preset comes with the four sizes the owner measured', async ({ 
   const jump = await boxOf(page, 'jump-to-location')
   const statistics = await boxOf(page, 'map-statistics')
   const inspector = await boxOf(page, 'polygon-inspector')
+  const undo = await boxOf(page, 'undo-redo')
+  const selection = await boxOf(page, 'selection-inspector')
 
   expect(plan.width).toBe(350)
   expect(plan.height).toBe(350)
   expect(jump.width).toBe(200)
   expect(jump.height).toBe(50)
   expect(statistics.width).toBe(350)
-  expect(statistics.height).toBe(210)
+  expect(statistics.height).toBe(200)
   expect(inspector.width).toBe(350)
-  expect(inspector.height).toBe(190)
+  expect(inspector.height).toBe(180)
+  expect(undo.width).toBe(350)
+  expect(undo.height).toBe(60)
 
-  // the camera form and the keys are free, and they fill what the locks leave
+  // the four rows of the right column follow each other, and the selection inspector takes what the locks leave
+  expect(inspector.top).toBe(statistics.top + statistics.height + 4)
+  expect(undo.top).toBe(inspector.top + inspector.height + 4)
+  expect(selection.top).toBe(undo.top + undo.height + 4)
+  expect(await page.locator('[data-widget-kind="undo-redo"]').getAttribute('data-locked-height')).toBe('60')
+  expect(await page.locator('[data-widget-kind="selection-inspector"]').getAttribute('data-locked-height')).toBeNull()
+
+  // the key table left the editor with the room it took (2026-11-09): the selection inspector holds the row now
+  await expect(page.locator('[data-widget-kind="keyboard-shortcuts"]')).toHaveCount(0)
+
+  // the camera form is free too, and it fills what the jump leaves
   const camera = await boxOf(page, 'camera-controls')
 
   expect(camera.top).toBe(jump.top)
   expect(camera.width).toBeGreaterThan(80)
-
-  const keys = await boxOf(page, 'keyboard-shortcuts')
-
-  expect(keys.height).toBeGreaterThan(190)
-  expect(keys.top).toBe(inspector.top + inspector.height + 4)
 
   // a taller window: the locks hold, the free widgets take the room, and the header keeps the name of the preset
   await page.setViewportSize({ width: 1631, height: 1100 })
@@ -143,12 +153,14 @@ test('the editor preset comes with the four sizes the owner measured', async ({ 
 
   const planAfter = await boxOf(page, 'top-view')
   const statisticsAfter = await boxOf(page, 'map-statistics')
-  const keysAfter = await boxOf(page, 'keyboard-shortcuts')
+  const undoAfter = await boxOf(page, 'undo-redo')
+  const selectionAfter = await boxOf(page, 'selection-inspector')
 
   expect(await presetName(page)).toBe('Editor')
   expect(planAfter.height).toBe(350)
-  expect(statisticsAfter.height).toBe(210)
-  expect(keysAfter.height).toBeGreaterThan(keys.height)
+  expect(statisticsAfter.height).toBe(200)
+  expect(undoAfter.height).toBe(60)
+  expect(selectionAfter.height).toBeGreaterThan(selection.height)
 })
 
 test('the painter preset comes with the sizes the owner measured', async ({ page }) => {
@@ -214,6 +226,8 @@ test('every layout keeps its own history, and the steps of the menu take it back
   const viewerRow = page.locator('.preset-row', { hasText: 'Viewer' })
   const editorRow = page.locator('.preset-row', { hasText: 'Editor' })
   const keys = page.locator('[data-widget-kind="keyboard-shortcuts"]')
+  // the editor has no keys since 2026-11-09: its free widget for the step below is the selection inspector
+  const selection = page.locator('[data-widget-kind="selection-inspector"]')
 
   /**
    * Opens the menu of the presets, when it is closed.
@@ -258,10 +272,10 @@ test('every layout keeps its own history, and the steps of the menu take it back
   await expect(page.locator('header button[aria-label="Presets"] .name')).toHaveText('Editor')
 
   // a step on the editor too, so both rows have one
-  await keys.locator('button[aria-label="Lock the widget"]').click()
+  await selection.locator('button[aria-label="Lock the widget"]').click()
   await page.waitForTimeout(900)
 
-  await expect(keys).toHaveAttribute('data-locked-height', /.+/u)
+  await expect(selection).toHaveAttribute('data-locked-height', /.+/u)
 
   await menu.click()
   await viewerRow.locator('.choose').click()
@@ -277,7 +291,7 @@ test('every layout keeps its own history, and the steps of the menu take it back
   await page.waitForTimeout(700)
 
   await expect(page.locator('header button[aria-label="Presets"] .name')).toHaveText('Editor')
-  await expect(page.locator('[data-widget-kind="keyboard-shortcuts"]')).not.toHaveAttribute('data-locked-height', /.+/u)
+  await expect(selection).not.toHaveAttribute('data-locked-height', /.+/u)
 
   // the viewer is the one with the lock now, and the dock is back on it for the reload
   await openMenu()

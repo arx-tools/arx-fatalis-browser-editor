@@ -35,12 +35,12 @@ export interface FactoryPreset {
 const THIN_ROW_HEIGHT = 50
 
 /**
- * The height of the row of the undo and redo buttons in the `Painter`, in pixels.
+ * The height of the row of the undo and redo buttons, in pixels.
  *
  * @remarks
- * The buttons are 22 px high with 8 px of padding around them, and the owner asked for a **locked** 60 px row under the
- * uv mapper (2026-11-06): the two steps of the history are a click away from the texture work, and the texture list
- * below them takes what is left.
+ * The buttons are 22 px high with 8 px of padding around them, and the owner asked for a **locked** 60 px row: under
+ * the uv mapper in the `Painter` (2026-11-06), and under the polygon inspector in the `Editor` (2026-11-09), so the two
+ * steps of the history are a click away from the work.
  */
 const UNDO_ROW_HEIGHT = 60
 
@@ -85,8 +85,9 @@ function fixed(px: number): ChildSize {
  * @remarks
  * The left column is locked to 350 wide, and its first view (the plan) to 350 high: the two elevations under it share
  * the rest. The middle column holds the thin row above the walkable view, with the jump of the row locked to 200 wide
- * and the row to 50 high, so the camera form takes the rest of the row. The right column is locked to 350 wide, the
- * statistics to 210 and the inspector to 190 high, and the keyboard shortcuts take what is left.
+ * and the row to 50 high, so the camera form takes the rest of the row. The right column is locked to 350 wide: the
+ * statistics to 200, the polygon inspector to 180 and the undo and redo row to 60 high, and the selection inspector
+ * takes what is left (2026-11-09, the owner: the list of the selected textures has to fit beside the numbers).
  *
  * The locks are the sizes the owner read off the badge of the plate in the edit mode (2026-11-01): they are the
  * widgets he wants where he put them, and the rest of the layout stays flexible around them. The jump was 290 wide in
@@ -127,11 +128,12 @@ export const editorLayout: LayoutNode = {
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: [fixed(210), fixed(190), auto(1)],
+      sizes: [fixed(200), fixed(180), fixed(UNDO_ROW_HEIGHT), auto(1)],
       children: [
         { type: 'widget', kind: WIDGET_KINDS.mapStatistics },
         { type: 'widget', kind: WIDGET_KINDS.polygonInspector },
-        { type: 'widget', kind: WIDGET_KINDS.keyboardShortcuts },
+        { type: 'widget', kind: WIDGET_KINDS.undoRedo },
+        { type: 'widget', kind: WIDGET_KINDS.selectionInspector },
       ],
     },
   ],

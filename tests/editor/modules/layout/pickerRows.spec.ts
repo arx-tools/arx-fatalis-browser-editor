@@ -59,8 +59,9 @@ void describe('pickerRows', () => {
     )
   })
 
-  void it('keeps the order of the definitions inside a category', () => {
-    assert.deepEqual(kindsOf(pickerRows(definitions, [])), ['view3d', 'camera', 'statistics', 'help'])
+  void it('sorts the rows of a category by their names', () => {
+    // the definitions come in another order (the map statistics before the key table), and the popup reads them as a menu
+    assert.deepEqual(kindsOf(pickerRows(definitions, [])), ['view3d', 'camera', 'help', 'statistics'])
   })
 
   void it('leaves out a category that has no widget', () => {
@@ -97,7 +98,7 @@ void describe('pickerRows', () => {
           return row.label
         })
       }),
-      [['3D View'], ['Camera Controls'], ['Map Statistics', 'Controls']],
+      [['3D View'], ['Camera Controls'], ['Controls', 'Map Statistics']],
     )
   })
 

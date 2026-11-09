@@ -116,7 +116,7 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
     kind: WIDGET_KINDS.areas,
     label: 'Areas',
     contentSized: true,
-    group: 'info',
+    group: 'controls',
     create: (label): Widget => {
       return new VueWidget(AreasWidget, { label })
     },
@@ -142,7 +142,7 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
   {
     kind: WIDGET_KINDS.textures,
     label: 'Textures',
-    group: 'info',
+    group: 'controls',
     create: (label): Widget => {
       return new VueWidget(TextureBrowserWidget, { label })
     },
@@ -158,7 +158,7 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
   {
     kind: WIDGET_KINDS.uvMapper,
     label: 'UV Mapper',
-    group: 'info',
+    group: 'controls',
     create: (label): Widget => {
       return new VueWidget(UvMapperWidget, { label })
     },

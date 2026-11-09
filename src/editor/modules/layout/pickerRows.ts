@@ -31,7 +31,7 @@ export interface PickerGroup {
    */
   readonly label: string
   /**
-   * The rows of the category, in the order of the definitions.
+   * The rows of the category, in the alphabetical order of their names.
    */
   readonly rows: readonly PickerRow[]
 }
@@ -61,6 +61,9 @@ export function pickerRows(definitions: readonly WidgetDefinition[], placedKinds
       })
       .map((definition) => {
         return { kind: definition.kind, label: definition.label, isPlaced: placed.has(definition.kind) }
+      })
+      .toSorted((first, second) => {
+        return first.label.localeCompare(second.label, 'en')
       })
 
     if (rows.length === 0) {

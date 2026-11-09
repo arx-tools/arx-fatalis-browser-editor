@@ -120,6 +120,19 @@ export function createLayoutApply(context: LayoutApplyContext): LayoutApply {
   let sizesFrame: number | undefined
 
   /**
+   * The tree the dock was just rebuilt from, while the pass of its sizes is on its way.
+   *
+   * @remarks
+   * The weights of a config are not the sizes of the tree: a flexible child is a **share of the space the locks
+   * leave**, and lumino reads every weight as a share of the whole split. A tree with two flexible children of another
+   * ratio (0.36 and 0.63) therefore reaches the dock as a few pixels next to a locked pixel size, lumino clamps both to
+   * the css minimum, and the tree read back has them at 50-50. The pass has to work from the tree it put there, or the
+   * collapsed ratios would be written into the layout as the new state — the undo of a dragged border then looked like a
+   * redo (the owner's bug, 2026-11-09).
+   */
+  let pendingTree: LayoutNode | null = null
+
+  /**
    * Measures the height the content of a widget wants.
    *
    * @remarks
@@ -215,11 +228,13 @@ export function createLayoutApply(context: LayoutApplyContext): LayoutApply {
       return
     }
 
-    const tree = toLayoutNode(layout.saveLayout(), widgetKind)
+    const tree = pendingTree ?? toLayoutNode(layout.saveLayout(), widgetKind)
 
     if (tree === null) {
       return
     }
+
+    pendingTree = null
 
     const box = host.getBoundingClientRect()
 
@@ -357,6 +372,8 @@ export function createLayoutApply(context: LayoutApplyContext): LayoutApply {
    * were disposed by the caller already, so this is the half of the rebuild that has no widget and no size to work out.
    */
   function clearDock(): void {
+    pendingTree = null
+
     isRebuilding = true
 
     try {
@@ -411,9 +428,25 @@ export function createLayoutApply(context: LayoutApplyContext): LayoutApply {
       widgets.set(kind, widget)
     }
 
-    const config = toDockConfig(node, (kind) => {
-      return widgets.get(kind)
-    })
+    // the first layout of the dock is the plan of the tree, not the weights of its sizes: a flexible child is a share
+    // of the space the locks leave, and lumino reads every weight as a share of the whole split — a ratio of 0.36 next
+    // to a locked pixel size would collapse to the css minimums and the pass would read the collapsed ratios back. The
+    // locks are not on the new widgets yet (the walk below writes them after the restore), so the plan is the one of the
+    // tree alone; the pass that follows works it out again with the real limits of the widgets.
+    const box = host.getBoundingClientRect()
+    let sizes: ReadonlyMap<LayoutNode, number> | undefined
+
+    if (box.width > 0 && box.height > 0) {
+      sizes = planLayout(node, { width: box.width, height: box.height }, fitOf, dock.spacing)
+    }
+
+    const config = toDockConfig(
+      node,
+      (kind) => {
+        return widgets.get(kind)
+      },
+      sizes,
+    )
 
     const main = config?.main
 
@@ -458,7 +491,10 @@ export function createLayoutApply(context: LayoutApplyContext): LayoutApply {
 
     // the dock has just been laid out from the weights of the tree, which is close but not the same thing: a lock is
     // a pixel size and a ratio a share of what the locks leave, and the content limits of the widgets are not in the
-    // weights at all. The pass is what puts the sizes the preset asks for on the screen
+    // weights at all. The pass is what puts the sizes the preset asks for on the screen — and it takes the tree from
+    // here, because the dock's own tree is the collapsed one (see `pendingTree`)
+    pendingTree = node
+
     requestManagedSizes()
   }
 

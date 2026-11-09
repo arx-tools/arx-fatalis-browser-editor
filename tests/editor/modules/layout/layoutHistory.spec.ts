@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { customLayout, factoryPresets } from '../../../../src/editor/modules/layout/layoutPresets.ts'
+import { customLayout, factoryPreset, factoryPresets } from '../../../../src/editor/modules/layout/layoutPresets.ts'
 import {
   canRedoOf,
   canUndoOf,
   createLayoutHistory,
+  factorySignatureOf,
   historyOf,
   parseLayoutHistories,
   redoOf,
@@ -130,11 +131,45 @@ void describe('the histories of the presets', () => {
   void it('reads the stored histories back', () => {
     const histories = parseLayoutHistories(
       JSON.stringify({
-        viewer: { states: [column(0.5), column(0.7)], index: 1 },
+        viewer: { states: [column(0.5), column(0.7)], index: 1, factory: factorySignatureOf('viewer') },
       }),
     )
 
     assert.deepEqual(histories?.viewer, { states: [column(0.5), column(0.7)], index: 1 })
+  })
+
+  void it('drops a history written for another build of the preset', () => {
+    // the factory of the preset moved (a widget was added to it): its old states are of a dock this build does not make
+    const histories = parseLayoutHistories(
+      JSON.stringify({
+        viewer: { states: [column(0.5)], index: 0, factory: 'not-the-factory-of-this-build' },
+      }),
+    )
+
+    assert.equal(histories?.viewer, undefined)
+  })
+
+  void it('keeps the history of a preset whose factory did not move', () => {
+    // a value of the build before the signature: the first state is the factory tree it started from
+    const histories = parseLayoutHistories(
+      JSON.stringify({
+        painter: { states: [factoryPreset('painter')?.layout], index: 0 },
+      }),
+    )
+
+    assert.notEqual(histories?.painter, undefined)
+  })
+
+  void it('drops the history of a preset whose factory grew a widget', () => {
+    // the viewer got the render performance readout (2026-11-09): a history of the four widgets it had before is of
+    // another dock, so the preset starts from the factory tree again
+    const histories = parseLayoutHistories(
+      JSON.stringify({
+        viewer: { states: [{ type: 'widget', kind: 'keyboard-shortcuts' }], index: 0 },
+      }),
+    )
+
+    assert.equal(histories?.viewer, undefined)
   })
 
   void it('gives nothing for a value that is not a history', () => {

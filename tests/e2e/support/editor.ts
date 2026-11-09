@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 import { editorLayout, factoryPresets } from '../../../src/editor/modules/layout/layoutPresets.ts'
+import { factorySignatureOf } from '../../../src/editor/modules/layout/layoutHistory.ts'
 import { layoutEquals, type LayoutNode } from '../../../src/editor/modules/layout/layoutNode.ts'
 import { WIDGET_KINDS } from '../../../src/editor/modules/layout/widgetKinds.ts'
 import { ORIGINAL_LEVEL_PARAMETER } from '../../../src/editor/modules/level/source/levelSource.ts'
@@ -53,7 +54,9 @@ export async function seedLayout(page: Page, layout: LayoutNode): Promise<void> 
     factoryPresets.find((candidate) => {
       return layoutEquals(candidate.layout, layout)
     })?.id ?? 'editor'
-  const histories = { [preset]: { states: [layout], index: 0 } }
+  // the value the storage holds carries the signature of the factory the build has: a test tree that is not the factory
+  // tree is still a state of this dock, and the editor reads it as one
+  const histories = { [preset]: { states: [layout], index: 0, factory: factorySignatureOf(preset) } }
 
   await page.addInitScript(
     (seeded: { preset: string; histories: unknown }) => {

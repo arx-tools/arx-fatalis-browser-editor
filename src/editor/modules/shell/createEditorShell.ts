@@ -10,6 +10,7 @@ import {
   canUndoOf,
   historyOf,
   parseLayoutHistories,
+  serializeLayoutHistories,
   redoOf,
   stateOf,
   undoOf,
@@ -241,6 +242,7 @@ export function createEditorShell(
     defaultValue: {},
     persistInLocalStorage: true,
     debounce: 250,
+    serialize: serializeLayoutHistories,
     deserialize: parseLayoutHistories,
   })
 

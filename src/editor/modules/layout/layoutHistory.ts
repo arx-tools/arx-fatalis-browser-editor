@@ -1,5 +1,5 @@
 import { factoryPreset, factoryPresets, defaultLayout, type PresetId } from './layoutPresets.ts'
-import { layoutEquals, parseLayoutNode, type LayoutNode } from './layoutNode.ts'
+import { collectKinds, layoutEquals, parseLayoutNode, type LayoutNode } from './layoutNode.ts'
 
 /**
  * The history of one layout: the states it went through, and where the user is in them.
@@ -139,6 +139,88 @@ export function redoOf(history: LayoutHistory): LayoutHistory {
 }
 
 /**
+ * The signature of a value, for telling one build of a preset from another.
+ *
+ * @remarks
+ * The factory presets are code: a new widget on one of them changes its tree, and the states a stored history holds are
+ * then of another dock. The signature of the tree (a hash of its JSON) says whether the history was written with this
+ * build of the preset.
+ *
+ * @param value The value to sign.
+ *
+ * @returns The signature, as hex.
+ */
+function signatureOf(value: unknown): string {
+  const text = JSON.stringify(value)
+  let hash = 0x81_1c_9d_c5
+
+  for (let index = 0; index < text.length; index++) {
+    hash = hash ^ (text.codePointAt(index) ?? 0)
+    hash = Math.imul(hash, 0x01_00_01_93)
+  }
+
+  return (hash >>> 0).toString(16)
+}
+
+/**
+ * The signature of the factory tree of a preset.
+ *
+ * @param id The preset to sign.
+ *
+ * @returns The signature of its factory layout.
+ */
+export function factorySignatureOf(id: PresetId): string {
+  return signatureOf(factoryPreset(id)?.layout ?? defaultLayout)
+}
+
+/**
+ * Writes the histories down, with the signature of the factory tree of every preset.
+ *
+ * @remarks
+ * The signature is what a later build reads to tell a history of this dock from one of another: without it a preset
+ * that lost or gained a widget would keep walking its old states.
+ *
+ * @param histories The histories to write.
+ *
+ * @returns The value the storage keeps.
+ */
+export function serializeLayoutHistories(histories: LayoutHistories): string {
+  const value: Record<string, unknown> = {}
+
+  for (const [id, history] of Object.entries(histories) as Array<[PresetId, LayoutHistory | undefined]>) {
+    if (history === undefined) {
+      continue
+    }
+
+    value[id] = { states: history.states, index: history.index, factory: factorySignatureOf(id) }
+  }
+
+  return JSON.stringify(value)
+}
+
+/**
+ * Tells whether a stored history of an older build may still be used.
+ *
+ * @remarks
+ * The first values of the editor had no signature. Their first state is the factory tree of the build that wrote them,
+ * so a preset whose factory grew a widget since (the `Viewer` and its render performance readout, 2026-11-09) can be
+ * told: a kind of the factory that no state holds at its start is a widget the history never saw. A preset whose
+ * factory is the same keeps its history, and the states are the ones of this dock.
+ *
+ * @param state The first state of the stored history.
+ * @param id The preset the history belongs to.
+ *
+ * @returns True when the stored history may still walk the dock.
+ */
+function hasFactoryKinds(state: LayoutNode, id: PresetId): boolean {
+  const kinds = new Set(collectKinds(state))
+
+  return collectKinds(factoryPreset(id)?.layout ?? defaultLayout).every((kind) => {
+    return kinds.has(kind)
+  })
+}
+
+/**
  * Reads the history of a preset: the stored one, or a fresh history of the factory tree.
  *
  * @param histories The histories of the session.
@@ -208,7 +290,7 @@ export function parseLayoutHistories(raw: string): LayoutHistories | undefined {
       return undefined
     }
 
-    const { states, index } = entry as { states?: unknown; index?: unknown }
+    const { states, index, factory } = entry as { states?: unknown; index?: unknown; factory?: unknown }
 
     if (!Array.isArray(states) || states.length === 0) {
       return undefined
@@ -224,6 +306,20 @@ export function parseLayoutHistories(raw: string): LayoutHistories | undefined {
 
     if (typeof index !== 'number' || !Number.isSafeInteger(index) || index < 0 || index >= parsed.length) {
       return undefined
+    }
+
+    // a history of another build of this preset is dropped, not walked: its states are of a dock the factory no longer
+    // makes (a widget the preset has now is missing from them), so the preset starts from its factory tree again
+    let known = false
+
+    if (typeof factory === 'string') {
+      known = factory === factorySignatureOf(preset.id)
+    } else {
+      known = hasFactoryKinds(parsed[0] as LayoutNode, preset.id)
+    }
+
+    if (!known) {
+      continue
     }
 
     histories[preset.id] = {

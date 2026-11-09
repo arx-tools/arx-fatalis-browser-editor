@@ -3,6 +3,7 @@ import { beforeEach, describe, it } from 'node:test'
 import type { Widget as LuminoWidget } from '@lumino/widgets'
 import type { WidgetOverlayOptions } from '../../../../src/editor/modules/layout/layoutEditor.ts'
 import type { WidgetDefinition } from '../../../../src/editor/modules/layout/widgetDefinition.ts'
+import { factorySignatureOf } from '../../../../src/editor/modules/layout/layoutHistory.ts'
 import { installDom } from '../../../support/dom.ts'
 
 installDom()
@@ -401,6 +402,7 @@ void describe('the layout of the shell', () => {
         viewer: {
           states: [{ type: 'widget', kind: 'keyboard-shortcuts' }, tweak],
           index: 1,
+          factory: factorySignatureOf('viewer'),
         },
       }),
     )

@@ -29,6 +29,30 @@ export const DEFAULT_ZOOM = 0.8
 export const MAX_ZOOM = 8
 
 /**
+ * The names of the corners of a face, in the order the model holds them.
+ *
+ * @remarks
+ * The corners are the **letters** of the face (2026-11-09, the owner's request): the handles on the square and the list
+ * under it read A, B, C and D, the way the uv of a face is written down. A face of the level has three or four corners,
+ * so only the first three or four names are used, and the colours of the handles follow the order.
+ */
+const CORNER_NAMES = ['A', 'B', 'C', 'D'] as const
+
+/**
+ * Reads the name of a corner, for the handles and the list of the corners.
+ *
+ * @remarks
+ * A corner past the letters keeps its number, so a face with more corners than the letters is still readable.
+ *
+ * @param index The corner, in the order the model holds them.
+ *
+ * @returns The letter of the corner, or its number when the letters are used up.
+ */
+export function cornerNameOf(index: number): string {
+  return CORNER_NAMES[index] ?? String(index + 1)
+}
+
+/**
  * How much one pixel of the wheel turns the zoom.
  *
  * @remarks

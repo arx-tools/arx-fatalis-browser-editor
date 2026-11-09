@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Locator } from '@playwright/test'
 import {
   clickCrosshair,
   lockPointer,
@@ -65,7 +65,7 @@ test('a corner dragged on the texture moves the uv of the face, and the undo tak
   await expect(mapper.locator('.head .name')).toHaveText(/\.(?:bmp|jpg|png)$/iu)
 
   // every corner has its own number and colour, so four handles can be told apart
-  await expect(mapper.locator('.corner .index')).toHaveText(['1', '2', '3', '4'])
+  await expect(mapper.locator('.corner .index')).toHaveText(['A', 'B', 'C', 'D'])
 
   const colours = await mapper.locator('.corner').evaluateAll((nodes) => {
     return nodes.map((node) => {
@@ -76,20 +76,66 @@ test('a corner dragged on the texture moves the uv of the face, and the undo tak
   expect(new Set(colours).size).toBe(4)
 
   // the corner to edit is a list next to the fields, and the numbers of it are the two fields under the square
-  const cornerSelect = mapper.locator('select[aria-label="Corner to edit"]')
+  const cornerSelect = mapper.locator('button[aria-label="Corner to edit"]')
+
+  /**
+   * Picks a corner from the list of the widget: the list is drawn by the widget (the items of a native select are
+   * painted by the system on Firefox), so it is a click on the button and one on the item.
+   *
+   * @param index The corner to pick.
+   */
+  async function pickCorner(index: number): Promise<void> {
+    await cornerSelect.click()
+    await mapper.locator(`.corner-item[data-corner="${String(index)}"]`).click()
+  }
+
   const uField = mapper.locator('input[aria-label="U of the corner"]')
   const vField = mapper.locator('input[aria-label="V of the corner"]')
 
-  await expect(cornerSelect.locator('option')).toHaveText(['Corner 1', 'Corner 2', 'Corner 3', 'Corner 4'])
-  expect(await cornerSelect.inputValue()).toBe('0')
-  expect(await uField.inputValue()).toMatch(/^\d\.\d{3}$/u)
+  await expect(cornerSelect).toHaveText('A')
 
-  // the pointer goes, so the mouse reaches the corner of the widget
+  // the pointer goes, so the mouse reaches the widget (the lock keeps it on the walkable view otherwise)
   await page.evaluate(() => {
     globalThis.document.exitPointerLock()
   })
 
-  const corner = mapper.locator('[data-corner="0"]')
+  await cornerSelect.click()
+  await expect(mapper.locator('.corner-item')).toHaveText(['A', 'B', 'C', 'D'])
+  await cornerSelect.click()
+
+  expect(await uField.inputValue()).toMatch(/^\d\.\d{3}$/u)
+
+  // the list carries the colours of the handles (2026-11-09): the item of a corner is the colour of its handle, and the
+  // select shows the colour of the corner it holds
+  async function backgroundOf(element: Locator): Promise<string> {
+    return await element.evaluate((node) => {
+      return getComputedStyle(node).backgroundColor
+    })
+  }
+
+  for (const index of [0, 1, 2, 3]) {
+    const selector = String(index)
+    const handle = mapper.locator(`.corner[data-corner="${selector}"]`)
+
+    await cornerSelect.click()
+
+    const item = mapper.locator(`.corner-item[data-corner="${selector}"]`)
+    const handleColour = await backgroundOf(handle)
+    const itemColour = await backgroundOf(item)
+
+    expect(itemColour).toBe(handleColour)
+
+    await item.click()
+
+    const selectColour = await backgroundOf(cornerSelect)
+
+    expect(selectColour).toBe(handleColour)
+  }
+
+  // the drag below works on the corner A, and the fields show the corner the list holds
+  await pickCorner(0)
+
+  const corner = mapper.locator('.corner[data-corner="0"]')
   const box = await corner.boundingBox()
   const uBeforeOfDrag = await uField.inputValue()
 
@@ -134,7 +180,7 @@ test('a corner dragged on the texture moves the uv of the face, and the undo tak
 
   // the uv of a corner, as the two fields of it show it
   async function cornerUv(index: number): Promise<string> {
-    await cornerSelect.selectOption(String(index))
+    await pickCorner(index)
 
     return `${await uField.inputValue()} ${await vField.inputValue()}`
   }
@@ -194,19 +240,19 @@ test('a corner dragged on the texture moves the uv of the face, and the undo tak
   // and the uv of the corner is the one the undo left there: the pan moved the view, not the face
   expect(await cornerUv(0)).toBe(uBeforePan)
 
-  await cornerSelect.selectOption('0')
+  await pickCorner(0)
 
   // the drag of the yellow (the whole face) is not exercised here: the face of the blank level fills its texture (uv 0..1),
   // and the widget keeps a face inside its texture, so there is nowhere to move it. The step of that drag is the same
   // `movedUvs` the unit tests of the widget cover.
 
-  await cornerSelect.selectOption('0')
+  await pickCorner(0)
 
   // the list picks the corner to edit: the third one has its own uv, and the fields follow the choice
   const firstU = await uField.inputValue()
   const firstUV = `${firstU} ${await vField.inputValue()}`
 
-  await cornerSelect.selectOption('2')
+  await pickCorner(2)
 
   // the corner 3 of this face has another v (the u of the two happens to be the same zero)
   await expect
@@ -246,7 +292,7 @@ test('a corner dragged on the texture moves the uv of the face, and the undo tak
     .toBe(thirdV)
 
   // back to the first corner, the way the widget starts
-  await cornerSelect.selectOption('0')
+  await pickCorner(0)
 
   await expect
     .poll(async () => {
@@ -364,7 +410,7 @@ test('a corner dragged on the texture moves the uv of the face, and the undo tak
 
   // the whole texture: the corner 4 takes the bottom right point of it
   await maximizeButton.click()
-  await cornerSelect.selectOption('3')
+  await pickCorner(3)
 
   await expect
     .poll(async () => {
@@ -372,7 +418,7 @@ test('a corner dragged on the texture moves the uv of the face, and the undo tak
     })
     .toBe('1.000 1.000')
 
-  await cornerSelect.selectOption('0')
+  await pickCorner(0)
 
   // with the shift held the corner goes along the four axes only: a drag up keeps the u and moves the v
   //

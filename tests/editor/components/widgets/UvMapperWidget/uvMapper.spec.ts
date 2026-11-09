@@ -4,6 +4,7 @@ import { ArxPolygonFlags, type ArxPolygon } from 'arx-convert/types'
 import {
   clampUv,
   containsFacePoint,
+  cornerNameOf,
   maximizedUvs,
   mismatchMessageOf,
   MAX_ZOOM,
@@ -88,6 +89,21 @@ void describe('uvsOf', () => {
       ).length,
       4,
     )
+  })
+})
+
+void describe('cornerNameOf', () => {
+  void it('names the corners of a face with the letters of its uv, in the order of the model', () => {
+    assert.deepEqual(
+      [0, 1, 2, 3].map((index) => {
+        return cornerNameOf(index)
+      }),
+      ['A', 'B', 'C', 'D'],
+    )
+  })
+
+  void it('falls back to the number of a corner past the letters', () => {
+    assert.equal(cornerNameOf(4), '5')
   })
 })
 

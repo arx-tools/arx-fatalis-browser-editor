@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, shallowRef, useTemplateRef, watch } from 'vue'
 import {
+  ChevronDown,
   LayoutGrid,
   Maximize,
   RotateCcw,
@@ -19,6 +20,7 @@ import {
   DEFAULT_ZOOM,
   mismatchMessageOf,
   centreOfUvs,
+  cornerNameOf,
   perimeterOf,
   screenOfUv,
   maximizedUvs,
@@ -406,20 +408,136 @@ const drag = useUvMapperDrag({
 const { onPointerDown, onPointerMove, onPointerUp, onPanStart, onPanMove, onPanEnd } = drag
 
 /**
- * The corner the fields edit, as the select under the square shows it.
+ * The corner the fields edit, as the list under the square shows it.
  *
  * @remarks
  * Picking a corner from the list is the way to edit a corner without the mouse: the drag sets the same one, so the two
- * ways meet on {@link active}.
+ * ways meet on {@link active}. The list is drawn by the widget and not by the `select` of the browser: the items of a
+ * native select are painted by the system on Firefox, so the colours of the corners never reached them (2026-11-09,
+ * the owner's report).
  */
-const activeCorner = computed({
-  get: (): string => {
-    return String(active.value ?? 0)
-  },
-  set: (value: string): void => {
-    active.value = Number(value)
-    reframe()
-  },
+const activeCornerNumber = computed((): number => {
+  return active.value ?? 0
+})
+
+/**
+ * Whether the list of the corners is open.
+ */
+const cornerListOpen = shallowRef(false)
+
+/**
+ * The list of the corners, when it is open.
+ */
+const cornerList = useTemplateRef<HTMLDivElement>('cornerList')
+
+/**
+ * The button that opens the list: the focus goes back to it when the list closes.
+ */
+const cornerTrigger = useTemplateRef<HTMLButtonElement>('cornerTrigger')
+
+/**
+ * Puts the focus on an item of the list, the way the arrows walk it.
+ *
+ * @param index The position of the item to focus; it stays inside the list when the walk runs over an end.
+ */
+function focusCornerItem(index: number): void {
+  const items = cornerList.value?.querySelectorAll<HTMLElement>('.corner-item')
+
+  if (items === undefined) {
+    return
+  }
+
+  const at = Math.min(Math.max(index, 0), items.length - 1)
+
+  items[at]?.focus()
+}
+
+/**
+ * Opens the list, with the focus on the corner the fields hold.
+ */
+async function openCornerList(): Promise<void> {
+  cornerListOpen.value = true
+
+  await nextTick()
+  focusCornerItem(activeCornerNumber.value)
+}
+
+/**
+ * Closes the list.
+ */
+function closeCornerList(): void {
+  cornerListOpen.value = false
+}
+
+/**
+ * Opens the list, or closes it when it is open.
+ */
+function toggleCornerList(): void {
+  if (cornerListOpen.value) {
+    closeCornerList()
+
+    return
+  }
+
+  openCornerList()
+}
+
+/**
+ * Takes a corner from the list, and gives the focus back to the button.
+ *
+ * @param index The corner the list offered.
+ */
+function chooseCorner(index: number): void {
+  active.value = index
+  closeCornerList()
+  reframe()
+  cornerTrigger.value?.focus()
+}
+
+/**
+ * Closes the list on the escape key, and gives the focus back to the button.
+ */
+function onCornerEscape(): void {
+  if (!cornerListOpen.value) {
+    return
+  }
+
+  closeCornerList()
+  cornerTrigger.value?.focus()
+}
+
+/**
+ * Closes the list when the pointer lands outside the button and the list.
+ *
+ * @remarks
+ * The listener is on the document, in the capture phase, so a press anywhere closes the list before the page handles it:
+ * a corner of the square, a field, or the walkable view.
+ *
+ * @param event The press of the pointer, anywhere on the page.
+ */
+function onDocumentPointerDown(event: PointerEvent): void {
+  const { target } = event
+
+  if (!(target instanceof Node)) {
+    return
+  }
+
+  if (cornerList.value?.contains(target) === true || cornerTrigger.value?.contains(target) === true) {
+    return
+  }
+
+  closeCornerList()
+}
+
+// the listener of the outside click only lives while the list is open
+watch(cornerListOpen, (open) => {
+  if (open) {
+    document.addEventListener('pointerdown', onDocumentPointerDown, { capture: true })
+
+    return
+  }
+
+  document.removeEventListener('pointerdown', onDocumentPointerDown, { capture: true })
 })
 
 /**
@@ -528,6 +646,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   observer?.disconnect()
+  document.removeEventListener('pointerdown', onDocumentPointerDown, { capture: true })
 
   if (redrawFrame !== 0) {
     cancelAnimationFrame(redrawFrame)
@@ -605,14 +724,14 @@ watch(
           :class="{ 'is-dragged': dragged === handle.index, 'is-active': active === handle.index }"
           type="button"
           :data-corner="handle.index"
-          :aria-label="`Corner ${handle.index + 1}`"
+          :aria-label="`Corner ${cornerNameOf(handle.index)}`"
           :style="{ left: `${handle.x}px`, top: `${handle.y}px` }"
           @pointerdown="onPointerDown(handle.index, $event)"
           @pointermove="onPointerMove"
           @pointerup="onPointerUp"
           @pointercancel="onPointerUp"
         >
-          <span class="index">{{ handle.index + 1 }}</span>
+          <span class="index">{{ cornerNameOf(handle.index) }}</span>
         </button>
       </div>
 
@@ -620,9 +739,40 @@ watch(
     </div>
 
     <div class="fields">
-      <select v-model="activeCorner" class="corner-select" aria-label="Corner to edit" :disabled="shown === undefined">
-        <option v-for="(_, index) in corners" :key="index" :value="String(index)">Corner {{ index + 1 }}</option>
-      </select>
+      <div class="corner-pick" @keydown.esc.stop="onCornerEscape()">
+        <button
+          ref="cornerTrigger"
+          class="corner-select"
+          type="button"
+          :data-corner="activeCornerNumber"
+          aria-haspopup="listbox"
+          :aria-expanded="cornerListOpen"
+          aria-label="Corner to edit"
+          :disabled="shown === undefined"
+          @click="toggleCornerList()"
+          @keydown.down.prevent="openCornerList()"
+          @keydown.up.prevent="openCornerList()"
+        >
+          {{ cornerNameOf(activeCornerNumber) }}
+          <ChevronDown :size="10" />
+        </button>
+        <div v-if="cornerListOpen" ref="cornerList" class="corner-list" role="listbox" aria-label="Corners to edit">
+          <button
+            v-for="(_, index) in corners"
+            :key="index"
+            class="corner-item"
+            type="button"
+            role="option"
+            :aria-selected="index === activeCornerNumber"
+            :data-corner="index"
+            @click="chooseCorner(index)"
+            @keydown.down.prevent="focusCornerItem(index + 1)"
+            @keydown.up.prevent="focusCornerItem(index - 1)"
+          >
+            {{ cornerNameOf(index) }}
+          </button>
+        </div>
+      </div>
       <label class="field">
         <span class="axis">U</span>
         <input
@@ -758,10 +908,12 @@ watch(
     white-space: nowrap;
   }
 
+  // every text of the head is the light of the label (2026-11-09, the owner's request): the name of the texture, the
+  // count of the faces and the zoom used to be dimmer, and they are read as the same line as the name of the widget
   .name {
     grid-column: 2;
     overflow: hidden;
-    color: $text-muted;
+    color: $text-strong;
     text-align: center;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -769,14 +921,14 @@ watch(
 
   .faces {
     grid-column: 3;
-    color: $text-subtle;
+    color: $text-strong;
     font-size: 10px;
     white-space: nowrap;
   }
 
   .zoom {
     grid-column: 4;
-    color: $text-subtle;
+    color: $text-strong;
     font-size: 11px;
     justify-self: end;
     white-space: nowrap;
@@ -885,8 +1037,15 @@ watch(
   color: $text-muted;
   font-size: 11px;
 
-  .corner-select {
+  .corner-pick {
+    position: relative;
     flex: 0 0 auto;
+  }
+
+  .corner-select {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
     padding: 2px 4px;
     border: 1px solid $border-dark;
     border-radius: 4px;
@@ -894,14 +1053,75 @@ watch(
     color: $text-icon;
     font: inherit;
     font-size: 11px;
+    cursor: pointer;
 
-    &:focus {
+    &:focus-visible {
       border-color: $interactive;
       outline: 1px solid $interactive;
     }
 
     &:disabled {
       opacity: 0.45;
+      cursor: default;
+    }
+  }
+
+  // The list of the corners is drawn by the widget: the items of a native select are painted by the system on Firefox,
+  // so the colours of the corners never reached them (2026-11-09, the owner's report). It opens upwards, over the square,
+  // so it stays inside the widget.
+  .corner-list {
+    position: absolute;
+    z-index: 20;
+    bottom: calc(100% + 2px);
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 2px;
+    border: 1px solid $border-dark;
+    border-radius: 4px;
+    background: $surface-float;
+    box-shadow: 0 6px 18px rgba($ink, 0.55);
+  }
+
+  .corner-item {
+    padding: 3px 8px;
+    border: 0;
+    border-radius: 3px;
+    background: transparent;
+    color: $text;
+    font: inherit;
+    font-size: 11px;
+    text-align: left;
+    cursor: pointer;
+
+    &:focus-visible {
+      outline: 1px solid $interactive;
+      outline-offset: -1px;
+    }
+  }
+
+  // the button of the list and its items carry the colour of the handle on the square (A green, B blue, C orange and D
+  // red, the hues of the handles), and the text on them is the dark of a widget
+  .corner-select,
+  .corner-item {
+    &[data-corner='0'] {
+      background: $ok;
+      color: $surface-widget;
+    }
+
+    &[data-corner='1'] {
+      background: $interactive;
+      color: $surface-widget;
+    }
+
+    &[data-corner='2'] {
+      background: $accent;
+      color: $surface-widget;
+    }
+
+    &[data-corner='3'] {
+      background: $marker;
+      color: $surface-widget;
     }
   }
 

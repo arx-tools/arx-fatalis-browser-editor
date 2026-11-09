@@ -224,6 +224,19 @@ void describe('the frame loop of the walkable view', () => {
     assert.equal(counts.picks, 2)
   })
 
+  void it('keeps one chain of frames, however often it is asked to start', () => {
+    // the owner's drawn frames climbed without a bound (2026-11-09): a second `startLoop` on a running chain used to
+    // add another one, and every chain kept itself alive
+    const { loop } = loopOf(true)
+
+    loop.startLoop()
+    loop.startLoop()
+    loop.startLoop()
+
+    // one chain: one animation frame is waiting, not three
+    assert.equal(frames.size, 1)
+  })
+
   void it('stops the loop and drops the frame it was waiting for', () => {
     const { loop, counts } = loopOf(true)
 

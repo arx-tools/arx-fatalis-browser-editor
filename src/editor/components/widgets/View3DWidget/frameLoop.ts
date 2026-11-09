@@ -101,6 +101,17 @@ export function createFrameLoop(context: FrameLoopContext): FrameLoop {
   let lastFrameAt = 0
 
   /**
+   * Whether the locked loop has a chain of animation frames of its own.
+   *
+   * @remarks
+   * The chain keeps itself alive (`animate` schedules the next frame at its end), so it has to be watched on its own:
+   * a second call of `startLoop` on a running chain used to add **another** chain, and the view drew twice as many
+   * frames — the owner saw the drawn frames of the render readout climb without a bound (2026-11-09) while the camera
+   * moved. The `frame` id alone can not tell the chain from a one-shot render, so the flag names it.
+   */
+  let looping = false
+
+  /**
    * The pose of the camera of the last drawn frame, as a string: the locked loop draws only when the camera moved.
    */
   let lastDrawnPose = ''
@@ -200,7 +211,8 @@ export function createFrameLoop(context: FrameLoopContext): FrameLoop {
 
     const cameraControls = controls()
 
-    if (cameraControls?.isLocked !== true) {
+    if (!looping || cameraControls?.isLocked !== true) {
+      looping = false
       frame = 0
       lastFrameAt = 0
 
@@ -232,11 +244,12 @@ export function createFrameLoop(context: FrameLoopContext): FrameLoop {
    * Starts the locked movement loop, if it is not running already.
    */
   function startLoop(): void {
-    if (frame !== 0) {
-      requestAnimationFrame(animate)
+    // one chain, however often it is asked for: a second chain would keep drawing beside the first
+    if (looping) {
       return
     }
 
+    looping = true
     lastFrameAt = 0
     frame = requestAnimationFrame(animate)
   }
@@ -270,6 +283,8 @@ export function createFrameLoop(context: FrameLoopContext): FrameLoop {
     holdPick,
     resetPick,
     stop: (): void => {
+      looping = false
+
       if (frame !== 0) {
         cancelAnimationFrame(frame)
         frame = 0

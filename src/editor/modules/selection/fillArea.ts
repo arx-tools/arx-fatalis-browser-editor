@@ -6,12 +6,12 @@ import { roomAreaOf, unassignedAreaOf } from '../../../generator/rooms.ts'
  * What a view shows, which decides what a double click fills the selection with.
  *
  * @remarks
- * The areas switch of the view decides it, and not the look of the mesh: with the room map on the view shows areas, and
- * a double click takes the area of the face; with the map off it shows the textures, and the click takes the welded
+ * The room map switch of the view decides it, and not the look of the mesh: with the map on the view shows rooms, and
+ * a double click takes the room of the face; with the map off it shows the textures, and the click takes the welded
  * area of one texture. Switching the map between two double clicks is how the two are mixed: `Shift` adds the second
  * area to the selection and `Ctrl` takes it away.
  */
-export type SelectionFill = 'areas' | 'textures'
+export type SelectionFill = 'rooms' | 'textures'
 
 /**
  * Fills the selection with the area a double click stands for.

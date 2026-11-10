@@ -38,7 +38,7 @@ export const isMeshVisible = persistedRef<boolean>({
  * It is a view preference like the wireframe: a `persistedRef` in the `localStorage`, so the editor comes back
  * the way it was left. The rooms are coloured so that two rooms joined by a portal never share a colour (see
  * `generator/rooms.ts`), and every face takes a flat colour of its room: the textures are not drawn while the map
- * is on, because the point is to see the areas of the level.
+ * is on, because the point is to see the rooms of the level.
  */
 export const isRoomColorsVisible = persistedRef<boolean>({
   key: 'roomColorsVisible',
@@ -98,7 +98,7 @@ export function resetViewSwitches(): void {
  * The room map sits under the mesh: it is not drawn without it, so this does not turn it on either. The switch keeps
  * its value, so turning the mesh back on brings the map back the way it was left.
  *
- * The key help (`R`) and the title of the areas panel call this one: a switch with two doors, so the two can not
+ * The key help (`R`) and the title of the room inspector call this one: a switch with two doors, so the two can not
  * disagree about whether the map is on.
  */
 export function toggleRoomColors(): void {

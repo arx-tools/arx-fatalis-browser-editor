@@ -335,7 +335,7 @@ function showMap(map: ArxMap): void {
     view.scene.add(mesh)
   }
 
-  // the room map shares the geometry of the level, so the small views show the same areas
+  // the room map shares the geometry of the level, so the small views show the same rooms
   rooms = createRoomOverlay(map, currentMapId.value)
   rooms.setHighlight(selectedRoom.value)
   view.scene.add(rooms.mesh)
@@ -489,7 +489,7 @@ stopWatchingRooms = watch(isRoomColorsVisible, () => {
   requestRender()
 })
 
-// the areas panel picks a room: the small views dim the others like the walkable one
+// the room inspector picks a room: the small views dim the others like the walkable one
 stopWatchingRoom = watch(selectedRoom, (room) => {
   rooms?.setHighlight(room)
   requestRender()

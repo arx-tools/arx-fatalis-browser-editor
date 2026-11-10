@@ -103,7 +103,7 @@ const icons = { command: Command, 'mouse-left': MouseLeft }
 const switchNames: Record<HelpToggle, string> = {
   mesh: 'the mesh',
   wireframe: 'the wireframe',
-  roomColors: 'the areas',
+  roomColors: 'the rooms',
 }
 
 /**
@@ -156,7 +156,7 @@ const sections = computed<readonly HelpSection[]>(() => {
       rows: [
         { keys: [{ kind: 'text', text: 'X' }], action: 'Wireframe', toggle: 'wireframe' },
         { keys: [{ kind: 'text', text: 'M' }], action: 'Mesh', toggle: 'mesh' },
-        { keys: [{ kind: 'text', text: 'R' }], action: 'Areas (rooms)', toggle: 'roomColors', parent: 'mesh' },
+        { keys: [{ kind: 'text', text: 'R' }], action: 'room', toggle: 'roomColors', parent: 'mesh' },
       ],
     },
     {

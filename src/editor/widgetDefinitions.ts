@@ -1,5 +1,5 @@
 import type { Widget } from '@lumino/widgets'
-import AreasWidget from './components/widgets/AreasWidget/AreasWidget.vue'
+import RoomInspectorWidget from './components/widgets/RoomInspectorWidget/RoomInspectorWidget.vue'
 import CameraControlsWidget from './components/widgets/CameraControlsWidget/CameraControlsWidget.vue'
 import FixedViewWidget from './components/widgets/FixedViewWidget/FixedViewWidget.vue'
 import KeyboardShortcutsWidget from './components/widgets/KeyboardShortcutsWidget/KeyboardShortcutsWidget.vue'
@@ -113,13 +113,12 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
     },
   },
   {
-    kind: WIDGET_KINDS.areas,
-    // the motor's word is in brackets: the author looks for `room` in the game's manual, the editor says `Area`
-    label: 'Areas (rooms)',
+    kind: WIDGET_KINDS.roomInspector,
+    label: 'Room Inspector',
     contentSized: true,
-    group: 'controls',
+    group: 'info',
     create: (label): Widget => {
-      return new VueWidget(AreasWidget, { label })
+      return new VueWidget(RoomInspectorWidget, { label })
     },
   },
   {
@@ -142,7 +141,7 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
   },
   {
     kind: WIDGET_KINDS.textures,
-    label: 'Textures',
+    label: 'Texture Mapper',
     group: 'controls',
     create: (label): Widget => {
       return new VueWidget(TextureBrowserWidget, { label })

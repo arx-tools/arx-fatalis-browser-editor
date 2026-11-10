@@ -215,10 +215,10 @@ export const painterLayout: LayoutNode = {
 }
 
 /**
- * The layout of the room work: the plan views, the walkable view and the areas beside them.
+ * The layout of the room work: the plan views, the walkable view and the rooms beside them.
  *
  * @remarks
- * It is the `Editor` preset with the **Areas** panel where the inspector and the keys are: the level work is reading
+ * It is the `Editor` preset with the **Room Inspector** panel where the inspector and the keys are: the level work is reading
  * the rooms of a level (the list, the room under the crosshair, the problems), and the split of the level is decided
  * here. The `Rooms` name is what the header shows (2026-11-07, the owner).
  *
@@ -264,7 +264,7 @@ export const roomsLayout: LayoutNode = {
       children: [
         { type: 'widget', kind: WIDGET_KINDS.mapStatistics },
         { type: 'widget', kind: WIDGET_KINDS.selectionInspector },
-        { type: 'widget', kind: WIDGET_KINDS.areas },
+        { type: 'widget', kind: WIDGET_KINDS.roomInspector },
       ],
     },
   ],

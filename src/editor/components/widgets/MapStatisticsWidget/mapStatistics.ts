@@ -32,7 +32,7 @@ const PENDING_VALUE = '…'
  * the Selection Inspector, under the textures the selected faces draw with (2026-11-04, the owner).
  *
  * The **rooms** are the ones the level uses (the rooms a face belongs to): the file can carry more records, with the
- * reserved 0 and the gaps an edit leaves, and the author counts the areas they see.
+ * reserved 0 and the gaps an edit leaves, and the author counts the rooms they see.
  *
  * @param map The map of the loaded level, or `undefined` while it is loading.
  *

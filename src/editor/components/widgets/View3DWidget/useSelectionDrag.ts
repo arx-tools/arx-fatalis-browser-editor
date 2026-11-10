@@ -321,7 +321,7 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
       let fill: SelectionFill = 'textures'
 
       if (isRoomColorsVisible.value) {
-        fill = 'areas'
+        fill = 'rooms'
       }
 
       const area = fillAreaOf(fill, level.polygons, level.vertexToPolygons, index)

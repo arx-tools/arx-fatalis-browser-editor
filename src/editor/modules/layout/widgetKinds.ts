@@ -61,7 +61,7 @@ export const WIDGET_KINDS = {
   /**
    * The rooms of the level: the list, the one the player stands in, and the problems.
    */
-  areas: 'areas',
+  roomInspector: 'room-inspector',
   /**
    * The textures a face can be painted with.
    */

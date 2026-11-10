@@ -91,7 +91,7 @@ void describe('toggleRoomColors', () => {
     assert.equal(isRoomColorsVisible.value, false)
   })
 
-  void it('is the switch the title of the areas panel flips', () => {
+  void it('is the switch the title of the room inspector flips', () => {
     toggleRoomColors()
     assert.equal(isRoomColorsVisible.value, true)
 

@@ -83,7 +83,7 @@ export const keyboardActions: readonly KeyboardAction[] = [
   },
   {
     id: 'toggleRooms',
-    label: 'Toggle the areas',
+    label: 'Toggle the rooms',
     group: 'view',
     keys: [{ code: 'KeyR' }],
     modes: ['editor', 'pointerLocked'],

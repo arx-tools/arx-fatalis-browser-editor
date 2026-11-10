@@ -123,7 +123,7 @@ test('a widget dropped beside a locked one keeps the split the drop made', async
   // texture list and the row of the history go, or the column keeps a split under the mapper and the drop below would
   // halve that split, not the column
   await page.locator('header button[aria-label="Unlock the layout"]').click()
-  await page.locator('[data-widget-kind="textures"] button[aria-label="Remove the Textures widget"]').click()
+  await page.locator('[data-widget-kind="textures"] button[aria-label="Remove the Texture Mapper widget"]').click()
   await page.locator('[data-widget-kind="undo-redo"] button[aria-label="Remove the Undo and Redo widget"]').click()
   await page.waitForTimeout(800)
 
@@ -163,7 +163,7 @@ test('a lock survives a reload when the widget is alone in its column', async ({
   // the column of the uv mapper collapses when the texture list and the row of the history go: its height has no split
   // to live in any more
   await page.locator('header button[aria-label="Unlock the layout"]').click()
-  await page.locator('[data-widget-kind="textures"] button[aria-label="Remove the Textures widget"]').click()
+  await page.locator('[data-widget-kind="textures"] button[aria-label="Remove the Texture Mapper widget"]').click()
   await page.locator('[data-widget-kind="undo-redo"] button[aria-label="Remove the Undo and Redo widget"]').click()
   await page.waitForTimeout(800)
 

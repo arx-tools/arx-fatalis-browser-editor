@@ -9,13 +9,13 @@ import { selectedRoom, selectRoom } from '../../../modules/rooms/roomStore.ts'
 import WidgetHeading from '../../WidgetHeading.vue'
 import { isMeshVisible, isRoomColorsVisible, toggleRoomColors } from '../shared/levelDisplay.ts'
 import {
-  areaProblemsOf,
-  areaRowsOf,
   faceCountLabelOf,
+  roomProblemsOf,
+  roomRowsOf,
   roomUnderCrosshairOf,
-  type AreaProblem,
-  type AreaRow,
-} from './areas.ts'
+  type RoomProblem,
+  type RoomRow,
+} from './roomInspector.ts'
 
 /**
  * The label of the widget, from the widget definition.
@@ -45,27 +45,27 @@ const toggleTooltip = computed(() => {
   }
 
   if (showsRooms.value) {
-    return 'Hide the areas'
+    return 'Hide the rooms'
   }
 
-  return 'Show the areas'
+  return 'Show the rooms'
 })
 
 /**
  * The rooms of the level, with the colour the room map paints them with.
  */
-const rows = shallowRef<AreaRow[]>([])
+const rows = shallowRef<RoomRow[]>([])
 
 /**
- * What the author can not see in the view: the faces without a room, and the level that is one area.
+ * What the author can not see in the view: the faces without a room, and the level that is one room.
  */
-const problems = shallowRef<AreaProblem[]>([])
+const problems = shallowRef<RoomProblem[]>([])
 
 /**
  * The room of the face under the crosshair of the walkable view.
  *
  * @remarks
- * It reads the crosshair store, so it follows the view: the panel says which area the player stands in while the
+ * It reads the crosshair store, so it follows the view: the panel says which room the player stands in while the
  * camera moves and the crosshair picks another face.
  */
 const here = computed(() => {
@@ -89,8 +89,8 @@ function rebuild(): void {
     return
   }
 
-  rows.value = areaRowsOf(map, currentMapId.value)
-  problems.value = areaProblemsOf(map)
+  rows.value = roomRowsOf(map, currentMapId.value)
+  problems.value = roomProblemsOf(map)
 }
 
 watch(
@@ -129,7 +129,7 @@ function pick(room: number): void {
 </script>
 
 <template>
-  <div class="AreasWidget">
+  <div class="RoomInspectorWidget">
     <WidgetHeading :label="props.label">
       <template #actions>
         <button
@@ -177,9 +177,9 @@ function pick(room: number): void {
 <style scoped lang="scss">
 @use '../../../palette' as *;
 
-// The rooms of the level: the area the player stands in, the list of them, and what is wrong with them. The list is
+// The rooms of the level: the room the player stands in, the list of them, and what is wrong with them. The list is
 // the part that scrolls; the line above it and the problems below it stay where they are.
-.AreasWidget {
+.RoomInspectorWidget {
   display: flex;
   flex-direction: column;
 

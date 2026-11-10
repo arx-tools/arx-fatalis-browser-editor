@@ -216,7 +216,7 @@ function createScene(): void {
  *
  * @remarks
  * The two faces of the level are exclusive: the textured mesh is what the game draws, and the room map is the flat
- * colour of the areas, so only one of them is on at a time. The mesh switch of the key help turns off both.
+ * colour of the rooms, so only one of them is on at a time. The mesh switch of the key help turns off both.
  */
 function updateVisibility(): void {
   const visible = isMeshVisible.value
@@ -425,7 +425,7 @@ onMounted(() => {
 
   // the colours are keyed with the id of the level, and the id of a zip arrives after the level: the map is coloured
   // again when it lands, so two visits of the same level always show the same colours
-  // the areas panel picks a room: the map dims the others, so the picked area reads at a glance
+  // the room inspector picks a room: the map dims the others, so the picked room reads at a glance
   stopWatchingRoom = watch(selectedRoom, (room) => {
     rooms?.setHighlight(room)
     loop.requestRender()

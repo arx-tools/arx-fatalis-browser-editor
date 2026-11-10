@@ -30,8 +30,8 @@ const VERTICES_PER_TRIANGLE = 3
  * How much of its colour a room keeps while another one is highlighted.
  *
  * @remarks
- * The list of the areas highlights one room at a time: the map stays readable around it (the geometry is still there),
- * but the eye goes to the picked area. The value is a dim, not a hide, so a face outside the area is still seen.
+ * The list of the rooms highlights one room at a time: the map stays readable around it (the geometry is still there),
+ * but the eye goes to the picked room. The value is a dim, not a hide, so a face outside the area is still seen.
  */
 const DIMMED = 0.35
 
@@ -41,7 +41,7 @@ const DIMMED = 0.35
  * @remarks
  * It is the first piece of the room editing feature: it **shows** the rooms of the level and changes nothing. The mesh
  * shares the geometry of the level, so the room colours are one more attribute on it and a second copy of the level is
- * not built; the material is flat (a colour per vertex, no texture), so the map reads as the areas of the level and
+ * not built; the material is flat (a colour per vertex, no texture), so the map reads as the rooms of the level and
  * not as its art.
  */
 export interface RoomOverlay {

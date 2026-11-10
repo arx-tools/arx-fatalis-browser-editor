@@ -1,7 +1,7 @@
 import { shallowRef, type ShallowRef } from 'vue'
 
 /**
- * The room the areas panel picked, and the room map highlights.
+ * The room the room inspector picked, and the room map highlights.
  *
  * @remarks
  * A module level singleton, for the same reason as the level and the selection: a dock widget is its own Vue app, so

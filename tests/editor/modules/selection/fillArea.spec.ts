@@ -42,7 +42,7 @@ void describe('fillAreaOf', () => {
 
   void it('takes the whole room from the room map', () => {
     const polygons = [faceAt(0, 1, 2), faceAt(10, 2, 1), faceAt(20, 3, 2)]
-    const area = fillAreaOf('areas', polygons, vertexToPolygonsMap(polygons), 0)
+    const area = fillAreaOf('rooms', polygons, vertexToPolygonsMap(polygons), 0)
 
     // the room and not the piece of the click: the faces of room 2 do not touch each other here
     assert.deepEqual(area, [0, 2])
@@ -50,7 +50,7 @@ void describe('fillAreaOf', () => {
 
   void it('fills the faces without a room, and stops at the first room', () => {
     const polygons = [faceAt(0, 3, -1), faceAt(10, 3, -1), faceAt(20, 3, 5)]
-    const area = fillAreaOf('areas', polygons, vertexToPolygonsMap(polygons), 0)
+    const area = fillAreaOf('rooms', polygons, vertexToPolygonsMap(polygons), 0)
 
     // the piece that still has to be assigned a room: no face of a room comes along
     assert.deepEqual(
@@ -64,7 +64,7 @@ void describe('fillAreaOf', () => {
   void it('gives nothing when the click lands on nothing', () => {
     const polygons = [faceAt(0, 1, 2)]
 
-    assert.deepEqual(fillAreaOf('areas', polygons, vertexToPolygonsMap(polygons), 9), [])
+    assert.deepEqual(fillAreaOf('rooms', polygons, vertexToPolygonsMap(polygons), 9), [])
     assert.deepEqual(fillAreaOf('textures', polygons, vertexToPolygonsMap(polygons), 9), [])
   })
 })

@@ -24,7 +24,7 @@ export type ProblemKind = 'info' | 'warning'
 /**
  * One line of the problems of the level.
  */
-export interface AreaProblem {
+export interface RoomProblem {
   /**
    * Whether the line reports something the author should fix, or only explains the level.
    */
@@ -36,9 +36,9 @@ export interface AreaProblem {
 }
 
 /**
- * One room of the areas panel.
+ * One room of the room inspector.
  */
-export interface AreaRow extends RoomSummary {
+export interface RoomRow extends RoomSummary {
   /**
    * The colour the room map paints the room with.
    */
@@ -46,7 +46,7 @@ export interface AreaRow extends RoomSummary {
 }
 
 /**
- * Builds the rows of the areas panel.
+ * Builds the rows of the room inspector.
  *
  * @remarks
  * The colour is the one the room map paints the room with: the same colouring, keyed with the same id of the level, so
@@ -57,7 +57,7 @@ export interface AreaRow extends RoomSummary {
  *
  * @returns One row for every room the level uses, in the order of their ids.
  */
-export function areaRowsOf(map: ArxMap, mapId: string): AreaRow[] {
+export function roomRowsOf(map: ArxMap, mapId: string): RoomRow[] {
   const rooms = roomIdsOf(
     map.polygons.map((polygon) => {
       return polygon.room
@@ -127,8 +127,8 @@ export function roomUnderCrosshairOf(map: ArxMap | undefined, polygon: number | 
  *
  * @returns The problems, the serious ones first.
  */
-export function areaProblemsOf(map: ArxMap): AreaProblem[] {
-  const problems: AreaProblem[] = []
+export function roomProblemsOf(map: ArxMap): RoomProblem[] {
+  const problems: RoomProblem[] = []
   const rooms = roomSummaryOf(map.polygons)
 
   const lost = map.polygons.filter((polygon) => {
@@ -168,7 +168,7 @@ export function areaProblemsOf(map: ArxMap): AreaProblem[] {
     if (alone.length > 0) {
       problems.push({
         kind: 'warning',
-        text: `Room ${alone.join(', ')} has no opening: the game draws it only while the player is in it.`,
+        text: `room ${alone.join(', ')} has no opening: the game draws it only while the player is in it.`,
       })
     }
   }

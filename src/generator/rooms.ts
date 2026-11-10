@@ -360,7 +360,7 @@ export function roomIdsOf(rooms: readonly number[]): number[] {
 }
 
 /**
- * One room of the level, as the areas panel lists it.
+ * One room of the level, as the room inspector lists it.
  */
 export interface RoomSummary {
   /**
@@ -378,7 +378,7 @@ export interface RoomSummary {
  *
  * @remarks
  * The whole room, in whichever pieces the mesh holds it: an area is one thing for the game, so a double click on the
- * room map takes all of it and not only the piece the click landed on. The count is the one the areas panel shows.
+ * room map takes all of it and not only the piece the click landed on. The count is the one the room inspector shows.
  *
  * @param polygons The polygons of the level.
  * @param room The id of the room.
@@ -429,8 +429,8 @@ export function unassignedAreaOf(
  * Reads the rooms of a level, with the faces they hold.
  *
  * @remarks
- * It is the list the areas panel shows: every room a face belongs to, once, in the order of the ids. The rooms the
- * file reserves (the 0, and the gaps an edit leaves) are not here, because the author edits areas and not records.
+ * It is the list the room inspector shows: every room a face belongs to, once, in the order of the ids. The rooms the
+ * file reserves (the 0, and the gaps an edit leaves) are not here, because the author edits rooms and not records.
  *
  * @param polygons The polygons of the level.
  *

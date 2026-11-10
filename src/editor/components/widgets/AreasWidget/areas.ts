@@ -74,6 +74,25 @@ export function areaRowsOf(map: ArxMap, mapId: string): AreaRow[] {
 }
 
 /**
+ * Writes how many faces a room holds, the way the list shows it.
+ *
+ * @remarks
+ * The count is the faces of the level, not the triangles of the renderer: a quad is one face in the files and in the
+ * game, and the two triangles it is drawn with are a detail of the view.
+ *
+ * @param faceCount How many faces the room holds.
+ *
+ * @returns The count with its unit, e.g. `1 571 faces`.
+ */
+export function faceCountLabelOf(faceCount: number): string {
+  if (faceCount === 1) {
+    return '1 face'
+  }
+
+  return `${formatCount(faceCount)} faces`
+}
+
+/**
  * Reads the room of the face under the crosshair.
  *
  * @param map The level, when it is loaded.

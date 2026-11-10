@@ -92,6 +92,24 @@ export function resetViewSwitches(): void {
 }
 
 /**
+ * Turns the room map on or off.
+ *
+ * @remarks
+ * The room map sits under the mesh: it is not drawn without it, so this does not turn it on either. The switch keeps
+ * its value, so turning the mesh back on brings the map back the way it was left.
+ *
+ * The key help (`R`) and the title of the areas panel call this one: a switch with two doors, so the two can not
+ * disagree about whether the map is on.
+ */
+export function toggleRoomColors(): void {
+  if (!isMeshVisible.value) {
+    return
+  }
+
+  isRoomColorsVisible.value = !isRoomColorsVisible.value
+}
+
+/**
  * Starts the parts of the editor that belong to no widget.
  *
  * @remarks
@@ -103,13 +121,5 @@ export function startLevelDisplay(): void {
   startKeyboard()
   onKeyboardToggle('toggleWireframe', isWireframeVisible)
   onKeyboardToggle('toggleMesh', isMeshVisible)
-  // the room map sits under the mesh: it is not drawn without it, so the key does not turn it on either. The switch
-  // keeps its value, so turning the mesh back on brings the map back the way it was left.
-  onKeyboardAction('toggleRooms', () => {
-    if (!isMeshVisible.value) {
-      return
-    }
-
-    isRoomColorsVisible.value = !isRoomColorsVisible.value
-  })
+  onKeyboardAction('toggleRooms', toggleRoomColors)
 }

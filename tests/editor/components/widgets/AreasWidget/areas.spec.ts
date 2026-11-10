@@ -6,6 +6,7 @@ import type { RoomLink } from '../../../../../src/generator/rooms.ts'
 import {
   areaProblemsOf,
   areaRowsOf,
+  faceCountLabelOf,
   roomUnderCrosshairOf,
 } from '../../../../../src/editor/components/widgets/AreasWidget/areas.ts'
 
@@ -66,6 +67,16 @@ void describe('areaRowsOf', () => {
 
   void it('lists no room for a level without a face', () => {
     assert.deepEqual(areaRowsOf(levelOf([]), 'arx:2'), [])
+  })
+})
+
+void describe('faceCountLabelOf', () => {
+  void it('writes the count with the unit the faces of a level are counted in', () => {
+    assert.equal(faceCountLabelOf(1571), '1 571 faces')
+  })
+
+  void it('says one face in the singular', () => {
+    assert.equal(faceCountLabelOf(1), '1 face')
   })
 })
 

@@ -1,14 +1,21 @@
 <script setup lang="ts">
+import { Eye, EyeOff } from 'lucide-vue-next'
 import { computed, shallowRef, watch } from 'vue'
 import { crosshairStore } from '../../../modules/crosshair/crosshairStore.ts'
-import { formatCount } from '../../../modules/format.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { currentMapId } from '../../../modules/level/source/maps.ts'
 import { selectedRoom, selectRoom } from '../../../modules/rooms/roomStore.ts'
-import { isRoomColorsVisible } from '../shared/levelDisplay.ts'
 import WidgetHeading from '../../WidgetHeading.vue'
-import { areaProblemsOf, areaRowsOf, roomUnderCrosshairOf, type AreaProblem, type AreaRow } from './areas.ts'
+import { isMeshVisible, isRoomColorsVisible, toggleRoomColors } from '../shared/levelDisplay.ts'
+import {
+  areaProblemsOf,
+  areaRowsOf,
+  faceCountLabelOf,
+  roomUnderCrosshairOf,
+  type AreaProblem,
+  type AreaRow,
+} from './areas.ts'
 
 /**
  * The label of the widget, from the widget definition.
@@ -16,6 +23,33 @@ import { areaProblemsOf, areaRowsOf, roomUnderCrosshairOf, type AreaProblem, typ
 const props = defineProps<{
   readonly label: string
 }>()
+
+/**
+ * Whether the room map is drawn, which the eye of the title shows.
+ *
+ * @remarks
+ * It is the same switch the key help flips with `R`: the panel does not keep a state of its own, so the two can not
+ * disagree about whether the map is on.
+ */
+const showsRooms = computed(() => {
+  return isRoomColorsVisible.value
+})
+
+/**
+ * What the switch of the title says: the same words the key help uses for the row it stands for, so a reader who
+ * learned one of the two reads the other.
+ */
+const toggleTooltip = computed(() => {
+  if (!isMeshVisible.value) {
+    return 'the mesh is off'
+  }
+
+  if (showsRooms.value) {
+    return 'Hide the areas'
+  }
+
+  return 'Show the areas'
+})
 
 /**
  * The rooms of the level, with the colour the room map paints them with.
@@ -96,10 +130,25 @@ function pick(room: number): void {
 
 <template>
   <div class="AreasWidget">
-    <WidgetHeading :label="props.label" />
+    <WidgetHeading :label="props.label">
+      <template #actions>
+        <button
+          class="map-toggle"
+          :class="{ 'is-on': showsRooms }"
+          type="button"
+          :disabled="!isMeshVisible"
+          :aria-pressed="showsRooms"
+          :aria-label="toggleTooltip"
+          v-tooltip="toggleTooltip"
+          @click="toggleRoomColors()"
+        >
+          <component :is="showsRooms ? Eye : EyeOff" :size="14" />
+        </button>
+      </template>
+    </WidgetHeading>
     <p class="here">
       <template v-if="here !== undefined"
-        >You are in: <b>Room {{ here }}</b></template
+        >You are pointing to a face in <b>room {{ here }}</b></template
       >
       <template v-else>No face under the crosshair</template>
     </p>
@@ -112,8 +161,8 @@ function pick(room: number): void {
         @click="pick(row.room)"
       >
         <span class="swatch" :style="{ backgroundColor: row.color }"></span>
-        <span class="name">Room {{ row.room }}</span>
-        <span class="count">{{ formatCount(row.faceCount) }}</span>
+        <span class="name">room {{ row.room }}</span>
+        <span class="count">{{ faceCountLabelOf(row.faceCount) }}</span>
       </li>
     </ul>
     <section v-if="problems.length > 0" class="problems">
@@ -150,6 +199,38 @@ function pick(room: number): void {
   }
 }
 
+// the switch of the title: the frame and the sizes of the eye of the key help, so the same switch reads the same in
+// both places (and the orange eye says the map is on)
+.map-toggle {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  color: $text-icon;
+  background: rgba($surface-app, 0.72);
+  border: 1px solid $border;
+  border-radius: 4px;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: $surface-panel;
+  }
+
+  // only the eye turns orange: the frame stays the neutral border of every button
+  &.is-on {
+    color: $accent;
+  }
+
+  // the map is not drawn without the mesh, so the switch is disabled with it; its state stays as it was left
+  &:disabled {
+    color: $border;
+    cursor: default;
+  }
+}
+
 .rooms {
   flex: 1;
   margin: 0;
@@ -165,6 +246,12 @@ function pick(room: number): void {
   padding: 3px 6px;
   color: $text-muted;
   cursor: pointer;
+
+  // a very faint stripe, the same as the information lists of the other widgets: a long list of rooms is easier to
+  // follow when the rows alternate, and the pick and the hover stay readable over it
+  &:nth-child(even) {
+    background: rgba($text-strong, 0.03);
+  }
 
   &:hover {
     background: $surface-panel;
@@ -191,6 +278,7 @@ function pick(room: number): void {
 .count {
   color: $text-subtle;
   font-size: 12px;
+  white-space: nowrap;
 }
 
 .problems {

@@ -114,7 +114,8 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
   },
   {
     kind: WIDGET_KINDS.areas,
-    label: 'Areas',
+    // the motor's word is in brackets: the author looks for `room` in the game's manual, the editor says `Area`
+    label: 'Areas (rooms)',
     contentSized: true,
     group: 'controls',
     create: (label): Widget => {

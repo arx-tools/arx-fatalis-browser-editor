@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict'
 import { beforeEach, describe, it } from 'node:test'
 import {
+  isMeshVisible,
+  isRoomColorsVisible,
   isWireframeVisible,
   startLevelDisplay,
+  toggleRoomColors,
 } from '../../../../../src/editor/components/widgets/shared/levelDisplay.ts'
 import {
   clearPressedKeys,
@@ -40,6 +43,8 @@ function press(code: string): KeyboardDownEvent {
 beforeEach(() => {
   clearPressedKeys()
   isWireframeVisible.value = false
+  isRoomColorsVisible.value = false
+  isMeshVisible.value = true
 })
 
 void describe('isWireframeVisible', () => {
@@ -71,5 +76,34 @@ void describe('startLevelDisplay', () => {
 
     handleKeyDown(press('KeyX'))
     assert.equal(isWireframeVisible.value, true)
+  })
+})
+
+void describe('toggleRoomColors', () => {
+  void it('flips the same switch with the R key', () => {
+    startLevelDisplay()
+
+    handleKeyDown(press('KeyR'))
+    assert.equal(isRoomColorsVisible.value, true)
+
+    clearPressedKeys()
+    handleKeyDown(press('KeyR'))
+    assert.equal(isRoomColorsVisible.value, false)
+  })
+
+  void it('is the switch the title of the areas panel flips', () => {
+    toggleRoomColors()
+    assert.equal(isRoomColorsVisible.value, true)
+
+    toggleRoomColors()
+    assert.equal(isRoomColorsVisible.value, false)
+  })
+
+  void it('does nothing while the mesh is turned off', () => {
+    // the map sits under the mesh: it is not drawn without it, so the switch does not get ahead of the view
+    isMeshVisible.value = false
+
+    toggleRoomColors()
+    assert.equal(isRoomColorsVisible.value, false)
   })
 })

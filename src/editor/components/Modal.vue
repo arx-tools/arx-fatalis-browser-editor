@@ -17,6 +17,10 @@ defineProps<{
    * The title of the dialog.
    */
   readonly title: string
+  /**
+   * Whether the dialog needs the wider box: a long path in an input has to be read whole (2026-11-10, the owner).
+   */
+  readonly wide?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -52,7 +56,7 @@ onBeforeUnmount(() => {
   <Teleport to="body">
     <div class="Modal">
       <div class="cover" @click="emit('close')" />
-      <div class="dialog" role="dialog" aria-modal="true" :aria-label="title">
+      <div class="dialog" :class="{ 'is-wide': wide === true }" role="dialog" aria-modal="true" :aria-label="title">
         <header class="head">
           <h2>{{ title }}</h2>
           <button class="close" type="button" aria-label="Close" @click="emit('close')">
@@ -94,6 +98,11 @@ onBeforeUnmount(() => {
     display: flex;
     flex-direction: column;
     width: min(520px, 90vw);
+
+    // a dialog with a long value in it (a path): a hundred pixels wider, so the input fits the whole of it
+    &.is-wide {
+      width: min(620px, 90vw);
+    }
     max-height: 80vh;
     color: $text;
     background: $surface-float;

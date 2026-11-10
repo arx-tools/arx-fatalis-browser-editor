@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { beforeEach, describe, it } from 'node:test'
 import {
   DATA_DIR_PARAMETER,
   dataDirFromUrl,
@@ -15,7 +15,16 @@ import {
   startDataDir,
   storedDataDir,
   clearTextureScan,
+  scanLevelNumbers,
+  dataDirKind,
+  dataDirPermission,
+  dataDirState,
+  requestDataDirPermission,
+  setDataDirHandle,
+  setDataDirPath,
 } from '../../../../../src/editor/modules/level/source/dataDir.ts'
+import type { DataDirHandleStore } from '../../../../../src/editor/modules/level/source/dataDirHandle.ts'
+import { FAKE_DATA_DIR, fakeDirectoryHandle, fakePermissionHandle } from '../../../../support/fakeDirectory.ts'
 import type { StorageLike } from '../../../../../src/editor/modules/persistedRef/storage.ts'
 import type { UrlAdapter } from '../../../../../src/editor/modules/persistedRef/url.ts'
 
@@ -173,7 +182,7 @@ void describe('fetchDataFile', () => {
 
 void describe('the data directory the user picked', () => {
   void it('reads a file of the picked folder, by the stem of its name', async () => {
-    setPickedDataDir(
+    await setPickedDataDir(
       [
         { path: 'graph/obj3d/textures/[stone]_human_castle_wall1.jpg', file: new File(['jpg'], 'wall.jpg') },
         { path: 'graph/levels/level8/fast.fts', file: new File(['fts'], 'fast.fts') },
@@ -209,7 +218,7 @@ void describe('the data directory the user picked', () => {
   })
 
   void it('lists the textures of the picked folder, by the names a level calls them', async () => {
-    setPickedDataDir(
+    await setPickedDataDir(
       [
         { path: 'graph/obj3d/textures/[stone]_human_castle_wall1.jpg', file: new File(['jpg'], 'wall.jpg') },
         { path: 'graph/obj3d/textures/spells/fire.bmp', file: new File(['bmp'], 'fire.bmp') },
@@ -248,7 +257,7 @@ void describe('the data directory the user picked', () => {
 
     assert.deepEqual(await listDataDirTextures(notFound, true), [])
 
-    forgetDataDir(undefined)
+    await forgetDataDir()
   })
 
   void it('says nothing when neither the url, the header nor the browser has a folder', () => {
@@ -262,36 +271,232 @@ void describe('the data directory the user picked', () => {
 })
 
 void describe('the data directory of the browser', () => {
-  void it('remembers the folder of the url, and reads it back', () => {
+  void it('remembers the folder of the url, and reads it back', async () => {
     const storage = memoryStorage()
 
     // the url of a link names a folder: it is remembered, so the next visit does not need the parameter (a folder of
     // the disk is the development server's; in node a folder url is what the tests have)
     assert.equal(
-      startDataDir(urlOf(`${DATA_DIR_PARAMETER}=https://example.com/data`), storage),
+      await startDataDir(urlOf(`${DATA_DIR_PARAMETER}=https://example.com/data`), storage),
       'https://example.com/data',
     )
     assert.equal(storedDataDir(storage), 'https://example.com/data')
 
     // the next visit has nothing in the url: the folder comes from the browser
-    assert.equal(startDataDir(urlOf(''), storage), 'https://example.com/data')
+    assert.equal(await startDataDir(urlOf(''), storage), 'https://example.com/data')
     assert.equal(hasDataDir(storage), true)
   })
 
-  void it('forgets the folder', () => {
+  void it('forgets the folder', async () => {
     const storage = memoryStorage()
 
     rememberDataDir('https://example.com/data', storage)
-    forgetDataDir(storage)
+    await forgetDataDir(storage)
 
     assert.equal(storedDataDir(storage), undefined)
     assert.equal(hasDataDir(storage), false)
   })
 
-  void it('reads nothing without a folder anywhere', () => {
+  void it('reads nothing without a folder anywhere', async () => {
     const storage = memoryStorage()
 
     assert.equal(storedDataDir(storage), undefined)
-    assert.equal(startDataDir(urlOf(''), storage), undefined)
+    assert.equal(await startDataDir(urlOf(''), storage), undefined)
+  })
+})
+
+/**
+ * A store of the test: it counts what the editor keeps and forgets.
+ *
+ * @param handle The folder the store gives back, when it has one.
+ *
+ * @returns The store, and the counters of it.
+ */
+function fakeStore(handle?: FileSystemDirectoryHandle): {
+  store: DataDirHandleStore
+  saved: () => number
+  forgotten: () => number
+} {
+  let saves = 0
+  let forgets = 0
+
+  return {
+    store: {
+      load: async (): Promise<FileSystemDirectoryHandle | undefined> => {
+        await Promise.resolve()
+
+        return handle
+      },
+      save: async (): Promise<void> => {
+        saves = saves + 1
+
+        await Promise.resolve()
+      },
+      forget: async (): Promise<void> => {
+        forgets = forgets + 1
+
+        await Promise.resolve()
+      },
+    },
+    saved: (): number => {
+      return saves
+    },
+    forgotten: (): number => {
+      return forgets
+    },
+  }
+}
+
+void describe('the data directory of the directory picker', () => {
+  beforeEach(async () => {
+    await forgetDataDir(undefined, fakeStore().store)
+  })
+
+  void it('sets the path the user typed, and remembers it in the browser', async () => {
+    const storage = memoryStorage()
+    const { store, forgotten } = fakeStore()
+
+    assert.equal(await setDataDirPath('  https://example.com/data  ', storage, store), true)
+    assert.equal(dataDirKind.value, 'path')
+    assert.equal(dataDirState.value, 'https://example.com/data')
+    assert.equal(storedDataDir(storage), 'https://example.com/data')
+    assert.equal(hasDataDir(storage), true)
+    assert.equal(forgotten(), 1)
+  })
+
+  void it('takes no empty path', async () => {
+    assert.equal(await setDataDirPath(' '.repeat(3), memoryStorage(), fakeStore().store), false)
+    assert.equal(dataDirKind.value, undefined)
+  })
+
+  void it('takes the folder of the picker, and keeps the handle', async () => {
+    const storage = memoryStorage()
+    const { store, saved } = fakeStore()
+    const path = '/home/lali/arx-data'
+
+    rememberDataDir(path, storage)
+    await setDataDirHandle(fakeDirectoryHandle(FAKE_DATA_DIR), 'granted', storage, store)
+
+    assert.equal(dataDirKind.value, 'handle')
+    assert.equal(dataDirState.value, 'data-dir')
+    assert.equal(dataDirPermission.value, 'granted')
+    assert.equal(saved(), 1)
+    assert.equal(storedDataDir(storage), undefined)
+    assert.equal(hasDataDir(storage), true)
+  })
+
+  void it('does not read a folder the browser blocks', async () => {
+    const storage = memoryStorage()
+
+    await setDataDirHandle(fakeDirectoryHandle(FAKE_DATA_DIR), 'denied', storage, fakeStore().store)
+
+    assert.equal(dataDirKind.value, 'handle')
+    assert.equal(dataDirPermission.value, 'denied')
+    assert.equal(hasDataDir(storage), false)
+  })
+
+  void it('asks the browser for the permission of the remembered folder', async () => {
+    const storage = memoryStorage()
+    const { store, saved } = fakeStore()
+    const { handle, asked } = fakePermissionHandle('granted')
+
+    await setDataDirHandle(handle, 'prompt', storage, store)
+
+    assert.equal(hasDataDir(storage), false)
+
+    assert.equal(await requestDataDirPermission(store), 'granted')
+    assert.equal(asked(), 1)
+    assert.equal(saved(), 2)
+    assert.equal(hasDataDir(storage), true)
+  })
+
+  void it('forgets every way of the folder', async () => {
+    const storage = memoryStorage()
+    const { store, forgotten } = fakeStore()
+
+    await setDataDirPath('/home/lali/arx-data', storage, store)
+    await setDataDirHandle(fakeDirectoryHandle(FAKE_DATA_DIR), 'granted', storage, store)
+
+    await forgetDataDir(storage, store)
+
+    assert.equal(dataDirKind.value, undefined)
+    assert.equal(dataDirState.value, undefined)
+    assert.equal(storedDataDir(storage), undefined)
+    assert.equal(hasDataDir(storage), false)
+
+    // the path cleared the handle of the picker, and the forget cleared the store again
+    assert.equal(forgotten(), 2)
+  })
+
+  void it('keeps a picked folder for the session only', async () => {
+    const storage = memoryStorage()
+    const { store, forgotten } = fakeStore()
+
+    await setDataDirPath('/home/lali/arx-data', storage, store)
+    await setPickedDataDir(
+      [{ path: 'graph/levels/level8/fast.fts', file: new File(['fts'], 'fast.fts') }],
+      'arx-data',
+      storage,
+      store,
+    )
+
+    assert.equal(dataDirKind.value, 'picked')
+    assert.equal(dataDirState.value, 'arx-data')
+    assert.equal(storedDataDir(storage), undefined)
+    assert.equal(forgotten(), 2)
+  })
+
+  void it('starts from the url, then the path of the storage, then the handle', async () => {
+    const url = urlOf(`${DATA_DIR_PARAMETER}=https://example.com/data`)
+    const storage = memoryStorage()
+    const { handle } = fakePermissionHandle('granted')
+    const fromUrl = fakeStore(handle)
+
+    // the url wins over the remembered folder, and the handle is forgotten
+    assert.equal(await startDataDir(url, storage, fromUrl.store), 'https://example.com/data')
+    assert.equal(fromUrl.forgotten(), 1)
+
+    // without a url the path of the storage is the folder
+    await forgetDataDir(storage, fakeStore().store)
+    rememberDataDir('https://example.com/other', storage)
+
+    assert.equal(await startDataDir(urlOf(''), storage, fakeStore(handle).store), 'https://example.com/other')
+    assert.equal(dataDirKind.value, 'path')
+
+    // without a path the remembered folder of the picker is the folder
+    await forgetDataDir(storage, fakeStore().store)
+
+    assert.equal(await startDataDir(urlOf(''), storage, fakeStore(handle).store), 'data-dir')
+    assert.equal(dataDirKind.value, 'handle')
+    assert.equal(dataDirPermission.value, 'granted')
+    assert.equal(hasDataDir(storage), true)
+  })
+
+  void it('reads the files, the textures and the levels of the remembered folder', async () => {
+    const storage = memoryStorage()
+
+    await setDataDirHandle(fakeDirectoryHandle(FAKE_DATA_DIR), 'granted', storage, fakeStore().store)
+
+    assert.equal(new TextDecoder().decode(await readDataFile('graph/levels/level8/fast.fts')), 'fts')
+    assert.deepEqual(await listDataDirTextures(), ['[stone]_wall.bmp', 'spells/fire.jpg'])
+    assert.deepEqual(await scanLevelNumbers(), [8])
+  })
+
+  void it('forgets the scans when the folder changes', async () => {
+    const storage = memoryStorage()
+
+    await setDataDirHandle(fakeDirectoryHandle(FAKE_DATA_DIR), 'granted', storage, fakeStore().store)
+    assert.deepEqual(await scanLevelNumbers(), [8])
+
+    // another folder, without levels: the scan of the first one is not the answer
+    await setDataDirHandle(
+      fakeDirectoryHandle({ folder: { graph: { folder: {} } } }),
+      'granted',
+      storage,
+      fakeStore().store,
+    )
+
+    assert.deepEqual(await scanLevelNumbers(), [])
+    assert.deepEqual(await listDataDirTextures(), [])
   })
 })

@@ -14,6 +14,7 @@ import { startTextureCatalog } from './modules/textures/textureCatalog.ts'
 import {
   DATA_DIR_PARAMETER,
   dataDirFromUrl,
+  dataDirKind,
   hasDataDir,
   startDataDir,
   storedDataDir,
@@ -61,7 +62,7 @@ const isLevelLoading = computed(() => {
 // The level is loaded by the app and not by the 3D view: the widget comes and goes with the dock, and
 // the map has to survive that (a layout reset rebuilds every widget). Starting it here also means the
 // level is on its way before the dock asks for it.
-onMounted(() => {
+onMounted(async () => {
   const url = getUrlAdapter(undefined)
   const zipUrl = zipUrlFromUrl(url)
   let requestedMap = mapIdFromUrl(url) ?? storedMapId()
@@ -73,14 +74,20 @@ onMounted(() => {
   }
 
   // the data directory of the session: the url names one (and it is remembered for the next visits), or the browser
-  // has the folder from a previous one
-  const startedDataDir = startDataDir()
+  // has the folder from a previous one (a path of the storage, or the folder of the directory picker, which the
+  // IndexedDB keeps — that one is read before the level, so its files are there when the level arrives)
+  const startedDataDir = await startDataDir()
   const dataDirFromUrlParameter = dataDirFromUrl(url)
 
   if (startedDataDir !== undefined) {
     let state = 'not remembered'
+    let remembered = dataDirKind.value === 'handle'
 
-    if (storedDataDir() === startedDataDir) {
+    if (dataDirFromUrlParameter !== undefined) {
+      remembered = storedDataDir() === dataDirFromUrlParameter
+    }
+
+    if (remembered) {
       state = 'remembered'
     }
 
@@ -196,7 +203,7 @@ onMounted(() => {
         writeUrlValue(url, MAP_PARAMETER, mapSlugOf(currentMapId.value))
       }
 
-      if (dataDirFromUrlParameter === undefined || storedDataDir() === startedDataDir) {
+      if (dataDirFromUrlParameter === undefined || storedDataDir() === dataDirFromUrlParameter) {
         writeUrlValue(url, DATA_DIR_PARAMETER, undefined)
       }
     }

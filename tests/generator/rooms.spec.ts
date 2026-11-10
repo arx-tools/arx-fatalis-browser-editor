@@ -2,13 +2,16 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import seedrandom from 'seedrandom'
 import type { ArxPolygon } from 'arx-convert/types'
+import { vertexToPolygonsMap } from '../../src/generator/polygons.ts'
 import {
   roomAdjacencyOf,
+  roomAreaOf,
   roomColoringForLevel,
   roomColoringOf,
   roomIdsOf,
   roomPaletteOf,
   roomSummaryOf,
+  unassignedAreaOf,
   type RoomLink,
 } from '../../src/generator/rooms.ts'
 
@@ -195,6 +198,60 @@ void describe('roomColoringOf', () => {
 
     assert.deepEqual(new Map(first.colors), new Map(second.colors))
     assert.equal(first.colorCount, second.colorCount)
+  })
+})
+
+/**
+ * Builds a quad of the test at a place of the level, in a room.
+ *
+ * @param x Where the quad starts on the X axis: two quads of the test touch when their starts differ by ten.
+ * @param room Which area it belongs to, or -1 for a face the file never assigned.
+ *
+ * @returns A quad of one texture, placed at that spot.
+ */
+function faceAt(x: number, room: number): ArxPolygon {
+  return {
+    vertices: [
+      { x, y: 0, z: 0, u: 0, v: 0 },
+      { x: x + 10, y: 0, z: 0, u: 1, v: 0 },
+      { x: x + 10, y: 0, z: 10, u: 1, v: 1 },
+      { x, y: 0, z: 10, u: 0, v: 1 },
+    ],
+    textureContainerId: 1,
+    room,
+  } as unknown as ArxPolygon
+}
+
+void describe('roomAreaOf', () => {
+  void it('takes every face of the room, in the order of the level', () => {
+    const polygons = [faceAt(0, 2), faceAt(10, 1), faceAt(20, 2), faceAt(30, 1)]
+
+    // a room can be in more than one piece, and the whole of it is the area of a double click
+    assert.deepEqual(roomAreaOf(polygons, 2), [0, 2])
+  })
+
+  void it('gives nothing for the id of no room', () => {
+    assert.deepEqual(roomAreaOf([faceAt(0, -1), faceAt(10, 1)], -1), [])
+  })
+})
+
+void describe('unassignedAreaOf', () => {
+  void it('fills the connected faces that have no room', () => {
+    const polygons = [faceAt(0, -1), faceAt(10, -1), faceAt(20, 3)]
+    const area = unassignedAreaOf(polygons, vertexToPolygonsMap(polygons), 0)
+
+    assert.deepEqual(
+      area.toSorted((a, b) => {
+        return a - b
+      }),
+      [0, 1],
+    )
+  })
+
+  void it('stops at the first face of a room', () => {
+    const polygons = [faceAt(0, -1), faceAt(10, 3), faceAt(20, -1)]
+
+    assert.deepEqual(unassignedAreaOf(polygons, vertexToPolygonsMap(polygons), 0), [0])
   })
 })
 

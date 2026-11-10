@@ -145,9 +145,9 @@ if (isMacKeyboard()) {
 const sections = computed<readonly HelpSection[]>(() => {
   return [
     {
-      title: 'View',
+      title: 'View context',
       reset: {
-        title: 'Reset view',
+        title: 'Reset view context',
         disabled: (): boolean => {
           return isViewAtDefault.value
         },
@@ -171,7 +171,7 @@ const sections = computed<readonly HelpSection[]>(() => {
       title: 'Selection',
       rows: [
         { keys: [leftButton], action: 'Select face(s)' },
-        { keys: [leftButton], suffix: '× 2', action: 'Auto select by texture' },
+        { keys: [leftButton], suffix: '× 2', action: 'Fill select by view context' },
         { keys: [{ kind: 'text', text: 'Shift' }, leftButton], action: 'Add to selection' },
         { keys: [removeKey, leftButton], action: 'Remove from selection' },
         { keys: [{ kind: 'text', text: 'C' }], action: 'Clear selection' },

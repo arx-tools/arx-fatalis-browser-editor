@@ -221,6 +221,10 @@ export const painterLayout: LayoutNode = {
  * It is the `Editor` preset with the **Areas** panel where the inspector and the keys are: the level work is reading
  * the rooms of a level (the list, the room under the crosshair, the problems), and the split of the level is decided
  * here. The `Rooms` name is what the header shows (2026-11-07, the owner).
+ *
+ * The **Selection Inspector** sits under the numbers (2026-11-10, the owner): the fill of the selection paints the
+ * faces turned towards the camera only, so a fill that takes a whole room also takes the faces behind the camera, and
+ * the count of the widget is what says how much came along.
  */
 export const roomsLayout: LayoutNode = {
   type: 'split',
@@ -256,9 +260,10 @@ export const roomsLayout: LayoutNode = {
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: [fixed(210), auto(1)],
+      sizes: [fixed(210), fixed(190), auto(1)],
       children: [
         { type: 'widget', kind: WIDGET_KINDS.mapStatistics },
+        { type: 'widget', kind: WIDGET_KINDS.selectionInspector },
         { type: 'widget', kind: WIDGET_KINDS.areas },
       ],
     },

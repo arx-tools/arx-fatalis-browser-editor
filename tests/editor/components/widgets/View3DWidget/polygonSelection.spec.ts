@@ -2,13 +2,16 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { ArxPolygonFlags, type ArxPolygon, type ArxVector3 } from 'arx-convert/types'
 import {
+  FrontSide,
   type LineBasicMaterial,
   type LineSegments,
   Mesh,
   MeshBasicMaterial,
+  MeshLambertMaterial,
   PerspectiveCamera,
   Scene,
   Vector3,
+  type BufferAttribute,
   type BufferGeometry,
 } from 'three'
 import { Color } from '../../../../../src/generator/Color.ts'
@@ -121,6 +124,38 @@ void describe('polygonFillGeometry', () => {
     const geometry = polygonFillGeometry([], new Vector3(0, 0, 0))
 
     assert.equal(geometry.getAttribute('position').count, 0)
+  })
+
+  void it('keeps a hint of the colour of the room under the yellow', () => {
+    const inARoom = polygon(true)
+    const withoutARoom = { ...polygon(true), room: -1 }
+
+    const tinted = polygonFillGeometry([inARoom], new Vector3(0, 0, 0), () => {
+      return '#0000ff'
+    }).getAttribute('color') as BufferAttribute
+    const plain = polygonFillGeometry([withoutARoom], new Vector3(0, 0, 0), () => {
+      return '#0000ff'
+    }).getAttribute('color') as BufferAttribute
+
+    // the three vertices of the face share its mark: the yellow mixed with a hint of the blue of the room
+    assert.deepEqual([tinted.getX(0), tinted.getY(0), tinted.getZ(0)], [tinted.getX(5), tinted.getY(5), tinted.getZ(5)])
+    // the green of the yellow mixes with the blue towards a teal, and a face without a room stays the plain yellow
+    assert.ok(tinted.getY(0) < plain.getY(0))
+    assert.ok(plain.getX(0) > 0.9)
+    assert.ok(plain.getZ(0) < 0.1)
+  })
+
+  void it('carries the corner normals of the polygon, so a lit material shades it', () => {
+    const quad = polygon(true)
+    const geometry = polygonFillGeometry([quad], new Vector3(0, 0, 0))
+    const normals = geometry.getAttribute('normal')
+
+    // one normal per vertex, the six of the two triangles: the base under the fill is lit, and a missing normal
+    // would paint the beams of a ceiling flat. The game's normal points up along its own Y, and the view mirrors that
+    // axis (the game's Y points down), so the normal of the geometry is the mirrored one
+    assert.equal(normals.count, 6)
+    assert.equal(normals.getY(0), -1)
+    assert.equal(normals.getZ(0), 0)
   })
 })
 
@@ -293,6 +328,86 @@ void describe('createPolygonSelectionOverlay', () => {
     assert.equal(scene.children.length, 1)
 
     overlay.setHighlight([])
+    assert.equal(scene.children.length, 0)
+  })
+
+  void it('paints the fill on the faces towards the camera only, like the level', () => {
+    const scene = new Scene()
+    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0))
+
+    overlay.setHighlight([polygon(true)])
+
+    const [fill] = scene.children as Array<Mesh<BufferGeometry, MeshBasicMaterial>>
+
+    // a face the level does not draw is not painted either: the selection keeps one colour, so the yellow always
+    // says "this is selected and this is what I see" (the cyan of the two sided fill read as another thing)
+    assert.equal(fill.material.side, FrontSide)
+    assert.equal(fill.material.color.getHex(), Color.yellow.getHex())
+    assert.equal(fill.material.opacity, 0.35)
+
+    // the fill is lit, so the yellow keeps the shading of the surfaces under it (the beams of a room stay visible),
+    // and it reads the colour of every face it covers
+    assert.ok(fill.material instanceof MeshLambertMaterial)
+    assert.ok(fill.material.vertexColors)
+  })
+
+  void it('turns the yellow nearly solid on the room map, and back to a tint on the level', () => {
+    const scene = new Scene()
+    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0))
+
+    overlay.setHighlight([polygon(true)])
+    overlay.setBackdrop(true)
+
+    const [fill] = scene.children as Array<Mesh<BufferGeometry, MeshBasicMaterial>>
+    const onTheMap = fill.material.opacity
+
+    overlay.setBackdrop(false)
+
+    // the base means the room map: there the yellow is the mark itself, and on the level it stays a tint that lets the
+    // art of the level through
+    assert.ok(onTheMap > 0.8)
+    assert.equal(fill.material.opacity, 0.35)
+  })
+
+  void it('draws a grey base under the fill while the room map is on', () => {
+    const scene = new Scene()
+    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0))
+
+    overlay.setHighlight([polygon(true)])
+    overlay.setBackdrop(true)
+
+    const [fill, base] = scene.children as Array<Mesh<BufferGeometry, MeshBasicMaterial>>
+
+    // the same geometry, the base just under the yellow: the colour of the room must not tint the mark of the selection
+    assert.equal(scene.children.length, 2)
+    assert.equal(base.geometry, fill.geometry)
+    assert.ok(base.renderOrder < fill.renderOrder)
+    assert.equal(base.material.side, FrontSide)
+    assert.ok(base.material.opacity > 0.5)
+    assert.notEqual(base.material.color.getHex(), fill.material.color.getHex())
+
+    // the base is lit: the grey takes the colour of the room away but keeps the shading of the surfaces
+    assert.ok(base.material instanceof MeshLambertMaterial)
+  })
+
+  void it('takes the base away with the map, and keeps the fill', () => {
+    const scene = new Scene()
+    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0))
+
+    overlay.setHighlight([polygon(true)])
+    overlay.setBackdrop(true)
+    overlay.setBackdrop(false)
+
+    assert.equal(scene.children.length, 1)
+  })
+
+  void it('draws no base without a selection', () => {
+    const scene = new Scene()
+    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0))
+
+    overlay.setBackdrop(true)
+    overlay.setHighlight([])
+
     assert.equal(scene.children.length, 0)
   })
 

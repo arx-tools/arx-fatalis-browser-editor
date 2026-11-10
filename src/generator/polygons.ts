@@ -287,28 +287,31 @@ export function isTouchingVertices(polygon: ArxPolygon, vertices: readonly ArxVe
 }
 
 /**
- * The connected polygons that use the same texture as the start polygon.
+ * The connected polygons that pass a test, starting from one of them.
  *
  * @remarks
- * A double click takes the whole welded area of one texture, however big it is: the biggest connected
- * same texture area of the original levels is around 1800 polygons, so the walk is cheap and a limit would
- * only look like a broken selection. The walk stops where the mesh is not welded, so it never jumps over a
- * gap to a face that only touches in space.
+ * It is the walk a double click makes: the first click selects one face, the second takes the area around it. The walk
+ * follows the welds of the mesh (the polygons that share a vertex position), so it never jumps over a gap to a face
+ * that only touches in space, and the test says where the area ends: another texture, the first face that belongs to a
+ * room.
+ *
+ * The area has no limit on purpose: the biggest same texture area of the original levels is around 1800 polygons, so
+ * the walk is cheap, and a limit would only look like a broken selection.
  *
  * @param polygons The polygons of the level, in their own order.
  * @param vertexToPolygons The vertex index of {@link vertexToPolygonsMap}.
  * @param startPolygon The polygon the click landed on.
+ * @param keep Whether a polygon is still part of the area.
  *
  * @returns The indices of the polygons of the area, the start one included.
  */
-export function sameTextureAreaOf(
+export function connectedAreaOf(
   polygons: readonly ArxPolygon[],
   vertexToPolygons: ReadonlyMap<string, readonly number[]>,
   startPolygon: number,
+  keep: (polygon: ArxPolygon) => boolean,
 ): number[] {
-  const start = polygons[startPolygon]
-
-  if (start === undefined) {
+  if (polygons[startPolygon] === undefined) {
     return []
   }
 
@@ -337,7 +340,9 @@ export function sameTextureAreaOf(
           continue
         }
 
-        if (polygons[neighbour]?.textureContainerId !== start.textureContainerId) {
+        const next = polygons[neighbour]
+
+        if (next === undefined || !keep(next)) {
           continue
         }
 
@@ -348,4 +353,29 @@ export function sameTextureAreaOf(
   }
 
   return area
+}
+
+/**
+ * The connected polygons that use the same texture as the start polygon.
+ *
+ * @remarks
+ * The area of a double click on the textured level: the walk is the one of {@link connectedAreaOf}, and it stops where
+ * the texture changes.
+ *
+ * @param polygons The polygons of the level, in their own order.
+ * @param vertexToPolygons The vertex index of {@link vertexToPolygonsMap}.
+ * @param startPolygon The polygon the click landed on.
+ *
+ * @returns The indices of the polygons of the area, the start one included.
+ */
+export function sameTextureAreaOf(
+  polygons: readonly ArxPolygon[],
+  vertexToPolygons: ReadonlyMap<string, readonly number[]>,
+  startPolygon: number,
+): number[] {
+  const textureContainerId = polygons[startPolygon]?.textureContainerId
+
+  return connectedAreaOf(polygons, vertexToPolygons, startPolygon, (polygon) => {
+    return polygon.textureContainerId === textureContainerId
+  })
 }

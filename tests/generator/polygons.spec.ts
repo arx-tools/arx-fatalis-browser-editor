@@ -4,6 +4,7 @@ import { ArxPolygonFlags, type ArxPolygon, type ArxVector3 } from 'arx-convert/t
 import {
   blendModeOf,
   blendTransOf,
+  connectedAreaOf,
   isTouchingVertices,
   polygonFillTriangles,
   polygonOfTriangle,
@@ -167,6 +168,35 @@ void describe('isTouchingVertices', () => {
     const other = quadAt(0, 1)
 
     assert.equal(isTouchingVertices(quadAt(20, 1), usedVerticesOf(other)), false)
+  })
+})
+
+void describe('connectedAreaOf', () => {
+  void it('walks the welded area that passes the test', () => {
+    const polygons = [quadAt(0, 1), quadAt(10, 1), quadAt(20, 2)]
+
+    const area = connectedAreaOf(polygons, vertexToPolygonsMap(polygons), 0, (candidate) => {
+      return candidate.textureContainerId === 1
+    })
+
+    // the three quads are welded in a row; the test keeps the first two of them
+    assert.deepEqual(
+      area.toSorted((a, b) => {
+        return a - b
+      }),
+      [0, 1],
+    )
+  })
+
+  void it('gives nothing for a polygon that is not in the list', () => {
+    const polygons = [quadAt(0, 1)]
+
+    assert.deepEqual(
+      connectedAreaOf(polygons, vertexToPolygonsMap(polygons), 7, () => {
+        return true
+      }),
+      [],
+    )
   })
 })
 

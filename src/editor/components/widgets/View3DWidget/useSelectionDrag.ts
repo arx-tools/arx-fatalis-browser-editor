@@ -1,10 +1,12 @@
 import type { ArxPolygon, ArxVector3 } from 'arx-convert/types'
 import type { PerspectiveCamera, Mesh } from 'three'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
-import { sameTextureAreaOf, usedVerticesOf } from '../../../../generator/polygons.ts'
+import { usedVerticesOf } from '../../../../generator/polygons.ts'
 import { crosshairStore } from '../../../modules/crosshair/crosshairStore.ts'
 import { isKeyDown } from '../../../modules/keyboard/keyboard.ts'
+import { fillAreaOf, type SelectionFill } from '../../../modules/selection/fillArea.ts'
 import { selectionModeOf, selectionStore, type SelectionMode } from '../../../modules/selection/selectionStore.ts'
+import { isRoomColorsVisible } from '../shared/levelDisplay.ts'
 import type { ViewScene } from '../shared/viewScene.ts'
 import type { CameraControls } from './cameraControls.ts'
 import {
@@ -21,7 +23,8 @@ import {
  * @remarks
  * The pointer is **locked** in this view, so the mouse does not move a cursor over the level: a press sweeps the faces
  * under the crosshair while the camera turns, and the modifiers of the press decide what the sweep does (a new
- * selection, an add, a take away). The double click takes the whole welded area of the texture under the crosshair.
+ * selection, an add, a take away). The double click takes the area the view shows around the face: the welded area of
+ * one texture while the level is textured, and the area (the room) of the face while the room map is on.
  *
  * The frame loop (`frameLoop.ts`) is what calls {@link SelectionDrag.pickUnderCrosshair} on the frames it draws and
  * {@link SelectionDrag.updateDrag} while a sweep runs; this module is the gesture and the model it writes, with the
@@ -68,6 +71,14 @@ export interface SelectionDragContext {
    * @returns The controls, or `undefined` before the level arrived.
    */
   readonly controls: () => CameraControls | undefined
+  /**
+   * The colour of the room of a face, on the room map.
+   *
+   * @param polygon The face to read.
+   *
+   * @returns The colour the room map paints the room of the face with, or `undefined` for a face without a room.
+   */
+  readonly roomColorOf: (polygon: ArxPolygon) => string | undefined
 }
 
 /**
@@ -305,7 +316,15 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
         return
       }
 
-      const area = sameTextureAreaOf(level.polygons, level.vertexToPolygons, index)
+      // what the view shows decides the area: the room map takes the area of the face, the textures take the welded
+      // area of one texture (an area with no room is the piece of faces that still has to be assigned one)
+      let fill: SelectionFill = 'textures'
+
+      if (isRoomColorsVisible.value) {
+        fill = 'areas'
+      }
+
+      const area = fillAreaOf(fill, level.polygons, level.vertexToPolygons, index)
 
       selectionStore.selectMany(area, selectionModeOf(event))
     },
@@ -339,7 +358,24 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
       selectUnderCrosshair()
     },
     updateHighlight: (): void => {
-      overlay()?.setHighlight(selectedPolygons())
+      const paint = overlay()
+
+      if (paint === undefined) {
+        return
+      }
+
+      // the base and the hint of the room colour belong to the room map: it paints every face with the colour of its
+      // room, so the fill needs a grey base to keep that colour out of the yellow, and a face keeps a hint of its room
+      // under the mark (three selected rooms read as one patch of yellow without it). On the level the yellow is a tint
+      // over the art, and the room colour has no meaning there.
+      let tintOf: ((polygon: ArxPolygon) => string | undefined) | undefined
+
+      if (isRoomColorsVisible.value) {
+        tintOf = context.roomColorOf
+      }
+
+      paint.setBackdrop(isRoomColorsVisible.value)
+      paint.setHighlight(selectedPolygons(), tintOf)
     },
   }
 }

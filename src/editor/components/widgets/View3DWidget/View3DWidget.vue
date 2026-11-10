@@ -16,6 +16,7 @@ import { cameraStore } from '../camera/cameraStore.ts'
 import { renderPerformanceStore } from '../shared/renderPerformance.ts'
 import { isMeshVisible, isRoomColorsVisible, isWireframeVisible } from '../shared/levelDisplay.ts'
 import { addPreviewLights, attachWireframe, viewMeshesOf, type LevelWireframe } from '../shared/levelScene.ts'
+import { roomPaletteOf } from '../../../../generator/rooms.ts'
 import { createRoomOverlay, type RoomOverlay } from '../shared/roomOverlay.ts'
 import {
   FIELD_OF_VIEW,
@@ -118,6 +119,13 @@ const dragSelection = useSelectionDrag({
   },
   controls: () => {
     return controls
+  },
+  roomColorOf: (polygon) => {
+    if (rooms === undefined) {
+      return undefined
+    }
+
+    return roomPaletteOf(polygon.room, rooms.coloring)
   },
 })
 
@@ -410,6 +418,8 @@ onMounted(() => {
 
   stopWatchingRooms = watch(isRoomColorsVisible, () => {
     updateVisibility()
+    // the fill gets its grey base with the map, so a switch of the map repaints the selection too
+    dragSelection.updateHighlight()
     loop.requestRender()
   })
 

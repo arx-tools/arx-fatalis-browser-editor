@@ -2,10 +2,12 @@ import type { ArxPolygon, ArxVector3 } from 'arx-convert/types'
 import {
   BufferAttribute,
   BufferGeometry,
+  Color as ThreeColor,
+  FrontSide,
   LineBasicMaterial,
   LineSegments,
   Mesh,
-  MeshBasicMaterial,
+  MeshLambertMaterial,
   Raycaster,
   Vector2,
   type Intersection,
@@ -139,6 +141,48 @@ export function pickPolygon(
 }
 
 /**
+ * How much of the colour of its room a face keeps under the yellow.
+ *
+ * @remarks
+ * A room map painted over with a solid yellow turned every selected room into one patch, so the author could not tell
+ * where one room ends and the next one begins (three rooms in one selection, level 11). A hint of the colour of the room
+ * keeps the rooms apart under the mark, and a face without a room stays the plain yellow, because it has no colour of
+ * its own to keep.
+ */
+const TINT_OF_ROOM = 0.6
+
+/**
+ * How much of the yellow the fill of the faces turned towards the camera paints.
+ */
+const FILL_OPACITY = 0.35
+
+/**
+ * How much of the yellow the fill paints while the grey base is under it.
+ *
+ * @remarks
+ * On the room map there is no art to keep: the base has already taken the colour of the room away, so the yellow can
+ * be the mark itself instead of a tint over a colour, which read as a dull olive.
+ */
+const FILL_ON_MAP_OPACITY = 0.85
+
+/**
+ * The colour of the base the fill gets while the room map is on.
+ *
+ * @remarks
+ * The room map paints every face with the colour of its room, and a translucent yellow over a blue room read as green:
+ * the same selection looked different in every room. The grey base hides the room colour under the yellow, so the mark
+ * of the selection is one colour on the map as it is on the level. It is a dark neutral of the palette, so it is not
+ * mistaken for the grey of the map that says "this face has no room".
+ */
+const BACKDROP_COLOR = '#4a4f57'
+
+/**
+ * How much of the grey the base paints: nearly opaque, which is the point of it (the room colour must stay out of the
+ * yellow, a hint of it would be enough to tint the mix again).
+ */
+const BACKDROP_OPACITY = 0.92
+
+/**
  * The outline of the polygon under the crosshair, and the fill of the selected ones.
  *
  * @remarks
@@ -146,6 +190,12 @@ export function pickPolygon(
  * whole quad (not the two triangles), and the fill covers exactly the triangles the polygon was split into.
  * The outline is green, and red while the click would take the polygon away; the fill is a translucent
  * yellow, drawn over the level (`renderOrder` 7) and without depth writes, so it does not fight the mesh.
+ *
+ * The fill is **front side only**, like the material of the level (2026-11-10, the owner): the faces turned away from
+ * the camera are not painted, so the yellow always means "this is selected and this is what I see". A selected face
+ * turned away (the other side of a wall, the ceiling above the camera) is in the selection and is deleted with it, and
+ * the panels count it; painting it would turn the selection into two colours and would read as if the surfaces in
+ * front of the camera were selected.
  */
 export interface PolygonSelectionOverlay {
   /**
@@ -159,8 +209,19 @@ export interface PolygonSelectionOverlay {
    * Shows the fill of the selected polygons.
    *
    * @param polygons The selected polygons, in any order.
+   * @param tintOf The colour of the room of a face, which the mark keeps a hint of, or `undefined` for a face without a
+   * room (and for every face while the level is not coloured).
    */
-  readonly setHighlight: (polygons: readonly ArxPolygon[]) => void
+  readonly setHighlight: (polygons: readonly ArxPolygon[], tintOf?: (polygon: ArxPolygon) => string | undefined) => void
+  /**
+   * Draws a grey base under the fill, or takes it away.
+   *
+   * @remarks
+   * The base belongs to the room map: with the map off the fill lies on the art of the level, and a base would hide it.
+   *
+   * @param visible Whether the grey base is drawn.
+   */
+  readonly setBackdrop: (visible: boolean) => void
   /**
    * Takes both overlays out of the scene and frees their geometry and material.
    */
@@ -223,14 +284,31 @@ export function polygonOutlineGeometry(polygon: ArxPolygon, offset: Vector3): Bu
  *
  * @param polygons The polygons to fill.
  * @param offset The scene position of the level, already mirrored.
+ * @param tintOf The colour of the room of a face, which the mark keeps a hint of, or `undefined` for every face (and
+ * for a face without a room).
  *
  * @returns The triangles, ready for a `Mesh`.
  */
-export function polygonFillGeometry(polygons: readonly ArxPolygon[], offset: Vector3): BufferGeometry {
+export function polygonFillGeometry(
+  polygons: readonly ArxPolygon[],
+  offset: Vector3,
+  tintOf?: (polygon: ArxPolygon) => string | undefined,
+): BufferGeometry {
   const positions: number[] = []
+  const normals: number[] = []
+  const colors: number[] = []
+  const yellow = new ThreeColor(Color.yellow.getHex())
 
   for (const polygon of polygons) {
     const vertices = polygonVertices(polygon, offset)
+    // the game gives one normal for the first two corners and another for the last two when the polygon is curved,
+    // the way the level builds its own geometry: the corner normals are what makes the base under the fill shade like
+    // the surfaces it covers (a flat normal would paint the beams of a ceiling away)
+    const cornerNormals = (polygon.normals ?? [polygon.norm, polygon.norm, polygon.norm, polygon.norm2]).map(
+      (normal) => {
+        return arxVector3toVector3(normal)
+      },
+    )
 
     for (const [a, b, c] of polygonFillTriangles(polygon)) {
       const first = vertices[a]
@@ -238,10 +316,43 @@ export function polygonFillGeometry(polygons: readonly ArxPolygon[], offset: Vec
       const third = vertices[c]
 
       positions.push(first.x, first.y, first.z, second.x, second.y, second.z, third.x, third.y, third.z)
+      normals.push(
+        cornerNormals[a].x,
+        cornerNormals[a].y,
+        cornerNormals[a].z,
+        cornerNormals[b].x,
+        cornerNormals[b].y,
+        cornerNormals[b].z,
+        cornerNormals[c].x,
+        cornerNormals[c].y,
+        cornerNormals[c].z,
+      )
+
+      // the mark of the face: the yellow, with a hint of the colour of its room. A face the file never put into a room
+      // has no colour of its own, so it keeps the plain yellow
+      let room: string | undefined
+
+      if (polygon.room >= 0) {
+        room = tintOf?.(polygon)
+      }
+
+      let mark = yellow
+
+      if (room !== undefined) {
+        mark = yellow.clone().lerp(new ThreeColor(room), TINT_OF_ROOM)
+      }
+
+      for (let vertex = 0; vertex < 3; vertex++) {
+        colors.push(mark.r, mark.g, mark.b)
+      }
     }
   }
 
-  return positionsToGeometry(positions)
+  const geometry = positionsToGeometry(positions)
+  geometry.setAttribute('normal', new BufferAttribute(new Float32Array(normals), 3))
+  geometry.setAttribute('color', new BufferAttribute(new Float32Array(colors), 3))
+
+  return geometry
 }
 
 /**
@@ -276,11 +387,20 @@ export function createPolygonSelectionOverlay(scene: Scene, offset: Vector3): Po
   // the fill lies on the surface of the selected polygons, exactly where the mesh is, so it needs the
   // polygon offset: without it the two fight for the same pixels and the fill mostly loses. The offset
   // keeps the depth test on, so a selection behind a wall stays hidden.
-  const fillMaterial = new MeshBasicMaterial({
+  //
+  // The fill is front side only, the way the material of the level draws its faces: a double sided fill painted a
+  // face selected from behind the same as a face in front of the camera, and from above the room the back of the
+  // ceiling covered the whole view, so the author read a floor as selected while the yellow came from above it.
+  //
+  // It is lit (`MeshLambertMaterial`): on the room map the yellow is nearly solid, and a flat colour swallowed the
+  // beams and the corners of the room (2026-11-10, the owner). The lit yellow keeps the shading of the surfaces it
+  // covers, so the mark is bright and the geometry still reads.
+  const fillMaterial = new MeshLambertMaterial({
     color: Color.yellow.getHex(),
-    side: 2,
+    vertexColors: true,
+    side: FrontSide,
     transparent: true,
-    opacity: 0.35,
+    opacity: FILL_OPACITY,
     polygonOffset: true,
     polygonOffsetFactor: -1,
     polygonOffsetUnits: -4,
@@ -288,6 +408,52 @@ export function createPolygonSelectionOverlay(scene: Scene, offset: Vector3): Po
   const fill = new Mesh(new BufferGeometry(), fillMaterial)
   fill.renderOrder = 7
   fill.frustumCulled = false
+
+  // the grey base sits just under the fill: the same geometry with a weaker polygon offset and a lower render order,
+  // so the yellow is always the one on top
+  // it is lit on purpose (`MeshLambertMaterial`, like the material of the room map): a flat grey hid the beams of a
+  // ceiling and read as one colour, while the lit one keeps the shading of the surfaces and only takes their colour away
+  const backdropMaterial = new MeshLambertMaterial({
+    color: BACKDROP_COLOR,
+    side: FrontSide,
+    transparent: true,
+    opacity: BACKDROP_OPACITY,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -2,
+  })
+  const backdrop = new Mesh(new BufferGeometry(), backdropMaterial)
+  backdrop.renderOrder = 6
+  backdrop.frustumCulled = false
+
+  let hasSelection = false
+  let hasBackdrop = false
+
+  /**
+   * Puts a mesh of the highlight into the scene, or takes it out.
+   *
+   * @param mesh The mesh of the fill or of its base.
+   * @param shown Whether it belongs to the scene now.
+   */
+  function put(mesh: Mesh, shown: boolean): void {
+    if (shown) {
+      if (!mesh.parent) {
+        scene.add(mesh)
+      }
+
+      return
+    }
+
+    scene.remove(mesh)
+  }
+
+  /**
+   * Follows the two states of the highlight: whether there is a selection, and whether the base is drawn.
+   */
+  function updateHighlight(): void {
+    put(fill, hasSelection)
+    put(backdrop, hasSelection && hasBackdrop)
+  }
 
   /**
    * Outlines the polygon under the crosshair.
@@ -321,26 +487,37 @@ export function createPolygonSelectionOverlay(scene: Scene, offset: Vector3): Po
 
       outlineMaterial.color.set(colour)
     },
-    setHighlight: (polygons: readonly ArxPolygon[]): void => {
+    setHighlight: (polygons: readonly ArxPolygon[], tintOf): void => {
       fill.geometry.dispose()
-      fill.geometry = polygonFillGeometry(polygons, offset)
-      if (polygons.length === 0) {
-        scene.remove(fill)
 
-        return
+      const geometry = polygonFillGeometry(polygons, offset, tintOf)
+      fill.geometry = geometry
+      backdrop.geometry = geometry
+      hasSelection = polygons.length > 0
+      updateHighlight()
+    },
+    setBackdrop: (visible: boolean): void => {
+      hasBackdrop = visible
+
+      // the base under the fill means the room map: there the yellow is the mark itself, and on the level it stays a
+      // tint that the art shows through
+      if (visible) {
+        fillMaterial.opacity = FILL_ON_MAP_OPACITY
+      } else {
+        fillMaterial.opacity = FILL_OPACITY
       }
 
-      if (!fill.parent) {
-        scene.add(fill)
-      }
+      updateHighlight()
     },
     dispose: (): void => {
       scene.remove(outline)
       scene.remove(fill)
+      scene.remove(backdrop)
       outline.geometry.dispose()
       fill.geometry.dispose()
       outlineMaterial.dispose()
       fillMaterial.dispose()
+      backdropMaterial.dispose()
     },
   }
 }

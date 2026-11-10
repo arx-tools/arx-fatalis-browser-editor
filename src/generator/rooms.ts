@@ -1,5 +1,6 @@
 import type { ArxPolygon, ArxPortal } from 'arx-convert/types'
 import seedrandom from 'seedrandom'
+import { connectedAreaOf } from './polygons.ts'
 
 /**
  * The colours a room of the room map takes, in the order a colouring picks them.
@@ -7,18 +8,21 @@ import seedrandom from 'seedrandom'
  * @remarks
  * The first four are the colours of the map colouring problem (a planar map needs at most four), and the rest are
  * the fallback: a room graph is a volume adjacency graph, not a planar one, so a level can need more than four
- * (five rooms around the same point is a `K5`). The colours are bright and far apart on the hue circle, because the
- * map is read at a glance and not looked at.
+ * (five rooms around the same point is a `K5`). The colours are far apart on the hue circle, because the map is read
+ * at a glance and not looked at.
+ *
+ * They are a step darker than the pure hues (about twelve percent, 2026-11-10, the owner): the first red, green and
+ * blue glowed on the map, and the surfaces of a room read better a little deeper.
  */
 export const ROOM_COLORS: readonly string[] = [
-  '#d94f4f',
-  '#4ca64c',
-  '#4f6fd9',
-  '#d9a441',
-  '#9a5fd9',
-  '#3fb5b5',
-  '#c46f2e',
-  '#7a8a3f',
+  '#bf4646',
+  '#439243',
+  '#4662bf',
+  '#bf9039',
+  '#8854bf',
+  '#379f9f',
+  '#ac6228',
+  '#6b7937',
 ]
 
 /**
@@ -367,6 +371,58 @@ export interface RoomSummary {
    * How many faces the room holds.
    */
   readonly faceCount: number
+}
+
+/**
+ * The faces of a room, in the order of the level.
+ *
+ * @remarks
+ * The whole room, in whichever pieces the mesh holds it: an area is one thing for the game, so a double click on the
+ * room map takes all of it and not only the piece the click landed on. The count is the one the areas panel shows.
+ *
+ * @param polygons The polygons of the level.
+ * @param room The id of the room.
+ *
+ * @returns The indices of the faces of the room, and nothing for the id of no room.
+ */
+export function roomAreaOf(polygons: readonly ArxPolygon[], room: number): number[] {
+  if (room < 0) {
+    return []
+  }
+
+  const area: number[] = []
+
+  for (const [index, polygon] of polygons.entries()) {
+    if (polygon.room === room) {
+      area.push(index)
+    }
+  }
+
+  return area
+}
+
+/**
+ * The connected faces that have no room, starting from one of them.
+ *
+ * @remarks
+ * It is the fill of a double click on the room map over a face the file never put into a room (the grey of the map):
+ * the piece of mesh that is still to be assigned. The walk stops at the first face that belongs to a room, so no face
+ * of a room comes along, and the author can give the piece a room of its own without taking anything away.
+ *
+ * @param polygons The polygons of the level.
+ * @param vertexToPolygons The vertex index of `vertexToPolygonsMap`.
+ * @param startPolygon The face the click landed on: it has no room.
+ *
+ * @returns The indices of the faces of the area, the start one included.
+ */
+export function unassignedAreaOf(
+  polygons: readonly ArxPolygon[],
+  vertexToPolygons: ReadonlyMap<string, readonly number[]>,
+  startPolygon: number,
+): number[] {
+  return connectedAreaOf(polygons, vertexToPolygons, startPolygon, (polygon) => {
+    return polygon.room < 0
+  })
 }
 
 /**

@@ -21,7 +21,7 @@ import {
   dataDirState,
   requestDataDirPermission,
   setDataDirHandle,
-  setDataDirPath,
+  canReadDataDirOf,
 } from '../../../../../src/editor/modules/level/source/dataDir.ts'
 import type { DataDirHandleStore } from '../../../../../src/editor/modules/level/source/dataDirHandle.ts'
 import { FAKE_DATA_DIR, fakeDirectoryHandle, fakePermissionHandle } from '../../../../support/fakeDirectory.ts'
@@ -352,21 +352,58 @@ void describe('the data directory of the directory picker', () => {
     await forgetDataDir(undefined, fakeStore().store)
   })
 
-  void it('sets the path the user typed, and remembers it in the browser', async () => {
+  void it('reads a served url on any build, and a folder of the disk on the development server only', () => {
+    // a url that serves the folder: the page reads it itself, so it is the same on every build
+    assert.equal(canReadDataDirOf('https://example.com/data', false), true)
+    assert.equal(canReadDataDirOf('https://example.com/data', true), true)
+
+    // a folder of the disk: only the server that served the page can read it, and only on the machine of that folder
+    assert.equal(canReadDataDirOf('/home/lali/arx-data', false), false)
+    assert.equal(canReadDataDirOf('/home/lali/arx-data', true), true)
+    assert.equal(canReadDataDirOf('file:///home/lali/arx-data', false), false)
+    assert.equal(canReadDataDirOf('file:///home/lali/arx-data', true), true)
+
+    // a windows drive path is not a shape the local route takes, and nothing is nothing
+    assert.equal(canReadDataDirOf(String.raw`C:\Users\lali\unpacked`, true), false)
+    assert.equal(canReadDataDirOf(' '.repeat(3), true), false)
+  })
+
+  void it('drops a path of the disk a site can not read, and keeps it on the development server', async () => {
+    const site = memoryStorage()
+    rememberDataDir('/home/lali/arx-data', site)
+
+    // the page of a site has no server of that machine behind it: the folder is not the data dir, and the value it
+    // came from is dropped (an older visit, or a link, must not look like a folder the editor has)
+    assert.equal(await startDataDir(undefined, site, fakeStore().store, false), undefined)
+    assert.equal(storedDataDir(site), undefined)
+    assert.equal(hasDataDir(site), false)
+
+    const dev = memoryStorage()
+    rememberDataDir('/home/lali/arx-data', dev)
+
+    assert.equal(await startDataDir(undefined, dev, fakeStore().store, true), '/home/lali/arx-data')
+    assert.equal(storedDataDir(dev), '/home/lali/arx-data')
+  })
+
+  void it('takes the path of the url where the build can read it', async () => {
     const storage = memoryStorage()
     const { store, forgotten } = fakeStore()
+    const url = urlOf(`${DATA_DIR_PARAMETER}=https://example.com/data`)
 
-    assert.equal(await setDataDirPath('  https://example.com/data  ', storage, store), true)
+    assert.equal(await startDataDir(url, storage, store), 'https://example.com/data')
     assert.equal(dataDirKind.value, 'path')
     assert.equal(dataDirState.value, 'https://example.com/data')
     assert.equal(storedDataDir(storage), 'https://example.com/data')
-    assert.equal(hasDataDir(storage), true)
     assert.equal(forgotten(), 1)
   })
 
-  void it('takes no empty path', async () => {
-    assert.equal(await setDataDirPath(' '.repeat(3), memoryStorage(), fakeStore().store), false)
-    assert.equal(dataDirKind.value, undefined)
+  void it('drops a path of the url a site can not read', async () => {
+    const storage = memoryStorage()
+    const url = urlOf(`${DATA_DIR_PARAMETER}=/home/lali/arx-data`)
+
+    assert.equal(await startDataDir(url, storage, fakeStore().store, false), undefined)
+    assert.equal(storedDataDir(storage), undefined)
+    assert.equal(dataDirState.value, undefined)
   })
 
   void it('takes the folder of the picker, and keeps the handle', async () => {
@@ -414,7 +451,7 @@ void describe('the data directory of the directory picker', () => {
     const storage = memoryStorage()
     const { store, forgotten } = fakeStore()
 
-    await setDataDirPath('/home/lali/arx-data', storage, store)
+    rememberDataDir('/home/lali/arx-data', storage)
     await setDataDirHandle(fakeDirectoryHandle(FAKE_DATA_DIR), 'granted', storage, store)
 
     await forgetDataDir(storage, store)
@@ -424,15 +461,15 @@ void describe('the data directory of the directory picker', () => {
     assert.equal(storedDataDir(storage), undefined)
     assert.equal(hasDataDir(storage), false)
 
-    // the path cleared the handle of the picker, and the forget cleared the store again
-    assert.equal(forgotten(), 2)
+    // the forget cleared the store once: the handle the picker kept is gone with it
+    assert.equal(forgotten(), 1)
   })
 
   void it('keeps a picked folder for the session only', async () => {
     const storage = memoryStorage()
     const { store, forgotten } = fakeStore()
 
-    await setDataDirPath('/home/lali/arx-data', storage, store)
+    rememberDataDir('/home/lali/arx-data', storage)
     await setPickedDataDir(
       [{ path: 'graph/levels/level8/fast.fts', file: new File(['fts'], 'fast.fts') }],
       'arx-data',
@@ -443,7 +480,9 @@ void describe('the data directory of the directory picker', () => {
     assert.equal(dataDirKind.value, 'picked')
     assert.equal(dataDirState.value, 'arx-data')
     assert.equal(storedDataDir(storage), undefined)
-    assert.equal(forgotten(), 2)
+
+    // the picked folder forgot the store of the picker (the path of the storage went with it)
+    assert.equal(forgotten(), 1)
   })
 
   void it('starts from the url, then the path of the storage, then the handle', async () => {

@@ -5,12 +5,9 @@ import {
   dataDirKind,
   dataDirPermission,
   dataDirState,
-  forgetDataDir,
   requestDataDirPermission,
   setDataDirHandle,
-  setDataDirPath,
   setPickedDataDir,
-  storedDataDir,
   type DataDirFile,
 } from '../modules/level/source/dataDir.ts'
 import { directoryPickerOf, permissionOf, pickDirectory } from '../modules/level/source/dataDirHandle.ts'
@@ -83,11 +80,6 @@ const needsPermission = computed(() => {
  * Whether the setup dialog of the folder is open.
  */
 const isSettingUp = ref(false)
-
-/**
- * The path the dialog's input holds, before (or after) the user sets it.
- */
-const pathInput = ref('')
 
 /**
  * The class of the state: the green check, the warning triangle, or the blocked folder.
@@ -176,13 +168,6 @@ const browseNote = computed(() => {
 })
 
 /**
- * Whether the dialog has something to forget: the path in the input, or a folder of the session.
- */
-const canForget = computed(() => {
-  return pathInput.value.trim() !== '' || dataDirState.value !== undefined
-})
-
-/**
  * What the button says in a tooltip: the state of the folder and what pressing it does.
  */
 const buttonTooltip = computed(() => {
@@ -202,16 +187,9 @@ const buttonTooltip = computed(() => {
 })
 
 /**
- * Opens the setup dialog, with the path of the session in its input.
+ * Opens the setup dialog.
  */
 function openSetup(): void {
-  let path = storedDataDir()
-
-  if (dataDirKind.value === 'path') {
-    path = dataDirState.value
-  }
-
-  pathInput.value = path ?? ''
   isSettingUp.value = true
 }
 
@@ -327,30 +305,6 @@ async function loadDir(event: Event): Promise<void> {
 }
 
 /**
- * Sets the data directory to the path the input holds.
- */
-async function applyPath(): Promise<void> {
-  const applied = await setDataDirPath(pathInput.value)
-
-  if (!applied) {
-    return
-  }
-
-  console.info(`Data dir: ${pathInput.value.trim()}`)
-  await afterDataDirChanged()
-}
-
-/**
- * Forgets the data directory: the path of the storage, the folder of the picker, and the files of the session.
- */
-async function forgetDir(): Promise<void> {
-  await forgetDataDir()
-  pathInput.value = ''
-  console.info('Data dir: forgotten.')
-  await afterDataDirChanged()
-}
-
-/**
  * Asks the browser for the access to the remembered folder, from the press of the button that says it needs it.
  */
 async function reconnectDir(): Promise<void> {
@@ -425,23 +379,6 @@ async function reconnectDir(): Promise<void> {
         <span class="browse-label">Browse Arx data dir</span>
         <small class="browse-note">({{ browseNote }})</small>
       </button>
-
-      <p class="or-path">Or you can specify the full path to your data dir in the input below:</p>
-
-      <div class="path-row">
-        <input
-          v-model="pathInput"
-          class="path-input"
-          type="text"
-          aria-label="The full path of the data dir"
-          placeholder="e.g. C:\Users\<Username>\Saved Games\Arx Libertatis\unpacked"
-          autocomplete="off"
-          spellcheck="false"
-          @keydown.enter.prevent="applyPath"
-        />
-        <button class="apply" type="button" @click="applyPath">Set data dir</button>
-        <button class="forget" type="button" :disabled="!canForget" @click="forgetDir">Forget data dir</button>
-      </div>
 
       <p class="video">
         Info on where your data dir is and how to extract the assets of the game into it using Arx Libertatis on Windows
@@ -631,80 +568,12 @@ async function reconnectDir(): Promise<void> {
   }
 }
 
-// the other way in: a path typed in, under the button
-.or-path {
-  margin: 14px 0 6px;
-  color: $text-subtle;
-  font-size: 0.9em;
-}
-
 // the line under the form: where the folder is, and how the assets of the game go into it
 .video {
   margin: 12px 0 0;
   color: $text-subtle;
   font-size: 0.82em;
   line-height: 1.45;
-}
-
-// the input and the two buttons of it, on one line across the dialog
-.path-row {
-  display: flex;
-  gap: 6px;
-
-  .path-input {
-    flex: 1;
-    min-width: 0;
-    box-sizing: border-box;
-    padding: 7px 9px;
-    color: $text;
-    font: inherit;
-    font-size: 0.92em;
-    background: $surface-panel;
-    border: 1px solid $border-dark;
-    border-radius: 4px;
-
-    &:focus {
-      border-color: $interactive;
-      outline: 1px solid $interactive;
-    }
-  }
-
-  .apply,
-  .forget {
-    flex: 0 0 auto;
-    padding: 7px 12px;
-    font: inherit;
-    font-size: 0.92em;
-    white-space: nowrap;
-    border-radius: 4px;
-    cursor: pointer;
-  }
-
-  .apply {
-    color: $text-strong;
-    background: $surface-raised;
-    border: 1px solid $border-strong;
-
-    &:hover {
-      background: $surface-float;
-      border-color: $interactive;
-    }
-  }
-
-  .forget {
-    color: $text-on-danger;
-    background: $danger-deep;
-    border: 1px solid $danger;
-
-    &:hover:not(:disabled) {
-      background: $danger;
-    }
-
-    &:disabled {
-      opacity: 0.45;
-      cursor: default;
-    }
-  }
 }
 
 // a link of the dialog (the wiki, the video): the interactive blue of the palette, the only colour a link may have. The

@@ -59,6 +59,9 @@ onBeforeUnmount(() => {
       <div class="dialog" :class="{ 'is-wide': wide === true }" role="dialog" aria-modal="true" :aria-label="title">
         <header class="head">
           <h2>{{ title }}</h2>
+          <div v-if="$slots['title-actions']" class="title-actions">
+            <slot name="title-actions" />
+          </div>
           <button class="close" type="button" aria-label="Close" @click="emit('close')">
             <X :size="14" />
           </button>
@@ -114,10 +117,19 @@ onBeforeUnmount(() => {
   .head {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
+    gap: 10px;
     padding: 8px 10px;
     border-bottom: 1px solid $border-dark;
+  }
+
+  // the links that belong to the title: the icons of the subject of the dialog, right after the title (the free space
+  // after them is what puts the close button on the right edge)
+  .title-actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 10px;
+    margin-right: auto;
   }
 
   h2 {

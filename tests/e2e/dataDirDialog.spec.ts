@@ -48,29 +48,56 @@ test('the dialog shows the folder of the url, and has no path input any more', a
 
   await page.locator('.DataDirPicker > button').click()
 
-  // the link is the name of the wiki, and the sentence around it says what it is for
-  await expect(page.locator('.read-more')).toHaveText('Read more about data directories on the Arx Libertatis wiki.')
-  await expect(page.locator('.read-more .text-link')).toHaveText('Arx Libertatis wiki')
+  // the wiki and the video are the two icons of the title, and the sentence of each is its accessible name
+  const links = page.locator('.Modal .title-actions a')
 
-  // the video at the bottom of the dialog is the same kind of link
-  await expect(page.locator('.video')).toContainText('how to extract the assets of the game')
-  await expect(page.locator('.video .text-link')).toHaveText('in this video')
+  await expect(links).toHaveCount(2)
+  await expect(links.first()).toHaveAttribute('href', 'https://wiki.arx-libertatis.org/Data_directories')
+  await expect(links.nth(1)).toHaveAttribute('href', /youtu\.be/u)
+  await expect(page.locator('.Modal .intro')).toHaveCount(0)
+  await expect(page.locator('.Modal .lead')).toContainText('nothing is uploaded')
 
   // the note of the browse button tells how long the folder of the browser lives
   const remembered = await page.evaluate(() => {
     return typeof (globalThis as { showDirectoryPicker?: unknown }).showDirectoryPicker === 'function'
   })
 
-  let note = '(temporary, will get forgotten on next page load)'
+  let note = 'Temporary: the browser does not let the page keep the folder, so it is forgotten on the next page load.'
 
   if (remembered) {
-    note = '(remembered by the browser)'
+    note = 'Remembered: the browser keeps this folder for the next visit.'
   }
 
-  await expect(page.locator('button.browse')).toContainText(note)
+  // the note left the button: a browser that keeps the folder says it in one line, the other one gets the warning of
+  // the browsers that can
+  await expect(page.locator('button.browse')).not.toContainText(note)
+
+  // the browsers that can keep the folder are listed where the browser of the reader can not, and the box that asks for
+  // the folder again is there (a browser with the picker keeps the folder by itself, so it has neither)
+  if (remembered) {
+    await expect(page.locator('.data-dir-info.browse-note')).toHaveText(
+      'Remembered: the browser keeps this folder for the next visit.',
+    )
+    await expect(page.locator('.warning')).toHaveCount(0)
+    await expect(page.locator('.ask-again')).toHaveCount(0)
+  } else {
+    await expect(page.locator('.warning')).toContainText('This browser does not support storing selected folders')
+    // the label of the list is a text, and the icon on the right of the line opens the detail of it
+    await expect(page.locator('.support-title')).toHaveText('Supported browsers:')
+    await expect(page.locator('.support-link')).toHaveAttribute(
+      'href',
+      'https://caniuse.com/mdn-api_window_showdirectorypicker',
+    )
+    await expect(page.locator('.support-list li')).toHaveText(['Chrome', 'Edge', 'Opera', 'Firefox', 'Safari'])
+    await expect(page.locator('.support-list li.is-ok')).toHaveCount(3)
+    await expect(page.locator('.support-list li.is-missing')).toHaveCount(2)
+    await expect(page.locator('.ask-again')).toContainText(
+      'Ask for the folder again automatically when the editor reloads',
+    )
+  }
 
   // the folder of the url is the data directory, the dialog says so, and the row of a typed path is not there
-  await expect(page.locator('.state-panel .state-title')).toHaveText('The Arx data dir is set')
+  await expect(page.locator('.state-panel .state-title')).toHaveText('The Arx data dir is set to the following folder')
   await expect(page.locator('.state-panel .state-name')).toHaveText(dataDir)
   await expect(page.locator('.path-input')).toHaveCount(0)
   await expect(page.locator('.path-row')).toHaveCount(0)
@@ -89,9 +116,11 @@ test('the files of a folder are a temporary data dir', async ({ page, browserNam
   await page.locator('.dir-input').setInputFiles(dataDir)
   await page.waitForTimeout(1500)
 
-  await expect(page.locator('.state-panel .state-title')).toHaveText('The Arx data dir is set')
+  await expect(page.locator('.state-panel .state-title')).toHaveText('The Arx data dir is set to the following folder')
   await expect(page.locator('.state-panel .state-name')).toHaveText('data')
-  await expect(page.locator('.state-panel .state-note')).toHaveText('(temporary, will get forgotten on next page load)')
+  await expect(page.locator('.state-panel .state-note')).toHaveText(
+    '(temporary, the browser forgets it on the next page load)',
+  )
 
   // the files of the session are not a path: nothing goes to the storage
   expect(

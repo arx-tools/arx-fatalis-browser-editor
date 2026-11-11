@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { Check, FolderOpen, TriangleAlert } from 'lucide-vue-next'
-import { computed, ref, useTemplateRef } from 'vue'
+import { Check, CircleQuestionMark, FolderOpen, TriangleAlert, X } from 'lucide-vue-next'
+import { siYoutube } from 'simple-icons'
+import { computed, ref, useTemplateRef, watch } from 'vue'
 import {
   dataDirKind,
   dataDirPermission,
+  dataDirSettled,
   dataDirState,
+  hasDataDir,
   requestDataDirPermission,
   setDataDirHandle,
   setPickedDataDir,
@@ -12,6 +15,7 @@ import {
 } from '../modules/level/source/dataDir.ts'
 import { directoryPickerOf, permissionOf, pickDirectory } from '../modules/level/source/dataDirHandle.ts'
 import { paintLevel, repaintLevelTextures } from '../modules/level/edit/levelTextures.ts'
+import { persistedRef } from '../modules/persistedRef/persistedRef.ts'
 import { starterLevelSource } from '../modules/level/source/levelSource.ts'
 import { getUrlAdapter } from '../modules/persistedRef/url.ts'
 import { levelStore } from '../modules/level/edit/levelStore.ts'
@@ -48,6 +52,37 @@ const dirInput = useTemplateRef<HTMLInputElement>('dirInput')
 const hasPicker = directoryPickerOf() !== undefined
 
 /**
+ * Whether the editor asks for the folder again after a reload.
+ *
+ * @remarks
+ * A wish of the user, not the folder: a browser without the directory picker gets the files of a folder as a snapshot
+ * of the session, and a reload loses them. The flag is a `persistedRef` in the local storage (the folder itself is
+ * never stored), and the dialog opens itself once when an editor starts without a folder.
+ */
+const askOnReload = persistedRef<boolean>({
+  key: 'dataDirAskOnReload',
+  defaultValue: false,
+  persistInLocalStorage: true,
+})
+
+/**
+ * The browsers, and whether they can keep the folder the user picks.
+ *
+ * @remarks
+ * The one way a page opens a folder again is the directory picker of the File System Access API; a browser without it
+ * can only take the **files of a folder** as a snapshot of the session. The line is shown only for such a browser (the
+ * reader is the one who may move the editor to another one), and it is a fact to keep with the source:
+ * https://caniuse.com/mdn-api_window_showdirectorypicker
+ */
+const BROWSERS: ReadonlyArray<{ readonly name: string; readonly keeps: boolean }> = [
+  { name: 'Chrome', keeps: true },
+  { name: 'Edge', keeps: true },
+  { name: 'Opera', keeps: true },
+  { name: 'Firefox', keeps: false },
+  { name: 'Safari', keeps: false },
+]
+
+/**
  * Whether the editor can read a data directory right now.
  *
  * @remarks
@@ -80,6 +115,38 @@ const needsPermission = computed(() => {
  * Whether the setup dialog of the folder is open.
  */
 const isSettingUp = ref(false)
+
+/**
+ * Whether the dialog already opened itself in this page.
+ *
+ * @remarks
+ * The question is asked once per start: a dialog that opens again after every press would fight the user.
+ */
+let hasAskedToReopen = false
+
+/**
+ * Opens the dialog when the user asked for it on a previous visit, and the folder is not there.
+ *
+ * @remarks
+ * A browser without the directory picker loses the folder on a reload, and the user asked to be remembered of it: the
+ * dialog comes up once, so the folder can be given again (a folder picked with the picker, or a folder of the url, is
+ * not asked for).
+ */
+watch(
+  [dataDirSettled, dataDirKind],
+  () => {
+    if (hasAskedToReopen || !dataDirSettled.value || !askOnReload.value) {
+      return
+    }
+
+    hasAskedToReopen = true
+
+    if (!hasDataDir()) {
+      isSettingUp.value = true
+    }
+  },
+  { immediate: true },
+)
 
 /**
  * The class of the state: the green check, the warning triangle, or the blocked folder.
@@ -142,7 +209,7 @@ const folderName = computed(() => {
  */
 const stateNote = computed(() => {
   if (dataDirKind.value === 'picked') {
-    return 'temporary, will get forgotten on next page load'
+    return 'temporary, the browser forgets it on the next page load'
   }
 
   if (isBlocked.value) {
@@ -154,17 +221,6 @@ const stateNote = computed(() => {
   }
 
   return undefined
-})
-
-/**
- * The line under the name of the browse button: the two shapes of the folder, and that only one of them is remembered.
- */
-const browseNote = computed(() => {
-  if (hasPicker) {
-    return 'remembered by the browser'
-  }
-
-  return 'temporary, will get forgotten on next page load'
 })
 
 /**
@@ -343,30 +399,50 @@ async function reconnectDir(): Promise<void> {
     />
 
     <Modal v-if="isSettingUp" title="Setting up Arx data dir" wide @close="isSettingUp = false">
-      <!-- what the folder is, and where the wiki says more: the two quiet lines of the dialog, under its title and above
-           the state (2026-11-06, the owner's request) -->
-      <div class="intro">
-        <p>
-          The levels and the textures of the game are read from this folder, and <strong>nothing is uploaded</strong>.
-        </p>
-        <p class="read-more">
-          Read more about data directories on the
-          <a
-            class="text-link"
-            href="https://wiki.arx-libertatis.org/Data_directories"
-            target="_blank"
-            rel="noopener noreferrer"
-            >Arx Libertatis wiki</a
-          >.
-        </p>
-      </div>
+      <!-- the two links of the subject, in the title: where the folder is (the wiki) and how the assets of the game go
+           into it (a video). The text of the dialog says one thing then, instead of repeating the links under it -->
+      <template #title-actions>
+        <a
+          class="title-link"
+          href="https://wiki.arx-libertatis.org/Data_directories"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Read more about data directories on the Arx Libertatis wiki"
+          v-tooltip="'Read more about data directories on the Arx Libertatis wiki'"
+        >
+          <CircleQuestionMark :size="15" />
+        </a>
+        <a
+          class="title-link"
+          href="https://youtu.be/gwcLJ90KExA?t=449&amp;si=MP8flW7bMHAHaWrS"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Info on where your data dir is and how to extract the assets of the game into it using Arx Libertatis on Windows"
+          v-tooltip="
+            'Info on where your data dir is and how to extract the assets of the game into it using Arx Libertatis on Windows'
+          "
+        >
+          <svg :width="15" :height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path :d="siYoutube.path" />
+          </svg>
+        </a>
+      </template>
+
+      <!-- what the folder is for, in one line: the reader hands over a folder of their disk, so the dialog says at once
+           that nothing leaves the tab (it is the trust of the dialog, not a detail) -->
+      <p class="lead">
+        The levels and the assets of the game are read from this folder, and <strong>nothing is uploaded</strong>.
+      </p>
 
       <!-- the state of the folder is the point of the dialog: it is the first thing on it, in the middle, with air
            around it, so a reader sees at once whether the editor has the files of the game -->
       <div class="state-panel" :class="stateClass">
         <Check v-if="hasFolder" class="state-icon" :size="28" />
         <TriangleAlert v-else class="state-icon" :size="28" />
-        <span class="state-title">{{ stateLabel }}</span>
+        <span class="state-title">
+          <template v-if="hasFolder">The <strong>Arx data dir</strong> is set to the following folder</template>
+          <template v-else>{{ stateLabel }}</template>
+        </span>
         <span v-if="folderName !== undefined" class="state-name" :title="folderName">{{ folderName }}</span>
         <span v-if="stateNote !== undefined" class="state-note">({{ stateNote }})</span>
         <button v-if="needsPermission" class="reconnect" type="button" @click="reconnectDir">
@@ -377,20 +453,42 @@ async function reconnectDir(): Promise<void> {
       <button class="browse" type="button" @click="chooseDir">
         <FolderOpen :size="16" />
         <span class="browse-label">Browse Arx data dir</span>
-        <small class="browse-note">({{ browseNote }})</small>
       </button>
 
-      <p class="video">
-        Info on where your data dir is and how to extract the assets of the game into it using Arx Libertatis on Windows
-        can be seen
-        <a
-          class="text-link"
-          href="https://youtu.be/gwcLJ90KExA?t=449&amp;si=MP8flW7bMHAHaWrS"
-          target="_blank"
-          rel="noopener noreferrer"
-          >in this video</a
-        >.
-      </p>
+      <!-- what the folder of this browser can do: one warning where the folder can not be kept, the browsers that can,
+           and the box that asks for the folder again. As little text as the reader needs, in the order they read it -->
+      <section v-if="!hasPicker" class="data-dir-info">
+        <p class="warning">
+          <TriangleAlert :size="14" />
+          <span>This browser does not support storing selected folders</span>
+        </p>
+        <div class="support-row">
+          <span class="support-title">Supported browsers:</span>
+          <ul class="support-list">
+            <li v-for="browser in BROWSERS" :key="browser.name" :class="browser.keeps ? 'is-ok' : 'is-missing'">
+              <component :is="browser.keeps ? Check : X" :size="12" />
+              <span>{{ browser.name }}</span>
+            </li>
+          </ul>
+          <a
+            class="support-link"
+            href="https://caniuse.com/mdn-api_window_showdirectorypicker"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="See a detailed list of supported browsers on caniuse.com"
+            v-tooltip="'See a detailed list of supported browsers on caniuse.com'"
+          >
+            <CircleQuestionMark :size="14" />
+          </a>
+        </div>
+        <label class="ask-again">
+          <input v-model="askOnReload" type="checkbox" />
+          <span>Ask for the folder again automatically when the editor reloads</span>
+        </label>
+      </section>
+
+      <!-- a browser that keeps the folder says it, in one quiet line -->
+      <p v-else class="data-dir-info browse-note">Remembered: the browser keeps this folder for the next visit.</p>
     </Modal>
   </div>
 </template>
@@ -450,18 +548,16 @@ async function reconnectDir(): Promise<void> {
 // the dialog of the setup: `Modal.vue` teleports its content to the body, so these elements are **not** under
 // `.DataDirPicker` — a nested selector would not reach them, and the styles live at the top level of the block
 
-// what the folder is, and where the wiki says more: the two quiet lines under the title, in the grey of the caption
-.intro {
-  margin: 0 0 10px;
+// the one line of the dialog that says what the folder is for, in the grey of a caption (the links of the subject live in
+// the title, this line carries only the promise that nothing is uploaded)
+.lead {
+  margin: 0;
   color: $text-subtle;
-  font-size: 0.9em;
+  font-size: calc(0.9em + 2px);
+  line-height: 1.4;
 
-  p {
-    margin: 0;
-  }
-
-  p + p {
-    margin-top: 2px;
+  strong {
+    color: $text-muted;
   }
 }
 
@@ -557,23 +653,117 @@ async function reconnectDir(): Promise<void> {
     background: $surface-float;
     border-color: $interactive;
   }
+}
 
-  // the note of the shape: the smaller, quieter text of the same line
-  .browse-note {
-    flex-basis: 100%;
-    color: inherit;
-    font-size: 0.82em;
-    font-style: italic;
-    text-align: center;
+// the info block under the button of the folder: the warning of a browser that can not keep the folder, the browsers
+// that can, and the box of the question. The block is the quiet part of the dialog, so it keeps the grey of the caption
+// and the small letters, and one gap between its lines
+.data-dir-info {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid $border-dark;
+  font-size: calc(0.82em + 2px);
+  line-height: 1.45;
+}
+
+// the warning of the browser: the amber of the palette, a tint of it for the plate, and the icon of a warning
+.warning {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  padding: 7px 10px;
+  color: $accent;
+  background: rgba($accent, 0.1);
+  border: 1px solid rgba($accent, 0.3);
+  border-radius: 4px;
+
+  svg {
+    flex: none;
   }
 }
 
-// the line under the form: where the folder is, and how the assets of the game go into it
-.video {
-  margin: 12px 0 0;
-  color: $text-subtle;
-  font-size: 0.82em;
-  line-height: 1.45;
+// the line of the browsers: the name of the list on the left, the browsers on the right, in one line
+.support-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 10px;
+  margin: 0 0 20px;
+}
+
+// the label of the list, the list itself, and the icon that opens the detail of it: the icon is the only white thing of
+// the line, so it reads as a button without a frame
+.support-title {
+  color: $text-muted;
+}
+
+.support-link {
+  display: inline-flex;
+  flex: none;
+  margin-left: auto;
+  color: $text-strong;
+
+  &:hover {
+    color: $interactive;
+  }
+}
+
+.support-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+  }
+
+  // the mark of the browser: the ok colour of the palette for the one that keeps the folder, the danger for the other
+  .is-ok {
+    color: $ok;
+  }
+
+  .is-missing {
+    color: $danger-muted;
+  }
+}
+
+.ask-again {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: $text-muted;
+  cursor: pointer;
+
+  input {
+    margin: 0;
+    accent-color: $interactive;
+    cursor: pointer;
+  }
+}
+
+// the line of a browser that keeps the folder: the same block, one sentence
+.browse-note {
+  margin: 0;
+  color: $text-muted;
+}
+
+// the link of the title: an icon of the subject (the wiki, the video), in the colour of the title and the interactive
+// blue under the pointer
+.title-link {
+  display: inline-flex;
+  color: $text-muted;
+
+  &:hover {
+    color: $interactive;
+  }
 }
 
 // a link of the dialog (the wiki, the video): the interactive blue of the palette, the only colour a link may have. The

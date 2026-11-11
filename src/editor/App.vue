@@ -17,7 +17,6 @@ import {
   dataDirKind,
   hasDataDir,
   startDataDir,
-  storedDataDir,
 } from './modules/level/source/dataDir.ts'
 import {
   isOriginalLevelSource,
@@ -73,22 +72,17 @@ onMounted(async () => {
     requestedMap = undefined
   }
 
-  // the data directory of the session: the url names one (and it is remembered for the next visits), or the browser
-  // has the folder from a previous one (a path of the storage, or the folder of the directory picker, which the
-  // IndexedDB keeps — that one is read before the level, so its files are there when the level arrives)
+  // the data directory of the session: the url names one for this visit, or the browser has the folder of the directory
+  // picker from a previous one (the IndexedDB keeps its handle — that one is read before the level, so its files are
+  // there when the level arrives). The editor keeps no folder of the disk in the browser: a path is of the url only.
   const startedDataDir = await startDataDir()
   const dataDirFromUrlParameter = dataDirFromUrl(url)
 
   if (startedDataDir !== undefined) {
-    let state = 'not remembered'
-    let remembered = dataDirKind.value === 'handle'
+    let state = 'of the browser'
 
-    if (dataDirFromUrlParameter !== undefined) {
-      remembered = storedDataDir() === dataDirFromUrlParameter
-    }
-
-    if (remembered) {
-      state = 'remembered'
+    if (dataDirKind.value === 'path') {
+      state = 'of the url'
     }
 
     console.info(`Data dir: ${startedDataDir} (${state})`)
@@ -192,9 +186,8 @@ onMounted(async () => {
 
     if (url !== undefined) {
       // the map of the screen is a value of the list now, so the address bar carries that instead of the old parameter
-      // (a reload starts from the same map). The folder is in the local storage of the browser, not in the address bar:
-      // a link does not carry it (the next visit reads it from the storage) — but only when the storage **holds** it: a
-      // browser that refuses to write would lose the folder for the next visit, so the parameter stays in the url then
+      // (a reload starts from the same map). The folder of the url stays in the address bar: nothing remembers it, so a
+      // link is what gives the folder of the next visit
       writeUrlValue(url, ORIGINAL_LEVEL_PARAMETER, undefined)
 
       // a zip of the url is the map itself: the address bar keeps it instead of a value of a list the next visit does
@@ -203,7 +196,7 @@ onMounted(async () => {
         writeUrlValue(url, MAP_PARAMETER, mapSlugOf(currentMapId.value))
       }
 
-      if (dataDirFromUrlParameter === undefined || storedDataDir() === dataDirFromUrlParameter) {
+      if (dataDirFromUrlParameter === undefined) {
         writeUrlValue(url, DATA_DIR_PARAMETER, undefined)
       }
     }

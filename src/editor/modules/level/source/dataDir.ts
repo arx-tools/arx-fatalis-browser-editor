@@ -1,5 +1,4 @@
 import { shallowRef } from 'vue'
-import { getLocalStorage, type StorageLike } from '../../persistedRef/storage.ts'
 import { getUrlAdapter, readUrlValue, type UrlAdapter } from '../../persistedRef/url.ts'
 import {
   DATA_DIR_PREFIXES,
@@ -57,15 +56,6 @@ export interface DataDirFile {
    */
   readonly file: File
 }
-
-/**
- * The key of the data directory in the local storage of the browser.
- *
- * @remarks
- * The folder is remembered **beside** the url on purpose: a page can not reopen a folder, but the *path* of it is
- * enough for the development server to serve it, so a user who once gave the folder does not have to give it again.
- */
-const DATA_DIR_STORAGE_KEY = 'arx-data-dir'
 
 /**
  * The textures of the data directory, once they are read.
@@ -151,6 +141,15 @@ export type DataDirKind = 'path' | 'picked' | 'handle'
 export const dataDirState = shallowRef<string | undefined>(undefined)
 
 /**
+ * Whether the app looked for the folder of the session already.
+ *
+ * @remarks
+ * The header is set up before the app starts the folder, so a panel that has to say something about a missing folder
+ * waits for this signal instead of reading a state that is still empty.
+ */
+export const dataDirSettled = shallowRef<boolean>(false)
+
+/**
  * Where the folder of the session comes from, as a reactive value.
  */
 export const dataDirKind = shallowRef<DataDirKind | undefined>(undefined)
@@ -164,7 +163,7 @@ export const dataDirPermission = shallowRef<DataDirPermission | undefined>(undef
  * The store of the remembered folder.
  *
  * @remarks
- * The store is a parameter of the functions, the way the storage is, so a test can hand over a fake one; the page uses
+ * The store is a parameter of the functions, so a test can hand over a fake one; the page uses
  * the IndexedDB of the browser (a store without one keeps nothing).
  */
 const defaultHandleStore = createHandleStore()
@@ -194,65 +193,6 @@ function syncDataDirState(): void {
 }
 
 /**
- * Whether the data directory was looked at already (the remembered one is read once).
- */
-let isDataDirStarted = false
-
-/**
- * Reads the data directory the browser remembered.
- *
- * @param storage The storage to read, the local storage of the page by default.
- *
- * @returns The path of the folder, or `undefined` when there is none.
- */
-export function storedDataDir(storage: StorageLike | undefined = getLocalStorage(undefined)): string | undefined {
-  if (storage === undefined) {
-    return undefined
-  }
-
-  try {
-    const stored = storage.getItem(DATA_DIR_STORAGE_KEY)
-
-    if (stored === null || stored.trim() === '') {
-      return undefined
-    }
-
-    return stored
-  } catch {
-    return undefined
-  }
-}
-
-/**
- * Remembers the data directory in the browser.
- *
- * @param path The path of the folder.
- * @param storage The storage to write, the local storage of the page by default.
- *
- * @returns True when the browser holds the folder, so the next visit does not need the parameter.
- */
-export function rememberDataDir(path: string, storage: StorageLike | undefined = getLocalStorage(undefined)): boolean {
-  activeDataDir = path
-  isDataDirStarted = true
-  clearTextureScan()
-  clearDataDirScan()
-  syncDataDirState()
-
-  if (storage === undefined) {
-    return false
-  }
-
-  try {
-    storage.setItem(DATA_DIR_STORAGE_KEY, path)
-
-    return storage.getItem(DATA_DIR_STORAGE_KEY) === path
-  } catch {
-    // a full or blocked storage keeps the folder for the session only
-    return false
-  }
-}
-
-/**
  * Forgets the data directory the user picked.
  */
 export function clearPickedDataDir(): void {
@@ -263,58 +203,29 @@ export function clearPickedDataDir(): void {
 }
 
 /**
- * Forgets the data directory of every way: the path of the storage, the folder of the picker and the files of the
- * session. The editor has no data directory after it.
+ * Forgets the data directory of every way: the folder of the picker, the files of the session and the path of the url.
+ * The editor has no data directory after it.
  *
- * @param storage The storage to clean, the local storage of the page by default.
  * @param store The store of the remembered folder.
  */
-export async function forgetDataDir(
-  storage: StorageLike | undefined = getLocalStorage(undefined),
-  store: DataDirHandleStore = defaultHandleStore,
-): Promise<void> {
+export async function forgetDataDir(store: DataDirHandleStore = defaultHandleStore): Promise<void> {
   activeDataDir = undefined
   activeHandle = undefined
   handlePermission = 'granted'
-  isDataDirStarted = true
   clearTextureScan()
   clearDataDirScan()
   clearPickedDataDir()
   syncDataDirState()
 
-  if (storage !== undefined) {
-    try {
-      storage.removeItem(DATA_DIR_STORAGE_KEY)
-    } catch {
-      // nothing to clean
-    }
-  }
-
   await store.forget()
 }
 
 /**
- * Drops the path of the storage, and the folder of the session that came from it.
- *
- * @remarks
- * A page has no way to read a folder of the disk of the machine it runs on: the server that served the page does, and
- * that is the development server. A path of that kind arrives in the storage of an older visit (or in a link), and it
- * is dropped when this build can not read it, rather than kept as a folder the editor does not really have.
- *
- * @param storage The storage to clean, the local storage of the page by default.
+ * Drops the folder of the session that came from the url.
  */
-function forgetStoredPath(storage: StorageLike | undefined = getLocalStorage(undefined)): void {
+function forgetDataDirFromUrl(): void {
   activeDataDir = undefined
-
-  if (storage === undefined) {
-    return
-  }
-
-  try {
-    storage.removeItem(DATA_DIR_STORAGE_KEY)
-  } catch {
-    // nothing to clean
-  }
+  syncDataDirState()
 }
 
 /**
@@ -351,23 +262,14 @@ export function canReadDataDirOf(value: string, isDev = IS_DEVELOPMENT): boolean
 /**
  * The data directory of the session.
  *
- * @param storage The storage to read on the first look, the local storage of the page by default.
+ * @remarks
+ * The path of it comes from the url, and it lives for the session only: the editor keeps no folder of the disk in the
+ * browser (a value that only one build can read would come back on a later visit as a folder the editor does not have).
+ * The folder the browser can open again is the handle of the picker, and that one is kept by the IndexedDB.
  *
  * @returns The folder, or `undefined` when the editor has none.
  */
-function activeDataDirName(storage: StorageLike | undefined = getLocalStorage(undefined)): string | undefined {
-  if (!isDataDirStarted) {
-    isDataDirStarted = true
-    activeDataDir = storedDataDir(storage)
-    syncDataDirState()
-  }
-
-  // a path of the disk is read by the development server alone: a shipped editor (github pages) has no server behind
-  // it, so a remembered or linked path is not a data directory there (the folder picker is the way of that build)
-  if (!IS_DEVELOPMENT && activeDataDir?.startsWith('/') === true) {
-    return undefined
-  }
-
+function activeDataDirName(): string | undefined {
   return activeDataDir
 }
 
@@ -401,7 +303,6 @@ export function dataDirFromUrl(url: UrlAdapter | undefined = getUrlAdapter(undef
  * the data directory, so a user gives it once.
  *
  * @param url The query string to read, the one of the page by default.
- * @param storage The storage to read and write, the local storage of the page by default.
  * @param store The store of the remembered folder.
  * @param isDev Whether the editor runs on its development server.
  *
@@ -409,40 +310,30 @@ export function dataDirFromUrl(url: UrlAdapter | undefined = getUrlAdapter(undef
  */
 export async function startDataDir(
   url: UrlAdapter | undefined = getUrlAdapter(undefined),
-  storage: StorageLike | undefined = getLocalStorage(undefined),
   store: DataDirHandleStore = defaultHandleStore,
   isDev = IS_DEVELOPMENT,
 ): Promise<string | undefined> {
-  isDataDirStarted = true
-
   const fromUrl = dataDirFromUrl(url)
 
+  dataDirSettled.value = true
+
   if (fromUrl !== undefined) {
+    // a link that names a folder is what the user asked for this time: it wins over the folder the browser remembers
     if (canReadDataDirOf(fromUrl, isDev)) {
-      // a link that names a folder is what the user asked for this time: it wins over the folder the browser remembers
-      await store.forget()
-      rememberDataDir(fromUrl, storage)
-
-      return dataDirState.value
-    }
-
-    // a folder of the disk of the machine where the editor is developed, opened from a site that has no such server:
-    // the page can not read it, so it is not the folder of the session (and it is not kept as one)
-    forgetStoredPath(storage)
-  }
-
-  const stored = storedDataDir(storage)
-
-  if (stored !== undefined) {
-    if (canReadDataDirOf(stored, isDev)) {
-      activeDataDir = stored
+      activeDataDir = fromUrl
+      activeHandle = undefined
+      handlePermission = 'granted'
+      clearTextureScan()
+      clearDataDirScan()
       syncDataDirState()
+      await store.forget()
 
       return dataDirState.value
     }
 
-    // a value of an older visit that this build can not read: dropped, so the dialog does not show a folder it has not
-    forgetStoredPath(storage)
+    // a folder of the disk opened from a site that has no server on that machine: the page can not read it, so the
+    // link is not the folder of the session (and it is not remembered, there is nothing to remember it in)
+    forgetDataDirFromUrl()
   }
 
   const handle = await store.load()
@@ -467,13 +358,11 @@ export async function startDataDir(
  *
  * @param files The path of every file inside the data directory and the file itself.
  * @param name The name of the folder, for the messages.
- * @param storage The storage to clean, the local storage of the page by default.
  * @param store The store of the remembered folder.
  */
 export async function setPickedDataDir(
   files: readonly DataDirFile[],
   name: string,
-  storage: StorageLike | undefined = getLocalStorage(undefined),
   store: DataDirHandleStore = defaultHandleStore,
 ): Promise<void> {
   picked = new Map(
@@ -484,21 +373,12 @@ export async function setPickedDataDir(
   pickedName = name
 
   // the files are a **snapshot**: the browser can not open the folder again after a reload, so the pick is the folder of
-  // this session only — a remembered path or handle would come back as another folder on the next load
+  // this session only — a remembered handle would come back as another folder on the next load
   activeDataDir = undefined
   activeHandle = undefined
   handlePermission = 'granted'
-  isDataDirStarted = true
   clearTextureScan()
   clearDataDirScan()
-
-  if (storage !== undefined) {
-    try {
-      storage.removeItem(DATA_DIR_STORAGE_KEY)
-    } catch {
-      // nothing to clean
-    }
-  }
 
   await store.forget()
   syncDataDirState()
@@ -509,18 +389,16 @@ export async function setPickedDataDir(
  *
  * @remarks
  * The handle is a live reference to the folder: the IndexedDB keeps it for the next visit, and the browser asks for the
- * permission again when it does not hold it. The path of the storage is forgotten: the folder the user picked is the
+ * permission again when it does not hold it. The path of the url is forgotten: the folder the user picked is the
  * one of the session and of the next visits.
  *
  * @param handle The folder the user picked.
  * @param permission The permission the picker left the page with.
- * @param storage The storage to clean, the local storage of the page by default.
  * @param store The store of the remembered folder.
  */
 export async function setDataDirHandle(
   handle: FileSystemDirectoryHandle,
   permission: DataDirPermission,
-  storage: StorageLike | undefined = getLocalStorage(undefined),
   store: DataDirHandleStore = defaultHandleStore,
 ): Promise<void> {
   picked = undefined
@@ -528,17 +406,8 @@ export async function setDataDirHandle(
   activeDataDir = undefined
   activeHandle = handle
   handlePermission = permission
-  isDataDirStarted = true
   clearTextureScan()
   clearDataDirScan()
-
-  if (storage !== undefined) {
-    try {
-      storage.removeItem(DATA_DIR_STORAGE_KEY)
-    } catch {
-      // nothing to clean
-    }
-  }
 
   await store.save(handle)
   syncDataDirState()
@@ -574,11 +443,9 @@ export async function requestDataDirPermission(
 /**
  * The name of the data directory: the one the user picked, or the folder of the url.
  *
- * @param storage The storage to read on the first look, the local storage of the page by default.
- *
  * @returns The name, or `undefined` when the editor has no data directory.
  */
-export function dataDirName(storage: StorageLike | undefined = getLocalStorage(undefined)): string | undefined {
+export function dataDirName(): string | undefined {
   if (pickedName !== undefined) {
     return pickedName
   }
@@ -587,18 +454,16 @@ export function dataDirName(storage: StorageLike | undefined = getLocalStorage(u
     return activeHandle.name
   }
 
-  return activeDataDirName(storage)
+  return activeDataDirName()
 }
 
 /**
  * Whether the editor has a data directory to read from.
  *
- * @param storage The storage to read on the first look, the local storage of the page by default.
- *
  * @returns True when a folder is picked, the url named one, or the browser remembered one.
  */
-export function hasDataDir(storage: StorageLike | undefined = getLocalStorage(undefined)): boolean {
-  if (picked !== undefined || activeDataDirName(storage) !== undefined) {
+export function hasDataDir(): boolean {
+  if (picked !== undefined || activeDataDirName() !== undefined) {
     return true
   }
 

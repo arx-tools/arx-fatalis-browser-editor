@@ -1,7 +1,14 @@
 import { shallowRef } from 'vue'
 import { getLocalStorage, type StorageLike } from '../../persistedRef/storage.ts'
 import { getUrlAdapter, readUrlValue, type UrlAdapter } from '../../persistedRef/url.ts'
-import { DATA_DIR_PREFIXES, dataFileUrl, IS_DEVELOPMENT, pathsOf, TEXTURE_FOLDER } from './dataDir/url.ts'
+import {
+  DATA_DIR_PREFIXES,
+  dataFileUrl,
+  IS_DEVELOPMENT,
+  pathOfFileUrl,
+  pathsOf,
+  TEXTURE_FOLDER,
+} from './dataDir/url.ts'
 import {
   createHandleStore,
   fileInDirectory,
@@ -287,6 +294,61 @@ export async function forgetDataDir(
 }
 
 /**
+ * Drops the path of the storage, and the folder of the session that came from it.
+ *
+ * @remarks
+ * A page has no way to read a folder of the disk of the machine it runs on: the server that served the page does, and
+ * that is the development server. A path of that kind arrives in the storage of an older visit (or in a link), and it
+ * is dropped when this build can not read it, rather than kept as a folder the editor does not really have.
+ *
+ * @param storage The storage to clean, the local storage of the page by default.
+ */
+function forgetStoredPath(storage: StorageLike | undefined = getLocalStorage(undefined)): void {
+  activeDataDir = undefined
+
+  if (storage === undefined) {
+    return
+  }
+
+  try {
+    storage.removeItem(DATA_DIR_STORAGE_KEY)
+  } catch {
+    // nothing to clean
+  }
+}
+
+/**
+ * Whether this build can read the folder a value names.
+ *
+ * @remarks
+ * A folder of the disk is read by the **server that served the page**, and only when the folder is on the machine of
+ * that server: the development server opens it with the file system of node and answers with the bytes, so the page
+ * never touches the disk. Everywhere else (the site, any host) there is no such server, so a path of the user's disk
+ * can not be read, whatever the browser allows: the page of that site is not on the machine of the user.
+ *
+ * A **url** that serves the folder is read by the page itself, so it works on any build.
+ *
+ * @param value The value the user gave.
+ * @param isDev Whether the editor runs on its development server.
+ *
+ * @returns True when the folder can be read now.
+ */
+export function canReadDataDirOf(value: string, isDev = IS_DEVELOPMENT): boolean {
+  const trimmed = value.trim()
+
+  if (trimmed === '') {
+    return false
+  }
+
+  if (pathOfFileUrl(trimmed) !== undefined || trimmed.startsWith('/')) {
+    return isDev
+  }
+
+  // a windows drive path is not a shape the editor fetches from: the local route takes an absolute path of the server
+  return !/^[A-Za-z]:[/\\]/u.test(trimmed)
+}
+
+/**
  * The data directory of the session.
  *
  * @param storage The storage to read on the first look, the local storage of the page by default.
@@ -341,6 +403,7 @@ export function dataDirFromUrl(url: UrlAdapter | undefined = getUrlAdapter(undef
  * @param url The query string to read, the one of the page by default.
  * @param storage The storage to read and write, the local storage of the page by default.
  * @param store The store of the remembered folder.
+ * @param isDev Whether the editor runs on its development server.
  *
  * @returns The folder of the session, or `undefined` when there is none.
  */
@@ -348,26 +411,38 @@ export async function startDataDir(
   url: UrlAdapter | undefined = getUrlAdapter(undefined),
   storage: StorageLike | undefined = getLocalStorage(undefined),
   store: DataDirHandleStore = defaultHandleStore,
+  isDev = IS_DEVELOPMENT,
 ): Promise<string | undefined> {
   isDataDirStarted = true
 
   const fromUrl = dataDirFromUrl(url)
 
   if (fromUrl !== undefined) {
-    // a link that names a folder is what the user asked for this time: it wins over the folder the browser remembers
-    await store.forget()
-    rememberDataDir(fromUrl, storage)
+    if (canReadDataDirOf(fromUrl, isDev)) {
+      // a link that names a folder is what the user asked for this time: it wins over the folder the browser remembers
+      await store.forget()
+      rememberDataDir(fromUrl, storage)
 
-    return dataDirState.value
+      return dataDirState.value
+    }
+
+    // a folder of the disk of the machine where the editor is developed, opened from a site that has no such server:
+    // the page can not read it, so it is not the folder of the session (and it is not kept as one)
+    forgetStoredPath(storage)
   }
 
   const stored = storedDataDir(storage)
 
   if (stored !== undefined) {
-    activeDataDir = stored
-    syncDataDirState()
+    if (canReadDataDirOf(stored, isDev)) {
+      activeDataDir = stored
+      syncDataDirState()
 
-    return dataDirState.value
+      return dataDirState.value
+    }
+
+    // a value of an older visit that this build can not read: dropped, so the dialog does not show a folder it has not
+    forgetStoredPath(storage)
   }
 
   const handle = await store.load()
@@ -427,45 +502,6 @@ export async function setPickedDataDir(
 
   await store.forget()
   syncDataDirState()
-}
-
-/**
- * Sets the data directory to a path of the disk, the one the user typed or pasted in the dialog.
- *
- * @remarks
- * The path is the only way a build **without** the directory picker (Firefox) can remember a folder: the browser can not
- * give the page the files of a folder it picked, but the development server can serve a path of the disk. The path is
- * remembered in the local storage, and the remembered handle of the picker is forgotten (the last folder the user gave
- * is the one of the session).
- *
- * @param path The path or url of the folder, as the user typed it.
- * @param storage The storage to write, the local storage of the page by default.
- * @param store The store of the remembered folder.
- *
- * @returns True when the browser holds the path, so the next visit does not need it; `false` for an empty path.
- */
-export async function setDataDirPath(
-  path: string,
-  storage: StorageLike | undefined = getLocalStorage(undefined),
-  store: DataDirHandleStore = defaultHandleStore,
-): Promise<boolean> {
-  const trimmed = path.trim()
-
-  if (trimmed === '') {
-    return false
-  }
-
-  picked = undefined
-  pickedName = undefined
-  activeHandle = undefined
-  handlePermission = 'granted'
-  isDataDirStarted = true
-
-  const remembered = rememberDataDir(trimmed, storage)
-
-  await store.forget()
-
-  return remembered
 }
 
 /**
@@ -594,7 +630,16 @@ export async function fetchDataFile(
   const paths = pathsOf(path, !isDev)
 
   for (const candidate of paths) {
-    const response = await fetchImpl(dataFileUrl(dataDir, candidate, isDev))
+    let url: string
+
+    try {
+      url = dataFileUrl(dataDir, candidate, isDev)
+    } catch {
+      // a folder of the disk on a build with no server of that machine: there is nothing to ask for
+      return undefined
+    }
+
+    const response = await fetchImpl(url)
 
     if (response.ok) {
       return await response.arrayBuffer()

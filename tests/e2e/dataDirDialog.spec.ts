@@ -5,13 +5,16 @@ import { expect, test } from '@playwright/test'
 import { createBlankLevelFiles, MINIMAL_PRESET } from '../../src/editor/modules/level/blankLevel.ts'
 
 /**
- * The setup dialog of the data directory, and the ways it gives the folder (2026-11-10, the owner's request).
+ * The setup dialog of the data directory, and the ways it gives the folder.
  *
  * @remarks
- * The folder of the **url** is remembered in the local storage, the **files of a folder** are a snapshot of the session,
- * and a **path typed in the dialog** is the way a browser without the directory picker (Firefox) keeps the folder. The
- * dialog says which one the user has, and the path of it when it knows one: the browser does not give the absolute path
- * of a folder it picks.
+ * The folder of the **url** is remembered in the local storage, and the **files of a folder** are a snapshot of the
+ * session. The dialog says which one the user has, and the path of it when it knows one: the browser does not give the
+ * absolute path of a folder it picks.
+ *
+ * The dialog has no input of a path: a folder of the disk is read by the server that served the page, and only when the
+ * folder is on the machine of that server (the development server), so a typed path would work on the machine of the
+ * developer alone (2026-11-11, the owner).
  *
  * The directory picker of the File System Access API opens a window of the system, which no test can drive: its way is
  * covered by the unit tests of the module, with a fake handle.
@@ -37,11 +40,11 @@ async function dataDirOfABlankLevel(root: string): Promise<string> {
   return root
 }
 
-test('the dialog sets the path of the input, and forgets it again', async ({ page }, testInfo) => {
+test('the dialog shows the folder of the url, and has no path input any more', async ({ page }, testInfo) => {
   const dataDir = await dataDirOfABlankLevel(testInfo.outputPath('data'))
 
-  await page.goto('/?map=blank-flat')
-  await page.waitForTimeout(800)
+  await page.goto(`/?map=blank-flat&dataDir=${encodeURIComponent(dataDir)}`)
+  await page.waitForTimeout(1200)
 
   await page.locator('.DataDirPicker > button').click()
 
@@ -66,36 +69,11 @@ test('the dialog sets the path of the input, and forgets it again', async ({ pag
 
   await expect(page.locator('button.browse')).toContainText(note)
 
-  // the input says the shape of the folder the game has on windows, and the dialog is the wider box
-  await expect(page.locator('.path-input')).toHaveAttribute(
-    'placeholder',
-    String.raw`e.g. C:\Users\<Username>\Saved Games\Arx Libertatis\unpacked`,
-  )
-
-  // the path of the input is the folder, and the dialog shows it whole
-  await page.locator('.path-input').fill(dataDir)
-  await page.locator('.path-row .apply').click()
-  await page.waitForTimeout(1200)
-
+  // the folder of the url is the data directory, the dialog says so, and the row of a typed path is not there
   await expect(page.locator('.state-panel .state-title')).toHaveText('The Arx data dir is set')
   await expect(page.locator('.state-panel .state-name')).toHaveText(dataDir)
-  expect(
-    await page.evaluate(() => {
-      return localStorage.getItem('arx-data-dir')
-    }),
-  ).toBe(dataDir)
-
-  // and it goes: the storage, the state and the header's button
-  await page.locator('.path-row .forget').click()
-  await page.waitForTimeout(800)
-
-  await expect(page.locator('.state-panel .state-title')).toHaveText('No Arx data dir yet')
-  await expect(page.locator('.state-panel .state-name')).toHaveCount(0)
-  expect(
-    await page.evaluate(() => {
-      return localStorage.getItem('arx-data-dir')
-    }),
-  ).toBeNull()
+  await expect(page.locator('.path-input')).toHaveCount(0)
+  await expect(page.locator('.path-row')).toHaveCount(0)
 })
 
 test('the files of a folder are a temporary data dir', async ({ page, browserName }, testInfo) => {

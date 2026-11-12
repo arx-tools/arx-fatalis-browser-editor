@@ -39,13 +39,6 @@ import { createOrientationGizmo, type OrientationGizmo } from './orientationGizm
 import { createPolygonSelectionOverlay, type PolygonSelectionOverlay } from './polygonSelection.ts'
 
 /**
- * Whether a level is on the screen: a notice about a level that could not open waits over an empty view.
- */
-const hasLevel = computed(() => {
-  return levelStore.map.value !== undefined
-})
-
-/**
  * Opens the setup dialog of the data dir, from the notice of a map that needs it.
  */
 function openDataDirSetup(): void {
@@ -127,6 +120,14 @@ const status = computed(() => {
 })
 
 /**
+ * Whether a level is on the screen: a notice about a level that could not open waits over an empty view, and the
+ * numbers of a camera belong to a level.
+ */
+const hasLevel = computed(() => {
+  return levelStore.map.value !== undefined
+})
+
+/**
  * The readout over the canvas: the camera position and rotation in the game's coordinates, in the same
  * format as the game's own debug hud. There is no pencil button and no click-to-copy yet.
  *
@@ -138,7 +139,8 @@ const status = computed(() => {
 const hud = computed(() => {
   const pose = cameraStore.pose.value
 
-  if (pose === undefined) {
+  // a camera that has no level under it shows a pose of the url: the numbers of a level that is not on the screen
+  if (pose === undefined || !hasLevel.value) {
     return ''
   }
 

@@ -153,10 +153,12 @@ const sections = computed<readonly HelpSection[]>(() => {
         },
         run: resetViewSwitches,
       },
+      // the action is the name of the switch with a capital (2026-11-12, the owner): Wireframe, Mesh, Rooms, and a
+      // portals row of a later round reads Portals
       rows: [
         { keys: [{ kind: 'text', text: 'X' }], action: 'Wireframe', toggle: 'wireframe' },
         { keys: [{ kind: 'text', text: 'M' }], action: 'Mesh', toggle: 'mesh' },
-        { keys: [{ kind: 'text', text: 'R' }], action: 'room', toggle: 'roomColors', parent: 'mesh' },
+        { keys: [{ kind: 'text', text: 'R' }], action: 'Rooms', toggle: 'roomColors', parent: 'mesh' },
       ],
     },
     {

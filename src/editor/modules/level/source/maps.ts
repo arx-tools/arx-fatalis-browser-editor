@@ -515,9 +515,13 @@ export async function openMap(id: string, options: OpenMapOptions = {}): Promise
     return
   }
 
-  // the steps of the map on the screen are its own: they are put aside before the map goes away, and the map that
-  // comes back gets them again below
-  saveMapHistory(currentMapId.value)
+  // the steps of the map on the screen are its own: they are put aside before the map goes away, and the map that comes
+  // back gets them again below. A map that never opened (the notice of a level that needs the folder waits while no level
+  // is on the screen) has no steps to put aside, and its empty history would overwrite the steps a visit before wrote
+  // down for the map of the link (2026-11-12, the owner lost them like that)
+  if (levelStore.map.value !== undefined) {
+    saveMapHistory(currentMapId.value)
+  }
 
   let zipData: ArrayBuffer | undefined
 
@@ -540,12 +544,15 @@ export async function openMap(id: string, options: OpenMapOptions = {}): Promise
   currentMapId.value = id
   lastMapId.value = id
 
-  // a map picked from the list is not the zip of the url any more: the address bar keeps the map (the watcher of
-  // `startMapPersistence` writes it), and the zip of a previous link must not come back on a reload
+  // the address bar keeps the map of the screen, and a map picked from the list is not the zip of the url any more: the
+  // zip of a previous link must not come back on a reload. The map is written here too, not only by the watcher of
+  // `startMapPersistence`: a map that is the one the editor started with (a blank level after a link was declined) does
+  // not change the value, so the watcher would not fire and the link would come back on the next visit
   const mapUrl = getUrlAdapter(undefined)
 
   if (mapUrl !== undefined) {
     writeUrlValue(mapUrl, ZIP_URL_PARAMETER, undefined)
+    writeUrlValue(mapUrl, MAP_PARAMETER, mapSlugOf(id))
   }
 
   // the map change clears the live history (its steps are indices of the map that went away): the tick lets that

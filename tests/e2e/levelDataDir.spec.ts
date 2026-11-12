@@ -86,6 +86,18 @@ test('the map of the link says what it needs, and both ways out of the notice wo
   await expect(page.locator('.MapsToOpen')).not.toContainText('needs the data dir')
   await expect(page.getByRole('combobox', { name: /The maps the editor can open/u })).toHaveValue('blank:flat')
 
+  // the address bar keeps the map of the screen: the link of the level does not come back on a reload (and the folder of
+  // a later visit does not open the level the author declined)
+  await expect
+    .poll(() => {
+      return new URL(page.url()).searchParams.get('map')
+    })
+    .toBe('blank-flat')
+
+  await page.reload()
+  await page.waitForTimeout(1200)
+  await expect(page.locator('.MissingMapPrompt')).toHaveCount(0)
+
   // the first button opens the dialog of the folder
   await page.goto('/?map=arx-fatalis-level-11')
   await page.waitForTimeout(1200)
@@ -124,6 +136,39 @@ test('a level with steps of a visit before says that the edits are safe, and off
   await expect(notice).toContainText('Your edits are kept safe regardless of this')
   await expect(notice.locator('.notice-button')).toHaveText('Reconnect now and load level')
   await expect(notice.locator('.notice-dismiss')).toHaveText('Reconnect later and start a blank map')
+})
+
+test('the steps of a level of the link are not overwritten by the answer of the notice', async ({ page }) => {
+  await seedLayout(page, editorLayout)
+
+  // the steps of level 11, written down by a visit before: the notice waits, and no level is on the screen
+  const steps = JSON.stringify({
+    version: 2,
+    fingerprint: 'x',
+    records: [{ version: 1, kind: 'deleteFaces', faces: [0] }],
+    position: 1,
+  })
+
+  await page.addInitScript((value: string) => {
+    localStorage.setItem('mapHistory:arx:11', value)
+  }, steps)
+
+  await page.goto('/?map=arx-fatalis-level-11')
+  await page.waitForTimeout(1200)
+
+  const notice = page.locator('.MissingMapPrompt')
+
+  await expect(notice).toBeVisible()
+  await notice.locator('.notice-dismiss').click()
+  await expect(notice).toHaveCount(0)
+  await page.waitForTimeout(800)
+
+  // the blank map has no steps of its own, and the steps of the level of the link are still there
+  expect(
+    await page.evaluate(() => {
+      return localStorage.getItem('mapHistory:arx:11')
+    }),
+  ).toBe(steps)
 })
 
 test('the dialog closes itself after the folder is seen, and a hand-opened one stays', async ({

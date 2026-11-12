@@ -29,6 +29,7 @@ import {
   arxLevels,
   availableMapIdOf,
   currentMapId,
+  currentMapManifest,
   DEFAULT_MAP_ID,
   hasChangesOf,
   MAP_GROUP_PREFIXES,
@@ -44,6 +45,7 @@ import {
   restorePersistedHistory,
   setStartupSource,
   startMapPersistence,
+  zipManifestOf,
 } from './modules/level/source/maps.ts'
 import { migrateLegacyPose } from './modules/level/source/maps/mapPoses.ts'
 import { startPoseTracking } from './modules/level/source/maps/poseTracking.ts'
@@ -163,6 +165,7 @@ onMounted(async () => {
 
         if (data !== undefined) {
           currentMapId.value = rememberCustomMap(source.label, data)
+          currentMapManifest.value = zipManifestOf(source)
         }
       } else if (isOriginalLevelSource(source)) {
         currentMapId.value = `arx:${String(source.level)}`

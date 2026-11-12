@@ -1,3 +1,4 @@
+import type { Buffer } from 'node:buffer'
 import { expect, type Locator, type Page } from '@playwright/test'
 import { editorLayout, factoryPresets } from '../../../src/editor/modules/layout/layoutPresets.ts'
 import { factorySignatureOf } from '../../../src/editor/modules/layout/layoutHistory.ts'
@@ -99,6 +100,27 @@ export async function rowOf(page: Page, kind: string, label: string): Promise<st
   }
 
   return (await widget.locator('dd').nth(index).textContent()) ?? ''
+}
+
+/**
+ * Opens a zip through the file picker of the header.
+ *
+ * @remarks
+ * The browser does not let a script choose a file, so the button only presses the input: the chooser event is what the
+ * test waits for, and the files it hands over are the ones the level comes from.
+ *
+ * @param page The page to drive.
+ * @param name The name the browser shows for the file.
+ * @param content The bytes of the zip.
+ */
+export async function openZip(page: Page, name: string, content: Buffer): Promise<void> {
+  const chooser = page.waitForEvent('filechooser')
+
+  await page.locator('header button[aria-label="Open a level from a zip"]').click()
+
+  const fileChooser = await chooser
+
+  await fileChooser.setFiles({ name, mimeType: 'application/zip', buffer: content })
 }
 
 /**

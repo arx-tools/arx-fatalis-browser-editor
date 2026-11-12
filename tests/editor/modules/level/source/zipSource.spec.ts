@@ -191,6 +191,26 @@ void describe('readLevelFromZip', () => {
 })
 
 void describe('createZipLevelSource', () => {
+  void it('has no manifest before the zip is read', () => {
+    const source = createZipLevelSource('level8.zip', new ArrayBuffer(0))
+
+    assert.equal(source.manifest(), undefined)
+  })
+
+  void it('keeps the manifest the zip carries, once the level is loaded', async () => {
+    const camera = { position: [100, 200, 300], rotation: [0, 90, 0] }
+    const files = {
+      ...installedLevel('level8', 'a'),
+      'manifest.json': JSON.stringify({ name: 'Lalee minigame', seed: 42, camera }),
+    }
+    const source = createZipLevelSource('level8.zip', await zipOf(files))
+
+    await source.load()
+
+    assert.equal(source.manifest()?.name, 'Lalee minigame')
+    assert.deepEqual(source.manifest()?.camera, camera)
+  })
+
   void it('reads the zip when the level is loaded', async () => {
     const source = createZipLevelSource('level8.zip', await zipOf(installedLevel('level8', 'a')))
     const files = await source.load()

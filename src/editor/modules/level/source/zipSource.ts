@@ -1,4 +1,5 @@
 import JSZip from 'jszip'
+import { MANIFEST_NAME, manifestOf, type LevelManifest } from '../../../../generator/manifest.ts'
 import type { LevelFiles, LevelSource } from './levelSource.ts'
 
 /**
@@ -14,54 +15,6 @@ const LEVEL_EXTENSIONS = ['dlf', 'fts', 'llf'] as const
  * One of the three file extensions of a level.
  */
 type LevelExtension = (typeof LEVEL_EXTENSIONS)[number]
-
-/**
- * The name of the manifest the generator writes into the zip of a level.
- */
-const MANIFEST_NAME = 'manifest.json'
-
-/**
- * What the manifest of a level zip says about the level.
- *
- * @remarks
- * The old generator writes these keys; the ones the loader does not use yet (the author, the version, the generator)
- * are kept, so a later round can show them without reading the file again.
- */
-export interface LevelManifest {
-  /**
-   * The name of the level.
-   */
-  readonly name?: string
-  /**
-   * The version of the level.
-   */
-  readonly version?: string
-  /**
-   * What the level is, in a sentence.
-   */
-  readonly description?: string
-  /**
-   * Who made the level.
-   */
-  readonly author?: string
-  /**
-   * The seed the generator made the level with.
-   *
-   * @remarks
-   * The generator writes a number, and the editor can write the text the user typed into the export dialog: the seed of
-   * a level is whatever text starts its random numbers, not only a number.
-   */
-  readonly seed?: number | string
-  /**
-   * The paths the generator wrote, the level files among them.
-   *
-   * @remarks
-   * The paths of the sample are **absolute machine paths** of the generator's output (the generator wrote the
-   * installed location), so they do not match the paths inside the zip. The base names do, which is why the loader
-   * matches on those.
-   */
-  readonly files?: readonly string[]
-}
 
 /**
  * A level read out of a zip.
@@ -143,45 +96,7 @@ async function readManifest(archive: JSZip): Promise<LevelManifest | undefined> 
     return undefined
   }
 
-  if (typeof parsed !== 'object' || parsed === null) {
-    return undefined
-  }
-
-  const candidate = parsed as Record<string, unknown>
-  let name: string | undefined
-  let version: string | undefined
-  let description: string | undefined
-  let author: string | undefined
-  let seed: number | string | undefined
-  let files: string[] | undefined
-
-  if (typeof candidate.name === 'string') {
-    name = candidate.name
-  }
-
-  if (typeof candidate.version === 'string') {
-    version = candidate.version
-  }
-
-  if (typeof candidate.description === 'string') {
-    description = candidate.description
-  }
-
-  if (typeof candidate.author === 'string') {
-    author = candidate.author
-  }
-
-  if (typeof candidate.seed === 'number' || typeof candidate.seed === 'string') {
-    seed = candidate.seed
-  }
-
-  if (Array.isArray(candidate.files)) {
-    files = candidate.files.filter((file): file is string => {
-      return typeof file === 'string'
-    })
-  }
-
-  return { name, version, description, author, seed, files }
+  return manifestOf(parsed)
 }
 
 /**
@@ -367,6 +282,16 @@ export interface ZipLevelSource extends LevelSource {
    * @returns The bytes, or `undefined` when the zip has not been read yet.
    */
   readonly data: () => ArrayBuffer | undefined
+  /**
+   * The manifest of the zip, once it is loaded.
+   *
+   * @remarks
+   * The manifest is read while the level is loaded, so a caller that opens the map finds the pose of the view and the
+   * level's own keys here: the export writes the base the zip came with back into the archive it makes.
+   *
+   * @returns The manifest, or `undefined` when the zip has none (or has not been read yet).
+   */
+  readonly manifest: () => LevelManifest | undefined
 }
 
 /**
@@ -378,13 +303,20 @@ export interface ZipLevelSource extends LevelSource {
  * @returns The source, which reads the level out of the bytes it was given.
  */
 export function createZipLevelSource(name: string, data: ArrayBuffer): ZipLevelSource {
+  let manifest: LevelManifest | undefined
+
   return {
     label: name,
     data: (): ArrayBuffer => {
       return data
     },
+    manifest: (): LevelManifest | undefined => {
+      return manifest
+    },
     load: async (): Promise<LevelFiles> => {
       const level = await readLevelFromZip(data, name)
+
+      manifest = level.manifest
 
       return level.files
     },
@@ -499,6 +431,7 @@ function fileNameOf(value: string): string {
  */
 export function createZipUrlLevelSource(url: string, isDev = IS_DEVELOPMENT): ZipLevelSource {
   let data: ArrayBuffer | undefined
+  let manifest: LevelManifest | undefined
 
   const name = fileNameOf(url)
 
@@ -506,6 +439,9 @@ export function createZipUrlLevelSource(url: string, isDev = IS_DEVELOPMENT): Zi
     label: name,
     data: (): ArrayBuffer | undefined => {
       return data
+    },
+    manifest: (): LevelManifest | undefined => {
+      return manifest
     },
     load: async (fetchImpl: typeof fetch = fetch): Promise<LevelFiles> => {
       const response = await fetchImpl(zipFetchUrl(url, isDev))
@@ -517,6 +453,8 @@ export function createZipUrlLevelSource(url: string, isDev = IS_DEVELOPMENT): Zi
       data = await response.arrayBuffer()
 
       const level = await readLevelFromZip(data, name)
+
+      manifest = level.manifest
 
       return level.files
     },

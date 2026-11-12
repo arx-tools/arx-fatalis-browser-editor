@@ -10,5 +10,7 @@
     // type stripping only accepts erasable syntax, so the tests can not use enums or namespaces
     "erasableSyntaxOnly": true
   },
-  "include": ["tests/**/*"]
+  // the tests import the sources, and a source that reads a build time constant (`EDITOR_INFO`, `BUILD_INFO`) needs the
+  // declaration of that constant: the ambient files of the app are included for the modules the tests pull in
+  "include": ["tests/**/*", "src/**/*.d.ts"]
 }

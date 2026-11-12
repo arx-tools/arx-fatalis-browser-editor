@@ -4,9 +4,16 @@ import { getCellCoords, isQuad, MAP_WIDTH_IN_CELLS } from 'arx-convert/utils'
 import { getHeaderSize } from 'arx-header-size'
 import JSZip from 'jszip'
 import type { ArxMap } from '../../../generator/ArxMap.ts'
+import {
+  generatorInfoOf,
+  GENERATOR_URL,
+  MANIFEST_NAME,
+  type LevelManifest,
+  type ManifestCamera,
+  type ManifestEditor,
+} from '../../../generator/manifest.ts'
 import { roomCentersOf, roomDistancesOf } from '../../../generator/roomDistances.ts'
 import type { LevelFiles } from '../level/source/levelSource.ts'
-import type { LevelManifest } from '../level/source/zipSource.ts'
 import { packLevelFile, packWholeFile } from '../level/source/packedFile.ts'
 
 /**
@@ -225,16 +232,31 @@ export interface ExportOptions {
    * The seed the manifest of the archive carries, the way the url carries it.
    */
   readonly seed?: string
+  /**
+   * The manifest of the zip the level was opened from, when it was opened from one.
+   *
+   * @remarks
+   * The generator issues the base of a manifest, and the editor writes its own block over it: a level that came out of a
+   * zip keeps the name, the version, the description, the author and the url the archive said, so a mod stays the same
+   * mod through an editor round.
+   */
+  readonly manifest?: LevelManifest
+  /**
+   * The pose of the camera on the level when the archive is written.
+   *
+   * @remarks
+   * It is the view of the editor, not the spawn of the player: the spawn is the level's own, and a later round may let it
+   * be set on the map. The archive carries the pose so the same level opens on the same view on another machine.
+   */
+  readonly camera?: ManifestCamera
+  /**
+   * The moment the archive is written, as an ISO timestamp, for the block of the editor.
+   *
+   * @remarks
+   * The tests pass a fixed moment, so the bytes of an archive are the same on every run.
+   */
+  readonly exportedAt?: string
 }
-
-/**
- * The name of the manifest inside the archive.
- *
- * @remarks
- * It is the name the generator writes, and the one the loader of the zips reads: the archive says what the level was
- * made with, so a level opened from it comes back with its seed.
- */
-const MANIFEST_NAME = 'manifest.json'
 
 /**
  * Rebuilds the description of a level.
@@ -312,31 +334,125 @@ export function levelFilePath(level: number, kind: 'dlf' | 'fts' | 'llf'): strin
 }
 
 /**
- * Builds the manifest of the archive: the files of the level, and the seed it was made with.
+ * The build of the editor, without the moment the archive was written.
+ */
+export type EditorBuild = Omit<ManifestEditor, 'exportedAt'>
+
+/**
+ * The build of the editor, as the manifest of an archive carries it.
  *
  * @remarks
- * The seed of the dialog is **any text** (the generator starts its random numbers from a text), so a seed that is all
- * digits is written as the number the generator itself writes, and every other text stays text. Without a seed the
- * manifest lists the files only: a level without a seed is one the game makes one for.
+ * The name, the version, the commit and the day come from the build (`vite.config.ts`), so the archive says which
+ * program wrote its files, and where that program's code lives. A unit test runs outside that build, and then the block
+ * says what a source tree can say.
  *
- * @param levelIndex The index the level gets.
- * @param seed The seed of the level, or `undefined` when there is none.
- *
- * @returns The manifest, ready to be written as JSON.
+ * @returns The keys of the editor block, without the moment of the export.
  */
-export function buildExportManifest(levelIndex: number, seed: string | undefined): LevelManifest {
-  const files = [levelFilePath(levelIndex, 'fts'), levelFilePath(levelIndex, 'dlf'), levelFilePath(levelIndex, 'llf')]
-  const value = seed?.trim() ?? ''
+function editorBuildOf(): EditorBuild {
+  if (typeof EDITOR_INFO === 'undefined') {
+    return {
+      name: 'arx-fatalis-browser-editor',
+      version: 'local',
+      commit: 'local',
+      builtAt: 'local',
+      url: GENERATOR_URL,
+    }
+  }
+
+  return EDITOR_INFO
+}
+
+/**
+ * What the manifest of an archive is built from.
+ */
+export interface ExportManifestParts {
+  /**
+   * The seed the level of the dialog has, as the text the user typed.
+   */
+  readonly seed: string | undefined
+  /**
+   * The paths of the files the archive holds, in the order they were written into it.
+   */
+  readonly files: readonly string[]
+  /**
+   * The manifest of the zip the level came from, when it came from one.
+   */
+  readonly metadata: LevelManifest | undefined
+  /**
+   * The pose of the camera on the level, when there is one to write.
+   */
+  readonly camera: ManifestCamera | undefined
+  /**
+   * The build of the editor that writes the archive.
+   */
+  readonly editor: EditorBuild
+  /**
+   * The moment the archive is written, as an ISO timestamp.
+   */
+  readonly exportedAt: string
+}
+
+/**
+ * Reads the seed of a manifest: a number when the text is all digits, the text itself otherwise.
+ *
+ * @param text The seed of the dialog, or the one the base manifest carries.
+ *
+ * @returns The seed, or `undefined` when there is none.
+ */
+function seedOf(text: string | number | undefined): number | string | undefined {
+  if (typeof text === 'number') {
+    return text
+  }
+
+  const value = text?.trim() ?? ''
 
   if (value === '') {
-    return { files }
+    return undefined
   }
 
   if (/^\d+$/u.test(value)) {
-    return { files, seed: Number.parseInt(value, 10) }
+    return Number.parseInt(value, 10)
   }
 
-  return { files, seed: value }
+  return value
+}
+
+/**
+ * Builds the manifest of the archive.
+ *
+ * @remarks
+ * The manifest is the base the level generator issues, with the block of the editor written over it:
+ *
+ * - the generator's keys say which build of the generator wrote the level, and the seed it made it with
+ * - the keys of the level (name, version, description, author, url) are the ones the archive came with, so a mod that is
+ * exported again stays the mod it was
+ * - the block of the editor says which build wrote the archive, and when
+ * - the camera is the view of the level, which is not the spawn of the player
+ * - the files are the ones the archive holds, with a leading slash, the way the loader of the zips matches them
+ *
+ * A key that has no value is left out, so the manifest of an archive made from a level of the game says what it knows
+ * and nothing else. The seed of the dialog wins over the one of the base: the dialog is the last look at the level.
+ *
+ * @param parts What the archive holds and what the level is.
+ *
+ * @returns The manifest, ready to be written as JSON.
+ */
+export function buildExportManifest(parts: ExportManifestParts): LevelManifest {
+  const base = parts.metadata
+  const editor: ManifestEditor = { ...parts.editor, exportedAt: parts.exportedAt }
+
+  return {
+    seed: seedOf(parts.seed) ?? seedOf(base?.seed),
+    ...generatorInfoOf(parts.editor.version),
+    name: base?.name,
+    version: base?.version,
+    description: base?.description,
+    author: base?.author,
+    url: base?.url,
+    editor,
+    camera: parts.camera,
+    files: [...parts.files],
+  }
 }
 
 /**
@@ -394,10 +510,24 @@ export async function exportLevelZip(
 
   const archive = new JSZip()
 
-  archive.file(levelFilePath(levelIndex, 'fts'), fts)
-  archive.file(levelFilePath(levelIndex, 'dlf'), dlf)
-  archive.file(levelFilePath(levelIndex, 'llf'), llf)
-  archive.file(MANIFEST_NAME, JSON.stringify(buildExportManifest(levelIndex, options.seed), undefined, 2))
+  // the files the archive holds, in the order they are written: the manifest lists them, so a file that joins the
+  // archive later is in the list without a change here
+  const written = [levelFilePath(levelIndex, 'fts'), levelFilePath(levelIndex, 'dlf'), levelFilePath(levelIndex, 'llf')]
+
+  archive.file(written[0], fts)
+  archive.file(written[1], dlf)
+  archive.file(written[2], llf)
+
+  const manifest = buildExportManifest({
+    seed: options.seed,
+    files: written,
+    metadata: options.manifest,
+    camera: options.camera,
+    editor: editorBuildOf(),
+    exportedAt: options.exportedAt ?? new Date().toISOString(),
+  })
+
+  archive.file(MANIFEST_NAME, JSON.stringify(manifest, undefined, 2))
 
   const data = await archive.generateAsync({ type: 'arraybuffer' })
 

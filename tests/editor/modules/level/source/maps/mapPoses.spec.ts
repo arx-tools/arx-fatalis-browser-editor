@@ -174,6 +174,7 @@ void describe('poseForOpenOf', () => {
       urlPose: pose,
       urlMapId: 'arx:11',
       storedPoses: { 'arx:11': { position: [1, 2, 3], rotation: [0, 90, 0] } },
+      manifestPose: undefined,
       isFirstOpen: true,
     })
 
@@ -187,6 +188,7 @@ void describe('poseForOpenOf', () => {
       urlPose: pose,
       urlMapId: undefined,
       storedPoses: {},
+      manifestPose: undefined,
       isFirstOpen: true,
     })
 
@@ -200,6 +202,7 @@ void describe('poseForOpenOf', () => {
       urlPose: undefined,
       urlMapId: 'arx:11',
       storedPoses: { 'arx:11': pose },
+      manifestPose: undefined,
       isFirstOpen: true,
     })
 
@@ -213,6 +216,7 @@ void describe('poseForOpenOf', () => {
       urlPose: undefined,
       urlMapId: undefined,
       storedPoses: { 'arx:11': pose },
+      manifestPose: undefined,
       isFirstOpen: true,
     })
 
@@ -226,6 +230,7 @@ void describe('poseForOpenOf', () => {
       urlPose: undefined,
       urlMapId: undefined,
       storedPoses: { 'arx:11': pose },
+      manifestPose: undefined,
       isFirstOpen: true,
     })
 
@@ -239,6 +244,7 @@ void describe('poseForOpenOf', () => {
       urlPose: pose,
       urlMapId: 'arx:11',
       storedPoses: {},
+      manifestPose: undefined,
       isFirstOpen: false,
     })
 
@@ -253,10 +259,55 @@ void describe('poseForOpenOf', () => {
       urlPose: pose,
       urlMapId: 'arx:11',
       storedPoses: { 'blank:flat': { position: [550, -180, 550], rotation: [0, 180, 0] } },
+      manifestPose: undefined,
       isFirstOpen: true,
     })
 
     assert.deepEqual(taken, { position: [550, -180, 550], rotation: [0, 180, 0] })
+  })
+
+  void it('takes the pose of the zip when the browser has none', () => {
+    const taken = poseForOpenOf({
+      id: 'custom:0',
+      key: 'custom:0:lalee-s_minigame.zip:8',
+      urlPose: undefined,
+      urlMapId: undefined,
+      storedPoses: {},
+      manifestPose: pose,
+      isFirstOpen: true,
+    })
+
+    assert.deepEqual(taken, pose)
+  })
+
+  void it('keeps the pose of the browser over the one of the zip', () => {
+    const stored: StoredPose = { position: [1, 2, 3], rotation: [0, 90, 0] }
+
+    const taken = poseForOpenOf({
+      id: 'custom:0',
+      key: 'custom:0:lalee-s_minigame.zip:8',
+      urlPose: undefined,
+      urlMapId: undefined,
+      storedPoses: { 'custom:0:lalee-s_minigame.zip:8': stored },
+      manifestPose: pose,
+      isFirstOpen: true,
+    })
+
+    assert.deepEqual(taken, stored)
+  })
+
+  void it('takes the pose of the url over the one of the zip', () => {
+    const taken = poseForOpenOf({
+      id: 'custom:0',
+      key: 'custom:0:lalee-s_minigame.zip:8',
+      urlPose: { position: [4, 5, 6], rotation: [0, 45, 0] },
+      urlMapId: undefined,
+      storedPoses: {},
+      manifestPose: pose,
+      isFirstOpen: true,
+    })
+
+    assert.deepEqual(taken, { position: [4, 5, 6], rotation: [0, 45, 0] })
   })
 
   void it('looks a custom map up by the key of its zip', () => {
@@ -266,6 +317,7 @@ void describe('poseForOpenOf', () => {
       urlPose: undefined,
       urlMapId: undefined,
       storedPoses: { 'custom:0:lalee-s_minigame.zip:8': pose },
+      manifestPose: undefined,
       isFirstOpen: true,
     })
 

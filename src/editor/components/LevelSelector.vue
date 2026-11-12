@@ -3,7 +3,13 @@ import { FolderOpen } from 'lucide-vue-next'
 import { nextTick, useTemplateRef } from 'vue'
 import { paintLevel } from '../modules/level/edit/levelTextures.ts'
 import { levelStore } from '../modules/level/edit/levelStore.ts'
-import { currentMapId, moveCameraToPoseOfOpen, rememberCustomMap } from '../modules/level/source/maps.ts'
+import {
+  currentMapId,
+  currentMapManifest,
+  moveCameraToPoseOfOpen,
+  rememberCustomMap,
+  zipManifestOf,
+} from '../modules/level/source/maps.ts'
 import { createZipLevelSource } from '../modules/level/source/zipSource.ts'
 
 // the file input is the level's way in: the browser does not let a script choose a file, so the button only presses
@@ -59,6 +65,7 @@ async function loadZip(event: Event): Promise<void> {
   // the new level has its own prompt: the zip joins the list first, so the camera can find the pose the zip was left at
   // (a zip is a value of the session, its pose belongs to the name and the size of the zip)
   currentMapId.value = rememberCustomMap(file.name, data)
+  currentMapManifest.value = zipManifestOf(source)
 
   // the camera goes where the zip was last left, or to the spawn of its player, so the view opens on something instead
   // of the place the previous level left it at. The tick lets the walkable view rebuild itself around the new map first

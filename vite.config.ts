@@ -485,20 +485,35 @@ function localDataRoute(): Plugin {
 }
 
 /**
- * The version, the commit and the build date of this build, so the deployed editor can be told apart
- * from an older one.
+ * The commit of this build.
  *
  * The commit is only known in the release workflow (it sets GITHUB_SHA), a local build says "local".
+ *
+ * @returns The first seven characters of the commit, or `local`.
+ */
+function commitOf(): string {
+  return process.env.GITHUB_SHA?.slice(0, 7) ?? 'local'
+}
+
+/**
+ * The day this build was made.
+ *
+ * @returns The date as an ISO day (`2026-11-12`).
+ */
+function builtAtOf(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+/**
+ * The version, the commit and the build date of this build, so the deployed editor can be told apart
+ * from an older one.
  *
  * @param version The version of `package.json`.
  *
  * @returns The one line build info the shell header shows.
  */
 function buildInfo(version: string): string {
-  const commit = process.env.GITHUB_SHA?.slice(0, 7) ?? 'local'
-  const builtAt = new Date().toISOString().slice(0, 10)
-
-  return `v${version} (${commit}, ${builtAt})`
+  return `v${version} (${commitOf()}, ${builtAtOf()})`
 }
 
 export default defineConfig(async () => {
@@ -507,7 +522,9 @@ export default defineConfig(async () => {
   loadEnv({ path: fileURLToPath(new URL('.env', import.meta.url)) })
 
   const packageJson = JSON.parse(await readFile(new URL('package.json', import.meta.url), 'utf8')) as {
+    name: string
     version: string
+    homepage: string
   }
 
   return {
@@ -546,6 +563,15 @@ export default defineConfig(async () => {
       // the header of the shell renders it, so it is a compile time constant instead of a
       // placeholder in index.html (the header is a vue component, the html can not reach into it)
       BUILD_INFO: JSON.stringify(buildInfo(packageJson.version)),
+      // the same build, in the shape the manifest of an export carries: which build of which program
+      // wrote the archive, and where its code lives
+      EDITOR_INFO: JSON.stringify({
+        name: packageJson.name,
+        version: packageJson.version,
+        commit: commitOf(),
+        builtAt: builtAtOf(),
+        url: packageJson.homepage,
+      }),
     },
   }
 })

@@ -6,6 +6,7 @@ import { exportLevelZip } from '../modules/export/exportLevel.ts'
 import { exportSeedOf, levelIndexOf } from '../modules/export/exportOptions.ts'
 import { levelSeed } from '../modules/level/seed.ts'
 import { levelStore } from '../modules/level/edit/levelStore.ts'
+import { currentMapId, currentMapManifest, poseOfMap } from '../modules/level/source/maps.ts'
 import Modal from './Modal.vue'
 
 /**
@@ -202,6 +203,10 @@ async function exportIt(): Promise<void> {
         levelIndex: levelIndexOf(String(levelIndex.value)),
         // an empty field means the seed the level already has (the number the game's generator made for it)
         seed: exportSeedOf(seed.value) ?? current.settings.seed,
+        // the base the zip came with (the name of the mod, its version, its author), which the archive keeps, and the
+        // pose of the camera on the level, which a zip opens on
+        manifest: currentMapManifest.value,
+        camera: poseOfMap(currentMapId.value),
       },
     )
 

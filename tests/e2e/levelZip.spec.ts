@@ -1,10 +1,10 @@
 import type { Buffer } from 'node:buffer'
-import { writeFile } from 'node:fs/promises'
-import { expect, test, type Page } from '@playwright/test'
+import { readFile, writeFile } from 'node:fs/promises'
+import { expect, test } from '@playwright/test'
 import JSZip from 'jszip'
 import { createBlankLevelFiles, MINIMAL_PRESET } from '../../src/editor/modules/level/blankLevel.ts'
 import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
-import { seedLayout, statOf, waitForLevel } from './support/editor.ts'
+import { openZip, seedLayout, statOf, waitForLevel } from './support/editor.ts'
 
 /**
  * A level opened from a zip of the user, through the button of the header.
@@ -45,23 +45,6 @@ async function zipOfABlankLevel(): Promise<Buffer> {
   )
 
   return await archive.generateAsync({ type: 'nodebuffer' })
-}
-
-/**
- * Picks a zip in the file picker of the header.
- *
- * @param page The page to drive.
- * @param name The name the browser shows for the file.
- * @param content The bytes of the zip.
- */
-async function openZip(page: Page, name: string, content: Buffer): Promise<void> {
-  const chooser = page.waitForEvent('filechooser')
-
-  await page.locator('header button[aria-label="Open a level from a zip"]').click()
-
-  const fileChooser = await chooser
-
-  await fileChooser.setFiles({ name, mimeType: 'application/zip', buffer: content })
 }
 
 test('a level of a zip replaces the level on the screen', async ({ page }) => {
@@ -130,4 +113,45 @@ test('a zip of the url that is not there says what happened', async ({ page }) =
 
   // a zip that does not load is not a silent blank level: the walkable view carries the failure
   await expect(page.locator('[data-widget-kind="3d-view"] .status')).toContainText('404')
+})
+
+test('the export of a level that came from a zip keeps the keys of that zip', async ({ page }) => {
+  await seedLayout(page, editorLayout)
+  await page.goto('/?map=blank-flat')
+  await waitForLevel(page)
+
+  await openZip(page, 'blank-minimal.zip', await zipOfABlankLevel())
+
+  await expect
+    .poll(async () => {
+      return await statOf(page, 'Total faces')
+    })
+    .toBe(1)
+
+  // the archive of the level: the base of the zip it came from, with the block of the editor over it
+  await page.locator('header button[aria-label="Export the level as a zip"]').click()
+
+  const dialog = page.locator('[role="dialog"][aria-label="Export Map"]')
+  const [download] = await Promise.all([page.waitForEvent('download'), dialog.locator('.export').click()])
+  const data = await readFile((await download.path()) ?? '')
+  const archive = await JSZip.loadAsync(data)
+  const manifest = JSON.parse((await archive.file('manifest.json')?.async('string')) ?? '{}') as {
+    readonly name?: string
+    readonly version?: string
+    readonly files?: readonly string[]
+    readonly editor?: { readonly name?: string }
+  }
+
+  // the keys of the mod survive the round through the editor
+  expect(manifest.name).toBe('Blank minimal')
+  expect(manifest.version).toBe('1.0.0')
+  expect(manifest.editor?.name).toBe('arx-fatalis-browser-editor')
+
+  // and the files are the ones of this archive, not the machine paths the base wrote
+  expect(manifest.files).toHaveLength(3)
+
+  for (const file of manifest.files ?? []) {
+    expect(file.startsWith('/')).toBe(true)
+    expect(file).not.toContain('/home/')
+  }
 })

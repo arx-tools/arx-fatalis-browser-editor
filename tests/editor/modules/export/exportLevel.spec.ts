@@ -15,6 +15,7 @@ import {
 } from '../../../../src/editor/modules/export/exportLevel.ts'
 import { ArxMap } from '../../../../src/generator/ArxMap.ts'
 import { unpackArxFile } from '../../../../src/generator/files.ts'
+import { GENERATOR_NAME, GENERATOR_URL, type ManifestCamera } from '../../../../src/generator/manifest.ts'
 import { Settings } from '../../../../src/generator/Settings.ts'
 
 /**
@@ -135,33 +136,159 @@ void describe('buildExportDlf', () => {
   })
 })
 
+/**
+ * The build of the editor the manifest tests write, so the block is the same on every run.
+ */
+const editorBuild = {
+  name: 'arx-fatalis-browser-editor',
+  version: '0.23.1',
+  commit: 'abc1234',
+  builtAt: '2026-11-12',
+  url: 'https://example.com/editor',
+}
+
+/**
+ * The moment the manifest tests were written at.
+ */
+const exportedAt = '2026-11-12T20:30:00.000Z'
+
+/**
+ * The files of the level of the given index, in the order the export writes them.
+ *
+ * @param level The index of the level.
+ *
+ * @returns The paths inside the archive.
+ */
+function filesOf(level: number): string[] {
+  return [levelFilePath(level, 'fts'), levelFilePath(level, 'dlf'), levelFilePath(level, 'llf')]
+}
+
 void describe('buildExportManifest', () => {
-  void it('lists the files of the level and the seed of the field', () => {
-    const manifest = buildExportManifest(13, '590085197')
+  void it('signs the archive with the generator and the build of the editor', () => {
+    const manifest = buildExportManifest({
+      seed: '590085197',
+      files: filesOf(13),
+      metadata: undefined,
+      camera: undefined,
+      editor: editorBuild,
+      exportedAt,
+    })
 
     assert.deepEqual(manifest, {
-      files: [levelFilePath(13, 'fts'), levelFilePath(13, 'dlf'), levelFilePath(13, 'llf')],
       seed: 590_085_197,
+      generator: GENERATOR_NAME,
+      generatorVersion: '0.23.1',
+      generatorUrl: GENERATOR_URL,
+      name: undefined,
+      version: undefined,
+      description: undefined,
+      author: undefined,
+      url: undefined,
+      editor: { ...editorBuild, exportedAt },
+      camera: undefined,
+      files: filesOf(13),
     })
   })
 
   void it('leaves the seed out when there is none', () => {
-    assert.deepEqual(buildExportManifest(8, undefined), {
-      files: [levelFilePath(8, 'fts'), levelFilePath(8, 'dlf'), levelFilePath(8, 'llf')],
+    const manifest = buildExportManifest({
+      seed: undefined,
+      files: filesOf(8),
+      metadata: undefined,
+      camera: undefined,
+      editor: editorBuild,
+      exportedAt,
     })
-    assert.deepEqual(buildExportManifest(8, '  '), {
-      files: [levelFilePath(8, 'fts'), levelFilePath(8, 'dlf'), levelFilePath(8, 'llf')],
-    })
+
+    assert.equal(manifest.seed, undefined)
+    assert.deepEqual(manifest.files, filesOf(8))
   })
 
   void it('keeps a seed that is not a number as the text it is', () => {
-    const manifest = buildExportManifest(8, 'the seed of my map')
+    const manifest = buildExportManifest({
+      seed: 'the seed of my map',
+      files: filesOf(8),
+      metadata: undefined,
+      camera: undefined,
+      editor: editorBuild,
+      exportedAt,
+    })
 
     assert.equal(manifest.seed, 'the seed of my map')
   })
 
   void it('writes a seed of digits as the number the generator writes', () => {
-    assert.equal(buildExportManifest(8, '590085197').seed, 590_085_197)
+    const manifest = buildExportManifest({
+      seed: '590085197',
+      files: filesOf(8),
+      metadata: undefined,
+      camera: undefined,
+      editor: editorBuild,
+      exportedAt,
+    })
+
+    assert.equal(manifest.seed, 590_085_197)
+  })
+
+  void it('keeps the keys of the zip the level came from', () => {
+    const manifest = buildExportManifest({
+      seed: '12345',
+      files: filesOf(1),
+      metadata: {
+        name: 'arx-map-lalees-minigame',
+        version: '2.1.1',
+        description: 'A map',
+        author: 'Lajos Meszaros <m_lajos@hotmail.com>',
+        url: 'https://example.com/the-mod',
+        seed: 999,
+        files: ['/the/files/of/the/zip'],
+        generator: 'arx-level-generator',
+      },
+      camera: undefined,
+      editor: editorBuild,
+      exportedAt,
+    })
+
+    assert.equal(manifest.name, 'arx-map-lalees-minigame')
+    assert.equal(manifest.version, '2.1.1')
+    assert.equal(manifest.description, 'A map')
+    assert.equal(manifest.author, 'Lajos Meszaros <m_lajos@hotmail.com>')
+    assert.equal(manifest.url, 'https://example.com/the-mod')
+
+    // the seed of the dialog wins over the one of the base, and the files are the ones of this archive
+    assert.equal(manifest.seed, 12_345)
+    assert.deepEqual(manifest.files, filesOf(1))
+
+    // the generator's keys say which generator wrote the level now, not which one wrote the zip before
+    assert.equal(manifest.generator, GENERATOR_NAME)
+  })
+
+  void it('writes the seed of the base when the dialog has none', () => {
+    const manifest = buildExportManifest({
+      seed: undefined,
+      files: filesOf(1),
+      metadata: { seed: 987 },
+      camera: undefined,
+      editor: editorBuild,
+      exportedAt,
+    })
+
+    assert.equal(manifest.seed, 987)
+  })
+
+  void it('carries the camera pose of the level', () => {
+    const camera: ManifestCamera = { position: [5320.35, 307.39, 10_713.8], rotation: [0, 180, 0] }
+
+    const manifest = buildExportManifest({
+      seed: undefined,
+      files: filesOf(1),
+      metadata: undefined,
+      camera,
+      editor: editorBuild,
+      exportedAt,
+    })
+
+    assert.deepEqual(manifest.camera, camera)
   })
 })
 
@@ -334,15 +461,32 @@ void describe('exportLevelZip', () => {
 
   void it('writes the level under the index and the seed of the dialog', async () => {
     const map = flatMap()
-    const { data } = await exportLevelZip(map, undefined, { levelIndex: 13, seed: '590085197' })
+    const { data } = await exportLevelZip(map, undefined, {
+      levelIndex: 13,
+      seed: '590085197',
+      exportedAt: '2026-11-12T20:30:00.000Z',
+    })
     const archive = await JSZip.loadAsync(data)
-    const manifest = await archive.file('manifest.json')?.async('string')
+    const raw = (await archive.file('manifest.json')?.async('string')) ?? '{}'
 
     // the manifest says what the level is made with, and the three files are under the index of the dialog
-    assert.deepEqual(JSON.parse(manifest ?? '{}'), {
-      files: [levelFilePath(13, 'fts'), levelFilePath(13, 'dlf'), levelFilePath(13, 'llf')],
-      seed: 590_085_197,
+    const manifest = JSON.parse(raw) as Record<string, unknown>
+
+    assert.deepEqual(manifest.files, filesOf(13))
+    assert.equal(manifest.seed, 590_085_197)
+    assert.equal(manifest.generator, GENERATOR_NAME)
+
+    // the block of the editor is the build, and a key without a value is not written at all
+    assert.deepEqual(manifest.editor, {
+      name: 'arx-fatalis-browser-editor',
+      version: 'local',
+      commit: 'local',
+      builtAt: 'local',
+      url: 'https://github.com/arx-tools/arx-fatalis-browser-editor',
+      exportedAt: '2026-11-12T20:30:00.000Z',
     })
+    assert.equal('name' in manifest, false)
+    assert.equal('camera' in manifest, false)
     assert.notEqual(archive.file(levelFilePath(13, 'fts')), null)
     assert.notEqual(archive.file(levelFilePath(13, 'dlf')), null)
     assert.notEqual(archive.file(levelFilePath(13, 'llf')), null)

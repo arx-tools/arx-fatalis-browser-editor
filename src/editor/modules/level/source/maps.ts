@@ -10,6 +10,7 @@ import { FLAT_PRESET, MINIMAL_PRESET, type NewLevelPreset } from '../blankLevel.
 import { restoreMapHistory, saveMapHistory } from '../edit/editing.ts'
 import { paintLevel } from '../edit/levelTextures.ts'
 import { levelStore } from '../edit/levelStore.ts'
+import type { LevelManifest } from '../../../../generator/manifest.ts'
 import { clearDataDirScan, readDataFile, scanLevelNumbers } from './dataDir.ts'
 import { MAP_PARAMETER, mapSlugOf, rememberMapId } from './maps/mapId.ts'
 import {
@@ -284,6 +285,59 @@ export function rememberStartupPose(): void {
 }
 
 /**
+ * The manifest of the zip the map on the screen came from.
+ *
+ * @remarks
+ * The manifest is the one the zip carried: the export writes it back over the base of the generator, so the name, the
+ * version, the description, the author and the url of a mod survive an editor round. A map that did not come from a zip
+ * (a level of the game, a blank map) has none.
+ */
+export const currentMapManifest = shallowRef<LevelManifest | undefined>(undefined)
+
+/**
+ * Reads the manifest a source carries, once it is loaded.
+ *
+ * @param source The source the map was opened from.
+ *
+ * @returns The manifest of the zip, or `undefined` when the source is not a zip, or its zip has none.
+ */
+export function zipManifestOf(source: LevelSource): LevelManifest | undefined {
+  if (!isZipLevelSource(source)) {
+    return undefined
+  }
+
+  return source.manifest()
+}
+
+/**
+ * Reads the pose the manifest of a zip carries, when the camera can take it.
+ *
+ * @param manifest The manifest of the zip.
+ *
+ * @returns The pose, or `undefined` when the manifest has none, or has one the camera can not apply.
+ */
+function manifestPoseOf(manifest: LevelManifest | undefined): StoredPose | undefined {
+  const camera = manifest?.camera
+
+  if (camera === undefined || !isStoredPose(camera)) {
+    return undefined
+  }
+
+  return camera
+}
+
+/**
+ * Reads the pose the browser stored for a map.
+ *
+ * @param id The value of the map.
+ *
+ * @returns The pose, or `undefined` when the browser has none for the map.
+ */
+export function poseOfMap(id: string): StoredPose | undefined {
+  return readMapPoses()[poseKeyOf(id, customMaps.value)]
+}
+
+/**
  * Puts the camera where the map that just opened was left, or where the url says.
  *
  * @remarks
@@ -308,6 +362,7 @@ export function moveCameraToPoseOfOpen(id: string): void {
     urlPose: startupPose,
     urlMapId: startupMapId,
     storedPoses: readMapPoses(),
+    manifestPose: manifestPoseOf(currentMapManifest.value),
     isFirstOpen,
   })
 
@@ -631,6 +686,7 @@ export async function openMap(id: string): Promise<void> {
   }
 
   currentMapId.value = id
+  currentMapManifest.value = zipManifestOf(source)
 
   // the address bar keeps the map of the screen, and a map picked from the list is not the zip of the url any more: the
   // zip of a previous link must not come back on a reload. The map is written here too, not only by the watcher of

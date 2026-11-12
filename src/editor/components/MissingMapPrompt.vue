@@ -112,11 +112,12 @@ function startBlank(): void {
 
   .panel {
     position: relative;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     gap: 12px;
-    // wide enough for the sentence of a link on one line: a warning of two lines reads heavier than it is
-    width: min(760px, 92vw);
+    // 570px in all, the sentence of a link on one line and a panel that does not spread over the dock
+    width: min(570px, 92vw);
     padding: 14px 16px;
     color: $text;
     background: $surface-float;

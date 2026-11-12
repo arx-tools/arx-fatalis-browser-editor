@@ -61,7 +61,7 @@ test('the map of the link says what it needs, and both ways out of the notice wo
   await page.goto('/?map=arx-fatalis-level-11')
   await page.waitForTimeout(1200)
 
-  const notice = page.locator('[data-widget-kind="3d-view"] .notice')
+  const notice = page.locator('.MissingMapPrompt')
   const dialog = page.locator('[role="dialog"][aria-label="Setting up Arx data dir"]')
 
   await expect(notice).toBeVisible()
@@ -96,7 +96,7 @@ test('the map of the link says what it needs, and both ways out of the notice wo
   // a map that is not a level of the game has nothing to say about the folder
   await page.goto('/?map=blank-flat')
   await page.waitForTimeout(1200)
-  await expect(page.locator('.notice')).toHaveCount(0)
+  await expect(page.locator('.MissingMapPrompt')).toHaveCount(0)
 })
 
 test('a level with steps of a visit before says that the edits are safe, and offers the folder', async ({ page }) => {
@@ -118,7 +118,7 @@ test('a level with steps of a visit before says that the edits are safe, and off
   await page.goto('/?map=arx-fatalis-level-11')
   await page.waitForTimeout(1200)
 
-  const notice = page.locator('[data-widget-kind="3d-view"] .notice')
+  const notice = page.locator('.MissingMapPrompt')
 
   await expect(notice).toContainText('Found unsaved changes on the previously edited level Arx: Level 11')
   await expect(notice).toContainText('Your edits are kept safe regardless of this')
@@ -169,12 +169,13 @@ test('the level of the link opens when the folder arrives later, in the dialog',
   await page.goto('/?map=arx-fatalis-level-11')
   await page.waitForTimeout(1200)
 
-  const notice = page.locator('[data-widget-kind="3d-view"] .notice')
+  const notice = page.locator('.MissingMapPrompt')
 
   await expect(notice).toBeVisible()
 
-  // the folder of the game, given in the dialog: the level of the link opens, and the notice goes with it
-  await page.locator('.DataDirPicker .setup').click()
+  // the folder of the game, given in the dialog from the notice itself: the level of the link opens, and the notice goes
+  // with it. The header is under the cover of the notice, so its button is not the way in while the question is up
+  await notice.locator('.notice-button').click()
   await page.locator('.dir-input').setInputFiles(dataDir)
   await expect(notice).toHaveCount(0, { timeout: 20_000 })
 

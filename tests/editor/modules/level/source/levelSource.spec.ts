@@ -185,9 +185,34 @@ void describe('starterLevelSource', () => {
     const { fetchImpl, calls } = fakeFetch(true)
     const map = await loadStarterLevel(fetchImpl, urlOf(`${ORIGINAL_LEVEL_PARAMETER}=8`))
 
-    // it tried the three files of the level of the url, and the editor still has something to show
-    assert.equal(calls.length, 3)
+    // without the folder of the game the level of the url is not downloaded (the site has no level without the folder),
+    // and the editor still has something to show
+    assert.equal(calls.length, 0)
     assert.equal(map.statistics.faceCount, 121)
+  })
+})
+
+void describe('the level of the game without a folder', () => {
+  void it('is not downloaded by a build that is not the development one', async () => {
+    const { fetchImpl, calls } = fakeFetch(false)
+    const source = createOriginalLevelSource(8, urlOf(''), false)
+
+    await assert.rejects(
+      (async (): Promise<unknown> => {
+        return await source.load(fetchImpl)
+      })(),
+      /needs the Arx data dir/u,
+    )
+    assert.equal(calls.length, 0)
+  })
+
+  void it('is downloaded by the development build, which the tests and the probes use', async () => {
+    const { fetchImpl, calls } = fakeFetch(false)
+    const source = createOriginalLevelSource(8, urlOf(''), true)
+
+    await source.load(fetchImpl)
+
+    assert.equal(calls.length, 3)
   })
 })
 

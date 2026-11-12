@@ -6,19 +6,12 @@ import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
-import {
-  currentMapId,
-  DEFAULT_MAP_ID,
-  mapNeedingDataDir,
-  openMap,
-  requestedMapId,
-} from '../../../modules/level/source/maps.ts'
+import { currentMapId } from '../../../modules/level/source/maps.ts'
 import { WIDGET_KINDS } from '../../../modules/layout/widgetKinds.ts'
 import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
 import { getModifierOfKey } from '../../../modules/keyboard/functions.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import { selectedRoom } from '../../../modules/rooms/roomStore.ts'
-import { isDataDirSetupOpen } from '../../../modules/level/source/dataDir.ts'
 import { cameraStore } from '../camera/cameraStore.ts'
 import { renderPerformanceStore } from '../shared/renderPerformance.ts'
 import { isMeshVisible, isRoomColorsVisible, isWireframeVisible } from '../shared/levelDisplay.ts'
@@ -37,72 +30,6 @@ import { createFrameLoop } from './frameLoop.ts'
 import { useSelectionDrag } from './useSelectionDrag.ts'
 import { createOrientationGizmo, type OrientationGizmo } from './orientationGizmo.ts'
 import { createPolygonSelectionOverlay, type PolygonSelectionOverlay } from './polygonSelection.ts'
-
-/**
- * Opens the setup dialog of the data dir, from the notice of a map that needs it.
- */
-function openDataDirSetup(): void {
-  isDataDirSetupOpen.value = true
-}
-
-/**
- * Puts the notice away and starts a blank level.
- *
- * @remarks
- * The blank level starts at its own spawn: the pose of the url belongs to the level of the link, and the camera of that
- * level would land the author at a place that means nothing on a plane (`openMap` without `camera` goes to the spawn).
- */
-function dismissMissingMap(): void {
-  mapNeedingDataDir.value = undefined
-  requestedMapId.value = undefined
-  openMap(DEFAULT_MAP_ID).catch(() => {
-    // the store keeps the error of the load, the walkable view shows it
-  })
-}
-
-/**
- * What the notice says: a map with steps waiting for it, or a link to a level that needs the folder.
- *
- * @remarks
- * The two are different things for the author: the first one says that nothing of the work is lost, the second one says
- * what the link needs. A link to a level with steps of a previous visit gets the first, because the level is not the only
- * thing that waits on the screen.
- */
-const noticeText = computed(() => {
-  const missing = mapNeedingDataDir.value
-
-  if (missing === undefined) {
-    return ''
-  }
-
-  if (missing.hasChanges) {
-    return `Found unsaved changes on the previously edited level ${missing.name}, which needs the Arx data dir to be reconnected. Your edits are kept safe regardless of this.`
-  }
-
-  return 'The link you are trying to open refers to a map that requires the Arx data dir to be set.'
-})
-
-/**
- * The label of the button that connects the folder.
- */
-const noticeConnectLabel = computed(() => {
-  if (mapNeedingDataDir.value?.hasChanges === true) {
-    return 'Reconnect now and load level'
-  }
-
-  return 'Connect data dir and load level'
-})
-
-/**
- * The label of the button that puts the notice away.
- */
-const noticeDismissLabel = computed(() => {
-  if (mapNeedingDataDir.value?.hasChanges === true) {
-    return 'Reconnect later and start a blank map'
-  }
-
-  return 'Connect later and start a blank map'
-})
 
 /**
  * What the widget shows over the canvas: a failure, or nothing while the level is on.
@@ -596,14 +523,6 @@ onBeforeUnmount(() => {
     </div>
     <div v-if="hud !== ''" class="hud">{{ hud }}</div>
     <p v-if="status !== ''" class="status">{{ status }}</p>
-    <!-- the map of the link needs the folder of the game: the blank level is on the screen, and this says why -->
-    <div v-if="mapNeedingDataDir !== undefined" class="notice">
-      <p class="notice-text">{{ noticeText }}</p>
-      <div class="notice-actions">
-        <button class="notice-button" type="button" @click="openDataDirSetup">{{ noticeConnectLabel }}</button>
-        <button class="notice-dismiss" type="button" @click="dismissMissingMap">{{ noticeDismissLabel }}</button>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -666,69 +585,6 @@ onBeforeUnmount(() => {
     background: rgba($surface-app, 0.72);
     border-radius: 3px;
     pointer-events: none;
-  }
-
-  // the notice of a map that needs the folder: a plate over the top of the view, with the way out of it
-  .notice {
-    position: absolute;
-    top: 14px;
-    left: 50%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    max-width: 520px;
-    padding: 10px 12px;
-    color: $text;
-    background: rgba($surface-float, 0.94);
-    border: 1px solid $border;
-    border-radius: 5px;
-    transform: translateX(-50%);
-    font-size: 13px;
-    line-height: 1.4;
-    text-align: center;
-  }
-
-  .notice-text {
-    margin: 0;
-  }
-
-  .notice-actions {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 8px;
-  }
-
-  // the second way out of the notice: quiet, because it is the one that keeps the screen as it is
-  .notice-dismiss {
-    padding: 5px 12px;
-    color: $text-muted;
-    font: inherit;
-    background: none;
-    border: 1px solid $border;
-    border-radius: 4px;
-    cursor: pointer;
-
-    &:hover {
-      color: $text;
-      background: $surface-panel;
-    }
-  }
-
-  .notice-button {
-    padding: 5px 12px;
-    color: $text-strong;
-    font: inherit;
-    background: $surface-raised;
-    border: 1px solid $border-strong;
-    border-radius: 4px;
-    cursor: pointer;
-
-    &:hover {
-      background: $surface-float;
-      border-color: $interactive;
-    }
   }
 
   .status {

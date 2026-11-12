@@ -4,6 +4,7 @@ import Cover from './components/Cover.vue'
 import Dock from './components/Dock.vue'
 import EditorHeader from './components/EditorHeader.vue'
 import LoadingOverlay from './components/LoadingOverlay.vue'
+import MissingMapPrompt from './components/MissingMapPrompt.vue'
 import { startLevelDisplay } from './components/widgets/shared/levelDisplay.ts'
 import { startLevelEditing } from './modules/level/edit/editing.ts'
 import { startSelection } from './modules/selection/selectionStore.ts'
@@ -275,6 +276,7 @@ onMounted(async () => {
     <EditorHeader />
     <Dock />
     <Cover />
+    <MissingMapPrompt />
   </div>
 </template>
 

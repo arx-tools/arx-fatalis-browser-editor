@@ -4,6 +4,7 @@ import { getUrlAdapter, readUrlValue, type UrlAdapter } from '../../persistedRef
 import { createBlankLevelFiles, FLAT_PRESET, type NewLevelPreset } from '../blankLevel.ts'
 import { levelSeed } from '../seed.ts'
 import { dataDirFromUrl, readDataFile } from './dataDir.ts'
+import { IS_DEVELOPMENT } from './dataDir/url.ts'
 import { createZipUrlLevelSource } from './zipSource.ts'
 
 /**
@@ -264,12 +265,15 @@ export function isOriginalLevelSource(source: LevelSource): source is OriginalLe
  *
  * @param level The number of the level.
  * @param url The query string to read, the one of the page by default.
+ * @param isDev Whether the build is the development one: a development build downloads a level of the game that the url
+ * names without a folder (the tests and the probes open the levels like that, the site never does).
  *
- * @returns The source, which downloads the three files of that level.
+ * @returns The source, which reads the three files of that level from the folder, or downloads them in a dev build.
  */
 export function createOriginalLevelSource(
   level: number,
   url: UrlAdapter | undefined = getUrlAdapter(undefined),
+  isDev = IS_DEVELOPMENT,
 ): OriginalLevelSource {
   // the folder is read **now**: the url does not keep the parameter (the editor takes it out of the address bar after
   // the start, and the source loads later)
@@ -281,6 +285,15 @@ export function createOriginalLevelSource(
     load: async (fetchImpl: typeof fetch = fetch): Promise<LevelFiles> => {
       // the data directory of the url is the game's own folder: the files are read from there, no network
       if (dataDir === undefined) {
+        // the level of the game is not downloaded: without the folder of the game it is not a level of this editor, and
+        // the notice over the editor asks for the folder. The development build keeps the download, because the tests
+        // and the probes open a level of the game without a folder (2026-11-12, the owner)
+        if (!isDev) {
+          throw new Error(
+            'The level of the game needs the Arx data dir: set the folder of the game, and the level opens.',
+          )
+        }
+
         return await fetchLevelFiles(level, fetchImpl)
       }
 

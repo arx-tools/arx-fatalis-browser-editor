@@ -233,6 +233,14 @@ test('every layout keeps its own history, and the steps of the menu take it back
    * Opens the menu of the presets, when it is closed.
    */
   async function openMenu(): Promise<void> {
+    // a reload of the level of the url asks for the folder of the game (the notice covers the whole editor), and the dock
+    // is what this test is about: the notice answers with a blank map
+    const prompt = page.locator('.MissingMapPrompt')
+
+    if ((await prompt.count()) > 0) {
+      await prompt.locator('.notice-dismiss').click()
+    }
+
     if ((await page.locator('.preset-menu').count()) === 0) {
       await menu.click()
     }

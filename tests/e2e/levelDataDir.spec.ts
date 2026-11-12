@@ -67,15 +67,24 @@ test('the map of the link says what it needs, and both ways out of the notice wo
   await expect(notice).toBeVisible()
   await expect(notice).toContainText('requires the Arx data dir to be set')
   await expect(notice).toContainText('Connect data dir and load level')
-  await expect(notice).toContainText('Connect later and stay here on this map')
+  await expect(notice).toContainText('Connect later and start a blank map')
 
   // the list of the maps has the row of the level of the link, and the row opens the dialog
   await expect(page.getByRole('option', { name: 'Level 11 (needs the data dir)' })).toHaveCount(1)
 
-  // the second button keeps the map of the screen, and the notice goes
+  // nothing is on the screen while the notice waits: the pose of the url is the one of the level of the link, and a
+  // level under it would put the camera of the link on a map it does not belong to
+  await expect
+    .poll(async () => {
+      return await statOf(page, 'Total faces')
+    })
+    .toBeUndefined()
+
+  // the second button starts a blank map, and the notice goes
   await notice.locator('.notice-dismiss').click()
   await expect(notice).toHaveCount(0)
   await expect(page.locator('.MapsToOpen')).not.toContainText('needs the data dir')
+  await expect(page.getByRole('combobox', { name: /The maps the editor can open/u })).toHaveValue('blank:flat')
 
   // the first button opens the dialog of the folder
   await page.goto('/?map=arx-fatalis-level-11')
@@ -114,7 +123,7 @@ test('a level with steps of a visit before says that the edits are safe, and off
   await expect(notice).toContainText('Found unsaved changes on the previously edited level Arx: Level 11')
   await expect(notice).toContainText('Your edits are kept safe regardless of this')
   await expect(notice.locator('.notice-button')).toHaveText('Reconnect now and load level')
-  await expect(notice.locator('.notice-dismiss')).toHaveText('Reconnect later and stay here on this map')
+  await expect(notice.locator('.notice-dismiss')).toHaveText('Reconnect later and start a blank map')
 })
 
 test('the dialog closes itself after the folder is seen, and a hand-opened one stays', async ({

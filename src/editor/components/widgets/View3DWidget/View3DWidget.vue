@@ -6,7 +6,13 @@ import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
-import { currentMapId, mapNeedingDataDir, requestedMapId } from '../../../modules/level/source/maps.ts'
+import {
+  currentMapId,
+  DEFAULT_MAP_ID,
+  mapNeedingDataDir,
+  openMap,
+  requestedMapId,
+} from '../../../modules/level/source/maps.ts'
 import { WIDGET_KINDS } from '../../../modules/layout/widgetKinds.ts'
 import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
 import { getModifierOfKey } from '../../../modules/keyboard/functions.ts'
@@ -33,6 +39,13 @@ import { createOrientationGizmo, type OrientationGizmo } from './orientationGizm
 import { createPolygonSelectionOverlay, type PolygonSelectionOverlay } from './polygonSelection.ts'
 
 /**
+ * Whether a level is on the screen: a notice about a level that could not open waits over an empty view.
+ */
+const hasLevel = computed(() => {
+  return levelStore.map.value !== undefined
+})
+
+/**
  * Opens the setup dialog of the data dir, from the notice of a map that needs it.
  */
 function openDataDirSetup(): void {
@@ -40,11 +53,18 @@ function openDataDirSetup(): void {
 }
 
 /**
- * Puts the notice away: the author keeps working on the map of the screen.
+ * Puts the notice away and starts a blank level.
+ *
+ * @remarks
+ * The blank level starts at its own spawn: the pose of the url belongs to the level of the link, and the camera of that
+ * level would land the author at a place that means nothing on a plane (`openMap` without `camera` goes to the spawn).
  */
 function dismissMissingMap(): void {
   mapNeedingDataDir.value = undefined
   requestedMapId.value = undefined
+  openMap(DEFAULT_MAP_ID).catch(() => {
+    // the store keeps the error of the load, the walkable view shows it
+  })
 }
 
 /**
@@ -66,7 +86,7 @@ const noticeText = computed(() => {
     return `Found unsaved changes on the previously edited level ${missing.name}, which needs the Arx data dir to be reconnected. Your edits are kept safe regardless of this.`
   }
 
-  return 'The link you are trying to open refers to a map that requires the Arx data dir to be set, and the editor shows the blank map instead.'
+  return 'The link you are trying to open refers to a map that requires the Arx data dir to be set.'
 })
 
 /**
@@ -85,10 +105,10 @@ const noticeConnectLabel = computed(() => {
  */
 const noticeDismissLabel = computed(() => {
   if (mapNeedingDataDir.value?.hasChanges === true) {
-    return 'Reconnect later and stay here on this map'
+    return 'Reconnect later and start a blank map'
   }
 
-  return 'Connect later and stay here on this map'
+  return 'Connect later and start a blank map'
 })
 
 /**
@@ -568,7 +588,7 @@ onBeforeUnmount(() => {
   <div ref="host" class="View3DWidget">
     <canvas ref="canvas" class="stage"></canvas>
     <!-- the crosshair marks the middle of the level: while the level loads, the status text is there -->
-    <Crosshair v-if="status === ''" />
+    <Crosshair v-if="status === '' && hasLevel" />
     <div class="gizmo" aria-hidden="true">
       <canvas ref="gizmoCanvas"></canvas>
     </div>

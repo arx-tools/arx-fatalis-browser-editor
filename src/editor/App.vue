@@ -184,11 +184,8 @@ onMounted(async () => {
       // this is a reload, not a switch
       const resolved = availableMapIdOf(requestedMap, arxLevels.value)
 
-      await openMap(resolved ?? DEFAULT_MAP_ID, { camera: 'keep' })
-
-      // the blank level opens, and the view says why the map of the link is not the one on the screen (the level of the
-      // link needs the folder of the game, which this visit does not have). The notice is only for a folder that can not
-      // come back by itself: a remembered handle asks for one press, and the header already says that
+      // the notice of a level that needs the folder is only for a folder that can not come back by itself: a remembered
+      // handle asks for one press, and the header already says that
       const missing = missingDataDirMapOf(
         requestedMap,
         resolved !== undefined,
@@ -201,12 +198,19 @@ onMounted(async () => {
       keepRequestedMap = resolved === undefined
 
       if (missing !== undefined && requestedMap !== undefined) {
+        // nothing opens: the level of the link owns the pose of the url, and a blank level under it would put the camera
+        // of the link on a level it does not belong to (the author would move around at the coordinates of another
+        // level). The notice waits for the answer: the folder, or a blank map
         mapNeedingDataDir.value = {
           label: missing,
           name: `${MAP_GROUP_PREFIXES.arx}: ${missing}`,
           hasChanges: hasChangesOf(requestedMap),
         }
         requestedMapId.value = requestedMap
+      } else {
+        // a map the list does not have (a level the folder lost, a zip of a previous session) falls back to the level the
+        // editor opens with. The camera keeps the pose of the url: this is a reload, not a switch
+        await openMap(resolved ?? DEFAULT_MAP_ID, { camera: 'keep' })
       }
     }
 

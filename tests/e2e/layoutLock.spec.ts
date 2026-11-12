@@ -232,7 +232,10 @@ test('the lock is in the stored layout, so a reload keeps it', async ({ page }) 
   expect(stored).toContain(`"kind":"fixed","px":${String(locked)}`)
 
   await page.reload()
-  await waitForLevel(page)
+
+  // the layout comes back at once, and the lock with it: the level of the url waits for the folder of the game (the
+  // notice of the walkable view), which the lock has nothing to do with
+  await expect(page.locator('[data-widget-kind="left-view"]')).toBeVisible()
 
   // the widget came back locked, and at its own size
   await expect(page.locator('[data-widget-kind="left-view"]')).toHaveAttribute('data-locked-height', String(locked))

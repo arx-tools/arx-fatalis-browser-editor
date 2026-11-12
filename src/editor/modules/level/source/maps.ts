@@ -3,7 +3,7 @@ import { cameraAngle, cameraPosition } from '../../../components/widgets/camera/
 import { cameraStore } from '../../../components/widgets/camera/cameraStore.ts'
 import { history } from '../../history/history.ts'
 import { mapHistoryRecords, type HistorySnapshot } from '../../history/mapHistory.ts'
-import { readStoredHistory } from '../../history/mapHistoryStorage.ts'
+import { readStoredHistory, writeStoredHistory } from '../../history/mapHistoryStorage.ts'
 import type { StorageLike } from '../../persistedRef/storage.ts'
 import { getUrlAdapter, writeUrlValue } from '../../persistedRef/url.ts'
 import { FLAT_PRESET, MINIMAL_PRESET, type NewLevelPreset } from '../blankLevel.ts'
@@ -324,6 +324,32 @@ function manifestPoseOf(manifest: LevelManifest | undefined): StoredPose | undef
   }
 
   return camera
+}
+
+/**
+ * Takes the steps a zip carries, so the level it opened has them.
+ *
+ * @remarks
+ * An archive of the editor keeps the steps with the level they were made on, and the caller replays them onto that
+ * source (see {@link restorePersistedHistory}): the steps become the steps of the map under its value, which is how the
+ * map gets its undo chain back. A zip without them leaves the map as it is, and so does a level that came from anywhere
+ * else.
+ *
+ * @param id The value of the map the source was opened as.
+ * @param source The source the map came from.
+ */
+export function adoptHistoryOf(id: string, source: LevelSource): void {
+  if (!isZipLevelSource(source)) {
+    return
+  }
+
+  const history = source.history()
+
+  if (history === undefined) {
+    return
+  }
+
+  writeStoredHistory(id, history)
 }
 
 /**
@@ -687,6 +713,7 @@ export async function openMap(id: string): Promise<void> {
 
   currentMapId.value = id
   currentMapManifest.value = zipManifestOf(source)
+  adoptHistoryOf(id, source)
 
   // the address bar keeps the map of the screen, and a map picked from the list is not the zip of the url any more: the
   // zip of a previous link must not come back on a reload. The map is written here too, not only by the watcher of

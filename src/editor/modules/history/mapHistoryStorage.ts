@@ -276,6 +276,58 @@ export function dropStoredHistory(id: string, storage?: StorageLike): void {
 }
 
 /**
+ * The JSON value of the stored steps.
+ *
+ * @remarks
+ * The storage keeps the steps of a map under its own key, and the `history.json` of an archive keeps the steps the level
+ * was exported with: both are this one value, so a reader of either reads the same shape, and a build only has one place
+ * to bump when the shape changes.
+ *
+ * @param history The steps of the level and how many of them are on it.
+ *
+ * @returns The value to write as JSON.
+ */
+export function storedHistoryJsonOf(history: StoredHistory): {
+  readonly version: number
+  readonly fingerprint: string
+  readonly records: readonly HistoryRecord[]
+  readonly position: number
+} {
+  return {
+    version: STORAGE_VERSION,
+    fingerprint: history.fingerprint,
+    records: [...history.records],
+    position: history.position,
+  }
+}
+
+/**
+ * Reads a JSON value of the stored steps.
+ *
+ * @param value The parsed JSON.
+ *
+ * @returns The steps, or `undefined` when the value is not one this build reads.
+ */
+export function storedHistoryOfValue(value: unknown): StoredHistory | undefined {
+  if (!isStoredHistory(value)) {
+    return undefined
+  }
+
+  // a value of the version before the position: every step of it is on the level
+  let position = value.position ?? 0
+
+  if (value.version === LEGACY_STORAGE_VERSION) {
+    position = value.records.length
+  }
+
+  return {
+    fingerprint: value.fingerprint,
+    records: value.records,
+    position: Math.min(Math.max(position, 0), value.records.length),
+  }
+}
+
+/**
  * Reads the stored steps of a map.
  *
  * @param id The value of the map in the list.
@@ -296,27 +348,16 @@ export function readStoredHistory(id: string, storage?: StorageLike): StoredHist
     return undefined
   }
 
-  const parsed = parseJson(raw)
+  const stored = storedHistoryOfValue(parseJson(raw))
 
-  if (!isStoredHistory(parsed)) {
+  if (stored === undefined) {
     // a value of another build (or a broken one) says nothing about this level: it goes, instead of being guessed at
     dropStoredHistory(id, target)
 
     return undefined
   }
 
-  // a value of the version before the position: every step of it is on the level
-  let position = parsed.position ?? 0
-
-  if (parsed.version === LEGACY_STORAGE_VERSION) {
-    position = parsed.records.length
-  }
-
-  return {
-    fingerprint: parsed.fingerprint,
-    records: parsed.records,
-    position: Math.min(Math.max(position, 0), parsed.records.length),
-  }
+  return stored
 }
 
 /**
@@ -339,12 +380,7 @@ export function writeStoredHistory(id: string, history: StoredHistory, storage?:
     return
   }
 
-  const value = {
-    version: STORAGE_VERSION,
-    fingerprint: history.fingerprint,
-    records: [...history.records],
-    position: history.position,
-  }
+  const value = storedHistoryJsonOf(history)
 
   try {
     target.setItem(KEY_PREFIX + id, JSON.stringify(value))

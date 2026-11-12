@@ -1,6 +1,27 @@
 import JSZip from 'jszip'
 import { MANIFEST_NAME, manifestOf, type LevelManifest } from '../../../../generator/manifest.ts'
+import { storedHistoryOfValue, type StoredHistory } from '../../history/mapHistoryStorage.ts'
 import type { LevelFiles, LevelSource } from './levelSource.ts'
+
+/**
+ * The folder of the zip the editor keeps its own state in.
+ *
+ * @remarks
+ * An archive the editor writes carries the level it was made from (the steps of the history are indices of that level,
+ * so a replay needs it beside the result). Nothing under this folder is a level: the reader of a zip skips it, or a
+ * level and its own source would be two candidates of the same three files.
+ */
+const EDITOR_FOLDER = 'editor/'
+
+/**
+ * The folder of the zip the level the editor's steps were made on is kept in.
+ */
+const SOURCE_FOLDER = `${EDITOR_FOLDER}source/`
+
+/**
+ * The name of the file the steps of the level are kept in, beside the manifest.
+ */
+const HISTORY_NAME = 'history.json'
 
 /**
  * The extensions of the three files a level is made of.
@@ -32,6 +53,19 @@ export interface ZipLevel {
    * The manifest of the zip, when it has one.
    */
   readonly manifest: LevelManifest | undefined
+  /**
+   * The steps the editor kept in the zip, when it kept them with the source they were made on.
+   */
+  readonly history: StoredHistory | undefined
+}
+
+/**
+ * The path of a file inside a zip, without the leading slashes some writers keep.
+ *
+ * @returns The path, like `game/graph/levels/level8/fast.fts`.
+ */
+function zipPathOf(path: string): string {
+  return path.replace(/^\/+/, '')
 }
 
 /**
@@ -109,7 +143,7 @@ async function readManifest(archive: JSZip): Promise<LevelManifest | undefined> 
 function entriesOf(archive: JSZip): JSZip.JSZipObject[] {
   return Object.values(archive.files)
     .filter((file) => {
-      return !file.dir
+      return !file.dir && !zipPathOf(file.name).startsWith(EDITOR_FOLDER)
     })
     .toSorted((one, other) => {
       return one.name.localeCompare(other.name)
@@ -177,23 +211,20 @@ function pick(candidates: readonly JSZip.JSZipObject[], name: string | undefined
 /**
  * Reads the three files of the level out of a zip.
  *
- * @param archive The zip to read.
- * @param manifest The manifest of the zip, when it has one.
+ * @param entries The files of the zip to read the level from.
+ * @param mentioned The base names the manifest lists, in lower case.
  * @param label The name of the zip, for the error messages.
  *
  * @returns The three packed files.
  *
- * @throws When the zip has no file with one of the three extensions: the three are what a level is, and a zip
+ * @throws When the entries have no file with one of the three extensions: the three are what a level is, and a zip
  * without one of them is not a level.
  */
-async function readLevelFiles(archive: JSZip, manifest: LevelManifest | undefined, label: string): Promise<LevelFiles> {
-  const entries = entriesOf(archive)
-  const mentioned = new Set(
-    (manifest?.files ?? []).map((path) => {
-      return baseNameOf(path).toLowerCase()
-    }),
-  )
-
+async function levelFilesOf(
+  entries: readonly JSZip.JSZipObject[],
+  mentioned: ReadonlySet<string>,
+  label: string,
+): Promise<LevelFiles> {
   const candidates = new Map<LevelExtension, JSZip.JSZipObject[]>()
 
   for (const extension of LEVEL_EXTENSIONS) {
@@ -230,6 +261,64 @@ async function readLevelFiles(archive: JSZip, manifest: LevelManifest | undefine
 }
 
 /**
+ * Reads the source the editor kept in the zip, when it kept one.
+ *
+ * @remarks
+ * The folder holds the level the steps were made on, under the paths of the installed game: it is the level the editor
+ * opens when it has the steps too, so the replay lands on the level it was made for. A folder without the three files
+ * says nothing, and the level of the archive is read instead.
+ *
+ * @param entries The files of the zip, the editor's own folder among them.
+ * @param label The name of the zip, for the error messages.
+ *
+ * @returns The three packed files of the source, or `undefined` when the zip carries none.
+ *
+ * @throws When the folder has files but not the three of a level.
+ */
+async function sourceFilesOf(entries: readonly JSZip.JSZipObject[], label: string): Promise<LevelFiles | undefined> {
+  const source = entries.filter((entry) => {
+    return zipPathOf(entry.name).startsWith(SOURCE_FOLDER)
+  })
+
+  if (source.length === 0) {
+    return undefined
+  }
+
+  return await levelFilesOf(source, new Set(), label)
+}
+
+/**
+ * Reads the steps the editor kept in the zip, beside the manifest.
+ *
+ * @remarks
+ * The value is the one the browser stores for a map (see `mapHistoryStorage`), so the same reader reads both: a value of
+ * another build, or a broken one, is dropped and the level opens without steps.
+ *
+ * @param archive The zip to read.
+ *
+ * @returns The steps, or `undefined` when the zip has none.
+ */
+async function readHistory(archive: JSZip): Promise<StoredHistory | undefined> {
+  const entry = Object.values(archive.files).find((file) => {
+    return !file.dir && baseNameOf(file.name).toLowerCase() === HISTORY_NAME
+  })
+
+  if (entry === undefined) {
+    return undefined
+  }
+
+  let parsed: unknown
+
+  try {
+    parsed = JSON.parse(await entry.async('string'))
+  } catch {
+    return undefined
+  }
+
+  return storedHistoryOfValue(parsed)
+}
+
+/**
  * Reads a level out of a zip.
  *
  * @remarks
@@ -254,9 +343,28 @@ export async function readLevelFromZip(data: ArrayBuffer, label: string): Promis
   }
 
   const manifest = await readManifest(archive)
-  const files = await readLevelFiles(archive, manifest, label)
+  const mentioned = new Set(
+    (manifest?.files ?? []).map((path) => {
+      return baseNameOf(path).toLowerCase()
+    }),
+  )
+  const files = await levelFilesOf(entriesOf(archive), mentioned, label)
 
-  return { label: manifest?.name ?? label, files, manifest }
+  // the source and the steps are one idea: the steps are indices of the source, so the editor opens the source only
+  // when the steps that belong to it are there. A zip of the game, or one of an older editor, has neither
+  const source = await sourceFilesOf(Object.values(archive.files), label)
+
+  if (source === undefined) {
+    return { label: manifest?.name ?? label, files, manifest, history: undefined }
+  }
+
+  const history = await readHistory(archive)
+
+  if (history === undefined) {
+    return { label: manifest?.name ?? label, files, manifest, history: undefined }
+  }
+
+  return { label: manifest?.name ?? label, files: source, manifest, history }
 }
 
 /**
@@ -292,6 +400,17 @@ export interface ZipLevelSource extends LevelSource {
    * @returns The manifest, or `undefined` when the zip has none (or has not been read yet).
    */
   readonly manifest: () => LevelManifest | undefined
+  /**
+   * The steps the editor kept in the zip, once it is loaded.
+   *
+   * @remarks
+   * The steps are indices of the level the zip carries with them, so the two are read together: when this is set, the
+   * level the source loads is the source the steps were made on, and the caller replays them onto it.
+   *
+   * @returns The steps, or `undefined` when the zip was not written by an editor that keeps them (or has not been read
+   * yet).
+   */
+  readonly history: () => StoredHistory | undefined
 }
 
 /**
@@ -304,6 +423,7 @@ export interface ZipLevelSource extends LevelSource {
  */
 export function createZipLevelSource(name: string, data: ArrayBuffer): ZipLevelSource {
   let manifest: LevelManifest | undefined
+  let history: StoredHistory | undefined
 
   return {
     label: name,
@@ -313,10 +433,14 @@ export function createZipLevelSource(name: string, data: ArrayBuffer): ZipLevelS
     manifest: (): LevelManifest | undefined => {
       return manifest
     },
+    history: (): StoredHistory | undefined => {
+      return history
+    },
     load: async (): Promise<LevelFiles> => {
       const level = await readLevelFromZip(data, name)
 
       manifest = level.manifest
+      history = level.history
 
       return level.files
     },
@@ -432,6 +556,7 @@ function fileNameOf(value: string): string {
 export function createZipUrlLevelSource(url: string, isDev = IS_DEVELOPMENT): ZipLevelSource {
   let data: ArrayBuffer | undefined
   let manifest: LevelManifest | undefined
+  let history: StoredHistory | undefined
 
   const name = fileNameOf(url)
 
@@ -442,6 +567,9 @@ export function createZipUrlLevelSource(url: string, isDev = IS_DEVELOPMENT): Zi
     },
     manifest: (): LevelManifest | undefined => {
       return manifest
+    },
+    history: (): StoredHistory | undefined => {
+      return history
     },
     load: async (fetchImpl: typeof fetch = fetch): Promise<LevelFiles> => {
       const response = await fetchImpl(zipFetchUrl(url, isDev))
@@ -455,6 +583,7 @@ export function createZipUrlLevelSource(url: string, isDev = IS_DEVELOPMENT): Zi
       const level = await readLevelFromZip(data, name)
 
       manifest = level.manifest
+      history = level.history
 
       return level.files
     },

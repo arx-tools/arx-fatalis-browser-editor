@@ -67,6 +67,44 @@ void describe('readLevelFromZip', () => {
     assert.equal(textOf(level.files.llf), 'llf-a')
   })
 
+  void it('opens the source the editor kept, with the steps it made on it', async () => {
+    const record = { version: 1, kind: 'deleteFaces', faces: [0] }
+    const level = await readLevelFromZip(
+      await zipOf({
+        ...installedLevel('level8', 'result'),
+        'editor/source/game/graph/levels/level8/fast.fts': 'fts-source',
+        'editor/source/graph/levels/level8/level8.dlf': 'dlf-source',
+        'editor/source/graph/levels/level8/level8.llf': 'llf-source',
+        'history.json': JSON.stringify({ version: 2, fingerprint: 'abc:10', records: [record], position: 1 }),
+      }),
+      'level8.zip',
+    )
+
+    // the steps are indices of the source: the level they belong to is what the editor opens
+    assert.equal(textOf(level.files.fts), 'fts-source')
+    assert.equal(textOf(level.files.dlf), 'dlf-source')
+    assert.equal(textOf(level.files.llf), 'llf-source')
+    assert.equal(level.history?.fingerprint, 'abc:10')
+    assert.deepEqual(level.history?.records, [record])
+    assert.equal(level.history?.position, 1)
+  })
+
+  void it('opens the result when the editor kept a source without steps', async () => {
+    // a source without the steps that were made on it says nothing: the level of the archive is the result
+    const level = await readLevelFromZip(
+      await zipOf({
+        ...installedLevel('level8', 'result'),
+        'editor/source/game/graph/levels/level8/fast.fts': 'fts-source',
+        'editor/source/graph/levels/level8/level8.dlf': 'dlf-source',
+        'editor/source/graph/levels/level8/level8.llf': 'llf-source',
+      }),
+      'level8.zip',
+    )
+
+    assert.equal(textOf(level.files.fts), 'fts-result')
+    assert.equal(level.history, undefined)
+  })
+
   void it('keeps the name of the zip when the zip has no manifest', async () => {
     const level = await readLevelFromZip(await zipOf(installedLevel('level8', 'a')), 'arena.zip')
 

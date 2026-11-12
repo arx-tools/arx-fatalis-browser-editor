@@ -27,6 +27,7 @@ import {
 } from './modules/level/source/levelSource.ts'
 import {
   arxLevels,
+  adoptHistoryOf,
   availableMapIdOf,
   currentMapId,
   currentMapManifest,
@@ -166,6 +167,7 @@ onMounted(async () => {
         if (data !== undefined) {
           currentMapId.value = rememberCustomMap(source.label, data)
           currentMapManifest.value = zipManifestOf(source)
+          adoptHistoryOf(currentMapId.value, source)
         }
       } else if (isOriginalLevelSource(source)) {
         currentMapId.value = `arx:${String(source.level)}`

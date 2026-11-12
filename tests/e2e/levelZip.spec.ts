@@ -4,7 +4,17 @@ import { expect, test } from '@playwright/test'
 import JSZip from 'jszip'
 import { createBlankLevelFiles, MINIMAL_PRESET } from '../../src/editor/modules/level/blankLevel.ts'
 import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
-import { openZip, seedLayout, statOf, waitForLevel } from './support/editor.ts'
+import {
+  clickCrosshair,
+  lockPointer,
+  openZip,
+  readPose,
+  seedLayout,
+  selectionCount,
+  statOf,
+  waitForLevel,
+  writePose,
+} from './support/editor.ts'
 
 /**
  * A level opened from a zip of the user, through the button of the header.
@@ -16,6 +26,17 @@ import { openZip, seedLayout, statOf, waitForLevel } from './support/editor.ts'
  * asks for is one, which the level on the screen does not have, so the statistics shows that the map was replaced.
  */
 test.setTimeout(120_000)
+
+/**
+ * Lets the pointer go in the page.
+ *
+ * @remarks
+ * The lock is the browser's, and a click of the test can not release it: a locked pointer sends every mouse event to the
+ * canvas of the walkable view, so the header is out of reach. The call runs in the page, where the document is.
+ */
+function releaseThePointer(): void {
+  document.exitPointerLock()
+}
 
 /**
  * The bytes of a zip holding the minimal blank level, the way the generator writes a level out.
@@ -154,4 +175,84 @@ test('the export of a level that came from a zip keeps the keys of that zip', as
     expect(file.startsWith('/')).toBe(true)
     expect(file).not.toContain('/home/')
   }
+})
+
+test('a level of a zip comes back with the steps it was exported with', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'the pointer lock of the walkable view needs chromium here')
+  test.setTimeout(120_000)
+
+  await seedLayout(page, editorLayout)
+  await page.goto('/?map=blank-flat')
+  await waitForLevel(page)
+
+  const view = page.locator('[data-widget-kind="3d-view"] canvas').first()
+  const whole = await statOf(page, 'Total faces')
+
+  // a step on the level: the face under the crosshair goes
+  await lockPointer(page, view)
+  await writePose(page, { ...(await readPose(page)), pitch: '60' })
+  await clickCrosshair(view)
+
+  await expect
+    .poll(async () => {
+      return await selectionCount(page)
+    })
+    .toBeGreaterThan(0)
+
+  await page.keyboard.press('Delete')
+
+  await expect
+    .poll(async () => {
+      return await statOf(page, 'Total faces')
+    })
+    .toBeLessThan(whole ?? 0)
+
+  const edited = await statOf(page, 'Total faces')
+
+  // the export keeps the level the step was made on, and the step itself (the pointer lets go first: a locked pointer
+  // never reaches the header)
+  await page.evaluate(releaseThePointer)
+
+  await page.locator('header button[aria-label="Export the level as a zip"]').click()
+
+  const dialog = page.locator('[role="dialog"][aria-label="Export Map"]')
+  const [download] = await Promise.all([page.waitForEvent('download'), dialog.locator('.export').click()])
+  const data = await readFile((await download.path()) ?? '')
+
+  await dialog.locator('.close').click()
+
+  const archive = await JSZip.loadAsync(data)
+  const entries = Object.values(archive.files).map((entry) => {
+    return entry.name
+  })
+
+  expect(
+    entries.some((entry) => {
+      return entry.startsWith('editor/source/')
+    }),
+  ).toBe(true)
+  expect(entries).toContain('history.json')
+
+  // the zip opens the level as it was left, and the step is a step of it: the undo takes it back
+  await openZip(page, 'mod.zip', data)
+
+  await expect
+    .poll(async () => {
+      return await page.getByRole('combobox', { name: /The maps the editor can open/u }).inputValue()
+    })
+    .toBe('custom:0')
+
+  await expect
+    .poll(async () => {
+      return await statOf(page, 'Total faces')
+    })
+    .toBe(edited)
+
+  await page.keyboard.press('Control+z')
+
+  await expect
+    .poll(async () => {
+      return await statOf(page, 'Total faces')
+    })
+    .toBe(whole)
 })

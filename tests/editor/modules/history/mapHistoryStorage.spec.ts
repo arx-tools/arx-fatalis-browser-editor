@@ -4,6 +4,8 @@ import { createDeleteFacesRecord } from '../../../../src/editor/modules/history/
 import {
   dropStoredHistory,
   readStoredHistory,
+  storedHistoryJsonOf,
+  storedHistoryOfValue,
   writeStoredHistory,
 } from '../../../../src/editor/modules/history/mapHistoryStorage.ts'
 import {
@@ -204,5 +206,60 @@ void describe('mapHistoryStorage', () => {
       }),
       [['mapHistory', 'localStorage']],
     )
+  })
+})
+
+void describe('storedHistoryJsonOf', () => {
+  void it('writes the steps in the shape the storage and the history file of an archive share', () => {
+    const record = createDeleteFacesRecord([1, 2])
+
+    assert.deepEqual(storedHistoryJsonOf({ fingerprint: 'abc:10', records: [record], position: 1 }), {
+      version: 2,
+      fingerprint: 'abc:10',
+      records: [record],
+      position: 1,
+    })
+  })
+
+  void it('copies the list of the steps, so a caller can not change it through the value', () => {
+    const record = createDeleteFacesRecord([1])
+    const value = storedHistoryJsonOf({ fingerprint: 'abc:10', records: [record], position: 0 })
+
+    assert.notEqual(value.records, undefined)
+    assert.deepEqual(value.records, [record])
+  })
+})
+
+void describe('storedHistoryOfValue', () => {
+  void it('reads a value of this build', () => {
+    const record = createDeleteFacesRecord([1, 2])
+
+    const stored = storedHistoryOfValue({ version: 2, fingerprint: 'abc:10', records: [record], position: 1 })
+
+    assert.equal(stored?.fingerprint, 'abc:10')
+    assert.deepEqual(stored?.records, [record])
+    assert.equal(stored?.position, 1)
+  })
+
+  void it('takes every step of a value of the older version as applied', () => {
+    const record = createDeleteFacesRecord([1])
+
+    assert.equal(storedHistoryOfValue({ version: 1, fingerprint: 'abc:10', records: [record] })?.position, 1)
+  })
+
+  void it('keeps the position inside the steps it holds', () => {
+    const record = createDeleteFacesRecord([1])
+
+    const high = storedHistoryOfValue({ version: 2, fingerprint: 'abc:10', records: [record], position: 7 })
+    const low = storedHistoryOfValue({ version: 2, fingerprint: 'abc:10', records: [record], position: -1 })
+
+    assert.equal(high?.position, 1)
+    assert.equal(low?.position, 0)
+  })
+
+  void it('reads nothing from a value of another build, or a broken one', () => {
+    assert.equal(storedHistoryOfValue({ version: 9, fingerprint: 'abc:10', records: [] }), undefined)
+    assert.equal(storedHistoryOfValue({ version: 2, fingerprint: 'abc:10', records: 'a list' }), undefined)
+    assert.equal(storedHistoryOfValue(undefined), undefined)
   })
 })

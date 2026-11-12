@@ -184,6 +184,17 @@ export class ArxMap {
    */
   readonly fts: ArxFTS
   /**
+   * The packed files the level was built from, as they were handed over.
+   *
+   * @remarks
+   * The level is read once, and the bytes are kept: the steps of the history are indices of **this** level, so a replay
+   * needs the level they were made on, and an editor that writes the level out again can put them beside the result (an
+   * archive of its own can not be replayed onto, its faces are already the result). The buffers are the ones the
+   * constructor was given, not a copy.
+   */
+  readonly source: { readonly dlf: ArrayBuffer; readonly fts: ArrayBuffer; readonly llf: ArrayBuffer }
+
+  /**
    * The fingerprint of the file the level was loaded from.
    *
    * @remarks
@@ -320,6 +331,7 @@ export class ArxMap {
     this.settings = settings
 
     this.fingerprint = fingerprintOf(fts)
+    this.source = { dlf, fts, llf }
     this.dlf = DLF.load(unpackArxFile(dlf, 'dlf'))
     this.fts = FTS.load(unpackArxFile(fts, 'fts'))
     this.llf = LLF.load(unpackArxFile(llf, 'llf'))

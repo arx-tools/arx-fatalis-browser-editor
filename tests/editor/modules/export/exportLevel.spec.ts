@@ -459,6 +459,66 @@ void describe('exportLevelZip', () => {
     assert.ok((scene?.byteLength ?? 0) > 0)
   })
 
+  void it('keeps the level it was made from, and its steps, when the level has some', async () => {
+    const map = flatMap()
+    const record = { version: 1, kind: 'deleteFaces', faces: [0] } as const
+    const { data } = await exportLevelZip(map, undefined, {
+      levelIndex: 13,
+      seed: '590085197',
+      exportedAt: '2026-11-12T20:30:00.000Z',
+      history: { records: [record], position: 1 },
+    })
+    const archive = await JSZip.loadAsync(data)
+    const entries = Object.values(archive.files).map((entry) => {
+      return entry.name
+    })
+
+    // the source goes under the folder of the editor, with the paths of the game, and the steps beside the manifest
+    const level = map.dlf.header.levelIdx
+    const written = new Set(entries)
+    function sourcePath(kind: 'fts' | 'dlf' | 'llf'): string {
+      return `editor/source/${levelFilePath(level, kind).replace(/^\//u, '')}`
+    }
+
+    assert.ok(written.has(sourcePath('fts')))
+    assert.ok(written.has(sourcePath('dlf')))
+    assert.ok(written.has(sourcePath('llf')))
+    assert.ok(written.has('history.json'))
+
+    // the source is the level the map was built from, byte for byte
+    const source = await archive.file(sourcePath('fts'))?.async('arraybuffer')
+
+    assert.deepEqual(new Uint8Array(source ?? new ArrayBuffer(0)), new Uint8Array(map.source.fts))
+
+    // and the steps carry the fingerprint of that level, so a replay lands on it
+    const history = JSON.parse((await archive.file('history.json')?.async('string')) ?? '{}') as {
+      readonly version?: number
+      readonly fingerprint?: string
+      readonly records?: readonly unknown[]
+      readonly position?: number
+    }
+
+    assert.equal(history.version, 2)
+    assert.equal(history.fingerprint, map.fingerprint)
+    assert.deepEqual(history.records, [record])
+    assert.equal(history.position, 1)
+  })
+
+  void it('writes only the result when the level has no steps', async () => {
+    const { data } = await exportLevelZip(flatMap())
+    const archive = await JSZip.loadAsync(data)
+    const entries = Object.values(archive.files).map((entry) => {
+      return entry.name
+    })
+
+    assert.equal(
+      entries.some((entry) => {
+        return entry.startsWith('editor/') || entry === 'history.json'
+      }),
+      false,
+    )
+  })
+
   void it('writes the level under the index and the seed of the dialog', async () => {
     const map = flatMap()
     const { data } = await exportLevelZip(map, undefined, {

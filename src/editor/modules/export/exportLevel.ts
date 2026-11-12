@@ -13,6 +13,8 @@ import {
   type ManifestEditor,
 } from '../../../generator/manifest.ts'
 import { roomCentersOf, roomDistancesOf } from '../../../generator/roomDistances.ts'
+import type { HistorySnapshot } from '../history/mapHistory.ts'
+import { storedHistoryJsonOf } from '../history/mapHistoryStorage.ts'
 import type { LevelFiles } from '../level/source/levelSource.ts'
 import { packLevelFile, packWholeFile } from '../level/source/packedFile.ts'
 
@@ -256,7 +258,27 @@ export interface ExportOptions {
    * The tests pass a fixed moment, so the bytes of an archive are the same on every run.
    */
   readonly exportedAt?: string
+  /**
+   * The steps of the level, when it has some.
+   *
+   * @remarks
+   * The steps are indices of the level the editor loaded (the file the map was built from), so the archive keeps that
+   * level too, under `editor/source/`, and the steps in a `history.json` beside the manifest: an editor that opens the
+   * archive replays the steps onto the source and gets the result back **with** its undo chain. Without steps the
+   * archive is only the result, as it always was.
+   */
+  readonly history?: HistorySnapshot
 }
+
+/**
+ * The folder of the archive the editor keeps the level its steps were made on in.
+ */
+const SOURCE_FOLDER = 'editor/source/'
+
+/**
+ * The name of the file the steps of the level are kept in, beside the manifest.
+ */
+const HISTORY_NAME = 'history.json'
 
 /**
  * Rebuilds the description of a level.
@@ -456,6 +478,25 @@ export function buildExportManifest(parts: ExportManifestParts): LevelManifest {
 }
 
 /**
+ * Writes the level the map was built from under the folder of the editor.
+ *
+ * @remarks
+ * The paths are the ones of the installed game, the same the result goes under, without the leading slash of the writer
+ * of the level paths: the reader of the archive matches the files by their names, and a source that sits beside a result
+ * of the same name is told apart by the folder it is in.
+ *
+ * @param map The map to write the source of.
+ * @param archive The archive to write into.
+ */
+function writeSource(map: ArxMap, archive: JSZip): void {
+  const level = map.dlf.header.levelIdx
+
+  for (const kind of ['fts', 'dlf', 'llf'] as const) {
+    archive.file(`${SOURCE_FOLDER}${levelFilePath(level, kind).replace(/^\/+/, '')}`, map.source[kind])
+  }
+}
+
+/**
  * Zips the three files of a level, the way the game reads them.
  *
  * @remarks
@@ -528,6 +569,23 @@ export async function exportLevelZip(
   })
 
   archive.file(MANIFEST_NAME, JSON.stringify(manifest, undefined, 2))
+
+  // a level with steps is also a save of itself: the steps are indices of the level they were made on, so that level
+  // goes beside the result (under the folder of the editor), and the steps into the history file of the archive
+  const steps = options.history?.records ?? []
+
+  if (steps.length > 0) {
+    writeSource(map, archive)
+
+    archive.file(
+      HISTORY_NAME,
+      JSON.stringify(
+        storedHistoryJsonOf({ fingerprint: map.fingerprint, records: steps, position: options.history?.position ?? 0 }),
+        undefined,
+        2,
+      ),
+    )
+  }
 
   const data = await archive.generateAsync({ type: 'arraybuffer' })
 

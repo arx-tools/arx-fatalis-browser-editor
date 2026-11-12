@@ -4,6 +4,7 @@ import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { downloadBinaryAs } from '../modules/export/download.ts'
 import { exportLevelZip } from '../modules/export/exportLevel.ts'
 import { exportSeedOf, levelIndexOf } from '../modules/export/exportOptions.ts'
+import { snapshotOfHistory } from '../modules/level/edit/editing.ts'
 import { levelSeed } from '../modules/level/seed.ts'
 import { levelStore } from '../modules/level/edit/levelStore.ts'
 import { currentMapId, currentMapManifest, poseOfMap } from '../modules/level/source/maps.ts'
@@ -207,6 +208,8 @@ async function exportIt(): Promise<void> {
         // pose of the camera on the level, which a zip opens on
         manifest: currentMapManifest.value,
         camera: poseOfMap(currentMapId.value),
+        // the steps of the level: an archive with them is a save of the level, not only its result
+        history: snapshotOfHistory(),
       },
     )
 

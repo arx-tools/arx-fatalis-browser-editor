@@ -277,7 +277,7 @@ async function afterDataDirChanged(): Promise<void> {
   }
 
   if (available !== undefined && available !== currentMapId.value) {
-    await openMap(available, { camera: 'keep' })
+    await openMap(available)
 
     return
   }
@@ -330,7 +330,7 @@ watch(
       return
     }
 
-    openMap(wanted, { camera: 'keep' }).catch(() => {
+    openMap(wanted).catch(() => {
       // the store keeps the error of the load, the walkable view shows it
     })
   },

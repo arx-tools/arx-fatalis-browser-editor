@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, watch } from 'vue'
+import { computed, onMounted } from 'vue'
 import Cover from './components/Cover.vue'
 import Dock from './components/Dock.vue'
 import EditorHeader from './components/EditorHeader.vue'
@@ -31,10 +31,12 @@ import {
   currentMapId,
   DEFAULT_MAP_ID,
   hasChangesOf,
-  lastMapId,
   MAP_GROUP_PREFIXES,
   mapNeedingDataDir,
   missingDataDirMapOf,
+  moveCameraToPoseOfOpen,
+  rememberStartupMapId,
+  rememberStartupPose,
   requestedMapId,
   openMap,
   refreshDataDir,
@@ -43,11 +45,11 @@ import {
   setStartupSource,
   startMapPersistence,
 } from './modules/level/source/maps.ts'
+import { migrateLegacyPose } from './modules/level/source/maps/mapPoses.ts'
+import { startPoseTracking } from './modules/level/source/maps/poseTracking.ts'
 import { startMapHistoryPersistence } from './modules/history/mapHistoryPersistence.ts'
 import { getUrlAdapter, writeUrlValue } from './modules/persistedRef/url.ts'
 import { isZipLevelSource } from './modules/level/source/zipSource.ts'
-import { cameraAngle, cameraPosition } from './components/widgets/camera/cameraState.ts'
-import { cameraStore } from './components/widgets/camera/cameraStore.ts'
 import { provideEditorShell } from './modules/shell/editorShellContext.ts'
 
 // the dock builds the shell when it is mounted, the header reads it from here
@@ -70,7 +72,13 @@ const isLevelLoading = computed(() => {
 onMounted(async () => {
   const url = getUrlAdapter(undefined)
   const zipUrl = zipUrlFromUrl(url)
-  let requestedMap = mapIdFromUrl(url) ?? storedMapId()
+  // the map and the pose the url names are read once, before a level is on the screen: the pose beside the map is the
+  // pose of that map, and the editor writes its own map into the address bar while the level opens
+  const urlMapId = mapIdFromUrl(url)
+  let requestedMap = urlMapId ?? storedMapId()
+
+  rememberStartupMapId(urlMapId)
+  rememberStartupPose()
 
   // a zip of the url is the map of the session: the level in it has no value in the list, and the zip is the one the
   // address bar carries (a reload downloads it again)
@@ -103,6 +111,10 @@ onMounted(async () => {
   startLevelTextures()
   startTextureCatalog()
   startMapPersistence()
+
+  // the pose the old build kept as one value goes under the map of the last visit, before the first map reads its own
+  migrateLegacyPose()
+  startPoseTracking()
 
   /**
    * Whether the map of the url was not in the list of the maps, so the address bar has to keep it.
@@ -179,10 +191,15 @@ onMounted(async () => {
       // a reload keeps the steps of the level: they were written down, and they come back once the level is on the
       // screen and painted (the map of the url goes through `openMap`, which restores them the same way)
       await restorePersistedHistory()
+
+      // and the camera goes to the pose the map was left at, or to the one the url carries for it on the first open (a
+      // level that did not load has no pose to take: the map on the screen keeps the camera it has)
+      if (levelStore.status.value === 'ready') {
+        moveCameraToPoseOfOpen(currentMapId.value)
+      }
     } else {
       // a map the list does not have (a level the folder lost, a zip of a previous session) falls back to the level the
-      // editor opens with; the message about it is the toast of a later round. The camera keeps the pose of the url:
-      // this is a reload, not a switch
+      // editor opens with; the message about it is the toast of a later round
       const resolved = availableMapIdOf(requestedMap, arxLevels.value)
 
       // the notice of a level that needs the folder is only for a folder that can not come back by itself: a remembered
@@ -210,8 +227,9 @@ onMounted(async () => {
         requestedMapId.value = requestedMap
       } else {
         // a map the list does not have (a level the folder lost, a zip of a previous session) falls back to the level the
-        // editor opens with. The camera keeps the pose of the url: this is a reload, not a switch
-        await openMap(resolved ?? DEFAULT_MAP_ID, { camera: 'keep' })
+        // editor opens with. The camera follows the pose of the opened map: the pose of the url is the one of the link,
+        // and a blank level under it would put that pose on a level it does not belong to
+        await openMap(resolved ?? DEFAULT_MAP_ID)
       }
     }
 
@@ -235,37 +253,6 @@ onMounted(async () => {
 
   begin().catch(() => {
     // the store keeps the error of the load, the walkable view shows it
-  })
-
-  // the camera keeps the pose the url or the storage of the browser carries: a visit that has neither starts at the
-  // spawn of the level. The map is not asked: the owner asked for the pose of the last visit to survive a visit
-  // without a link, even when the map is another one.
-  const stop = watch(levelStore.status, (status): void => {
-    if (status !== 'ready') {
-      return
-    }
-
-    stop()
-
-    lastMapId.value = currentMapId.value
-
-    if (cameraPosition.value !== undefined && cameraAngle.value !== undefined) {
-      return
-    }
-
-    async function settle(): Promise<void> {
-      await nextTick()
-      cameraStore.moveToSpawn()
-
-      if (url !== undefined) {
-        writeUrlValue(url, 'position', undefined)
-        writeUrlValue(url, 'rotation', undefined)
-      }
-    }
-
-    settle().catch(() => {
-      // the camera of the level stays where it was: the map is on the screen, which is the part that matters
-    })
   })
 })
 </script>

@@ -25,12 +25,15 @@ function roundUrlTriplet(value: TripleOf<number> | undefined): TripleOf<number> 
  * hud, and the conversion needs the scene position of the level, which the url does not carry
  * - the values are rounded to two decimals in the url and written with a throttle, so a camera move
  * does not flood the history (`replaceState` only, no new entry)
+ * - the url is the pose of **this** visit (a link carries the map and the pose together), so the
+ * browser stores it per map instead (`mapPoses`, see `maps/mapPoses.ts`): a global key would carry
+ * the pose of one map onto another
  * - the default is `undefined`, so "no position in the url" stays distinguishable from `0,0,0`
  */
 export const cameraPosition = persistedRef<TripleOf<number> | undefined>({
   key: 'position',
   persistInUrl: true,
-  persistInLocalStorage: true,
+  persistInLocalStorage: false,
   throttle: 150,
   transformOutput: { url: roundUrlTriplet },
   urlDeserialize: (raw: string) => {
@@ -43,12 +46,13 @@ export const cameraPosition = persistedRef<TripleOf<number> | undefined>({
  *
  * @remarks
  * The roll is always `0`: the editor's camera has no roll. A broken value is dropped by the parser, so
- * the camera keeps its own pose instead of jumping somewhere invalid.
+ * the camera keeps its own pose instead of jumping somewhere invalid. The storage keeps the rotation
+ * per map, beside the position (see {@link cameraPosition}).
  */
 export const cameraAngle = persistedRef<TripleOf<number> | undefined>({
   key: 'rotation',
   persistInUrl: true,
-  persistInLocalStorage: true,
+  persistInLocalStorage: false,
   throttle: 150,
   transformOutput: { url: roundUrlTriplet },
   urlDeserialize: (raw: string) => {

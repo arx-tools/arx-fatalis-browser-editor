@@ -60,8 +60,9 @@ function connect(): void {
  * Puts the question away and starts a blank level.
  *
  * @remarks
- * The blank level starts at its own spawn: the pose of the url belongs to the level of the link, and the camera of that
- * level would land the author at a place that means nothing on a plane (`openMap` without `camera` goes to the spawn).
+ * The blank level starts at its own pose: the pose of the url belongs to the level of the link, and the camera of that
+ * level would land the author at a place that means nothing on a plane (the url's pose is only the one of the map it
+ * names, so a blank map under it opens on the spawn, or where that blank map was left).
  */
 function startBlank(): void {
   mapNeedingDataDir.value = undefined

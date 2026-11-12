@@ -1,10 +1,10 @@
 import { computed, nextTick, ref, shallowRef, watch } from 'vue'
+import { cameraAngle, cameraPosition } from '../../../components/widgets/camera/cameraState.ts'
 import { cameraStore } from '../../../components/widgets/camera/cameraStore.ts'
 import { history } from '../../history/history.ts'
 import { mapHistoryRecords, type HistorySnapshot } from '../../history/mapHistory.ts'
 import { readStoredHistory } from '../../history/mapHistoryStorage.ts'
 import type { StorageLike } from '../../persistedRef/storage.ts'
-import { persistedRef } from '../../persistedRef/persistedRef.ts'
 import { getUrlAdapter, writeUrlValue } from '../../persistedRef/url.ts'
 import { FLAT_PRESET, MINIMAL_PRESET, type NewLevelPreset } from '../blankLevel.ts'
 import { restoreMapHistory, saveMapHistory } from '../edit/editing.ts'
@@ -12,6 +12,16 @@ import { paintLevel } from '../edit/levelTextures.ts'
 import { levelStore } from '../edit/levelStore.ts'
 import { clearDataDirScan, readDataFile, scanLevelNumbers } from './dataDir.ts'
 import { MAP_PARAMETER, mapSlugOf, rememberMapId } from './maps/mapId.ts'
+import {
+  cameraPoseOf,
+  isStoredPose,
+  poseForOpenOf,
+  poseKeyOf,
+  readMapPoses,
+  writeMapPoses,
+  type StoredPose,
+} from './maps/mapPoses.ts'
+import { trackPoseOf } from './maps/poseTracking.ts'
 import {
   createBlankLevelSource,
   createOriginalLevelSource,
@@ -27,8 +37,9 @@ import { createZipLevelSource, isZipLevelSource } from './zipSource.ts'
  * @remarks
  * The header shows them in one list (`Maps to open (N)`), grouped by where they come from. The list is what the old
  * `?fromOriginalArxLevel` parameter was: a level is chosen here, and switching one **replaces the map in the store** —
- * the page does not load again, so the layout and the camera controls survive the change. The choice is not in the url
- * yet (that is the persistence round): a reload starts from the blank level, or from what the url names.
+ * the page does not load again, so the layout and the camera controls survive the change. The choice goes into the url
+ * (`?map=`) and into the browser, so a reload starts from the map of the last visit, and the camera from the pose that
+ * map was left at (see {@link moveCameraToPoseOfOpen}).
  */
 
 /**
@@ -184,20 +195,6 @@ export const DEFAULT_MAP_ID = 'blank:flat'
 export const currentMapId = ref<string>(DEFAULT_MAP_ID)
 
 /**
- * The map that was opened last, in the browser.
- *
- * @remarks
- * A `persistedRef` in the `localStorage`: the editor opens the Flat level at start (the level in the url is a later
- * round), so the map of the last visit says whether the camera that was left is the camera of **this** level. When the
- * level that loads is another one, the camera goes to its spawn and the persisted pose of the other level is dropped —
- * a pose is a place in a level, and the same numbers mean another place in another level.
- */
-export const lastMapId = persistedRef<string | undefined>({
-  key: 'lastMap',
-  persistInLocalStorage: true,
-})
-
-/**
  * The source the editor started with.
  *
  * @remarks
@@ -222,6 +219,113 @@ export function setStartupSource(source: LevelSource): void {
  */
 export function startupSource(): LevelSource | undefined {
   return startup
+}
+
+/**
+ * The map the url named at the start of the visit.
+ *
+ * @remarks
+ * The url is a map and a pose **pair**: the pose in it belongs to the map it names beside itself, so the value is read
+ * once, at the start, before the editor writes its own map into the address bar. A pose without a map is the pose of the
+ * map the editor opens.
+ */
+let startupMapId: string | undefined
+
+/**
+ * Whether no map has opened in this visit yet.
+ *
+ * @remarks
+ * The pose of the url is the view of the visit, and it is about the map that opens first (the link is the state of the
+ * screen it was copied from). After that first map the url carries the live pose of the screen, not a pose to apply.
+ */
+let isFirstOpen = true
+
+/**
+ * Remembers the map the url named, so its pose goes to it.
+ *
+ * @param id The value of the map the url named, or `undefined` when it named none.
+ */
+export function rememberStartupMapId(id: string | undefined): void {
+  startupMapId = id
+}
+
+/**
+ * The pose the url carried at the start of the visit, when it carried a usable one.
+ */
+let startupPose: StoredPose | undefined
+
+/**
+ * Remembers the pose the url carries, before a map is on the screen.
+ *
+ * @remarks
+ * The pose has to be read while the url is still the only thing that wrote the camera refs: the walkable view reports its
+ * own pose as soon as a level lands, and a read after that would take the pose of the view for the pose of the link. That
+ * is also why a link of a level that needs the data dir keeps its pose while the notice waits.
+ */
+export function rememberStartupPose(): void {
+  const position = cameraPosition.value
+  const rotation = cameraAngle.value
+
+  if (position === undefined || rotation === undefined) {
+    startupPose = undefined
+
+    return
+  }
+
+  const pose = { position, rotation }
+
+  if (!isStoredPose(pose)) {
+    startupPose = undefined
+
+    return
+  }
+
+  startupPose = pose
+}
+
+/**
+ * Puts the camera where the map that just opened was left, or where the url says.
+ *
+ * @remarks
+ * The rule of the pose is {@link poseForOpenOf}: the url's pose wins at the first open of the visit, and only for the
+ * map it names; otherwise the browser's pose of the map decides, and the map opens on its spawn when it has none. The
+ * pose goes into the url too, so a link copied from the screen carries the pair, and the view that mounts later finds
+ * it there.
+ *
+ * The pose the map takes is written down as the pose of that map, so the pose of a link survives a visit that has no
+ * link, even when no view was there to report it.
+ *
+ * A map without a pose opens on the spawn: the camera refs are cleared, because the numbers left in them are the pose of
+ * the map that went away, and a view that mounts later would take them as this map's own.
+ *
+ * @param id The value of the map that opened.
+ */
+export function moveCameraToPoseOfOpen(id: string): void {
+  const key = poseKeyOf(id, customMaps.value)
+  const pose = poseForOpenOf({
+    id,
+    key,
+    urlPose: startupPose,
+    urlMapId: startupMapId,
+    storedPoses: readMapPoses(),
+    isFirstOpen,
+  })
+
+  isFirstOpen = false
+  trackPoseOf(key)
+
+  if (pose === undefined) {
+    cameraPosition.value = undefined
+    cameraAngle.value = undefined
+    cameraStore.moveToSpawn()
+
+    return
+  }
+
+  writeMapPoses({ [key]: pose })
+  cameraPosition.value = pose.position
+  cameraAngle.value = pose.rotation
+  cameraStore.moveCamera(cameraPoseOf(pose))
 }
 
 /**
@@ -481,34 +585,19 @@ function sourceOf(id: string): LevelSource | undefined {
 }
 
 /**
- * What opening a map does with the camera.
- */
-export interface OpenMapOptions {
-  /**
-   * Whether the camera goes to the spawn of the new level.
-   *
-   * @remarks
-   * A switch the user makes lands somewhere instead of the place the old level left the camera at. The map of the url
-   * at start keeps the pose the url (or the last visit) carries: the camera goes to the spawn there only when the
-   * level is not the one of the last visit (`App.vue` watches that).
-   */
-  readonly camera?: 'spawn' | 'keep'
-}
-
-/**
  * Opens a map of the list, in place.
  *
  * @remarks
  * The map replaces the one in the store, and the steps of the map that goes away are put aside by its value (see
  * {@link saveMapHistory}): the map that comes back is loaded again and its steps are replayed onto it
- * ({@link restoreMapHistory}). The selection is dropped with the map.
+ * ({@link restoreMapHistory}). The selection is dropped with the map, and the camera goes to the place the map was left
+ * at, see {@link moveCameraToPoseOfOpen}.
  *
  * @param id The value of the map, like `arx:8`.
- * @param options What the camera does; it goes to the spawn of the level by default.
  *
  * @returns A promise that settles when the map is on the screen and painted.
  */
-export async function openMap(id: string, options: OpenMapOptions = {}): Promise<void> {
+export async function openMap(id: string): Promise<void> {
   const source = sourceOf(id)
 
   if (source === undefined) {
@@ -542,7 +631,6 @@ export async function openMap(id: string, options: OpenMapOptions = {}): Promise
   }
 
   currentMapId.value = id
-  lastMapId.value = id
 
   // the address bar keeps the map of the screen, and a map picked from the list is not the zip of the url any more: the
   // zip of a previous link must not come back on a reload. The map is written here too, not only by the watcher of
@@ -569,9 +657,7 @@ export async function openMap(id: string, options: OpenMapOptions = {}): Promise
   // tick also lets the walkable view rebuild itself around the new map first
   await nextTick()
 
-  if (options.camera !== 'keep') {
-    cameraStore.moveToSpawn()
-  }
+  moveCameraToPoseOfOpen(id)
 }
 
 /**

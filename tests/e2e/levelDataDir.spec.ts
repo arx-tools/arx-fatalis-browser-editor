@@ -20,17 +20,18 @@ test.setTimeout(120_000)
  * Writes the three files of the minimal blank level as a data directory.
  *
  * @param root The folder the data directory is built in.
+ * @param level The number of the level folder it holds, 0 by default.
  *
  * @returns The folder, ready for the `dataDir` parameter.
  */
-async function dataDirOfABlankLevel(root: string): Promise<string> {
+async function dataDirOfABlankLevel(root: string, level = 0): Promise<string> {
   const files = createBlankLevelFiles(MINIMAL_PRESET)
-  const folder = join(root, 'graph', 'levels', 'level0')
+  const folder = join(root, 'graph', 'levels', `level${String(level)}`)
 
   await mkdir(folder, { recursive: true })
   await writeFile(join(folder, 'fast.fts'), Buffer.from(files.fts))
-  await writeFile(join(folder, 'level0.dlf'), Buffer.from(files.dlf))
-  await writeFile(join(folder, 'level0.llf'), Buffer.from(files.llf))
+  await writeFile(join(folder, `level${String(level)}.dlf`), Buffer.from(files.dlf))
+  await writeFile(join(folder, `level${String(level)}.llf`), Buffer.from(files.llf))
 
   return root
 }
@@ -74,6 +75,36 @@ test('the map of the link says that it needs the data dir, and the notice opens 
   await page.goto('/?map=blank-flat')
   await page.waitForTimeout(1200)
   await expect(page.locator('.notice')).toHaveCount(0)
+})
+
+test('the level of the link opens when the folder arrives later, in the dialog', async ({
+  page,
+  browserName,
+}, testInfo) => {
+  // the folder comes through the input of a folder, which is the way of a browser without the directory picker: the
+  // probe of the owner's flow, on the browser of the owner
+  test.skip(browserName !== 'firefox', 'the input of a folder takes a directory here')
+
+  const dataDir = await dataDirOfABlankLevel(testInfo.outputPath('data'), 11)
+
+  await seedLayout(page, editorLayout)
+  await page.goto('/?map=arx-fatalis-level-11')
+  await page.waitForTimeout(1200)
+
+  const notice = page.locator('[data-widget-kind="3d-view"] .notice')
+
+  await expect(notice).toBeVisible()
+
+  // the folder of the game, given in the dialog: the level of the link opens, and the notice goes with it
+  await page.locator('.DataDirPicker .setup').click()
+  await page.locator('.dir-input').setInputFiles(dataDir)
+  await expect(notice).toHaveCount(0, { timeout: 20_000 })
+
+  // the level of the game comes from the network when the url has no folder (the folder gives the textures), so the test
+  // asks for the map the editor opened, not for the number of its faces
+  await expect(page.getByRole('combobox', { name: /The maps the editor can open/u })).toHaveValue('arx:11', {
+    timeout: 20_000,
+  })
 })
 
 test('a data directory without the level says what happened', async ({ page }, testInfo) => {

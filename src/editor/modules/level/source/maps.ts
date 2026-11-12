@@ -334,6 +334,16 @@ export function missingDataDirMapOf(
 export const mapNeedingDataDir = shallowRef<string | undefined>(undefined)
 
 /**
+ * The map a link asked for, when the editor could not open it.
+ *
+ * @remarks
+ * The folder may arrive later than the page (the author picks it, or a reload of the previous visit gets it back), and
+ * then the map of the link has to open. This is what the editor was asked for, so the opening does not depend on the
+ * address bar: it is read once, at the start, and it is dropped when a map opens.
+ */
+export const requestedMapId = shallowRef<string | undefined>(undefined)
+
+/**
  * How many maps the list has.
  */
 export const mapCount = computed(() => {
@@ -479,6 +489,7 @@ export async function openMap(id: string, options: OpenMapOptions = {}): Promise
 
   // the map of the link is not missing any more: the notice of the view has nothing to say
   mapNeedingDataDir.value = undefined
+  requestedMapId.value = undefined
 
   if (levelStore.status.value !== 'ready') {
     return

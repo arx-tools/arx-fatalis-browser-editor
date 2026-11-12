@@ -32,6 +32,7 @@ import {
   lastMapId,
   mapNeedingDataDir,
   missingDataDirMapOf,
+  requestedMapId,
   openMap,
   refreshDataDir,
   rememberCustomMap,
@@ -186,7 +187,12 @@ onMounted(async () => {
       // the blank level opens, and the view says why the map of the link is not the one on the screen (the level of the
       // link needs the folder of the game, which this visit does not have)
       mapNeedingDataDir.value = missingDataDirMapOf(requestedMap, resolved !== undefined, hasDataDir())
+      requestedMapId.value = undefined
       keepRequestedMap = resolved === undefined
+
+      if (resolved === undefined) {
+        requestedMapId.value = requestedMap
+      }
     }
 
     if (url !== undefined) {

@@ -22,12 +22,14 @@ import { getUrlAdapter } from '../modules/persistedRef/url.ts'
 import { levelStore } from '../modules/level/edit/levelStore.ts'
 import { isZipLevelSource } from '../modules/level/source/zipSource.ts'
 import {
-  availableMapIdOf,
   arxLevels,
+  availableMapIdOf,
   currentMapId,
   forgetArxLevels,
+  mapNeedingDataDir,
   openMap,
   refreshDataDir,
+  requestedMapId,
   startupSource,
 } from '../modules/level/source/maps.ts'
 import { mapIdFromUrl } from '../modules/level/source/maps/mapId.ts'
@@ -264,7 +266,10 @@ async function afterDataDirChanged(): Promise<void> {
   // the list of the maps follows the folder: the levels it has are what it can open
   await refreshDataDir()
 
-  const requested = mapIdFromUrl(getUrlAdapter(undefined))
+  // the map of the link first: the editor was asked for it, and the address bar may have moved on (a picked folder, a
+  // second visit); the address bar is the fallback of a link that did not reach the notice (a folder given later, by
+  // hand, on a page that had none at the start)
+  const requested = requestedMapId.value ?? mapIdFromUrl(getUrlAdapter(undefined))
   let available: string | undefined
 
   if (requested !== undefined) {
@@ -296,6 +301,41 @@ async function afterDataDirChanged(): Promise<void> {
 
   await repaintLevelTextures()
 }
+
+/**
+ * Opens the map of the link when the folder of the game arrives.
+ *
+ * @remarks
+ * The folder can arrive through any of the ways of the dialog, and through a permission the browser asks for again; a
+ * level of the game is in the list only when the folder is there, so a list that gains the map of the link is the
+ * moment to open it (and the notice of the view goes with it, because a map opened is a map found).
+ */
+watch(
+  arxLevels,
+  () => {
+    const wanted = requestedMapId.value
+
+    if (wanted === undefined) {
+      return
+    }
+
+    if (availableMapIdOf(wanted, arxLevels.value) === undefined) {
+      // the folder has levels now and this map is not one of them: the notice of the view is not about the folder any
+      // more, and a levelless folder keeps it (the folder is not the right one)
+      if (arxLevels.value.length > 0) {
+        mapNeedingDataDir.value = undefined
+        requestedMapId.value = undefined
+      }
+
+      return
+    }
+
+    openMap(wanted, { camera: 'keep' }).catch(() => {
+      // the store keeps the error of the load, the walkable view shows it
+    })
+  },
+  { flush: 'post' },
+)
 
 /**
  * Opens the folder picker, or the input of a folder when the browser has no picker.

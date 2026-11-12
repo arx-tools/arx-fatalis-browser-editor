@@ -116,8 +116,10 @@ function startBlank(): void {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    // 570px in all, the sentence of a link on one line and a panel that does not spread over the dock
-    width: min(570px, 92vw);
+    // as wide as the sentence: a width of its own broke the line in the browser whose font draws the text wider (firefox),
+    // and a sentence over two lines reads heavier than it is
+    width: max-content;
+    max-width: min(92vw, 760px);
     padding: 14px 16px;
     color: $text;
     background: $surface-float;

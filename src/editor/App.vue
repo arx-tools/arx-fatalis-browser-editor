@@ -29,7 +29,9 @@ import {
   availableMapIdOf,
   currentMapId,
   DEFAULT_MAP_ID,
+  hasChangesOf,
   lastMapId,
+  MAP_GROUP_PREFIXES,
   mapNeedingDataDir,
   missingDataDirMapOf,
   requestedMapId,
@@ -185,12 +187,25 @@ onMounted(async () => {
       await openMap(resolved ?? DEFAULT_MAP_ID, { camera: 'keep' })
 
       // the blank level opens, and the view says why the map of the link is not the one on the screen (the level of the
-      // link needs the folder of the game, which this visit does not have)
-      mapNeedingDataDir.value = missingDataDirMapOf(requestedMap, resolved !== undefined, hasDataDir())
+      // link needs the folder of the game, which this visit does not have). The notice is only for a folder that can not
+      // come back by itself: a remembered handle asks for one press, and the header already says that
+      const missing = missingDataDirMapOf(
+        requestedMap,
+        resolved !== undefined,
+        hasDataDir(),
+        dataDirKind.value === 'handle',
+      )
+
+      mapNeedingDataDir.value = undefined
       requestedMapId.value = undefined
       keepRequestedMap = resolved === undefined
 
-      if (resolved === undefined) {
+      if (missing !== undefined && requestedMap !== undefined) {
+        mapNeedingDataDir.value = {
+          label: missing,
+          name: `${MAP_GROUP_PREFIXES.arx}: ${missing}`,
+          hasChanges: hasChangesOf(requestedMap),
+        }
         requestedMapId.value = requestedMap
       }
     }

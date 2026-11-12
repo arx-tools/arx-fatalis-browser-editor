@@ -6,7 +6,7 @@ import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
-import { currentMapId, mapNeedingDataDir } from '../../../modules/level/source/maps.ts'
+import { currentMapId, mapNeedingDataDir, requestedMapId } from '../../../modules/level/source/maps.ts'
 import { WIDGET_KINDS } from '../../../modules/layout/widgetKinds.ts'
 import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
 import { getModifierOfKey } from '../../../modules/keyboard/functions.ts'
@@ -38,6 +38,58 @@ import { createPolygonSelectionOverlay, type PolygonSelectionOverlay } from './p
 function openDataDirSetup(): void {
   isDataDirSetupOpen.value = true
 }
+
+/**
+ * Puts the notice away: the author keeps working on the map of the screen.
+ */
+function dismissMissingMap(): void {
+  mapNeedingDataDir.value = undefined
+  requestedMapId.value = undefined
+}
+
+/**
+ * What the notice says: a map with steps waiting for it, or a link to a level that needs the folder.
+ *
+ * @remarks
+ * The two are different things for the author: the first one says that nothing of the work is lost, the second one says
+ * what the link needs. A link to a level with steps of a previous visit gets the first, because the level is not the only
+ * thing that waits on the screen.
+ */
+const noticeText = computed(() => {
+  const missing = mapNeedingDataDir.value
+
+  if (missing === undefined) {
+    return ''
+  }
+
+  if (missing.hasChanges) {
+    return `Found unsaved changes on the previously edited level ${missing.name}, which needs the Arx data dir to be reconnected. Your edits are kept safe regardless of this.`
+  }
+
+  return 'The link you are trying to open refers to a map that requires the Arx data dir to be set, and the editor shows the blank map instead.'
+})
+
+/**
+ * The label of the button that connects the folder.
+ */
+const noticeConnectLabel = computed(() => {
+  if (mapNeedingDataDir.value?.hasChanges === true) {
+    return 'Reconnect now and load level'
+  }
+
+  return 'Connect data dir and load level'
+})
+
+/**
+ * The label of the button that puts the notice away.
+ */
+const noticeDismissLabel = computed(() => {
+  if (mapNeedingDataDir.value?.hasChanges === true) {
+    return 'Reconnect later and stay here on this map'
+  }
+
+  return 'Connect later and stay here on this map'
+})
 
 /**
  * What the widget shows over the canvas: a failure, or nothing while the level is on.
@@ -524,11 +576,11 @@ onBeforeUnmount(() => {
     <p v-if="status !== ''" class="status">{{ status }}</p>
     <!-- the map of the link needs the folder of the game: the blank level is on the screen, and this says why -->
     <div v-if="mapNeedingDataDir !== undefined" class="notice">
-      <p class="notice-text">
-        The map of this link needs the Arx data dir: {{ mapNeedingDataDir }} was not opened, and the editor shows the
-        blank map.
-      </p>
-      <button class="notice-button" type="button" @click="openDataDirSetup">Set the data dir</button>
+      <p class="notice-text">{{ noticeText }}</p>
+      <div class="notice-actions">
+        <button class="notice-button" type="button" @click="openDataDirSetup">{{ noticeConnectLabel }}</button>
+        <button class="notice-dismiss" type="button" @click="dismissMissingMap">{{ noticeDismissLabel }}</button>
+      </div>
     </div>
   </div>
 </template>
@@ -617,6 +669,29 @@ onBeforeUnmount(() => {
 
   .notice-text {
     margin: 0;
+  }
+
+  .notice-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  // the second way out of the notice: quiet, because it is the one that keeps the screen as it is
+  .notice-dismiss {
+    padding: 5px 12px;
+    color: $text-muted;
+    font: inherit;
+    background: none;
+    border: 1px solid $border;
+    border-radius: 4px;
+    cursor: pointer;
+
+    &:hover {
+      color: $text;
+      background: $surface-panel;
+    }
   }
 
   .notice-button {

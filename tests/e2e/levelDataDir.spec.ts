@@ -54,7 +54,7 @@ test('a level opens from the data directory of the url', async ({ page }, testIn
     .toBe(1)
 })
 
-test('the map of the link says that it needs the data dir, and the notice opens the dialog', async ({ page }) => {
+test('the map of the link says what it needs, and both ways out of the notice work', async ({ page }) => {
   await seedLayout(page, editorLayout)
 
   // a link to a level of the game, without the folder it comes from: the blank level opens, and the view says why
@@ -62,19 +62,88 @@ test('the map of the link says that it needs the data dir, and the notice opens 
   await page.waitForTimeout(1200)
 
   const notice = page.locator('[data-widget-kind="3d-view"] .notice')
+  const dialog = page.locator('[role="dialog"][aria-label="Setting up Arx data dir"]')
 
   await expect(notice).toBeVisible()
-  await expect(notice).toContainText('The map of this link needs the Arx data dir')
-  await expect(notice).toContainText('Level 11')
+  await expect(notice).toContainText('requires the Arx data dir to be set')
+  await expect(notice).toContainText('Connect data dir and load level')
+  await expect(notice).toContainText('Connect later and stay here on this map')
 
-  // the way out of it is the dialog of the folder, from the notice itself
+  // the list of the maps has the row of the level of the link, and the row opens the dialog
+  await expect(page.getByRole('option', { name: 'Level 11 (needs the data dir)' })).toHaveCount(1)
+
+  // the second button keeps the map of the screen, and the notice goes
+  await notice.locator('.notice-dismiss').click()
+  await expect(notice).toHaveCount(0)
+  await expect(page.locator('.MapsToOpen')).not.toContainText('needs the data dir')
+
+  // the first button opens the dialog of the folder
+  await page.goto('/?map=arx-fatalis-level-11')
+  await page.waitForTimeout(1200)
+  await expect(notice).toBeVisible()
   await notice.locator('.notice-button').click()
-  await expect(page.locator('[role="dialog"][aria-label="Setting up Arx data dir"]')).toBeVisible()
+  await expect(dialog).toBeVisible()
 
   // a map that is not a level of the game has nothing to say about the folder
   await page.goto('/?map=blank-flat')
   await page.waitForTimeout(1200)
   await expect(page.locator('.notice')).toHaveCount(0)
+})
+
+test('a level with steps of a visit before says that the edits are safe, and offers the folder', async ({ page }) => {
+  await seedLayout(page, editorLayout)
+
+  // the steps of level 11, written down by a visit before
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      'mapHistory:arx:11',
+      JSON.stringify({
+        version: 2,
+        fingerprint: 'x',
+        records: [{ version: 1, kind: 'deleteFaces', faces: [0] }],
+        position: 1,
+      }),
+    )
+  })
+
+  await page.goto('/?map=arx-fatalis-level-11')
+  await page.waitForTimeout(1200)
+
+  const notice = page.locator('[data-widget-kind="3d-view"] .notice')
+
+  await expect(notice).toContainText('Found unsaved changes on the previously edited level Arx: Level 11')
+  await expect(notice).toContainText('Your edits are kept safe regardless of this')
+  await expect(notice.locator('.notice-button')).toHaveText('Reconnect now and load level')
+  await expect(notice.locator('.notice-dismiss')).toHaveText('Reconnect later and stay here on this map')
+})
+
+test('the dialog closes itself after the folder is seen, and a hand-opened one stays', async ({
+  page,
+  browserName,
+}, testInfo) => {
+  // the folder comes through the input of a folder (the way of firefox, which fills it from a test)
+  test.skip(browserName !== 'firefox', 'the input of a folder takes a directory here')
+
+  const dataDir = await dataDirOfABlankLevel(testInfo.outputPath('data'))
+
+  await seedLayout(page, editorLayout)
+  await page.goto(`/?fromOriginalArxLevel=0&dataDir=${encodeURIComponent(dataDir)}`)
+  await waitForLevel(page)
+
+  const dialog = page.locator('[role="dialog"][aria-label="Setting up Arx data dir"]')
+
+  // the dialog of the header, with a folder given inside it: the check is seen, and then the dialog goes. The input is
+  // the hidden box of the dialog, which is not inside the teleported element of the modal
+  await page.locator('.DataDirPicker .setup').click()
+  await expect(dialog).toBeVisible()
+  await page.locator('.dir-input').setInputFiles(dataDir)
+  await expect(dialog).toHaveCount(0, { timeout: 5000 })
+
+  // the dialog opened by hand stays open
+  await page.locator('.DataDirPicker .setup').click()
+  await expect(dialog).toBeVisible()
+  await page.waitForTimeout(1500)
+  await expect(dialog).toBeVisible()
 })
 
 test('the level of the link opens when the folder arrives later, in the dialog', async ({

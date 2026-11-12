@@ -1,14 +1,38 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { HistoryRecord } from '../../../../../src/editor/modules/history/records.ts'
+import type { StorageLike } from '../../../../../src/editor/modules/persistedRef/storage.ts'
 import {
   availableMapIdOf,
   editedMapIdsOf,
+  hasChangesOf,
   mapEntryOf,
   missingDataDirMapOf,
   pascalCaseOf,
   type MapGroupEntry,
 } from '../../../../../src/editor/modules/level/source/maps.ts'
+
+/**
+ * A storage of the test: a map of the values in memory.
+ *
+ * @returns The storage, and the values it keeps.
+ */
+function storageOfTest(): { storage: StorageLike; values: Map<string, string> } {
+  const values = new Map<string, string>()
+  const storage: StorageLike = {
+    getItem: (key) => {
+      return values.get(key) ?? null
+    },
+    setItem: (key, value) => {
+      values.set(key, value)
+    },
+    removeItem: (key) => {
+      values.delete(key)
+    },
+  }
+
+  return { storage, values }
+}
 
 /**
  * A step of the test: a delete of the first face.
@@ -28,6 +52,10 @@ void describe('missingDataDirMapOf', () => {
   void it('says nothing when the map is in the list, or the folder is set', () => {
     assert.equal(missingDataDirMapOf('arx:11', true, false), undefined)
     assert.equal(missingDataDirMapOf('arx:11', false, true), undefined)
+  })
+
+  void it('says nothing when the browser remembers the folder, because one press brings it back', () => {
+    assert.equal(missingDataDirMapOf('arx:11', false, false, true), undefined)
   })
 
   void it('says nothing for a map that is not a level of the game', () => {
@@ -81,6 +109,25 @@ void describe('editedMapIdsOf', () => {
     const saved = new Map([['arx:8', { records: [record()], position: 1 }]])
 
     assert.deepEqual(editedMapIdsOf(saved, 'arx:8', false), new Set())
+  })
+})
+
+void describe('hasChangesOf', () => {
+  void it('finds the steps a map kept from a visit before', () => {
+    const { storage, values } = storageOfTest()
+
+    values.set('mapHistory:arx:11', JSON.stringify({ version: 2, fingerprint: 'x', records: [record()], position: 1 }))
+
+    assert.equal(hasChangesOf('arx:11', storage), true)
+    assert.equal(hasChangesOf('arx:12', storage), false)
+  })
+
+  void it('says nothing of a map whose every step was taken back', () => {
+    const { storage, values } = storageOfTest()
+
+    values.set('mapHistory:arx:11', JSON.stringify({ version: 2, fingerprint: 'x', records: [record()], position: 0 }))
+
+    assert.equal(hasChangesOf('arx:11', storage), false)
   })
 })
 

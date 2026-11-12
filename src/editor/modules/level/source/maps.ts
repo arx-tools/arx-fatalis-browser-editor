@@ -2,6 +2,8 @@ import { computed, nextTick, ref, shallowRef, watch } from 'vue'
 import { cameraStore } from '../../../components/widgets/camera/cameraStore.ts'
 import { history } from '../../history/history.ts'
 import { mapHistoryRecords, type HistorySnapshot } from '../../history/mapHistory.ts'
+import { readStoredHistory } from '../../history/mapHistoryStorage.ts'
+import type { StorageLike } from '../../persistedRef/storage.ts'
 import { persistedRef } from '../../persistedRef/persistedRef.ts'
 import { getUrlAdapter, writeUrlValue } from '../../persistedRef/url.ts'
 import { FLAT_PRESET, MINIMAL_PRESET, type NewLevelPreset } from '../blankLevel.ts'
@@ -310,6 +312,8 @@ export const mapGroups = computed<MapGroupEntry[]>(() => {
  * @param requested The map the url names, when it names one.
  * @param isAvailable Whether the list of the maps has that map.
  * @param hasFolder Whether the editor has a data dir.
+ * @param isRestorable Whether the browser remembers the folder, so one press brings it back (the notice is for a folder
+ * that is really gone).
  *
  * @returns The label of the level, like `Level 11`, or `undefined` when nothing is missing.
  */
@@ -317,12 +321,31 @@ export function missingDataDirMapOf(
   requested: string | undefined,
   isAvailable: boolean,
   hasFolder: boolean,
+  isRestorable = false,
 ): string | undefined {
-  if (requested === undefined || isAvailable || hasFolder || !requested.startsWith('arx:')) {
+  if (requested === undefined || isAvailable || hasFolder || isRestorable || !requested.startsWith('arx:')) {
     return undefined
   }
 
   return `Level ${requested.slice('arx:'.length)}`
+}
+
+/**
+ * The map of a link that the editor could not open, because the data dir of the game is not set.
+ */
+export interface MissingMap {
+  /**
+   * The label of the level, like `Level 11`.
+   */
+  readonly label: string
+  /**
+   * The name of the map with its group, like `Arx: Level 11`, the way the header writes it.
+   */
+  readonly name: string
+  /**
+   * Whether the map has steps from a previous visit, which are waiting for the level.
+   */
+  readonly hasChanges: boolean
 }
 
 /**
@@ -331,7 +354,26 @@ export function missingDataDirMapOf(
  * @remarks
  * The notice over the walkable view reads it, and a map that opens clears it: one level, one reason.
  */
-export const mapNeedingDataDir = shallowRef<string | undefined>(undefined)
+export const mapNeedingDataDir = shallowRef<MissingMap | undefined>(undefined)
+
+/**
+ * Whether a map has steps that can be taken back: the changes of a visit before.
+ *
+ * @remarks
+ * The steps of a level are written down (the history survives a reload), so a map that is not on the screen can still
+ * have changes, and its steps are read from the storage: the memory holds the maps the session has already put away, and
+ * a level that never opened in this session is not one of them.
+ *
+ * @param id The value of the map.
+ * @param storage The storage to read, the `localStorage` of the page by default.
+ *
+ * @returns True when the map has steps to take back.
+ */
+export function hasChangesOf(id: string, storage?: StorageLike): boolean {
+  const stored = readStoredHistory(id, storage)
+
+  return stored !== undefined && stored.position > 0
+}
 
 /**
  * The map a link asked for, when the editor could not open it.

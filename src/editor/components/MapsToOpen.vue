@@ -1,14 +1,28 @@
 <script setup lang="ts">
 import { ChevronDown } from 'lucide-vue-next'
 import { computed, ref, useTemplateRef, watch } from 'vue'
+import { isDataDirSetupOpen } from '../modules/level/source/dataDir.ts'
 import {
   currentMapId,
   mapCount,
   mapEntryOf,
   mapGroups,
+  mapNeedingDataDir,
   openMap,
   MAP_GROUP_PREFIXES,
 } from '../modules/level/source/maps.ts'
+
+/**
+ * The value of the row of the level the link asks for: not a map, so no map has it, and the list can hold it.
+ */
+const MISSING_MAP_OPTION = 'missing-map'
+
+/**
+ * The level of the link, when the editor has no folder to open it from.
+ */
+const missingMap = computed(() => {
+  return mapNeedingDataDir.value
+})
 
 /**
  * The list of the maps the editor can open: choosing one opens it.
@@ -118,6 +132,15 @@ const isLoading = ref(false)
 async function choose(): Promise<void> {
   const wanted = selected.value
 
+  // the row of the level of the link is not a map: it opens the dialog of the folder, and the list stays on the map of
+  // the screen
+  if (wanted === MISSING_MAP_OPTION) {
+    selected.value = currentMapId.value
+    isDataDirSetupOpen.value = true
+
+    return
+  }
+
   if (wanted === currentMapId.value || isLoading.value) {
     return
   }
@@ -154,6 +177,10 @@ watch(currentMapId, (id) => {
           <option v-for="entry in group.entries" :key="entry.id" :value="entry.id">
             {{ entry.label }}
           </option>
+        </optgroup>
+        <!-- the level of the link, which the folder of the game has to be connected for: the row is the way to it -->
+        <optgroup v-if="missingMap !== undefined" label="Needs the data dir">
+          <option :value="MISSING_MAP_OPTION">{{ missingMap.label }} (needs the data dir)</option>
         </optgroup>
       </select>
       <ChevronDown class="chevron" :size="12" />

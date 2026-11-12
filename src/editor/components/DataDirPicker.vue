@@ -338,6 +338,20 @@ watch(
 )
 
 /**
+ * Closes the dialog a moment after the folder was given.
+ *
+ * @remarks
+ * The state of the dialog is the answer to the press: the author sees the check and the name of the folder, and then the
+ * dialog goes out of the way, because the next thing they want is the level (2026-11-12, the owner). A dialog that is
+ * opened by hand is never closed by itself: this runs only on the press that gives a folder.
+ */
+function closeWhenTheFolderIsSeen(): void {
+  setTimeout(() => {
+    isDataDirSetupOpen.value = false
+  }, 1000)
+}
+
+/**
  * Opens the folder picker, or the input of a folder when the browser has no picker.
  */
 async function chooseDir(): Promise<void> {
@@ -354,6 +368,7 @@ async function chooseDir(): Promise<void> {
   }
 
   await setDataDirHandle(handle, await permissionOf(handle))
+  closeWhenTheFolderIsSeen()
   await afterDataDirChanged()
 }
 
@@ -397,6 +412,7 @@ async function loadDir(event: Event): Promise<void> {
 
   await setPickedDataDir(files, name)
   console.info(`Data dir: ${name}, ${String(files.length)} files (temporary).`)
+  closeWhenTheFolderIsSeen()
   await afterDataDirChanged()
 }
 

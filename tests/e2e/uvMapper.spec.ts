@@ -43,9 +43,21 @@ test('a corner dragged on the texture moves the uv of the face, and the undo tak
 
   await expect(mapper).toBeVisible()
 
-  // without a selection there is no face to edit, and the widget says so
+  // without a selection there is no face to edit, and the widget says so, under the frame of the square the texture would
+  // be drawn in: the frame keeps the line at the bottom reading as its caption (2026-11-12, the owner)
   await expect(mapper.locator('.hint')).toHaveText('Select one face to edit its texture coordinates.')
   await expect(mapper.locator('.corner')).toHaveCount(0)
+  await expect(mapper.locator('.square')).toBeVisible()
+  await expect(mapper.locator('.square canvas')).toHaveCount(0)
+
+  const frame = await mapper.locator('.square').evaluate((node) => {
+    const style = getComputedStyle(node)
+
+    return { border: style.borderTopColor, background: style.backgroundColor }
+  })
+
+  expect(frame.border).not.toBe('rgba(0, 0, 0, 0)')
+  expect(frame.background).toBe('rgba(0, 0, 0, 0)')
 
   // take the face under the crosshair: the blank level is a floor under the player, so the crosshair looks down on it
   const spawn = await readPose(page)
@@ -480,4 +492,72 @@ test('a corner dragged on the texture moves the uv of the face, and the undo tak
 
   await expect(mapper.locator('.hint')).toHaveText("Can't edit UV on selection: mismatching UV mapping")
   await expect(mapper.locator('.corner')).toHaveCount(0)
+})
+
+test('a selection of faces with other uv shows the texture, and the message in the place of the controls', async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName !== 'chromium', 'the pointer lock of the walkable view needs chromium here')
+  test.setTimeout(120_000)
+
+  await seedLayout(page, uvLayout())
+  await page.goto('/?map=blank-flat')
+
+  const view = page.locator('[data-widget-kind="3d-view"] canvas').first()
+  const mapper = page.locator('[data-widget-kind="uv-mapper"]')
+
+  await expect(view).toBeVisible()
+  await waitForLevel(page)
+  await expect(mapper).toBeVisible()
+
+  const spawn = await readPose(page)
+
+  await lockPointer(page, view)
+  await writePose(page, { ...spawn, pitch: '60' })
+  await clickCrosshair(view)
+
+  await expect
+    .poll(async () => {
+      return await selectionCount(page)
+    })
+    .toBe(1)
+
+  await expect(mapper.locator('.corner')).toHaveCount(4)
+
+  // the first face takes another uv, so the next face of the same texture can not share it
+  const field = mapper.locator('input[aria-label="U of the corner"]')
+
+  await field.fill('0.5')
+  await field.blur()
+
+  // the zoom of the edit is not the zoom of the selection that follows it: the wheel steps the view up first
+  await mapper.locator('.stage').evaluate((stage) => {
+    stage.dispatchEvent(new WheelEvent('wheel', { deltaY: -120, bubbles: true, cancelable: true }))
+  })
+
+  await expect(mapper.locator('.head .zoom')).not.toHaveText('0.8×')
+
+  // the camera steps aside, and a shift click adds the face under the crosshair: same texture, other uv
+  await writePose(page, { ...spawn, x: String(Number(spawn.x) + 150), pitch: '60' })
+  await clickCrosshair(view, { shift: true })
+
+  await expect
+    .poll(async () => {
+      return await selectionCount(page)
+    })
+    .toBe(2)
+
+  // the corner frame and the controls are the tools of an edit: they go, and the message stands in their place
+  await expect(mapper.locator('.hint')).toHaveText("Can't edit UV on selection: mismatching UV mapping")
+  await expect(mapper.locator('.corner')).toHaveCount(0)
+  await expect(mapper.locator('.turn')).toHaveCount(0)
+  await expect(mapper.locator('.fields')).toHaveCount(0)
+
+  // the texture the faces are painted with is still there: its name in the head, and the square of it on the stage
+  await expect(mapper.locator('.head .name')).toHaveText(/\.(?:bmp|jpg|png)$/iu)
+  await expect(mapper.locator('.square canvas')).toBeVisible()
+
+  // and the view is back on the whole texture: the default zoom, from the middle of it
+  await expect(mapper.locator('.head .zoom')).toHaveText('0.8×')
 })

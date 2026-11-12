@@ -74,17 +74,14 @@ const imageShown = shallowRef<ImageBitmap | undefined>(undefined)
 const shown = shallowRef<ShownFace | undefined>(undefined)
 
 /**
- * The line the widget shows when it has no picture to draw.
+ * The line of the stage: a face whose texture the editor has no file for.
  *
  * @remarks
- * The hint of the selection comes first (it says what the user has to do, or why the face can not be edited); a face
- * with a texture the editor has no file for gets its own line, because the square is not there for it.
+ * The square is the picture of the texture, so without one there is nothing to drag and the stage says why. The line
+ * about the **selection** (what the user has to do, or why the faces can not be edited together) is not here: it takes
+ * the place of the controls under the square (2026-11-12, the owner).
  */
-const lineShown = computed(() => {
-  if (hint.value !== '') {
-    return hint.value
-  }
-
+const stageLine = computed(() => {
   if (shown.value !== undefined && imageShown.value === undefined) {
     return 'The texture of this face is not loaded.'
   }
@@ -183,13 +180,41 @@ const zoomLabel = computed(() => {
 })
 
 /**
- * Empties the widget: no face, no texture.
+ * Shows a selection the widget can not edit: its message, and the texture the faces are on.
+ *
+ * @remarks
+ * The corner frame and the controls under the square are the tools of an edit, so they go, and the message takes their
+ * place (2026-11-12, the owner: a selection that can not be edited still shows what it is painted with). A selection of
+ * faces on one texture keeps the name and the picture.
+ *
+ * The view goes back to the whole texture: the corners that would place it are not there, so the zoom of the last face
+ * says nothing about this selection, and the texture is looked at from its middle on the default zoom (2026-11-12, the
+ * owner). The reset happens when the widget arrives at the message from an edit, or when the texture is another one: a
+ * zoom the user makes **on** the message stays, so the wheel keeps working on a selection it can not edit.
+ *
+ * @param message What the widget says about the selection.
+ * @param name The name of the texture the faces share, or `undefined` when they do not share one.
  */
-function clear(): void {
+function showMessage(message: string, name: string | undefined): void {
+  const wasEditing = shown.value !== undefined
+  const isNewTexture = textureName.value !== name
+
   shown.value = undefined
   corners.value = []
-  entry.value = undefined
-  textureName.value = undefined
+  hint.value = message
+  textureName.value = name
+
+  if (name === undefined) {
+    entry.value = undefined
+  } else {
+    entry.value = entryOfName(name)
+  }
+
+  // the view is only worth placing when there is a texture to look at: a selection of faces on many textures has none
+  if (name !== undefined && (wasEditing || isNewTexture)) {
+    zoom.value = DEFAULT_ZOOM
+    centre.value = { u: 0.5, v: 0.5 }
+  }
 }
 
 /**
@@ -208,8 +233,7 @@ function refresh(): void {
   const indices = [...selectionStore.polygons.value]
 
   if (map === undefined) {
-    clear()
-    hint.value = 'Select one face to edit its texture coordinates.'
+    showMessage('Select one face to edit its texture coordinates.', undefined)
 
     return
   }
@@ -223,15 +247,13 @@ function refresh(): void {
   })
 
   if (selection.kind === 'empty') {
-    clear()
-    hint.value = 'Select one face to edit its texture coordinates.'
+    showMessage('Select one face to edit its texture coordinates.', undefined)
 
     return
   }
 
   if (selection.kind === 'mismatch') {
-    clear()
-    hint.value = mismatchMessageOf(selection.reasons)
+    showMessage(mismatchMessageOf(selection.reasons), selection.textureName)
 
     return
   }
@@ -239,8 +261,7 @@ function refresh(): void {
   const polygon = map.polygons[selection.faces[0] ?? -1]
 
   if (polygon === undefined) {
-    clear()
-    hint.value = 'Select one face to edit its texture coordinates.'
+    showMessage('Select one face to edit its texture coordinates.', undefined)
 
     return
   }
@@ -706,8 +727,13 @@ watch(
     </div>
 
     <div ref="stage" class="stage">
-      <div v-if="imageShown !== undefined" class="square" :style="{ width: `${size}px`, height: `${size}px` }">
+      <div
+        class="square"
+        :class="{ 'is-empty': imageShown === undefined }"
+        :style="{ width: `${size}px`, height: `${size}px` }"
+      >
         <canvas
+          v-if="imageShown !== undefined"
           ref="canvas"
           class="texture"
           :class="{ 'is-panning': panning, 'is-over-face': overFace }"
@@ -735,10 +761,11 @@ watch(
         </button>
       </div>
 
-      <p v-if="lineShown !== ''" class="hint">{{ lineShown }}</p>
+      <p v-if="stageLine !== ''" class="stage-line">{{ stageLine }}</p>
     </div>
 
-    <div class="fields">
+    <p v-if="shown === undefined" class="hint">{{ hint }}</p>
+    <div v-else class="fields">
       <div class="corner-pick" @keydown.esc.stop="onCornerEscape()">
         <button
           ref="cornerTrigger"
@@ -952,6 +979,13 @@ watch(
   border: 1px solid $border-dark;
   background: $surface-app;
   overflow: hidden;
+
+  // without a picture the square is only the frame of the place the texture would be: the line under the widget reads as
+  // the caption of that place, and not as a sentence that lost its middle (2026-11-12, the owner)
+  &.is-empty {
+    border-color: $border;
+    background: none;
+  }
 }
 
 .texture {
@@ -1017,12 +1051,24 @@ watch(
   }
 }
 
-.hint {
+// the line of the stage: the face has a texture the editor has no file for, so the square is not there
+.stage-line {
   position: absolute;
   margin: 0;
   padding: 0 12px;
   color: $text-dim;
   font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+// the line of a selection the widget can not edit: it takes the place of the controls under the square, so the numbers
+// of the fields and the six buttons of an edit are not there to read as something that works (2026-11-12, the owner)
+.hint {
+  margin: 0;
+  padding: 6px 2px;
+  color: $text-dim;
+  font-size: 11px;
   line-height: 1.4;
   text-align: center;
 }

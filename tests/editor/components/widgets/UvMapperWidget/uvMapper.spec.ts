@@ -387,7 +387,7 @@ void describe('uvSelectionOf', () => {
     ])
     const selection = uvSelectionOf({ indices: [0, 1], polygons, textureNameOf: nameOf })
 
-    assert.deepEqual(selection, { kind: 'mismatch', reasons: ['textures'] })
+    assert.deepEqual(selection, { kind: 'mismatch', reasons: ['textures'], textureName: undefined })
   })
 
   void it('refuses faces with the same texture and other uv', () => {
@@ -405,7 +405,7 @@ void describe('uvSelectionOf', () => {
     ])
     const selection = uvSelectionOf({ indices: [0, 1], polygons, textureNameOf: nameOf })
 
-    assert.deepEqual(selection, { kind: 'mismatch', reasons: ['uv'] })
+    assert.deepEqual(selection, { kind: 'mismatch', reasons: ['uv'], textureName: '[stone]_wall1.bmp' })
   })
 
   void it('names both reasons, the uv first', () => {
@@ -423,7 +423,7 @@ void describe('uvSelectionOf', () => {
     ])
     const selection = uvSelectionOf({ indices: [0, 1], polygons, textureNameOf: nameOf })
 
-    assert.deepEqual(selection, { kind: 'mismatch', reasons: ['uv', 'textures'] })
+    assert.deepEqual(selection, { kind: 'mismatch', reasons: ['uv', 'textures'], textureName: undefined })
   })
 
   void it('refuses a triangle with a quad', () => {
@@ -441,7 +441,25 @@ void describe('uvSelectionOf', () => {
     ]
     const selection = uvSelectionOf({ indices: [0, 2], polygons, textureNameOf: nameOf })
 
-    assert.deepEqual(selection, { kind: 'mismatch', reasons: ['uv'] })
+    assert.deepEqual(selection, { kind: 'mismatch', reasons: ['uv'], textureName: '[stone]_wall1.bmp' })
+  })
+
+  void it('gives no texture name when the level has no name for it', () => {
+    const polygons = level([
+      [4, quadUvs],
+      [
+        4,
+        [
+          [0.5, 0.5],
+          [1, 0.5],
+          [0.5, 1],
+          [1, 1],
+        ],
+      ],
+    ])
+    const selection = uvSelectionOf({ indices: [0, 1], polygons, textureNameOf: nameOf })
+
+    assert.deepEqual(selection, { kind: 'mismatch', reasons: ['uv'], textureName: undefined })
   })
 
   void it('skips an index the level does not have', () => {

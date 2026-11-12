@@ -924,11 +924,16 @@ const UV_MISMATCH_ORDER: readonly UvMismatch[] = ['uv', 'textures']
  * @remarks
  * `empty` is nothing selected, `ready` is one face — or many that share a texture and a uv —, and `mismatch` is many
  * faces the widget can not edit together. The ready selection carries the **faces** it edits (all of them) and the one
- * set of corners they share.
+ * set of corners they share. A mismatch carries the **name of the texture** the faces are on, when they share one: the
+ * widget can not edit them, but it can still show what they are painted with.
  */
 export type UvSelection =
   | { readonly kind: 'empty' }
-  | { readonly kind: 'mismatch'; readonly reasons: readonly UvMismatch[] }
+  | {
+      readonly kind: 'mismatch'
+      readonly reasons: readonly UvMismatch[]
+      readonly textureName: string | undefined
+    }
   | { readonly kind: 'ready'; readonly faces: readonly number[]; readonly corners: readonly UvPoint[] }
 
 /**
@@ -1003,6 +1008,7 @@ export function uvSelectionOf(input: UvSelectionInput): UvSelection {
   }
 
   const texture = textureOf(first, textureNameOf)
+  const name = textureNameOf(first.textureContainerId)
   const corners = uvsOf(first)
   const otherTexture = rest.some((polygon) => {
     return textureOf(polygon, textureNameOf) !== texture
@@ -1019,7 +1025,15 @@ export function uvSelectionOf(input: UvSelectionInput): UvSelection {
   })
 
   if (reasons.length > 0) {
-    return { kind: 'mismatch', reasons }
+    // the faces of a mismatch may be on one texture or on many: the name is only a fact when they share it, and a
+    // container the level has no name for has none to show (the `#id` of `textureOf` is there for the comparison only)
+    let shownName: string | undefined = name
+
+    if (otherTexture) {
+      shownName = undefined
+    }
+
+    return { kind: 'mismatch', reasons, textureName: shownName }
   }
 
   return { kind: 'ready', faces, corners }

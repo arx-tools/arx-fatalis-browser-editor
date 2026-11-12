@@ -5,6 +5,7 @@ import {
   availableMapIdOf,
   editedMapIdsOf,
   mapEntryOf,
+  missingDataDirMapOf,
   pascalCaseOf,
   type MapGroupEntry,
 } from '../../../../../src/editor/modules/level/source/maps.ts'
@@ -17,6 +18,23 @@ import {
 function record(): HistoryRecord {
   return { version: 1, kind: 'deleteFaces', faces: [0] }
 }
+
+void describe('missingDataDirMapOf', () => {
+  void it('names the level a link asks for when the folder of the game is not set', () => {
+    // the blank level opens instead, and the notice over the view says which level the link asked for
+    assert.equal(missingDataDirMapOf('arx:11', false, false), 'Level 11')
+  })
+
+  void it('says nothing when the map is in the list, or the folder is set', () => {
+    assert.equal(missingDataDirMapOf('arx:11', true, false), undefined)
+    assert.equal(missingDataDirMapOf('arx:11', false, true), undefined)
+  })
+
+  void it('says nothing for a map that is not a level of the game', () => {
+    assert.equal(missingDataDirMapOf('blank:minimal', false, false), undefined)
+    assert.equal(missingDataDirMapOf(undefined, false, false), undefined)
+  })
+})
 
 void describe('availableMapIdOf', () => {
   void it('keeps the map when the list has it', () => {

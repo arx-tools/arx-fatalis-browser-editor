@@ -299,6 +299,41 @@ export const mapGroups = computed<MapGroupEntry[]>(() => {
 })
 
 /**
+ * The level a map of the data dir names, when the editor has no folder to open it from.
+ *
+ * @remarks
+ * A link may name a level of the game (`arx-fatalis-level-11`), and without the data dir the list has none of them: the
+ * editor opens the blank level, so the author has something to work on, and the notice over the view says why the map
+ * of the link is not there. A map the folder simply does not have (a stale link, a level the game does not ship) is not
+ * this case, and neither is a link to a blank map.
+ *
+ * @param requested The map the url names, when it names one.
+ * @param isAvailable Whether the list of the maps has that map.
+ * @param hasFolder Whether the editor has a data dir.
+ *
+ * @returns The label of the level, like `Level 11`, or `undefined` when nothing is missing.
+ */
+export function missingDataDirMapOf(
+  requested: string | undefined,
+  isAvailable: boolean,
+  hasFolder: boolean,
+): string | undefined {
+  if (requested === undefined || isAvailable || hasFolder || !requested.startsWith('arx:')) {
+    return undefined
+  }
+
+  return `Level ${requested.slice('arx:'.length)}`
+}
+
+/**
+ * The level a link names that the editor could not open, because the data dir of the game is not set.
+ *
+ * @remarks
+ * The notice over the walkable view reads it, and a map that opens clears it: one level, one reason.
+ */
+export const mapNeedingDataDir = shallowRef<string | undefined>(undefined)
+
+/**
  * How many maps the list has.
  */
 export const mapCount = computed(() => {
@@ -441,6 +476,9 @@ export async function openMap(id: string, options: OpenMapOptions = {}): Promise
   await levelStore.openLevel(source, async (map): Promise<void> => {
     await paintLevel(map, zipData)
   })
+
+  // the map of the link is not missing any more: the notice of the view has nothing to say
+  mapNeedingDataDir.value = undefined
 
   if (levelStore.status.value !== 'ready') {
     return

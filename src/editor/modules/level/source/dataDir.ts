@@ -141,6 +141,15 @@ export type DataDirKind = 'path' | 'picked' | 'handle'
 export const dataDirState = shallowRef<string | undefined>(undefined)
 
 /**
+ * Whether the setup dialog of the folder is open.
+ *
+ * @remarks
+ * The dialog is opened from more than one place (the button of the header, the notice over a map that needs the folder,
+ * the wish of a user to be asked again), so the state of it lives here, not in the component of the header.
+ */
+export const isDataDirSetupOpen = shallowRef<boolean>(false)
+
+/**
  * Whether the app looked for the folder of the session already.
  *
  * @remarks

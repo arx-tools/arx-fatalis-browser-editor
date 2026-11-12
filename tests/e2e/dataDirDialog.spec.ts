@@ -75,25 +75,21 @@ test('the dialog shows the folder of the url, and has no path input any more', a
   // the browsers that can keep the folder are listed where the browser of the reader can not, and the box that asks for
   // the folder again is there (a browser with the picker keeps the folder by itself, so it has neither)
   if (remembered) {
-    await expect(page.locator('.data-dir-info.browse-note')).toHaveText(
-      'Remembered: the browser keeps this folder for the next visit.',
-    )
-    await expect(page.locator('.warning')).toHaveCount(0)
+    // a browser that keeps the folder needs no line about it: the dialog ends with the button
+    await expect(page.locator('.data-dir-info')).toHaveCount(0)
     await expect(page.locator('.ask-again')).toHaveCount(0)
   } else {
-    await expect(page.locator('.warning')).toContainText('This browser does not support storing selected folders')
-    // the label of the list is a text, and the icon on the right of the line opens the detail of it
-    await expect(page.locator('.support-title')).toHaveText('Supported browsers:')
-    await expect(page.locator('.support-link')).toHaveAttribute(
+    await expect(page.locator('.warning')).toContainText('The selected data dir will not be remembered in this browser')
+    await expect(page.locator('.warning .warning-link')).toHaveAttribute(
       'href',
       'https://caniuse.com/mdn-api_window_showdirectorypicker',
     )
+    // the label of the list is a text, and the link of the detail lives in the warning
+    await expect(page.locator('.support-title')).toHaveText('Supported browsers:')
     await expect(page.locator('.support-list li')).toHaveText(['Chrome', 'Edge', 'Opera', 'Firefox', 'Safari'])
     await expect(page.locator('.support-list li.is-ok')).toHaveCount(3)
     await expect(page.locator('.support-list li.is-missing')).toHaveCount(2)
-    await expect(page.locator('.ask-again')).toContainText(
-      'Ask for the folder again automatically when the editor reloads',
-    )
+    await expect(page.locator('.ask-again')).toContainText('Reopen this dialog automatically after a page reload.')
   }
 
   // the folder of the url is the data directory, the dialog says so, and the row of a typed path is not there
@@ -118,9 +114,7 @@ test('the files of a folder are a temporary data dir', async ({ page, browserNam
 
   await expect(page.locator('.state-panel .state-title')).toHaveText('The Arx data dir is set to the following folder')
   await expect(page.locator('.state-panel .state-name')).toHaveText('data')
-  await expect(page.locator('.state-panel .state-note')).toHaveText(
-    '(temporary, the browser forgets it on the next page load)',
-  )
+  await expect(page.locator('.state-panel .state-note')).toHaveCount(0)
 
   // the files of the session are not a path: nothing goes to the storage
   expect(

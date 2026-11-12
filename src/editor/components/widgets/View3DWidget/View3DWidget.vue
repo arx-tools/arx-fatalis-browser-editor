@@ -6,12 +6,13 @@ import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
-import { currentMapId } from '../../../modules/level/source/maps.ts'
+import { currentMapId, mapNeedingDataDir } from '../../../modules/level/source/maps.ts'
 import { WIDGET_KINDS } from '../../../modules/layout/widgetKinds.ts'
 import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
 import { getModifierOfKey } from '../../../modules/keyboard/functions.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import { selectedRoom } from '../../../modules/rooms/roomStore.ts'
+import { isDataDirSetupOpen } from '../../../modules/level/source/dataDir.ts'
 import { cameraStore } from '../camera/cameraStore.ts'
 import { renderPerformanceStore } from '../shared/renderPerformance.ts'
 import { isMeshVisible, isRoomColorsVisible, isWireframeVisible } from '../shared/levelDisplay.ts'
@@ -30,6 +31,13 @@ import { createFrameLoop } from './frameLoop.ts'
 import { useSelectionDrag } from './useSelectionDrag.ts'
 import { createOrientationGizmo, type OrientationGizmo } from './orientationGizmo.ts'
 import { createPolygonSelectionOverlay, type PolygonSelectionOverlay } from './polygonSelection.ts'
+
+/**
+ * Opens the setup dialog of the data dir, from the notice of a map that needs it.
+ */
+function openDataDirSetup(): void {
+  isDataDirSetupOpen.value = true
+}
 
 /**
  * What the widget shows over the canvas: a failure, or nothing while the level is on.
@@ -514,6 +522,14 @@ onBeforeUnmount(() => {
     </div>
     <div v-if="hud !== ''" class="hud">{{ hud }}</div>
     <p v-if="status !== ''" class="status">{{ status }}</p>
+    <!-- the map of the link needs the folder of the game: the blank level is on the screen, and this says why -->
+    <div v-if="mapNeedingDataDir !== undefined" class="notice">
+      <p class="notice-text">
+        The map of this link needs the Arx data dir: {{ mapNeedingDataDir }} was not opened, and the editor shows the
+        blank map.
+      </p>
+      <button class="notice-button" type="button" @click="openDataDirSetup">Set the data dir</button>
+    </div>
   </div>
 </template>
 
@@ -576,6 +592,46 @@ onBeforeUnmount(() => {
     background: rgba($surface-app, 0.72);
     border-radius: 3px;
     pointer-events: none;
+  }
+
+  // the notice of a map that needs the folder: a plate over the top of the view, with the way out of it
+  .notice {
+    position: absolute;
+    top: 14px;
+    left: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    max-width: 520px;
+    padding: 10px 12px;
+    color: $text;
+    background: rgba($surface-float, 0.94);
+    border: 1px solid $border;
+    border-radius: 5px;
+    transform: translateX(-50%);
+    font-size: 13px;
+    line-height: 1.4;
+    text-align: center;
+  }
+
+  .notice-text {
+    margin: 0;
+  }
+
+  .notice-button {
+    padding: 5px 12px;
+    color: $text-strong;
+    font: inherit;
+    background: $surface-raised;
+    border: 1px solid $border-strong;
+    border-radius: 4px;
+    cursor: pointer;
+
+    &:hover {
+      background: $surface-float;
+      border-color: $interactive;
+    }
   }
 
   .status {

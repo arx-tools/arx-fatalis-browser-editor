@@ -30,6 +30,8 @@ import {
   currentMapId,
   DEFAULT_MAP_ID,
   lastMapId,
+  mapNeedingDataDir,
+  missingDataDirMapOf,
   openMap,
   refreshDataDir,
   rememberCustomMap,
@@ -181,6 +183,9 @@ onMounted(async () => {
 
       await openMap(resolved ?? DEFAULT_MAP_ID, { camera: 'keep' })
 
+      // the blank level opens, and the view says why the map of the link is not the one on the screen (the level of the
+      // link needs the folder of the game, which this visit does not have)
+      mapNeedingDataDir.value = missingDataDirMapOf(requestedMap, resolved !== undefined, hasDataDir())
       keepRequestedMap = resolved === undefined
     }
 

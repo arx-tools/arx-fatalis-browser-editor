@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { Check, CircleQuestionMark, FolderOpen, TriangleAlert, X } from 'lucide-vue-next'
 import { siYoutube } from 'simple-icons'
-import { computed, ref, useTemplateRef, watch } from 'vue'
+import { computed, useTemplateRef, watch } from 'vue'
 import {
   dataDirKind,
   dataDirPermission,
   dataDirSettled,
   dataDirState,
   hasDataDir,
+  isDataDirSetupOpen,
   requestDataDirPermission,
   setDataDirHandle,
   setPickedDataDir,
@@ -112,11 +113,6 @@ const needsPermission = computed(() => {
 })
 
 /**
- * Whether the setup dialog of the folder is open.
- */
-const isSettingUp = ref(false)
-
-/**
  * Whether the dialog already opened itself in this page.
  *
  * @remarks
@@ -142,7 +138,7 @@ watch(
     hasAskedToReopen = true
 
     if (!hasDataDir()) {
-      isSettingUp.value = true
+      isDataDirSetupOpen.value = true
     }
   },
   { immediate: true },
@@ -204,14 +200,11 @@ const folderName = computed(() => {
  * What the state line says about the folder, after its name.
  *
  * @remarks
- * The files of a picked folder are a snapshot, and the browser blocks a folder whose access the user denied: the two
- * are what the user has to know, in the line of the folder.
+ * The browser blocks a folder whose access the user denied, or asks for the access again: the two are what the user has
+ * to know, in the line of the folder. The snapshot of a picked folder is not a note of the panel: the warning of the
+ * dialog says it, and once per dialog is enough (2026-11-12, the owner).
  */
 const stateNote = computed(() => {
-  if (dataDirKind.value === 'picked') {
-    return 'temporary, the browser forgets it on the next page load'
-  }
-
   if (isBlocked.value) {
     return 'access blocked by browser settings'
   }
@@ -246,7 +239,14 @@ const buttonTooltip = computed(() => {
  * Opens the setup dialog.
  */
 function openSetup(): void {
-  isSettingUp.value = true
+  isDataDirSetupOpen.value = true
+}
+
+/**
+ * Closes the setup dialog.
+ */
+function closeSetup(): void {
+  isDataDirSetupOpen.value = false
 }
 
 /**
@@ -398,7 +398,7 @@ async function reconnectDir(): Promise<void> {
       @change="loadDir"
     />
 
-    <Modal v-if="isSettingUp" title="Setting up Arx data dir" wide @close="isSettingUp = false">
+    <Modal v-if="isDataDirSetupOpen" title="Setting up Arx data dir" wide @close="closeSetup">
       <!-- the two links of the subject, in the title: where the folder is (the wiki) and how the assets of the game go
            into it (a video). The text of the dialog says one thing then, instead of repeating the links under it -->
       <template #title-actions>
@@ -452,7 +452,7 @@ async function reconnectDir(): Promise<void> {
 
       <button class="browse" type="button" @click="chooseDir">
         <FolderOpen :size="16" />
-        <span class="browse-label">Browse Arx data dir</span>
+        <span class="browse-label">Select Arx data dir</span>
       </button>
 
       <!-- what the folder of this browser can do: one warning where the folder can not be kept, the browsers that can,
@@ -460,7 +460,16 @@ async function reconnectDir(): Promise<void> {
       <section v-if="!hasPicker" class="data-dir-info">
         <p class="warning">
           <TriangleAlert :size="14" />
-          <span>This browser does not support storing selected folders</span>
+          <span
+            >The selected data dir will not be remembered in this browser, as it lacks support for
+            <a
+              class="warning-link"
+              href="https://caniuse.com/mdn-api_window_showdirectorypicker"
+              target="_blank"
+              rel="noopener noreferrer"
+              >this feature</a
+            >.</span
+          >
         </p>
         <div class="support-row">
           <span class="support-title">Supported browsers:</span>
@@ -470,25 +479,12 @@ async function reconnectDir(): Promise<void> {
               <span>{{ browser.name }}</span>
             </li>
           </ul>
-          <a
-            class="support-link"
-            href="https://caniuse.com/mdn-api_window_showdirectorypicker"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="See a detailed list of supported browsers on caniuse.com"
-            v-tooltip="'See a detailed list of supported browsers on caniuse.com'"
-          >
-            <CircleQuestionMark :size="14" />
-          </a>
         </div>
         <label class="ask-again">
           <input v-model="askOnReload" type="checkbox" />
-          <span>Ask for the folder again automatically when the editor reloads</span>
+          <span>Reopen this dialog automatically after a page reload.</span>
         </label>
       </section>
-
-      <!-- a browser that keeps the folder says it, in one quiet line -->
-      <p v-else class="data-dir-info browse-note">Remembered: the browser keeps this folder for the next visit.</p>
     </Modal>
   </div>
 </template>
@@ -681,33 +677,31 @@ async function reconnectDir(): Promise<void> {
   svg {
     flex: none;
   }
+
+  // the link of the detail keeps the colour of the warning, and only the underline says it is a link
+  .warning-link {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+
+    &:hover {
+      color: $interactive;
+    }
+  }
 }
 
-// the line of the browsers: the name of the list on the left, the browsers on the right, in one line
+// the line of the browsers: the name of the list and the browsers follow each other, in one line
 .support-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: 4px 10px;
   margin: 0 0 20px;
 }
 
-// the label of the list, the list itself, and the icon that opens the detail of it: the icon is the only white thing of
-// the line, so it reads as a button without a frame
+// the label of the list
 .support-title {
   color: $text-muted;
-}
-
-.support-link {
-  display: inline-flex;
-  flex: none;
-  margin-left: auto;
-  color: $text-strong;
-
-  &:hover {
-    color: $interactive;
-  }
 }
 
 .support-list {
@@ -747,12 +741,6 @@ async function reconnectDir(): Promise<void> {
     accent-color: $interactive;
     cursor: pointer;
   }
-}
-
-// the line of a browser that keeps the folder: the same block, one sentence
-.browse-note {
-  margin: 0;
-  color: $text-muted;
 }
 
 // the link of the title: an icon of the subject (the wiki, the video), in the colour of the title and the interactive

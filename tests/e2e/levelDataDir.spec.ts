@@ -53,6 +53,29 @@ test('a level opens from the data directory of the url', async ({ page }, testIn
     .toBe(1)
 })
 
+test('the map of the link says that it needs the data dir, and the notice opens the dialog', async ({ page }) => {
+  await seedLayout(page, editorLayout)
+
+  // a link to a level of the game, without the folder it comes from: the blank level opens, and the view says why
+  await page.goto('/?map=arx-fatalis-level-11')
+  await page.waitForTimeout(1200)
+
+  const notice = page.locator('[data-widget-kind="3d-view"] .notice')
+
+  await expect(notice).toBeVisible()
+  await expect(notice).toContainText('The map of this link needs the Arx data dir')
+  await expect(notice).toContainText('Level 11')
+
+  // the way out of it is the dialog of the folder, from the notice itself
+  await notice.locator('.notice-button').click()
+  await expect(page.locator('[role="dialog"][aria-label="Setting up Arx data dir"]')).toBeVisible()
+
+  // a map that is not a level of the game has nothing to say about the folder
+  await page.goto('/?map=blank-flat')
+  await page.waitForTimeout(1200)
+  await expect(page.locator('.notice')).toHaveCount(0)
+})
+
 test('a data directory without the level says what happened', async ({ page }, testInfo) => {
   const dataDir = await dataDirOfABlankLevel(testInfo.outputPath('empty'))
 
@@ -85,7 +108,7 @@ test('the button of the header shows the state of the data directory', async ({ 
   await expect(dialog.locator('.lead')).toContainText('nothing is uploaded')
   await expect(dialog.locator('.state-title')).toHaveText('No Arx data dir yet')
   await expect(dialog.locator('.state-name')).toHaveCount(0)
-  await expect(dialog.locator('.browse')).toHaveText(/Browse Arx data dir/u)
+  await expect(dialog.locator('.browse')).toHaveText(/Select Arx data dir/u)
 
   const links = dialog.locator('.title-actions a')
 

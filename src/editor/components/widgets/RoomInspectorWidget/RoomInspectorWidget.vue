@@ -5,10 +5,12 @@ import { crosshairStore } from '../../../modules/crosshair/crosshairStore.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { currentMapId } from '../../../modules/level/source/maps.ts'
+import { nameOf, renameRoom, roomNameOf, UNNAMED_ROOM } from '../../../modules/rooms/roomNames.ts'
 import {
   checkedRooms,
   clearRoomHighlight,
   hoverRoom,
+  selectedRoom,
   selectedRooms,
   selectRoom,
   toggleCheckedRoom,
@@ -128,6 +130,22 @@ function isPicked(room: number): boolean {
 }
 
 /**
+ * Writes the name of the row the author edited.
+ *
+ * @param room The id of the room.
+ * @param event The event of the field: its value is the name, and an empty one takes the name away.
+ */
+function commitName(room: number, event: Event): void {
+  const field = event.target
+
+  if (!(field instanceof HTMLInputElement) || field.value === (roomNameOf(room) ?? '')) {
+    return
+  }
+
+  renameRoom(room, field.value)
+}
+
+/**
  * Picks a room, shows the room map, or clears the pick when the picked room is clicked again.
  *
  * @remarks
@@ -192,10 +210,24 @@ function pick(room: number): void {
           @click.stop="toggleCheckedRoom(row.room)"
         />
         <span class="swatch" :style="{ backgroundColor: row.color }"></span>
-        <span class="name">room {{ row.room }}</span>
+        <span class="name" :title="nameOf(row.room)">
+          room {{ row.room }}<template v-if="roomNameOf(row.room) !== undefined"> · {{ nameOf(row.room) }}</template>
+        </span>
         <span class="count">{{ faceCountLabelOf(row.faceCount) }}</span>
       </li>
     </ul>
+    <div v-if="selectedRoom !== undefined" class="field">
+      <label for="room-name">The name of room {{ selectedRoom }}</label>
+      <input
+        id="room-name"
+        class="rename"
+        type="text"
+        :value="roomNameOf(selectedRoom) ?? ''"
+        :placeholder="UNNAMED_ROOM"
+        @change="commitName(selectedRoom, $event)"
+        @keydown.enter="commitName(selectedRoom, $event)"
+      />
+    </div>
     <section v-if="problems.length > 0" class="problems">
       <h3 class="title">Problems</h3>
       <p v-for="problem in problems" :key="problem.text" class="problem" :class="`is-${problem.kind}`">
@@ -298,6 +330,29 @@ function pick(room: number): void {
     color: $text;
     background: rgba($accent, 0.07);
   }
+}
+
+// the name of the picked room: a field under the list, because the row itself is the pick, and a field in it would eat
+// the click that clears the pick
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 6px 0;
+
+  label {
+    color: $text-muted;
+  }
+}
+
+.rename {
+  height: 20px;
+  padding: 0 4px;
+  color: $text;
+  font: inherit;
+  background: $surface-panel;
+  border: 1px solid $border;
+  border-radius: 3px;
 }
 
 // the checkbox of the row: the room map lights the rooms it holds, the selection is the row click

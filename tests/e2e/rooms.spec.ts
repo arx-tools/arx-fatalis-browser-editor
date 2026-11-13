@@ -169,3 +169,43 @@ test('the checkbox of a room lights it, and leaves the selection alone', async (
 
   await expect(row).toHaveClass(/is-selected/u)
 })
+
+/**
+ * The author names a room, and the list shows the name beside the id (TODO 177).
+ *
+ * @remarks
+ * The name is metadata: it is not a step of the history, it does not touch the selection, and the row of the room keeps
+ * the number the engine uses. The field under the list belongs to the picked room, which is the one the click selected.
+ */
+test('the name of a room is written under the list, and the row shows it', async ({ page }) => {
+  test.setTimeout(120_000)
+
+  await seedLayout(page, roomsLayout)
+  await page.goto('/?map=blank-flat')
+
+  await waitForLevel(page)
+
+  const roomInspector = page.locator('[data-widget-kind="room-inspector"]')
+  const row = roomInspector.locator('li.room').first()
+
+  await expect(row).toContainText('room 1')
+  await expect(roomInspector.locator('.field')).toHaveCount(0)
+
+  // the pick makes the row the one the field names
+  await row.click()
+
+  const field = roomInspector.locator('#room-name')
+
+  await expect(field).toHaveAttribute('placeholder', 'Unnamed area')
+
+  await field.fill('The yard')
+  await field.blur()
+
+  await expect(row).toContainText('room 1 · The yard')
+
+  // an empty field takes the name away, and the list says the text of the nameless ones
+  await field.fill('')
+  await field.blur()
+
+  await expect(row).not.toContainText('The yard')
+})

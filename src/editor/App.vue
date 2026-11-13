@@ -52,6 +52,7 @@ import {
   zipSettingsOf,
 } from './modules/level/source/maps.ts'
 import { migrateLegacyPose } from './modules/level/source/maps/mapPoses.ts'
+import { startRoomNames } from './modules/rooms/roomNames.ts'
 import { startRoomSelection } from './modules/rooms/roomSelection.ts'
 import { startPoseTracking } from './modules/level/source/maps/poseTracking.ts'
 import { startMapHistoryPersistence } from './modules/history/mapHistoryPersistence.ts'
@@ -118,6 +119,7 @@ onMounted(async () => {
   startLevelTextures()
   startTextureCatalog()
   startRoomSelection()
+  startRoomNames()
   startMapPersistence()
 
   // the pose the old build kept as one value goes under the map of the last visit, before the first map reads its own

@@ -35,6 +35,7 @@ void describe('manifestOf', () => {
       version: undefined,
       description: undefined,
       author: undefined,
+      roomNames: undefined,
       project: undefined,
       editor: undefined,
       files: undefined,
@@ -105,5 +106,21 @@ void describe('manifestOf', () => {
   void it('drops a block of the editor that is not complete', () => {
     assert.equal(manifestOf({ editor: { name: 'an editor' } })?.editor, undefined)
     assert.equal(manifestOf({ editor: 'an editor' })?.editor, undefined)
+  })
+})
+
+void describe('roomNamesOf', () => {
+  void it('reads the names of the rooms, by the id of the room', () => {
+    assert.deepEqual(manifestOf({ roomNames: { '35': "Maria's shop", ' 7 ': ' Cellar ' } })?.roomNames, {
+      '35': "Maria's shop",
+      '7': 'Cellar',
+    })
+  })
+
+  void it('reads no names from a manifest without them', () => {
+    assert.equal(manifestOf({})?.roomNames, undefined)
+    assert.equal(manifestOf({ roomNames: {} })?.roomNames, undefined)
+    assert.equal(manifestOf({ roomNames: { '35': ' ' } })?.roomNames, undefined)
+    assert.equal(manifestOf({ roomNames: 42 })?.roomNames, undefined)
   })
 })

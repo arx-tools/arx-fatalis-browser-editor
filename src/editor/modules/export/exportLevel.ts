@@ -275,6 +275,15 @@ export interface ExportOptions {
    */
   readonly project?: ManifestProject
   /**
+   * The names the author gave the rooms.
+   *
+   * @remarks
+   * They are the editor's state of the level, so they come from the panel and not from the zip: a level that is exported
+   * again keeps the names the author typed, and the ones the manifest of the zip had are read into the panel when the
+   * level is opened.
+   */
+  readonly roomNames?: Readonly<Record<string, string>>
+  /**
    * The steps of the level, when it has some.
    *
    * @remarks
@@ -407,6 +416,10 @@ export interface ExportManifestParts {
    */
   readonly project: ManifestProject | undefined
   /**
+   * The names of the rooms, when the author gave some.
+   */
+  readonly roomNames: Readonly<Record<string, string>> | undefined
+  /**
    * The paths of the files the archive holds, in the order they were written into it.
    */
   readonly files: readonly string[]
@@ -481,6 +494,7 @@ export function buildExportManifest(parts: ExportManifestParts): LevelManifest {
     description: base?.description,
     author: parts.author ?? base?.author,
     project: parts.project ?? base?.project,
+    roomNames: parts.roomNames ?? base?.roomNames,
     editor,
     files: [...parts.files],
   }
@@ -605,6 +619,7 @@ export async function exportLevelZip(
     metadata: options.manifest,
     author: options.author,
     project: options.project,
+    roomNames: options.roomNames,
     editor: editorBuildOf(),
     exportedAt: options.exportedAt ?? new Date().toISOString(),
   })

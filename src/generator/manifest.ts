@@ -110,6 +110,14 @@ export interface LevelManifest {
    */
   readonly author?: ManifestAuthor
   /**
+   * The names the author gave the rooms, by the id of the room.
+   *
+   * @remarks
+   * The name is the author's, and the id is the engine's: a room without a name is `Unnamed area` in the editor, and it
+   * has no key here. The names travel with the level, so a reader of the archive sees the rooms the author named.
+   */
+  readonly roomNames?: Readonly<Record<string, string>>
+  /**
    * Where the level lives (its page, its repository).
    */
   readonly project?: ManifestProject
@@ -180,6 +188,35 @@ function authorOf(value: unknown): ManifestAuthor | undefined {
   }
 
   return { name }
+}
+
+/**
+ * Reads the names of the rooms of a parsed manifest.
+ *
+ * @param value The value of the `roomNames` key.
+ *
+ * @returns The names, by the id of the room as a text; `undefined` when the manifest names no room.
+ */
+function roomNamesOf(value: unknown): Record<string, string> | undefined {
+  if (typeof value !== 'object' || value === null) {
+    return undefined
+  }
+
+  const names: Record<string, string> = {}
+
+  for (const [key, name] of Object.entries(value as Record<string, unknown>)) {
+    const room = key.trim()
+
+    if (room !== '' && typeof name === 'string' && name.trim() !== '') {
+      names[room] = name.trim()
+    }
+  }
+
+  if (Object.keys(names).length === 0) {
+    return undefined
+  }
+
+  return names
 }
 
 /**
@@ -287,6 +324,7 @@ export function manifestOf(value: unknown): LevelManifest | undefined {
     version: stringOf(parsed, 'version'),
     description: stringOf(parsed, 'description'),
     author: authorOf(parsed.author),
+    roomNames: roomNamesOf(parsed.roomNames),
     project: projectOf(parsed.project, parsed.url),
     editor: editorOf(parsed.editor),
     files: readFiles,

@@ -172,6 +172,7 @@ void describe('buildExportManifest', () => {
       metadata: undefined,
       author: undefined,
       project: undefined,
+      roomNames: undefined,
       editor: editorBuild,
       exportedAt,
     })
@@ -183,6 +184,7 @@ void describe('buildExportManifest', () => {
       description: undefined,
       author: undefined,
       project: undefined,
+      roomNames: undefined,
       editor: { ...editorBuild, exportedAt },
       files: filesOf(13),
     })
@@ -195,6 +197,7 @@ void describe('buildExportManifest', () => {
       metadata: undefined,
       author: undefined,
       project: undefined,
+      roomNames: undefined,
       editor: editorBuild,
       exportedAt,
     })
@@ -210,6 +213,7 @@ void describe('buildExportManifest', () => {
       metadata: undefined,
       author: undefined,
       project: undefined,
+      roomNames: undefined,
       editor: editorBuild,
       exportedAt,
     })
@@ -224,6 +228,7 @@ void describe('buildExportManifest', () => {
       metadata: undefined,
       author: undefined,
       project: undefined,
+      roomNames: undefined,
       editor: editorBuild,
       exportedAt,
     })
@@ -246,6 +251,7 @@ void describe('buildExportManifest', () => {
       },
       author: undefined,
       project: undefined,
+      roomNames: undefined,
       editor: editorBuild,
       exportedAt,
     })
@@ -271,12 +277,14 @@ void describe('buildExportManifest', () => {
       metadata: { author: { name: 'The old author' }, project: { homepage: 'https://example.com/old' } },
       author: { name: 'Lali' },
       project: { homepage: 'https://example.com/me' },
+      roomNames: { '35': "Maria's shop storefront" },
       editor: editorBuild,
       exportedAt,
     })
 
     assert.deepEqual(manifest.author, { name: 'Lali' })
     assert.deepEqual(manifest.project, { homepage: 'https://example.com/me' })
+    assert.deepEqual(manifest.roomNames, { '35': "Maria's shop storefront" })
   })
 
   void it('writes the seed of the base when the dialog has none', () => {
@@ -286,6 +294,7 @@ void describe('buildExportManifest', () => {
       metadata: { seed: 987 },
       author: undefined,
       project: undefined,
+      roomNames: undefined,
       editor: editorBuild,
       exportedAt,
     })

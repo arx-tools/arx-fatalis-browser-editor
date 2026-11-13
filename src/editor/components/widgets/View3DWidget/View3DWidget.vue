@@ -11,7 +11,9 @@ import { WIDGET_KINDS } from '../../../modules/layout/widgetKinds.ts'
 import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
 import { getModifierOfKey } from '../../../modules/keyboard/functions.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
+import { roomNameOf } from '../../../modules/rooms/roomNames.ts'
 import { litRooms } from '../../../modules/rooms/roomStore.ts'
+import { currentRoom } from '../../../modules/rooms/roomUnderCrosshair.ts'
 import { cameraStore } from '../camera/cameraStore.ts'
 import { renderPerformanceStore } from '../shared/renderPerformance.ts'
 import { isMeshVisible, isRoomColorsVisible, isWireframeVisible } from '../shared/levelDisplay.ts'
@@ -80,6 +82,34 @@ const hud = computed(() => {
     `position  ${pose.position.x.toFixed(2)}  ${pose.position.y.toFixed(2)}  ${pose.position.z.toFixed(2)}`,
     `rotation  ${pose.angle.pitch.toFixed(2)}  ${pose.angle.yaw.toFixed(2)}  0.00`,
   ].join('\n')
+})
+
+/**
+ * The room of the face under the crosshair, as the readout at the bottom of the view writes it.
+ *
+ * @remarks
+ * It is the room the room map highlights, so the words and the colour say the same thing: the name follows the number
+ * when the author gave one (the pair the room list shows). The line is empty while the room map is off, and while the
+ * crosshair points at no face or at a face without a room, so the view says nothing there.
+ */
+const roomReadout = computed(() => {
+  if (!isRoomColorsVisible.value) {
+    return ''
+  }
+
+  const room = currentRoom.value
+
+  if (room === undefined) {
+    return ''
+  }
+
+  const name = roomNameOf(room)
+
+  if (name === undefined) {
+    return `room ${String(room)}`
+  }
+
+  return `room ${String(room)} · ${name}`
 })
 
 const host = useTemplateRef<HTMLElement>('host')
@@ -264,6 +294,23 @@ function repaintRooms(): void {
 }
 
 /**
+ * Writes the rooms the room map keeps at full colour into the overlay.
+ *
+ * @remarks
+ * The lit set is the selection, the hover of the room inspector and the room under the crosshair ({@link litRooms}),
+ * so every view of the map shows the same rooms. The map is the only thing the highlight paints: while it is off the
+ * set can change (the camera walks into another room), and repainting the vertex colours for it would be wasted work.
+ */
+function applyRoomHighlight(): void {
+  if (rooms === undefined || !isRoomColorsVisible.value) {
+    return
+  }
+
+  rooms.setHighlight(litRooms.value)
+  loop.requestRender()
+}
+
+/**
  * Shows a map: the meshes go into the scene and the camera starts from the player of the level.
  *
  * @param map The map the store loaded.
@@ -283,7 +330,7 @@ function showMap(map: ArxMap): void {
 
   // the room map shares the geometry of the level: it is one more mesh over the same buffers
   rooms = createRoomOverlay(map, currentMapId.value)
-  rooms.setHighlight(litRooms.value)
+  applyRoomHighlight()
   view.scene.add(rooms.mesh)
 
   // the wireframe is a switch: the view puts it over the mesh only while it is on
@@ -429,16 +476,15 @@ onMounted(() => {
     updateVisibility()
     // the fill gets its grey base with the map, so a switch of the map repaints the selection too
     dragSelection.updateHighlight()
+    // the highlight of the map joins the switch: it is painted only while the map is on
+    applyRoomHighlight()
     loop.requestRender()
   })
 
   // the colours are keyed with the id of the level, and the id of a zip arrives after the level: the map is coloured
   // again when it lands, so two visits of the same level always show the same colours
   // the room inspector picks a room: the map dims the others, so the picked room reads at a glance
-  stopWatchingRoom = watch(litRooms, (picked) => {
-    rooms?.setHighlight(picked)
-    loop.requestRender()
-  })
+  stopWatchingRoom = watch(litRooms, applyRoomHighlight)
 
   stopWatchingMapId = watch(currentMapId, () => {
     if (rooms !== undefined && loadedMap !== undefined) {
@@ -522,6 +568,7 @@ onBeforeUnmount(() => {
       <canvas ref="gizmoCanvas"></canvas>
     </div>
     <div v-if="hud !== ''" class="hud">{{ hud }}</div>
+    <div v-if="roomReadout !== ''" class="room-readout">{{ roomReadout }}</div>
     <p v-if="status !== ''" class="status">{{ status }}</p>
   </div>
 </template>
@@ -584,6 +631,27 @@ onBeforeUnmount(() => {
     color: $text;
     background: rgba($surface-app, 0.72);
     border-radius: 3px;
+    pointer-events: none;
+  }
+
+  // the room under the crosshair: the quiet box of the readout, at the bottom of the view, where it does not fight
+  // with the numbers of the camera (and with the compass in the corner)
+  .room-readout {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    max-width: calc(100% - 32px);
+    padding: 4px 10px;
+    overflow: hidden;
+    font-family: monospace;
+    font-size: 12px;
+    line-height: 1.4;
+    white-space: nowrap;
+    color: $text;
+    text-overflow: ellipsis;
+    background: rgba($surface-app, 0.72);
+    border-radius: 3px;
+    transform: translateX(-50%);
     pointer-events: none;
   }
 

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { roomsLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
 import { WIDGET_KINDS } from '../../src/editor/modules/layout/widgetKinds.ts'
-import { renameKinds, seedLayout, waitForLevel } from './support/editor.ts'
+import { editorUrl, renameKinds, seedLayout, waitForLevel } from './support/editor.ts'
 
 /**
  * The room list and the selection are one thing (TODO 175).
@@ -161,6 +161,50 @@ test('the pointer previews a room, and the row picks it without a checkbox', asy
   await row.click()
 
   await expect(row).toHaveClass(/is-selected/u)
+})
+
+/**
+ * The view writes the room under the crosshair at the bottom of the canvas while the room map is on.
+ *
+ * @remarks
+ * The map is the overlay that colours the rooms: the line names the room the crosshair is in, so the number and the
+ * bright room of the map say the same thing. It stays away while the map is off.
+ */
+test('the room under the crosshair is written on the view while the map is on', async ({ page }) => {
+  test.setTimeout(120_000)
+
+  await seedLayout(page, roomsLayout)
+  await page.goto(editorUrl())
+
+  await waitForLevel(page)
+
+  const roomInspector = page.locator('[data-widget-kind="room-inspector"]')
+  const view = page.locator('[data-widget-kind="3d-view"]')
+  const readout = view.locator('.room-readout')
+
+  // the map starts off: the view does not write a room
+  await expect(readout).toHaveCount(0)
+
+  // the panel names the room of the face under the crosshair, once the view picked one
+  const here = roomInspector.locator('.here')
+
+  await expect
+    .poll(async () => {
+      return (await here.textContent()) ?? ''
+    })
+    .toMatch(/room \d+/u)
+
+  const room = /room (?<room>\d+)/u.exec((await here.textContent()) ?? '')?.groups?.room ?? ''
+
+  // the map on: the readout writes the room the panel points at
+  await roomInspector.getByRole('button', { name: 'Show the rooms' }).click()
+
+  await expect(readout).toContainText(`room ${room}`)
+
+  // the map off: the line goes with it
+  await roomInspector.getByRole('button', { name: 'Hide the rooms' }).click()
+
+  await expect(readout).toHaveCount(0)
 })
 
 /**

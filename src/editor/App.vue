@@ -54,6 +54,7 @@ import {
 import { migrateLegacyPose } from './modules/level/source/maps/mapPoses.ts'
 import { startRoomNames } from './modules/rooms/roomNames.ts'
 import { startRoomSelection } from './modules/rooms/roomSelection.ts'
+import { startCurrentRoom } from './modules/rooms/roomUnderCrosshair.ts'
 import { startPoseTracking } from './modules/level/source/maps/poseTracking.ts'
 import { startMapHistoryPersistence } from './modules/history/mapHistoryPersistence.ts'
 import { getUrlAdapter, writeUrlValue } from './modules/persistedRef/url.ts'
@@ -119,6 +120,7 @@ onMounted(async () => {
   startLevelTextures()
   startTextureCatalog()
   startRoomSelection()
+  startCurrentRoom()
   startRoomNames()
   startMapPersistence()
 

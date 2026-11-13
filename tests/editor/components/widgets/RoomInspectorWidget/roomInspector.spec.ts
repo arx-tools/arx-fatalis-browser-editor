@@ -7,7 +7,6 @@ import {
   faceCountLabelOf,
   roomProblemsOf,
   roomRowsOf,
-  roomUnderCrosshairOf,
 } from '../../../../../src/editor/components/widgets/RoomInspectorWidget/roomInspector.ts'
 
 /**
@@ -77,28 +76,6 @@ void describe('faceCountLabelOf', () => {
 
   void it('says one face in the singular', () => {
     assert.equal(faceCountLabelOf(1), '1 face')
-  })
-})
-
-void describe('roomUnderCrosshairOf', () => {
-  void it('reads the room of the face under the crosshair', () => {
-    const level = levelOf([faceOf(4)])
-
-    assert.equal(roomUnderCrosshairOf(level, 0), 4)
-  })
-
-  void it('gives nothing while there is no level or no face', () => {
-    const level = levelOf([faceOf(4)])
-
-    assert.equal(roomUnderCrosshairOf(undefined, 0), undefined)
-    assert.equal(roomUnderCrosshairOf(level, undefined), undefined)
-    assert.equal(roomUnderCrosshairOf(level, 9), undefined)
-  })
-
-  void it('gives nothing for a face without a room', () => {
-    const level = levelOf([faceOf(-1)])
-
-    assert.equal(roomUnderCrosshairOf(level, 0), undefined)
   })
 })
 

@@ -1,23 +1,16 @@
 <script setup lang="ts">
 import { Eye, EyeOff } from 'lucide-vue-next'
 import { computed, shallowRef, watch } from 'vue'
-import { crosshairStore } from '../../../modules/crosshair/crosshairStore.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { currentMapId } from '../../../modules/level/source/maps.ts'
 import { nameOf, renameRoom, roomNameOf, UNNAMED_ROOM } from '../../../modules/rooms/roomNames.ts'
 import { clearRoomHover, hoverRoom, selectedRoom, selectedRooms, selectRoom } from '../../../modules/rooms/roomStore.ts'
 import { pickRoom } from '../../../modules/rooms/roomSelection.ts'
+import { currentRoom } from '../../../modules/rooms/roomUnderCrosshair.ts'
 import WidgetHeading from '../../WidgetHeading.vue'
 import { isMeshVisible, isRoomColorsVisible, toggleRoomColors } from '../shared/levelDisplay.ts'
-import {
-  faceCountLabelOf,
-  roomProblemsOf,
-  roomRowsOf,
-  roomUnderCrosshairOf,
-  type RoomProblem,
-  type RoomRow,
-} from './roomInspector.ts'
+import { faceCountLabelOf, roomProblemsOf, roomRowsOf, type RoomProblem, type RoomRow } from './roomInspector.ts'
 
 /**
  * The label of the widget, from the widget definition.
@@ -62,17 +55,6 @@ const rows = shallowRef<RoomRow[]>([])
  * What the author can not see in the view: the faces without a room, and the level that is one room.
  */
 const problems = shallowRef<RoomProblem[]>([])
-
-/**
- * The room of the face under the crosshair of the walkable view.
- *
- * @remarks
- * It reads the crosshair store, so it follows the view: the panel says which room the player stands in while the
- * camera moves and the crosshair picks another face.
- */
-const here = computed(() => {
-  return roomUnderCrosshairOf(levelStore.map.value, crosshairStore.polygon.value)
-})
 
 /**
  * Reads the rooms and the problems of the level again.
@@ -178,8 +160,8 @@ function pick(room: number): void {
       </template>
     </WidgetHeading>
     <p class="here">
-      <template v-if="here !== undefined"
-        >You are pointing to a face in <b>room {{ here }}</b></template
+      <template v-if="currentRoom !== undefined"
+        >You are pointing to a face in <b>room {{ currentRoom }}</b></template
       >
       <template v-else>No face under the crosshair</template>
     </p>

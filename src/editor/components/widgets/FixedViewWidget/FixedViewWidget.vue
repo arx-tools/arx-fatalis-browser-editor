@@ -337,7 +337,12 @@ function showMap(map: ArxMap): void {
 
   // the room map shares the geometry of the level, so the small views show the same rooms
   rooms = createRoomOverlay(map, currentMapId.value)
-  rooms.setHighlight(litRooms.value)
+
+  // the map paints the lit rooms only while it is on: the switch of the map applies the set when it comes on
+  if (isRoomColorsVisible.value) {
+    rooms.setHighlight(litRooms.value)
+  }
+
   view.scene.add(rooms.mesh)
   setMeshVisible(isMeshVisible.value)
 
@@ -486,11 +491,21 @@ stopWatchingMesh = watch(isMeshVisible, () => {
 
 stopWatchingRooms = watch(isRoomColorsVisible, () => {
   setMeshVisible(isMeshVisible.value)
+
+  // the highlight is painted only while the map is on, and the lit set may have changed while it was off
+  if (isRoomColorsVisible.value) {
+    rooms?.setHighlight(litRooms.value)
+  }
+
   requestRender()
 })
 
 // the room inspector picks a room: the small views dim the others like the walkable one
 stopWatchingRoom = watch(litRooms, (picked) => {
+  if (!isRoomColorsVisible.value) {
+    return
+  }
+
   rooms?.setHighlight(picked)
   requestRender()
 })

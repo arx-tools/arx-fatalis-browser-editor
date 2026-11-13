@@ -93,28 +93,6 @@ export function faceCountLabelOf(faceCount: number): string {
 }
 
 /**
- * Reads the room of the face under the crosshair.
- *
- * @param map The level, when it is loaded.
- * @param polygon The face under the crosshair, or `undefined` when the ray hits nothing.
- *
- * @returns The room of that face, or `undefined` when there is no face (or it has no room).
- */
-export function roomUnderCrosshairOf(map: ArxMap | undefined, polygon: number | undefined): number | undefined {
-  if (map === undefined || polygon === undefined) {
-    return undefined
-  }
-
-  const face = map.polygons[polygon]
-
-  if (face === undefined || face.room < 0) {
-    return undefined
-  }
-
-  return face.room
-}
-
-/**
  * Collects what is wrong with the rooms of a level.
  *
  * @remarks

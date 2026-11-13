@@ -1,4 +1,5 @@
 import { computed, shallowRef, type ComputedRef, type ShallowRef } from 'vue'
+import { currentRoom } from './roomUnderCrosshair.ts'
 
 /**
  * The rooms the room inspector picked, and the room map highlights.
@@ -34,13 +35,13 @@ export const selectedRoom: ComputedRef<number | undefined> = computed(() => {
  * The room the pointer of the author is on, which the map lights while it is there.
  *
  * @remarks
- * It is a preview of a row, so it is gone as soon as the pointer leaves: beside the selection it is the only highlight
- * of the list ({@link litRooms}).
+ * It is a preview of a row, so it is gone as soon as the pointer leaves: beside the selection and the room under the
+ * crosshair it is one of the highlights of the list ({@link litRooms}).
  */
 export const hoveredRoom: ShallowRef<number | undefined> = shallowRef(undefined)
 
 /**
- * The rooms the room map lights: the ones of the selection and the hovered one.
+ * The rooms the room map lights: the ones of the selection, the hovered one, and the room under the crosshair.
  */
 export const litRooms: ComputedRef<ReadonlySet<number>> = computed(() => {
   const lit = new Set(selectedRooms.value)
@@ -49,6 +50,12 @@ export const litRooms: ComputedRef<ReadonlySet<number>> = computed(() => {
 
   if (hovered !== undefined) {
     lit.add(hovered)
+  }
+
+  const current = currentRoom.value
+
+  if (current !== undefined) {
+    lit.add(current)
   }
 
   return lit

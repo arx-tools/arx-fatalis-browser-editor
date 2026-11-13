@@ -111,13 +111,13 @@ test('the mapper makes a room of the selected faces, and the undo takes them bac
 })
 
 /**
- * The checkbox of a row lights a room without selecting it (TODO 176).
+ * The list has no checkbox: the pointer previews a room, and the row click picks it.
  *
  * @remarks
- * The list has two kinds of state: the **row click** makes the faces of the room the selection (the pick), and the
- * **checkbox** only lights the room in the map, so the author can look at several rooms without touching the selection.
+ * The checkbox of TODO 176 went away with the persistent highlight it kept: the row click is the only gesture of the
+ * list (the pick), and the pointer over a row lights the room while it is there without touching the selection.
  */
-test('the checkbox of a room lights it, and leaves the selection alone', async ({ page }) => {
+test('the pointer previews a room, and the row picks it without a checkbox', async ({ page }) => {
   test.setTimeout(120_000)
 
   await seedLayout(page, roomsLayout)
@@ -128,9 +128,9 @@ test('the checkbox of a room lights it, and leaves the selection alone', async (
   const roomInspector = page.locator('[data-widget-kind="room-inspector"]')
   const selectionInspector = page.locator('[data-widget-kind="selection-inspector"]')
   const row = roomInspector.locator('li.room').first()
-  const checkbox = row.locator('input[type="checkbox"]')
 
-  await expect(checkbox).toBeVisible()
+  await expect(row).toBeVisible()
+  await expect(row.locator('input[type="checkbox"]')).toHaveCount(0)
 
   /**
    * Reads one value of the selection inspector by its label.
@@ -151,21 +151,14 @@ test('the checkbox of a room lights it, and leaves the selection alone', async (
     return (await value.textContent()) ?? ''
   }
 
-  await expect(row).not.toHaveClass(/is-checked/u)
+  // the pointer over the row previews the room, but it is not a pick
+  await row.hover()
 
-  await checkbox.click()
-
-  await expect(row).toHaveClass(/is-checked/u)
   await expect(row).not.toHaveClass(/is-selected/u)
   expect(await selectedOf('Selected faces')).toBe('0')
 
-  // a click on the row itself is the pick, and it clears the checkbox mark of the list: the two states are apart
+  // the click is the pick, the one gesture the list has
   await row.click()
-
-  await expect(row).toHaveClass(/is-selected/u)
-
-  // the pointer over another row lights it while it is there, and the selection stays the one of the pick
-  await roomInspector.locator('li.room').first().hover()
 
   await expect(row).toHaveClass(/is-selected/u)
 })

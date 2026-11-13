@@ -6,15 +6,7 @@ import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { currentMapId } from '../../../modules/level/source/maps.ts'
 import { nameOf, renameRoom, roomNameOf, UNNAMED_ROOM } from '../../../modules/rooms/roomNames.ts'
-import {
-  checkedRooms,
-  clearRoomHighlight,
-  hoverRoom,
-  selectedRoom,
-  selectedRooms,
-  selectRoom,
-  toggleCheckedRoom,
-} from '../../../modules/rooms/roomStore.ts'
+import { clearRoomHover, hoverRoom, selectedRoom, selectedRooms, selectRoom } from '../../../modules/rooms/roomStore.ts'
 import { pickRoom } from '../../../modules/rooms/roomSelection.ts'
 import WidgetHeading from '../../WidgetHeading.vue'
 import { isMeshVisible, isRoomColorsVisible, toggleRoomColors } from '../shared/levelDisplay.ts'
@@ -111,11 +103,10 @@ watch(
   { immediate: true },
 )
 
-// the picked room is an id of a level: another level has other ids, so the pick, the checkboxes and the hover do not
-// survive it
+// the picked room is an id of a level: another level has other ids, so neither the pick nor the hover survives it
 watch(levelStore.map, () => {
   selectRoom(undefined)
-  clearRoomHighlight()
+  clearRoomHover()
 })
 
 /**
@@ -197,18 +188,11 @@ function pick(room: number): void {
         v-for="row in rows"
         :key="row.room"
         class="room"
-        :class="{ 'is-selected': selectedRooms.has(row.room), 'is-checked': checkedRooms.has(row.room) }"
+        :class="{ 'is-selected': selectedRooms.has(row.room) }"
         @click="pick(row.room)"
         @mouseenter="hoverRoom(row.room)"
         @mouseleave="hoverRoom(undefined)"
       >
-        <input
-          class="checkbox"
-          type="checkbox"
-          :checked="checkedRooms.has(row.room)"
-          :aria-label="`Highlight room ${String(row.room)}`"
-          @click.stop="toggleCheckedRoom(row.room)"
-        />
         <span class="swatch" :style="{ backgroundColor: row.color }"></span>
         <span class="name" :title="nameOf(row.room)">
           room {{ row.room }}<template v-if="roomNameOf(row.room) !== undefined"> · {{ nameOf(row.room) }}</template>
@@ -300,6 +284,9 @@ function pick(room: number): void {
   padding: 0;
   overflow-y: auto;
   list-style: none;
+
+  // the rows are a list to click, not text to copy: a drag across them must not leave a selection behind
+  user-select: none;
 }
 
 .room {
@@ -324,12 +311,6 @@ function pick(room: number): void {
     color: $text;
     background: rgba($accent, 0.15);
   }
-
-  // a checkbox is a highlight of the map, not a selection of faces: a fainter wash says the two apart
-  &.is-checked {
-    color: $text;
-    background: rgba($accent, 0.07);
-  }
 }
 
 // the name of the picked room: a field under the list, because the row itself is the pick, and a field in it would eat
@@ -353,16 +334,6 @@ function pick(room: number): void {
   background: $surface-panel;
   border: 1px solid $border;
   border-radius: 3px;
-}
-
-// the checkbox of the row: the room map lights the rooms it holds, the selection is the row click
-.checkbox {
-  flex: none;
-  width: 11px;
-  height: 11px;
-  margin: 0;
-  accent-color: $accent;
-  cursor: pointer;
 }
 
 // the colour square: the same one the room map paints the room with, so the row and the view read together

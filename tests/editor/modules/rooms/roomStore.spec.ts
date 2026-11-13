@@ -1,21 +1,14 @@
 import assert from 'node:assert/strict'
 import { beforeEach, describe, it } from 'node:test'
-import {
-  checkedRooms,
-  clearRoomHighlight,
-  hoverRoom,
-  litRooms,
-  selectRoom,
-  toggleCheckedRoom,
-} from '../../../../src/editor/modules/rooms/roomStore.ts'
+import { clearRoomHover, hoverRoom, litRooms, selectRoom } from '../../../../src/editor/modules/rooms/roomStore.ts'
 
 void describe('litRooms', () => {
   beforeEach(() => {
     selectRoom(undefined)
-    clearRoomHighlight()
+    clearRoomHover()
   })
 
-  void it('is empty when nothing is picked, checked or hovered', () => {
+  void it('is empty when nothing is picked or hovered', () => {
     assert.deepEqual(litRooms.value, new Set())
   })
 
@@ -23,13 +16,6 @@ void describe('litRooms', () => {
     selectRoom(3)
 
     assert.deepEqual(litRooms.value, new Set([3]))
-  })
-
-  void it('holds the checkboxes beside the selection', () => {
-    selectRoom(3)
-    checkedRooms.value = new Set([7, 9])
-
-    assert.deepEqual(litRooms.value, new Set([3, 7, 9]))
   })
 
   void it('holds the room under the pointer while it is there', () => {
@@ -42,33 +28,18 @@ void describe('litRooms', () => {
     assert.deepEqual(litRooms.value, new Set())
   })
 
-  void it('is empty again after the highlight is cleared', () => {
+  void it('holds the hovered room beside the selection', () => {
     selectRoom(3)
-    checkedRooms.value = new Set([7])
     hoverRoom(5)
-    clearRoomHighlight()
+
+    assert.deepEqual(litRooms.value, new Set([3, 5]))
+  })
+
+  void it('is empty again after the hover is cleared', () => {
+    selectRoom(3)
+    hoverRoom(5)
+    clearRoomHover()
 
     assert.deepEqual(litRooms.value, new Set([3]))
-    assert.deepEqual(checkedRooms.value, new Set())
-  })
-})
-
-void describe('toggleCheckedRoom', () => {
-  beforeEach(() => {
-    clearRoomHighlight()
-  })
-
-  void it('adds the room to the checked ones', () => {
-    toggleCheckedRoom(4)
-
-    assert.deepEqual(checkedRooms.value, new Set([4]))
-  })
-
-  void it('takes the room out when it is checked again', () => {
-    toggleCheckedRoom(4)
-    toggleCheckedRoom(7)
-    toggleCheckedRoom(4)
-
-    assert.deepEqual(checkedRooms.value, new Set([7]))
   })
 })

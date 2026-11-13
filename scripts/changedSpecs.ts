@@ -143,6 +143,7 @@ export const coverage: readonly SpecCoverage[] = [
       'src/editor/components/widgets/RoomMapperWidget/**',
       'src/editor/components/widgets/shared/roomOverlay.ts',
       'src/editor/modules/rooms/**',
+      'src/generator/rooms.ts',
     ],
   },
   {

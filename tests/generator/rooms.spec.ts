@@ -10,6 +10,7 @@ import {
   roomColoringOf,
   roomIdsOf,
   roomPaletteOf,
+  roomRenumberingOf,
   roomSummaryOf,
   unassignedAreaOf,
   type RoomLink,
@@ -298,5 +299,38 @@ void describe('roomPaletteOf', () => {
     const b = roomColoringForLevel([], [1, 2, 3], 'arx:2')
 
     assert.deepEqual([...a.colors], [...b.colors])
+  })
+})
+
+void describe('roomRenumberingOf', () => {
+  void it('fills the holes of the numbering', () => {
+    assert.deepEqual(
+      [...roomRenumberingOf([1, 3, 4])],
+      [
+        [1, 1],
+        [3, 2],
+        [4, 3],
+      ],
+    )
+  })
+
+  void it('leaves a numbering without holes as it is', () => {
+    assert.deepEqual(
+      [...roomRenumberingOf([1, 2, 3])],
+      [
+        [1, 1],
+        [2, 2],
+        [3, 3],
+      ],
+    )
+  })
+
+  void it('leaves the room of the outside where it is', () => {
+    assert.equal(roomRenumberingOf([0, 2]).has(0), false)
+    assert.equal(roomRenumberingOf([0, 2]).get(2), 1)
+  })
+
+  void it('leaves the faces without a room out', () => {
+    assert.equal(roomRenumberingOf([-1, 1]).has(-1), false)
   })
 })

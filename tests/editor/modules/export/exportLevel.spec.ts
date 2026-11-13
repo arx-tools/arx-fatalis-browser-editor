@@ -11,6 +11,7 @@ import {
   buildExportManifest,
   buildExportFts,
   buildExportLlf,
+  renumberedRoomNamesOf,
   exportLevelFiles,
   exportLevelZip,
   levelFilePath,
@@ -600,5 +601,46 @@ void describe('exportLevelZip', () => {
 
     assert.ok(description.byteLength > 0)
     assert.equal(DLF.load(unpackArxFile(description, 'dlf')).header.levelIdx, 13)
+  })
+})
+
+void describe('the room numbering of the file', () => {
+  void it('writes the rooms of the level without the holes', () => {
+    const files = createBlankLevelFiles(FLAT_PRESET)
+    const map = new ArxMap(files.dlf, files.fts, files.llf)
+    const polygon = map.polygons[0]
+
+    // a face of the level takes room 7: the file must not carry room 2 ... 6 with nothing in them
+    if (polygon !== undefined) {
+      polygon.room = 7
+    }
+
+    const fts = buildExportFts(map.fts, map.polygons)
+    const rooms = [
+      ...new Set(
+        fts.polygons.map((one) => {
+          return one.room
+        }),
+      ),
+    ].toSorted((one, other) => {
+      return one - other
+    })
+
+    // the room of the outside stays at 0, and the two rooms of the level are 1 and 2
+    assert.equal(fts.rooms.length, 3)
+    assert.deepEqual(rooms, [1, 2])
+    assert.equal(fts.roomDistances.length, 9)
+  })
+
+  void it('keeps the names with their rooms', () => {
+    const files = createBlankLevelFiles(FLAT_PRESET)
+    const map = new ArxMap(files.dlf, files.fts, files.llf)
+    const polygon = map.polygons[0]
+
+    if (polygon !== undefined) {
+      polygon.room = 7
+    }
+
+    assert.deepEqual(renumberedRoomNamesOf({ '7': 'The vault' }, map.polygons), { '2': 'The vault' })
   })
 })

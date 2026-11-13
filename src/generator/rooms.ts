@@ -496,3 +496,32 @@ export function roomPaletteOf(room: number, coloring: RoomColoring): string | un
 
   return ROOM_COLORS[index % ROOM_COLORS.length]
 }
+
+/**
+ * The new ids of the rooms a level uses, without the holes (1, 3, 4 becomes 1, 2, 3).
+ *
+ * @remarks
+ * The game walks the rooms of the file by their ids, so a hole is a room with nothing in it: the export fills the holes
+ * by moving the rooms after them down, and every place that names a room (the polygons, the portals, the distances, the
+ * names) follows the same map. Room **0** stays where it is: the game reserves it for the outside.
+ *
+ * @param rooms The ids the level uses.
+ *
+ * @returns The old id and the new one, in the order of the old ones.
+ */
+export function roomRenumberingOf(rooms: Iterable<number>): Map<number, number> {
+  const used = [...new Set(rooms)]
+    .filter((room) => {
+      return room > 0
+    })
+    .toSorted((first, second) => {
+      return first - second
+    })
+  const renumbering = new Map<number, number>()
+
+  for (const [position, room] of used.entries()) {
+    renumbering.set(room, position + 1)
+  }
+
+  return renumbering
+}

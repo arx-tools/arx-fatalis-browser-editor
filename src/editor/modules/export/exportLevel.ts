@@ -12,6 +12,7 @@ import {
   type ManifestProject,
 } from '../../../generator/manifest.ts'
 import { roomCentersOf, roomDistancesOf } from '../../../generator/roomDistances.ts'
+import { roomRenumberingOf } from '../../../generator/rooms.ts'
 import type { HistorySnapshot } from '../history/mapHistory.ts'
 import { editorSettingsJsonOf, SETTINGS_PATH, SOURCE_FOLDER } from '../level/source/editorSettings.ts'
 import type { StoredPose } from '../level/source/maps/mapPoses.ts'
@@ -121,18 +122,31 @@ export function buildExportFts(fts: ArxFTS, polygons: readonly ArxPolygon[]): Ar
     throw new Error('The level has no polygon left, there is nothing to export.')
   }
 
-  let maxRoomId = 0
+  // the ids the level uses are written without the holes (166/5): a room with nothing in it is a room the game walks
+  // for nothing, and every place that names a room follows the same map
+  const renumbering = roomRenumberingOf(
+    polygons.map((polygon) => {
+      return polygon.room
+    }),
+  )
+  const highestRoomId = Math.max(0, ...renumbering.values())
+  const oldRoomOf = new Map<number, number>()
 
-  for (const polygon of polygons) {
-    maxRoomId = Math.max(maxRoomId, polygon.room)
+  for (const [old, id] of renumbering) {
+    oldRoomOf.set(id, old)
   }
 
-  const rooms = fts.rooms.slice(0, maxRoomId + 1).map((room) => {
-    return { portals: [...room.portals], polygons: [] as ArxFTS['rooms'][number]['polygons'] }
+  const rooms = Array.from({ length: highestRoomId + 1 }, (_unused, id) => {
+    const old = oldRoomOf.get(id) ?? id
+
+    return { portals: [...(fts.rooms[old]?.portals ?? [])], polygons: [] as ArxFTS['rooms'][number]['polygons'] }
   })
   const cellPolygonCounts = new Map<number, number>()
+  const renumbered = polygons.map((polygon) => {
+    return { ...polygon, room: renumbering.get(polygon.room) ?? polygon.room }
+  })
 
-  for (const polygon of polygons) {
+  for (const polygon of renumbered) {
     const [cellX, cellY] = getCellCoords(polygon.vertices)
     const cellRowOffset = cellY * MAP_WIDTH_IN_CELLS
     const cellKey = cellRowOffset + cellX
@@ -148,15 +162,23 @@ export function buildExportFts(fts: ArxFTS, polygons: readonly ArxPolygon[]): Ar
   }
 
   const portalIndexRemap = new Map<number, number>()
-  const portals = fts.portals.filter((portal, index) => {
-    if (portal.room1 > maxRoomId || portal.room2 > maxRoomId) {
-      return false
-    }
+  const portals = fts.portals
+    .map((portal) => {
+      return {
+        ...portal,
+        room1: renumbering.get(portal.room1) ?? portal.room1,
+        room2: renumbering.get(portal.room2) ?? portal.room2,
+      }
+    })
+    .filter((portal, index) => {
+      if (portal.room1 > highestRoomId || portal.room2 > highestRoomId) {
+        return false
+      }
 
-    portalIndexRemap.set(index, portalIndexRemap.size)
+      portalIndexRemap.set(index, portalIndexRemap.size)
 
-    return true
-  })
+      return true
+    })
 
   for (const room of rooms) {
     room.portals = room.portals
@@ -174,7 +196,7 @@ export function buildExportFts(fts: ArxFTS, polygons: readonly ArxPolygon[]): Ar
 
   return {
     ...fts,
-    polygons: [...polygons],
+    polygons: renumbered,
     portals,
     rooms,
     roomDistances,
@@ -368,6 +390,62 @@ export function levelFilePath(level: number, kind: 'dlf' | 'fts' | 'llf'): strin
   }
 
   return `graph/levels/level${String(level)}/level${String(level)}.${kind}`
+}
+
+/**
+ * The names of the rooms the archive writes, from the dialog or from the zip it came from.
+ *
+ * @param options The values of the dialog.
+ *
+ * @returns The names by the id the editor shows, or `undefined` when neither names one.
+ */
+function namesOfExport(options: ExportOptions): Readonly<Record<string, string>> | undefined {
+  if (options.roomNames !== undefined) {
+    return options.roomNames
+  }
+
+  return options.manifest?.roomNames
+}
+
+/**
+ * The names of the rooms, keyed by the ids the archive writes.
+ *
+ * @remarks
+ * The export renumbers the rooms of a level without the holes (166/5), and the names are keyed by the id: a name has to
+ * follow its room, or the archive would name another one. A level whose rooms are already numbered is unchanged, and so
+ * are its names.
+ *
+ * @param names The names of the rooms, by the id the editor shows.
+ * @param polygons The polygons of the level.
+ *
+ * @returns The names by the ids of the file, or `undefined` when the level has no name.
+ */
+export function renumberedRoomNamesOf(
+  names: Readonly<Record<string, string>> | undefined,
+  polygons: readonly ArxPolygon[],
+): Record<string, string> | undefined {
+  if (names === undefined || Object.keys(names).length === 0) {
+    return undefined
+  }
+
+  const renumbering = roomRenumberingOf(
+    polygons.map((polygon) => {
+      return polygon.room
+    }),
+  )
+  const renamed: Record<string, string> = {}
+
+  for (const [room, name] of Object.entries(names)) {
+    const id = Number.parseInt(room, 10)
+
+    if (!Number.isSafeInteger(id)) {
+      continue
+    }
+
+    renamed[String(renumbering.get(id) ?? id)] = name
+  }
+
+  return renamed
 }
 
 /**
@@ -619,7 +697,7 @@ export async function exportLevelZip(
     metadata: options.manifest,
     author: options.author,
     project: options.project,
-    roomNames: options.roomNames,
+    roomNames: renumberedRoomNamesOf(namesOfExport(options), map.polygons),
     editor: editorBuildOf(),
     exportedAt: options.exportedAt ?? new Date().toISOString(),
   })

@@ -8,6 +8,7 @@ import { nameOf, renameRoom, roomNameOf, UNNAMED_ROOM } from '../../../modules/r
 import { clearRoomHover, hoverRoom, selectedRoom, selectedRooms, selectRoom } from '../../../modules/rooms/roomStore.ts'
 import { pickRoom } from '../../../modules/rooms/roomSelection.ts'
 import { currentRoom } from '../../../modules/rooms/roomUnderCrosshair.ts'
+import { selectionModeOf } from '../../../modules/selection/selectionStore.ts'
 import WidgetHeading from '../../WidgetHeading.vue'
 import { isMeshVisible, isRoomColorsVisible, toggleRoomColors } from '../shared/levelDisplay.ts'
 import { faceCountLabelOf, roomProblemsOf, roomRowsOf, type RoomProblem, type RoomRow } from './roomInspector.ts'
@@ -127,16 +128,22 @@ function commitName(room: number, event: Event): void {
  * so the map comes on with the pick (the switch stays his to turn off), and a second click on the same row clears the
  * pick and the selection with it.
  *
+ * `Shift` adds the room to the selection and `Ctrl`/`Meta` takes it away, the modes of the walkable view: a room
+ * clicked with `Shift` while another one is picked makes the selection span both, and the rows of both light up.
+ *
  * @param room The room the row stands for.
+ * @param event The click, whose modifiers decide what the row does with the selection.
  */
-function pick(room: number): void {
-  if (isPicked(room)) {
+function pick(room: number, event: MouseEvent): void {
+  const mode = selectionModeOf(event)
+
+  if (mode === 'replace' && isPicked(room)) {
     pickRoom(undefined)
 
     return
   }
 
-  pickRoom(room)
+  pickRoom(room, mode)
   isRoomColorsVisible.value = true
 }
 </script>
@@ -170,8 +177,8 @@ function pick(room: number): void {
         v-for="row in rows"
         :key="row.room"
         class="room"
-        :class="{ 'is-selected': selectedRooms.has(row.room) }"
-        @click="pick(row.room)"
+        :class="{ 'is-selected': selectedRooms.has(row.room), 'is-hovered': row.room === currentRoom }"
+        @click="pick(row.room, $event)"
         @mouseenter="hoverRoom(row.room)"
         @mouseleave="hoverRoom(undefined)"
       >
@@ -285,7 +292,10 @@ function pick(room: number): void {
     background: rgba($text-strong, 0.03);
   }
 
-  &:hover {
+  // the pointer of the author and the room under the crosshair of the walkable view read the same way: one row gets
+  // the hover wash while the camera points at its room
+  &:hover,
+  &.is-hovered {
     background: $surface-panel;
   }
 

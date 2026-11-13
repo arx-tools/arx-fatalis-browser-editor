@@ -1,7 +1,23 @@
 import { expect, test } from '@playwright/test'
 import { roomsLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
 import { WIDGET_KINDS } from '../../src/editor/modules/layout/widgetKinds.ts'
+import { ORIGINAL_LEVEL_PARAMETER } from '../../src/editor/modules/level/source/levelSource.ts'
 import { editorUrl, renameKinds, seedLayout, waitForLevel } from './support/editor.ts'
+
+/**
+ * The url of a level of the game's own files.
+ *
+ * @remarks
+ * The tests that need more than one room read level 12: it has forty one rooms, so a click on a row and a click on
+ * another one are two different selections.
+ *
+ * @param level The number of the level.
+ *
+ * @returns The url of the editor with that level.
+ */
+function levelUrl(level: number): string {
+  return `/?${ORIGINAL_LEVEL_PARAMETER}=${String(level)}`
+}
 
 /**
  * The room list and the selection are one thing (TODO 175).
@@ -205,6 +221,79 @@ test('the room under the crosshair is written on the view while the map is on', 
   await roomInspector.getByRole('button', { name: 'Hide the rooms' }).click()
 
   await expect(readout).toHaveCount(0)
+})
+
+/**
+ * The room under the crosshair of the walkable view is hovered in the room list.
+ *
+ * @remarks
+ * The map lights the room the camera points at; the row of the same room takes the hover wash, so the list and the
+ * view say where the camera is without a click. The number comes from the line above the list, which is the same value
+ * the highlight reads.
+ */
+test('the room under the crosshair is hovered in the list', async ({ page }) => {
+  test.setTimeout(120_000)
+
+  await seedLayout(page, roomsLayout)
+  await page.goto(levelUrl(12))
+
+  await waitForLevel(page)
+
+  const roomInspector = page.locator('[data-widget-kind="room-inspector"]')
+  const here = roomInspector.locator('.here')
+
+  await expect
+    .poll(async () => {
+      return (await here.textContent()) ?? ''
+    })
+    .toMatch(/room \d+/u)
+
+  const room = /room (?<room>\d+)/u.exec((await here.textContent()) ?? '')?.groups?.room ?? ''
+  const row = roomInspector.locator('li.room', { hasText: `room ${room}` }).first()
+
+  await expect(row).toHaveClass(/is-hovered/u)
+})
+
+/**
+ * `Shift` on a room of the list adds it to the selection, and `Ctrl` takes it away.
+ *
+ * @remarks
+ * The list and the walkable view share the selection: a plain click picks the faces of one room, `Shift` adds another
+ * room to them, and `Ctrl` takes one away. More than one row reads as selected, which is the set the map lights.
+ */
+test('shift on a room of the list adds it to the selection', async ({ page }) => {
+  test.setTimeout(120_000)
+
+  await seedLayout(page, roomsLayout)
+  await page.goto(levelUrl(12))
+
+  await waitForLevel(page)
+
+  const roomInspector = page.locator('[data-widget-kind="room-inspector"]')
+  const rows = roomInspector.locator('li.room')
+  const first = rows.nth(0)
+  const second = rows.nth(1)
+
+  await expect(first).toBeVisible()
+  await expect(second).toBeVisible()
+
+  // a plain click is the pick of one room
+  await first.click()
+
+  await expect(first).toHaveClass(/is-selected/u)
+  await expect(second).not.toHaveClass(/is-selected/u)
+
+  // shift adds the second room, and keeps the first one selected
+  await second.click({ modifiers: ['Shift'] })
+
+  await expect(first).toHaveClass(/is-selected/u)
+  await expect(second).toHaveClass(/is-selected/u)
+
+  // ctrl takes the first one away, and leaves the second in the selection
+  await first.click({ modifiers: ['ControlOrMeta'] })
+
+  await expect(first).not.toHaveClass(/is-selected/u)
+  await expect(second).toHaveClass(/is-selected/u)
 })
 
 /**

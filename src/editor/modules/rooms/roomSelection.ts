@@ -1,6 +1,6 @@
 import { watch } from 'vue'
 import type { ArxMap } from '../../../generator/ArxMap.ts'
-import { selectionStore } from '../selection/selectionStore.ts'
+import { selectionStore, type SelectionMode } from '../selection/selectionStore.ts'
 import { levelStore } from '../level/edit/levelStore.ts'
 import { selectRoom, selectRooms } from './roomStore.ts'
 
@@ -54,9 +54,14 @@ export function roomsOfFaces(map: ArxMap, faces: ReadonlySet<number>): Set<numbe
  * selects its faces, so the faces of the room arrive in the view highlighted by the selection. A room without a face
  * keeps the pick without touching the selection, because selecting nothing would take the pick back at once.
  *
+ * A `Shift` click adds the faces of the room to the selection and a `Ctrl`/`Meta` click takes them away, the same
+ * modes the walkable view uses. The pick of the list is written directly only for a plain click: with more than one
+ * room selected there is no single room to name, and the selection watcher derives the lit rooms from the faces.
+ *
  * @param room The room to pick, or `undefined` to clear the pick and the selection.
+ * @param mode Whether the room replaces the selection, adds to it or is taken out of it.
  */
-export function pickRoom(room: number | undefined): void {
+export function pickRoom(room: number | undefined, mode: SelectionMode = 'replace'): void {
   if (room === undefined) {
     selectRoom(undefined)
     selectionStore.clear()
@@ -66,7 +71,9 @@ export function pickRoom(room: number | undefined): void {
 
   const map = levelStore.map.value
 
-  selectRoom(room)
+  if (mode === 'replace') {
+    selectRoom(room)
+  }
 
   if (map === undefined) {
     return
@@ -78,7 +85,7 @@ export function pickRoom(room: number | undefined): void {
     return
   }
 
-  selectionStore.selectMany(faces, 'replace')
+  selectionStore.selectMany(faces, mode)
 }
 
 /**

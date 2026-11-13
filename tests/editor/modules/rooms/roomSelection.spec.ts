@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
-import { facesOfRoom, roomsOfFaces } from '../../../../src/editor/modules/rooms/roomSelection.ts'
+import { afterEach, describe, it } from 'node:test'
+import { facesOfRoom, pickRoom, roomsOfFaces } from '../../../../src/editor/modules/rooms/roomSelection.ts'
+import { selectedRooms } from '../../../../src/editor/modules/rooms/roomStore.ts'
 import { createBlankLevelFiles, FLAT_PRESET } from '../../../../src/editor/modules/level/blankLevel.ts'
+import { levelStore } from '../../../../src/editor/modules/level/edit/levelStore.ts'
+import { selectionStore } from '../../../../src/editor/modules/selection/selectionStore.ts'
 import { ArxMap } from '../../../../src/generator/ArxMap.ts'
 import { Settings } from '../../../../src/generator/Settings.ts'
 
@@ -18,6 +21,25 @@ function mapOf(): ArxMap {
   const files = createBlankLevelFiles(FLAT_PRESET)
 
   return new ArxMap(files.dlf, files.fts, files.llf, new Settings({ seed: '1' }))
+}
+
+/**
+ * Builds a level of two rooms: the first three faces are in room 2, the rest stay in room 1.
+ *
+ * @returns The level, ready to be read.
+ */
+function twoRoomMap(): ArxMap {
+  const map = mapOf()
+
+  for (const index of [0, 1, 2]) {
+    const polygon = map.polygons[index]
+
+    if (polygon !== undefined) {
+      polygon.room = 2
+    }
+  }
+
+  return map
 }
 
 void describe('facesOfRoom', () => {
@@ -74,5 +96,40 @@ void describe('roomsOfFaces', () => {
 
   void it('skips a face the level does not have', () => {
     assert.deepEqual(roomsOfFaces(mapOf(), new Set([99_999])), new Set())
+  })
+})
+
+void describe('pickRoom', () => {
+  afterEach(() => {
+    pickRoom(undefined)
+    levelStore.map.value = undefined
+  })
+
+  void it('replaces the selection with the faces of the room', () => {
+    levelStore.map.value = twoRoomMap()
+    selectionStore.selectMany([10], 'replace')
+
+    pickRoom(2)
+
+    assert.deepEqual(selectionStore.polygons.value, new Set([0, 1, 2]))
+    assert.deepEqual(selectedRooms.value, new Set([2]))
+  })
+
+  void it('adds the faces of the room to the selection', () => {
+    levelStore.map.value = twoRoomMap()
+    selectionStore.selectMany([10], 'replace')
+
+    pickRoom(2, 'add')
+
+    assert.deepEqual(selectionStore.polygons.value, new Set([10, 0, 1, 2]))
+  })
+
+  void it('takes the faces of the room out of the selection', () => {
+    levelStore.map.value = twoRoomMap()
+    selectionStore.selectMany([10, 0, 1, 2], 'replace')
+
+    pickRoom(2, 'remove')
+
+    assert.deepEqual(selectionStore.polygons.value, new Set([10]))
   })
 })

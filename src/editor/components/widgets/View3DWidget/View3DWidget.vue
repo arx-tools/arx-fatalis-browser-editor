@@ -11,7 +11,7 @@ import { WIDGET_KINDS } from '../../../modules/layout/widgetKinds.ts'
 import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
 import { getModifierOfKey } from '../../../modules/keyboard/functions.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
-import { selectedRooms } from '../../../modules/rooms/roomStore.ts'
+import { litRooms } from '../../../modules/rooms/roomStore.ts'
 import { cameraStore } from '../camera/cameraStore.ts'
 import { renderPerformanceStore } from '../shared/renderPerformance.ts'
 import { isMeshVisible, isRoomColorsVisible, isWireframeVisible } from '../shared/levelDisplay.ts'
@@ -283,7 +283,7 @@ function showMap(map: ArxMap): void {
 
   // the room map shares the geometry of the level: it is one more mesh over the same buffers
   rooms = createRoomOverlay(map, currentMapId.value)
-  rooms.setHighlight(selectedRooms.value)
+  rooms.setHighlight(litRooms.value)
   view.scene.add(rooms.mesh)
 
   // the wireframe is a switch: the view puts it over the mesh only while it is on
@@ -435,7 +435,7 @@ onMounted(() => {
   // the colours are keyed with the id of the level, and the id of a zip arrives after the level: the map is coloured
   // again when it lands, so two visits of the same level always show the same colours
   // the room inspector picks a room: the map dims the others, so the picked room reads at a glance
-  stopWatchingRoom = watch(selectedRooms, (picked) => {
+  stopWatchingRoom = watch(litRooms, (picked) => {
     rooms?.setHighlight(picked)
     loop.requestRender()
   })

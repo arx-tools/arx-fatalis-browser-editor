@@ -31,6 +31,77 @@ export const selectedRoom: ComputedRef<number | undefined> = computed(() => {
 })
 
 /**
+ * The rooms the checkboxes of the list lit, beside the ones the selection does.
+ *
+ * @remarks
+ * A checkbox is a **highlight** and nothing else (`166/2`): the author can look at several rooms at once without making
+ * them the selection, which is what the row click does (and what the moves of the mapper take).
+ */
+export const checkedRooms: ShallowRef<ReadonlySet<number>> = shallowRef(new Set())
+
+/**
+ * The room the pointer of the author is on, which the map lights while it is there.
+ *
+ * @remarks
+ * It is a preview of a row, so it is gone as soon as the pointer leaves: the set of the lit rooms is the selection, the
+ * checkboxes and this one together ({@link litRooms}).
+ */
+export const hoveredRoom: ShallowRef<number | undefined> = shallowRef(undefined)
+
+/**
+ * The rooms the room map lights: the ones of the selection, the checkboxes, and the hovered one.
+ */
+export const litRooms: ComputedRef<ReadonlySet<number>> = computed(() => {
+  const lit = new Set(selectedRooms.value)
+
+  for (const room of checkedRooms.value) {
+    lit.add(room)
+  }
+
+  const hovered = hoveredRoom.value
+
+  if (hovered !== undefined) {
+    lit.add(hovered)
+  }
+
+  return lit
+})
+
+/**
+ * Adds a room to the checked ones, or takes it out.
+ *
+ * @param room The room of the checkbox.
+ */
+export function toggleCheckedRoom(room: number): void {
+  const next = new Set(checkedRooms.value)
+
+  if (next.has(room)) {
+    next.delete(room)
+  } else {
+    next.add(room)
+  }
+
+  checkedRooms.value = next
+}
+
+/**
+ * Lights the room the pointer is on, or clears the hover.
+ *
+ * @param room The room under the pointer, or `undefined` when the pointer left the list.
+ */
+export function hoverRoom(room: number | undefined): void {
+  hoveredRoom.value = room
+}
+
+/**
+ * Clears the checkboxes and the hover: another level has other ids, so neither survives it.
+ */
+export function clearRoomHighlight(): void {
+  checkedRooms.value = new Set()
+  hoveredRoom.value = undefined
+}
+
+/**
  * Picks the rooms to highlight, or clears the pick.
  *
  * @param rooms The rooms to highlight; an empty set highlights none.

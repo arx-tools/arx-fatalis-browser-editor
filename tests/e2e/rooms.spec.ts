@@ -109,3 +109,63 @@ test('the mapper makes a room of the selected faces, and the undo takes them bac
 
   await expect(mapper.locator('.selection')).toContainText('in room 1')
 })
+
+/**
+ * The checkbox of a row lights a room without selecting it (TODO 176).
+ *
+ * @remarks
+ * The list has two kinds of state: the **row click** makes the faces of the room the selection (the pick), and the
+ * **checkbox** only lights the room in the map, so the author can look at several rooms without touching the selection.
+ */
+test('the checkbox of a room lights it, and leaves the selection alone', async ({ page }) => {
+  test.setTimeout(120_000)
+
+  await seedLayout(page, roomsLayout)
+  await page.goto('/?map=blank-flat')
+
+  await waitForLevel(page)
+
+  const roomInspector = page.locator('[data-widget-kind="room-inspector"]')
+  const selectionInspector = page.locator('[data-widget-kind="selection-inspector"]')
+  const row = roomInspector.locator('li.room').first()
+  const checkbox = row.locator('input[type="checkbox"]')
+
+  await expect(checkbox).toBeVisible()
+
+  /**
+   * Reads one value of the selection inspector by its label.
+   *
+   * @param label The label of the row.
+   *
+   * @returns The text next to the label.
+   */
+  async function selectedOf(label: string): Promise<string> {
+    const cells = selectionInspector.locator('dt')
+    const index = await cells.evaluateAll((all, wanted) => {
+      return all.findIndex((cell) => {
+        return cell.textContent === wanted
+      })
+    }, label)
+    const value = selectionInspector.locator('dd').nth(index)
+
+    return (await value.textContent()) ?? ''
+  }
+
+  await expect(row).not.toHaveClass(/is-checked/u)
+
+  await checkbox.click()
+
+  await expect(row).toHaveClass(/is-checked/u)
+  await expect(row).not.toHaveClass(/is-selected/u)
+  expect(await selectedOf('Selected faces')).toBe('0')
+
+  // a click on the row itself is the pick, and it clears the checkbox mark of the list: the two states are apart
+  await row.click()
+
+  await expect(row).toHaveClass(/is-selected/u)
+
+  // the pointer over another row lights it while it is there, and the selection stays the one of the pick
+  await roomInspector.locator('li.room').first().hover()
+
+  await expect(row).toHaveClass(/is-selected/u)
+})

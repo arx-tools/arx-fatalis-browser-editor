@@ -1,4 +1,4 @@
-import type { FaceTexture } from '../../../generator/ArxMap.ts'
+import type { FaceRoom, FaceTexture } from '../../../generator/ArxMap.ts'
 import type { PolygonInsertion } from '../../../generator/arxMap/removal.ts'
 import type { HistoryCommand } from './history.ts'
 import {
@@ -6,6 +6,7 @@ import {
   labelOf,
   type HistoryRecord,
   type MutableLevel,
+  type SetRoomRecord,
   type SetTextureRecord,
   type SetUvRecord,
 } from './records.ts'
@@ -34,6 +35,31 @@ import {
  *
  * @returns The command, or undefined when a face of the record is not in the level.
  */
+function roomCommandOf(record: SetRoomRecord, level: MutableLevel): HistoryCommand | undefined {
+  const moved: FaceRoom[] = []
+  const before: FaceRoom[] = []
+
+  for (const [position, index] of record.faces.entries()) {
+    if (level.polygons[index] === undefined) {
+      return undefined
+    }
+
+    moved.push({ index, room: record.to })
+    before.push({ index, room: record.from[position] ?? -1 })
+  }
+
+  return {
+    label: labelOf(record),
+    record,
+    apply: (): void => {
+      level.setFaceRooms(moved)
+    },
+    revert: (): void => {
+      level.setFaceRooms(before)
+    },
+  }
+}
+
 function textureCommandOf(record: SetTextureRecord, level: MutableLevel): HistoryCommand | undefined {
   const painted: FaceTexture[] = []
   const before: FaceTexture[] = []
@@ -128,6 +154,10 @@ export function commandOf(record: HistoryRecord, level: MutableLevel): HistoryCo
   // kind, and that step is skipped rather than guessed at
   if (record.kind === 'setTexture') {
     return textureCommandOf(record, level)
+  }
+
+  if (record.kind === 'setRoom') {
+    return roomCommandOf(record, level)
   }
 
   if (record.kind === 'setUv') {

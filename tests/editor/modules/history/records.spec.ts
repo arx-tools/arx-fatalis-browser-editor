@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { ArxPolygonFlags, type ArxPolygon } from 'arx-convert/types'
-import type { FaceTexture } from '../../../../src/generator/ArxMap.ts'
+import type { FaceRoom, FaceTexture } from '../../../../src/generator/ArxMap.ts'
 import type { PolygonInsertion } from '../../../../src/generator/arxMap/removal.ts'
 import type { FaceUv } from '../../../../src/generator/arxMap/uvs.ts'
 import { commandOf } from '../../../../src/editor/modules/history/commands.ts'
@@ -86,6 +86,15 @@ function fakeLevel(count: number): {
 
           if (polygon !== undefined) {
             polygon.textureContainerId = change.textureContainerId
+          }
+        }
+      },
+      setFaceRooms: (changes: readonly FaceRoom[]): void => {
+        for (const change of changes) {
+          const polygon = polygons[change.index]
+
+          if (polygon !== undefined) {
+            polygon.room = change.room
           }
         }
       },

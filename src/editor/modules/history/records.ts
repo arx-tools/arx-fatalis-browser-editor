@@ -1,5 +1,5 @@
 import type { ArxPolygon } from 'arx-convert/types'
-import type { FaceTexture } from '../../../generator/ArxMap.ts'
+import type { FaceRoom, FaceTexture } from '../../../generator/ArxMap.ts'
 import type { PolygonInsertion } from '../../../generator/arxMap/removal.ts'
 import type { FaceUv } from '../../../generator/arxMap/uvs.ts'
 import type { HistoryCommand } from './history.ts'
@@ -90,6 +90,36 @@ export interface SetTextureRecord {
 }
 
 /**
+ * The step that moves faces into a room.
+ *
+ * @remarks
+ * The room of a face is an id of the FTS, and the step carries the ids the faces had, so the undo puts every face back
+ * where it was. A face that belongs to no room takes `-1`, which is what the file says about it.
+ */
+export interface SetRoomRecord {
+  /**
+   * The version of the shape of this record, see {@link HISTORY_RECORD_VERSION}.
+   */
+  readonly version: number
+  /**
+   * What the step does, which names its payload.
+   */
+  readonly kind: 'setRoom'
+  /**
+   * The faces the step moves, by their index in the level, sorted.
+   */
+  readonly faces: readonly number[]
+  /**
+   * The room every face had before the step, in the order of {@link SetRoomRecord.faces}.
+   */
+  readonly from: readonly number[]
+  /**
+   * The room the faces take, or `-1` to take them out of their room.
+   */
+  readonly to: number
+}
+
+/**
  * The step that moves the corners of faces on their texture.
  *
  * @remarks
@@ -132,7 +162,7 @@ export interface SetUvRecord {
  * The union grows with the kinds of the steps: `deleteFaces` and `setTexture` today, `moveVertex`, `moveLight` and the
  * rest as they arrive.
  */
-export type HistoryRecord = DeleteFacesRecord | SetTextureRecord | SetUvRecord
+export type HistoryRecord = DeleteFacesRecord | SetRoomRecord | SetTextureRecord | SetUvRecord
 
 /**
  * The part of the level a step may touch.
@@ -165,6 +195,12 @@ export interface MutableLevel {
    * @param changes The faces and the container each of them takes.
    */
   setFaceTextures(changes: readonly FaceTexture[]): void
+  /**
+   * Moves faces into rooms.
+   *
+   * @param changes The faces and the room each of them takes.
+   */
+  setFaceRooms(changes: readonly FaceRoom[]): void
   /**
    * Adds a texture container to the level.
    *
@@ -257,6 +293,36 @@ export function createSetTextureRecord(
 }
 
 /**
+ * Builds the record of a room move, the way a step writes it down.
+ *
+ * @remarks
+ * The faces are sorted by their index, and the rooms they had follow them, so the same move gives the same record
+ * whatever order the selection held the faces in.
+ *
+ * @param changes The faces the step moves and their rooms before the step.
+ * @param to The room the faces take, or `-1` to take them out of their room.
+ *
+ * @returns The record of the step.
+ */
+export function createSetRoomRecord(changes: Iterable<FaceRoom>, to: number): SetRoomRecord {
+  const sorted = [...changes].toSorted((one, other) => {
+    return one.index - other.index
+  })
+
+  return {
+    version: HISTORY_RECORD_VERSION,
+    kind: 'setRoom',
+    faces: sorted.map((change) => {
+      return change.index
+    }),
+    from: sorted.map((change) => {
+      return change.room
+    }),
+    to,
+  }
+}
+
+/**
  * Builds the record of a uv edit, the way a step writes it down.
  *
  * @remarks
@@ -302,6 +368,14 @@ export function createSetUvRecord(
 export function labelOf(record: HistoryRecord): string {
   if (record.kind === 'setTexture') {
     return `Set texture on ${String(record.faces.length)} face(s)`
+  }
+
+  if (record.kind === 'setRoom') {
+    if (record.to === -1) {
+      return `Take ${String(record.faces.length)} face(s) out of their room`
+    }
+
+    return `Move ${String(record.faces.length)} face(s) to room ${String(record.to)}`
   }
 
   if (record.kind === 'setUv') {

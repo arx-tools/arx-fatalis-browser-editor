@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { roomsLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
-import { seedLayout, waitForLevel } from './support/editor.ts'
+import { WIDGET_KINDS } from '../../src/editor/modules/layout/widgetKinds.ts'
+import { renameKinds, seedLayout, waitForLevel } from './support/editor.ts'
 
 /**
  * The room list and the selection are one thing (TODO 175).
@@ -66,4 +67,45 @@ test('a room of the list selects its faces, and a second click clears both', asy
 
   await expect(row).not.toHaveClass(/is-selected/u)
   expect(await selectedOf('Selected faces')).toBe('0')
+})
+
+/**
+ * The room mapper moves the faces of the selection into a room (TODO 162).
+ *
+ * @remarks
+ * The blank plane has every face in room 1, so a pick of the room selects them, and the mapper can make a new room of
+ * them: the level then has room 2 with the faces, and room 1 without them. The step is the history's, so the undo takes
+ * the faces back.
+ */
+test('the mapper makes a room of the selected faces, and the undo takes them back', async ({ page }) => {
+  test.setTimeout(120_000)
+
+  // the mapper takes the row of the selection inspector: the count it shows is its own, and the room list stays
+  await seedLayout(page, renameKinds(roomsLayout, { [WIDGET_KINDS.selectionInspector]: WIDGET_KINDS.roomMapper }))
+  await page.goto('/?map=blank-flat')
+
+  const faces = await waitForLevel(page)
+
+  const roomInspector = page.locator('[data-widget-kind="room-inspector"]')
+  const mapper = page.locator('[data-widget-kind="room-mapper"]')
+
+  await expect(mapper).toBeVisible()
+
+  // the pick of the room selects its faces, which is what the mapper moves
+  await roomInspector.locator('li.room').first().click()
+  await expect(mapper.locator('.selection')).toContainText(`${String(faces)} face(s) in room 1`)
+
+  await mapper.locator('button', { hasText: 'New room' }).click()
+
+  await expect(mapper.locator('.selection')).toContainText('in room 2')
+
+  // the list shows the rooms the level has a face in: room 1 is empty now, so the one row is the new room
+  await expect(roomInspector.locator('li.room')).toHaveCount(1)
+  await expect(roomInspector.locator('li.room').first()).toContainText('room 2')
+  await expect(roomInspector.locator('li.room').first()).toContainText(String(faces))
+
+  // the step is one of the history: the undo puts every face back into room 1
+  await page.keyboard.press('ControlOrMeta+z')
+
+  await expect(mapper.locator('.selection')).toContainText('in room 1')
 })

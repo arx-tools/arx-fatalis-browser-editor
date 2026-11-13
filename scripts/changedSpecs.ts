@@ -140,6 +140,7 @@ export const coverage: readonly SpecCoverage[] = [
     spec: 'tests/e2e/rooms.spec.ts',
     covers: [
       'src/editor/components/widgets/RoomInspectorWidget/**',
+      'src/editor/components/widgets/RoomMapperWidget/**',
       'src/editor/components/widgets/shared/roomOverlay.ts',
       'src/editor/modules/rooms/**',
     ],

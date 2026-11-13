@@ -76,6 +76,20 @@ export interface FaceTexture {
 }
 
 /**
+ * The room of a face.
+ */
+export interface FaceRoom {
+  /**
+   * The index of the face in {@link ArxMap.polygons}.
+   */
+  readonly index: number
+  /**
+   * The id of the room it belongs to, or `-1` for a face without a room.
+   */
+  readonly room: number
+}
+
+/**
  * A level of the game: its three parsed files and the meshes built from them.
  *
  * @remarks
@@ -496,6 +510,27 @@ export class ArxMap {
 
     if (changed) {
       this.textureRuns = readTextureRuns(this.solidMeshes[0].geometry, this.polygons, this.triangleToPolygon)
+    }
+  }
+
+  /**
+   * Moves faces into rooms.
+   *
+   * @remarks
+   * The room of a face is the id of its room in the FTS, and it is read by the room map, the inspector and the export
+   * (the epdata of the file). It is not a part of the geometry the level is built from, so a step that moves a face
+   * changes nothing the meshes draw: the colour attribute of the room map is written again by its
+   * {@link RoomOverlay.repaint} (the views do it when the level revision moves).
+   *
+   * @param changes The faces and the room each of them takes.
+   */
+  setFaceRooms(changes: readonly FaceRoom[]): void {
+    for (const change of changes) {
+      const polygon = this.polygons[change.index]
+
+      if (polygon !== undefined) {
+        polygon.room = change.room
+      }
     }
   }
 

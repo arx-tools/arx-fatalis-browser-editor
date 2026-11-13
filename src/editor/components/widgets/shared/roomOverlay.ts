@@ -70,11 +70,11 @@ export interface RoomOverlay {
    */
   readonly repaint: (map: ArxMap, mapId: string) => void
   /**
-   * Picks the room the map highlights, or clears the highlight.
+   * Picks the rooms the map highlights, or clears the highlight.
    *
-   * @param room The room to show at full colour, or `undefined` to show every room the same.
+   * @param rooms The rooms to show at full colour; an empty set shows every room the same.
    */
-  readonly setHighlight: (room: number | undefined) => void
+  readonly setHighlight: (rooms: ReadonlySet<number>) => void
   /**
    * Frees the material of the overlay.
    *
@@ -95,9 +95,9 @@ export interface RoomOverlay {
  *
  * @param map The level to read.
  * @param coloring The colour of every room.
- * @param highlight The room to keep at full colour, or `undefined` to show them all the same.
+ * @param highlight The rooms to keep at full colour; an empty set shows them all the same.
  */
-function writeRoomColors(map: ArxMap, coloring: RoomColoring, highlight: number | undefined): void {
+function writeRoomColors(map: ArxMap, coloring: RoomColoring, highlight: ReadonlySet<number>): void {
   const { geometry } = map.solidMeshes[0]
   const positions = geometry.getAttribute('position')
   const colors = new Float32Array(positions.count * COLOR_ITEM_SIZE)
@@ -113,7 +113,7 @@ function writeRoomColors(map: ArxMap, coloring: RoomColoring, highlight: number 
   for (let vertex = 0; vertex < positions.count; vertex++) {
     const triangle = Math.floor(vertex / VERTICES_PER_TRIANGLE)
     const polygon = map.polygons[map.triangleToPolygon[triangle]]
-    const away = highlight !== undefined && polygon?.room !== highlight
+    const away = highlight.size > 0 && polygon !== undefined && !highlight.has(polygon.room)
     let roomPalette = palette
     let color = unassigned
 
@@ -157,7 +157,7 @@ export function createRoomOverlay(map: ArxMap, mapId: string): RoomOverlay {
 
   let coloring: RoomColoring = { colors: new Map(), colorCount: 0 }
   let level = map
-  let highlighted: number | undefined
+  let highlighted: ReadonlySet<number> = new Set()
 
   /**
    * Colours the rooms of a level and writes the colours into the geometry.
@@ -186,12 +186,12 @@ export function createRoomOverlay(map: ArxMap, mapId: string): RoomOverlay {
       return coloring
     },
     repaint,
-    setHighlight: (room: number | undefined): void => {
-      if (room === highlighted) {
+    setHighlight: (rooms: ReadonlySet<number>): void => {
+      if (rooms === highlighted) {
         return
       }
 
-      highlighted = room
+      highlighted = rooms
       writeRoomColors(level, coloring, highlighted)
     },
     dispose: (): void => {

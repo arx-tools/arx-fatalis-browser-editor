@@ -137,6 +137,14 @@ export const coverage: readonly SpecCoverage[] = [
     covers: ['src/editor/modules/level/source/maps.ts', 'src/editor/modules/level/source/maps/**'],
   },
   {
+    spec: 'tests/e2e/rooms.spec.ts',
+    covers: [
+      'src/editor/components/widgets/RoomInspectorWidget/**',
+      'src/editor/components/widgets/shared/roomOverlay.ts',
+      'src/editor/modules/rooms/**',
+    ],
+  },
+  {
     spec: 'tests/e2e/selection.spec.ts',
     covers: ['src/editor/components/widgets/SelectionInspectorWidget/**', 'src/editor/modules/selection/**'],
   },

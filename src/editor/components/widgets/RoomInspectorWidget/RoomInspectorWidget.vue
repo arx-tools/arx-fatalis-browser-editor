@@ -5,7 +5,8 @@ import { crosshairStore } from '../../../modules/crosshair/crosshairStore.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { currentMapId } from '../../../modules/level/source/maps.ts'
-import { selectedRoom, selectRoom } from '../../../modules/rooms/roomStore.ts'
+import { selectedRooms, selectRoom } from '../../../modules/rooms/roomStore.ts'
+import { pickRoom } from '../../../modules/rooms/roomSelection.ts'
 import WidgetHeading from '../../WidgetHeading.vue'
 import { isMeshVisible, isRoomColorsVisible, toggleRoomColors } from '../shared/levelDisplay.ts'
 import {
@@ -107,23 +108,35 @@ watch(levelStore.map, () => {
 })
 
 /**
+ * Whether the pick is exactly this room.
+ *
+ * @param room The room the row stands for.
+ *
+ * @returns True when the room is the only one highlighted.
+ */
+function isPicked(room: number): boolean {
+  return selectedRooms.value.size === 1 && selectedRooms.value.has(room)
+}
+
+/**
  * Picks a room, shows the room map, or clears the pick when the picked room is clicked again.
  *
  * @remarks
- * The highlight is the room map dimming the other rooms, so a pick with the textures on would do nothing visible. The
- * author who clicks a room wants to see it, so the map comes on with the pick (the switch stays his to turn off), and a
- * second click on the same row clears the dim.
+ * The pick is a face selection (`roomSelection.ts`): the room lights up and its faces arrive selected, so the same
+ * gesture that shows the room is the one that makes it the working set. The author who clicks a room wants to see it,
+ * so the map comes on with the pick (the switch stays his to turn off), and a second click on the same row clears the
+ * pick and the selection with it.
  *
  * @param room The room the row stands for.
  */
 function pick(room: number): void {
-  if (selectedRoom.value === room) {
-    selectRoom(undefined)
+  if (isPicked(room)) {
+    pickRoom(undefined)
 
     return
   }
 
-  selectRoom(room)
+  pickRoom(room)
   isRoomColorsVisible.value = true
 }
 </script>
@@ -157,7 +170,7 @@ function pick(room: number): void {
         v-for="row in rows"
         :key="row.room"
         class="room"
-        :class="{ 'is-selected': row.room === selectedRoom }"
+        :class="{ 'is-selected': selectedRooms.has(row.room) }"
         @click="pick(row.room)"
       >
         <span class="swatch" :style="{ backgroundColor: row.color }"></span>

@@ -19,7 +19,7 @@ import {
 } from '../shared/levelScene.ts'
 import { isMeshVisible, isRoomColorsVisible, isWireframeVisible } from '../shared/levelDisplay.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
-import { selectedRoom } from '../../../modules/rooms/roomStore.ts'
+import { selectedRooms } from '../../../modules/rooms/roomStore.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { createPolygonSelectionOverlay, type PolygonSelectionOverlay } from '../View3DWidget/polygonSelection.ts'
 import { createRoomOverlay, type RoomOverlay } from '../shared/roomOverlay.ts'
@@ -337,7 +337,7 @@ function showMap(map: ArxMap): void {
 
   // the room map shares the geometry of the level, so the small views show the same rooms
   rooms = createRoomOverlay(map, currentMapId.value)
-  rooms.setHighlight(selectedRoom.value)
+  rooms.setHighlight(selectedRooms.value)
   view.scene.add(rooms.mesh)
   setMeshVisible(isMeshVisible.value)
 
@@ -490,8 +490,8 @@ stopWatchingRooms = watch(isRoomColorsVisible, () => {
 })
 
 // the room inspector picks a room: the small views dim the others like the walkable one
-stopWatchingRoom = watch(selectedRoom, (room) => {
-  rooms?.setHighlight(room)
+stopWatchingRoom = watch(selectedRooms, (picked) => {
+  rooms?.setHighlight(picked)
   requestRender()
 })
 

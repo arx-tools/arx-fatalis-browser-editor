@@ -350,10 +350,77 @@ test('a shift click on a fixed view selects a room, and the camera stays', async
     })
     .toBeGreaterThan(0)
 
-  // the camera form still holds the same position: the press did not jump
+  // Ctrl on the same place takes the room back out of the selection, and the camera still does not move
+  await page.keyboard.down('Control')
+  await page.mouse.click(box.x + halfWidth, box.y + halfHeight)
+  await page.keyboard.up('Control')
+
+  await expect
+    .poll(async () => {
+      return await roomInspector.locator('li.room.is-selected').count()
+    })
+    .toBe(0)
+
+  // the camera form still holds the same position: neither press jumped
   await page.waitForTimeout(400)
 
   expect(await xField.inputValue()).toBe(before)
+})
+
+/**
+ * `Shift` alone lights the room under the pointer of a fixed view, without a move of the mouse.
+ *
+ * @remarks
+ * The pointer of the front view stands on a face of another room, and only the key goes down: the room joins the hover
+ * of the crosshair, and the release takes it away again. The front view's middle is over a face of level 12, so the
+ * test does not need a mouse move to find one.
+ */
+test('shift alone lights the room under the pointer of a fixed view', async ({ page }) => {
+  test.setTimeout(120_000)
+
+  await seedLayout(page, roomsLayout)
+  await page.goto(levelUrl(12))
+
+  await waitForLevel(page)
+
+  const roomInspector = page.locator('[data-widget-kind="room-inspector"]')
+
+  // the Shift gestures belong to the room map
+  await roomInspector.getByRole('button', { name: 'Show the rooms' }).click()
+
+  const front = page.locator('[data-widget-kind="front-view"] canvas.stage')
+  const box = await front.boundingBox()
+
+  if (box === null) {
+    throw new Error('the front view has no canvas')
+  }
+
+  const hovered = roomInspector.locator('li.room.is-hovered')
+  const before = await hovered.count()
+  const halfWidth = box.width / 2
+  const halfHeight = box.height / 2
+
+  /**
+   * Counts the rows the hover wash marks.
+   *
+   * @returns How many rows read as hovered.
+   */
+  async function hoveredCount(): Promise<number> {
+    return await hovered.count()
+  }
+
+  // the pointer stands on a face of the front view and does not move: only the key goes down
+  await page.mouse.move(box.x + halfWidth, box.y + halfHeight)
+
+  await expect.poll(hoveredCount).toBe(before)
+
+  await page.keyboard.down('Shift')
+
+  await expect.poll(hoveredCount).toBeGreaterThan(before)
+
+  await page.keyboard.up('Shift')
+
+  await expect.poll(hoveredCount).toBe(before)
 })
 
 /**

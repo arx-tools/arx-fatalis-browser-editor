@@ -5,7 +5,14 @@ import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { currentMapId } from '../../../modules/level/source/maps.ts'
 import { nameOf, renameRoom, roomNameOf, UNNAMED_ROOM } from '../../../modules/rooms/roomNames.ts'
-import { clearRoomHover, hoverRoom, selectedRoom, selectedRooms, selectRoom } from '../../../modules/rooms/roomStore.ts'
+import {
+  clearRoomHover,
+  hoveredRoom,
+  hoverRoom,
+  selectedRoom,
+  selectedRooms,
+  selectRoom,
+} from '../../../modules/rooms/roomStore.ts'
 import { pickRoom } from '../../../modules/rooms/roomSelection.ts'
 import { currentRoom } from '../../../modules/rooms/roomUnderCrosshair.ts'
 import { selectionModeOf } from '../../../modules/selection/selectionStore.ts'
@@ -177,7 +184,10 @@ function pick(room: number, event: MouseEvent): void {
         v-for="row in rows"
         :key="row.room"
         class="room"
-        :class="{ 'is-selected': selectedRooms.has(row.room), 'is-hovered': row.room === currentRoom }"
+        :class="{
+          'is-selected': selectedRooms.has(row.room),
+          'is-hovered': row.room === currentRoom || row.room === hoveredRoom,
+        }"
         @click="pick(row.room, $event)"
         @mouseenter="hoverRoom(row.room)"
         @mouseleave="hoverRoom(undefined)"

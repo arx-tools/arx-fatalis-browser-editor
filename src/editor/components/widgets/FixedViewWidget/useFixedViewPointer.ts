@@ -1,6 +1,7 @@
 import type { ArxVector3 } from 'arx-convert/types'
 import type { OrthographicCamera } from 'three'
 import type { Ref } from 'vue'
+import { selectionModeOf, type SelectionMode } from '../../../modules/selection/selectionStore.ts'
 import { cameraStore } from '../camera/cameraStore.ts'
 import { gamePositionToWorld, worldPositionToGame } from '../camera/cameraPose.ts'
 import type { ViewScene } from '../shared/viewScene.ts'
@@ -84,11 +85,12 @@ export interface FixedViewPointerContext {
    */
   readonly hoverRoom: (room: number | undefined) => void
   /**
-   * Adds the faces of a room to the selection.
+   * Adds the faces of a room to the selection, or takes them away.
    *
-   * @param room The room the `Shift` click landed on.
+   * @param room The room the `Shift` or the `Ctrl` click landed on.
+   * @param mode Whether the room is added or taken away.
    */
-  readonly selectRoom: (room: number) => void
+  readonly selectRoom: (room: number, mode: SelectionMode) => void
   /**
    * Whether the room map is on: the `Shift` gestures of the pointer belong to it.
    *
@@ -112,6 +114,12 @@ export interface FixedViewPointer {
    */
   readonly onPointerDown: (event: PointerEvent) => void
   /**
+   * Reads the point the pointer enters the view on.
+   *
+   * @param event The pointer event of the view.
+   */
+  readonly onPointerEnter: (event: PointerEvent) => void
+  /**
    * Follows a dragged pointer.
    *
    * @remarks
@@ -130,6 +138,22 @@ export interface FixedViewPointer {
    * Takes the hover highlight away when the pointer leaves the canvas.
    */
   readonly onPointerLeave: () => void
+  /**
+   * Lights the room under the standing pointer again, or clears the highlight.
+   *
+   * @remarks
+   * The widget calls it when the room map comes on: a pointer that stood still while the map was off has a hover to
+   * read, and the next pointer move would be the only thing to show it otherwise.
+   */
+  readonly refreshHover: () => void
+  /**
+   * Starts the key listeners that keep the hover in step with `Shift`.
+   */
+  readonly start: () => void
+  /**
+   * Stops the key listeners.
+   */
+  readonly stop: () => void
   /**
    * Zooms the view with the wheel of the pointer.
    *
@@ -160,6 +184,21 @@ export function useFixedViewPointer(context: FixedViewPointerContext): FixedView
   let pressing = false
 
   /**
+   * Whether the pointer is over the canvas.
+   */
+  let inside = false
+
+  /**
+   * Whether `Shift` is held down, as the last pointer or key event reported it.
+   */
+  let shiftHeld = false
+
+  /**
+   * The last point of the canvas the pointer was on: the room of a `Shift` press comes from it.
+   */
+  let lastPixel: FixedViewPixel | undefined
+
+  /**
    * Reads the pointer and the canvas it is on.
    *
    * @param event The pointer event of the view.
@@ -184,6 +223,41 @@ export function useFixedViewPointer(context: FixedViewPointerContext): FixedView
     const { x, y } = canvasOf(event)
 
     return { x, y }
+  }
+
+  /**
+   * Lights the room under the pointer, or clears the highlight.
+   *
+   * @remarks
+   * It reads the last point the pointer was on, so a `Shift` press or release over a standing pointer updates the map
+   * without a move: the view does not have to wait for the next `pointermove`.
+   */
+  function refreshHover(): void {
+    if (pressing || !inside || lastPixel === undefined) {
+      return
+    }
+
+    if (shiftHeld && isRoomMapVisible()) {
+      hoverRoom(roomAt(lastPixel))
+
+      return
+    }
+
+    hoverRoom(undefined)
+  }
+
+  /**
+   * Follows the `Shift` key of the window, so a pointer that stands still reacts to the key too.
+   *
+   * @param event The key event of the window.
+   */
+  function onShiftKey(event: KeyboardEvent): void {
+    if (event.key !== 'Shift') {
+      return
+    }
+
+    shiftHeld = event.shiftKey
+    refreshHover()
   }
 
   /**
@@ -221,33 +295,43 @@ export function useFixedViewPointer(context: FixedViewPointerContext): FixedView
 
   return {
     onPointerDown: (event): void => {
-      // Shift belongs to the room map: it selects the room under the pointer, and it does not move the camera
-      if (event.shiftKey && isRoomMapVisible()) {
+      shiftHeld = event.shiftKey
+
+      // Shift and Ctrl/Meta belong to the room map: they add or take the room under the pointer, and the camera stays
+      const gesture = selectionModeOf(event)
+
+      if (gesture !== 'replace' && isRoomMapVisible()) {
         const room = roomAt(canvasOf(event))
 
         if (room !== undefined) {
-          selectRoom(room)
+          selectRoom(room, gesture)
         }
 
         return
       }
 
       pressing = true
+      inside = true
+      lastPixel = canvasOf(event)
       hoverRoom(undefined)
       moveToPointer(event)
 
       const stage = event.currentTarget as HTMLElement
       stage.setPointerCapture(event.pointerId)
     },
+    onPointerEnter: (event): void => {
+      inside = true
+      shiftHeld = event.shiftKey
+      lastPixel = canvasOf(event)
+      refreshHover()
+    },
     onPointerMove: (event): void => {
-      // a Shift pointer over the map lights the room it is on, and a plain one takes the highlight away; a press is
-      // the navigation, and it keeps its own gestures
+      inside = true
+      shiftHeld = event.shiftKey
+      lastPixel = canvasOf(event)
+
       if (!pressing) {
-        if (event.shiftKey && isRoomMapVisible()) {
-          hoverRoom(roomAt(canvasOf(event)))
-        } else {
-          hoverRoom(undefined)
-        }
+        refreshHover()
       }
 
       if (!pressing || zoom.value > 1) {
@@ -266,7 +350,17 @@ export function useFixedViewPointer(context: FixedViewPointerContext): FixedView
       }
     },
     onPointerLeave: (): void => {
+      inside = false
       hoverRoom(undefined)
+    },
+    refreshHover,
+    start: (): void => {
+      globalThis.addEventListener('keydown', onShiftKey)
+      globalThis.addEventListener('keyup', onShiftKey)
+    },
+    stop: (): void => {
+      globalThis.removeEventListener('keydown', onShiftKey)
+      globalThis.removeEventListener('keyup', onShiftKey)
     },
     onWheel: (event): void => {
       event.preventDefault()

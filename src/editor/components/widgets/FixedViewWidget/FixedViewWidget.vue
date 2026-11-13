@@ -262,9 +262,9 @@ const pointer = useFixedViewPointer({
     return room
   },
   hoverRoom,
-  selectRoom: (room) => {
-    // the same gesture the row of the room list makes: Shift adds the room to the selection
-    pickRoom(room, 'add')
+  selectRoom: (room, mode) => {
+    // the same gestures the room list makes: Shift adds the room to the selection and Ctrl/Meta takes it away
+    pickRoom(room, mode)
   },
   isRoomMapVisible: () => {
     return isRoomColorsVisible.value
@@ -463,11 +463,13 @@ onMounted(() => {
 
   // the click of a fixed view is the navigation of the walkable one (TODO 85), and a Shift pointer belongs to the room
   // map: the press selects a room and the hover lights one
+  target.addEventListener('pointerenter', pointer.onPointerEnter)
   target.addEventListener('pointerdown', pointer.onPointerDown)
   target.addEventListener('pointermove', pointer.onPointerMove)
   target.addEventListener('pointerup', pointer.onPointerUp)
   target.addEventListener('pointercancel', pointer.onPointerUp)
   target.addEventListener('pointerleave', pointer.onPointerLeave)
+  pointer.start()
 
   resize()
 
@@ -539,6 +541,8 @@ stopWatchingRooms = watch(isRoomColorsVisible, () => {
   // the highlight is painted only while the map is on, and the lit set may have changed while it was off
   if (isRoomColorsVisible.value) {
     rooms?.setHighlight(litRooms.value)
+    // a pointer that stood still while the map was off has a hover to show now
+    pointer.refreshHover()
   } else {
     // the Shift hover belongs to the map: a highlight left over would light a room when the map comes back
     hoverRoom(undefined)
@@ -593,12 +597,15 @@ onBeforeUnmount(() => {
   const stage = canvas.value
 
   if (stage !== null) {
+    stage.removeEventListener('pointerenter', pointer.onPointerEnter)
     stage.removeEventListener('pointerdown', pointer.onPointerDown)
     stage.removeEventListener('pointermove', pointer.onPointerMove)
     stage.removeEventListener('pointerup', pointer.onPointerUp)
     stage.removeEventListener('pointercancel', pointer.onPointerUp)
     stage.removeEventListener('pointerleave', pointer.onPointerLeave)
   }
+
+  pointer.stop()
 
   // a view that goes away can not take its hover with it: the highlight would stay on the map
   hoverRoom(undefined)

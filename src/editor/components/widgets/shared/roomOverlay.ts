@@ -27,11 +27,12 @@ const COLOR_ITEM_SIZE = 3
 const VERTICES_PER_TRIANGLE = 3
 
 /**
- * How much of its colour a room keeps while another one is highlighted.
+ * How much of its colour a room keeps while the map does not highlight it.
  *
  * @remarks
- * The list of the rooms highlights one room at a time: the map stays readable around it (the geometry is still there),
- * but the eye goes to the picked room. The value is a dim, not a hide, so a face outside the area is still seen.
+ * The map is dark by default: the rooms the author works with (the selection, the hover, the room of the crosshair) are
+ * at full colour, and everything else is dimmed, so the eye goes to them. The value is a dim, not a hide: the shape of
+ * the level stays readable around the lit rooms.
  */
 const DIMMED = 0.35
 
@@ -70,9 +71,9 @@ export interface RoomOverlay {
    */
   readonly repaint: (map: ArxMap, mapId: string) => void
   /**
-   * Picks the rooms the map highlights, or clears the highlight.
+   * Picks the rooms the map keeps at full colour, or clears the highlight.
    *
-   * @param rooms The rooms to show at full colour; an empty set shows every room the same.
+   * @param rooms The rooms to show at full colour; an empty set dims every room.
    */
   readonly setHighlight: (rooms: ReadonlySet<number>) => void
   /**
@@ -95,7 +96,7 @@ export interface RoomOverlay {
  *
  * @param map The level to read.
  * @param coloring The colour of every room.
- * @param highlight The rooms to keep at full colour; an empty set shows them all the same.
+ * @param highlight The rooms to keep at full colour; an empty set dims every room.
  */
 function writeRoomColors(map: ArxMap, coloring: RoomColoring, highlight: ReadonlySet<number>): void {
   const { geometry } = map.solidMeshes[0]
@@ -113,7 +114,8 @@ function writeRoomColors(map: ArxMap, coloring: RoomColoring, highlight: Readonl
   for (let vertex = 0; vertex < positions.count; vertex++) {
     const triangle = Math.floor(vertex / VERTICES_PER_TRIANGLE)
     const polygon = map.polygons[map.triangleToPolygon[triangle]]
-    const away = highlight.size > 0 && polygon !== undefined && !highlight.has(polygon.room)
+    // the map is dark by default: only the highlighted rooms keep their full colour
+    const away = polygon === undefined || !highlight.has(polygon.room)
     let roomPalette = palette
     let color = unassigned
 

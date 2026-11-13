@@ -139,7 +139,7 @@ void describe('readLevelFromZip', () => {
 
     assert.equal(level.label, 'Lalee minigame')
     assert.equal(level.manifest?.version, '2.1.1')
-    assert.equal(level.manifest?.author, 'Lali')
+    assert.deepEqual(level.manifest?.author, { name: 'Lali' })
     assert.equal(level.manifest?.seed, 42)
   })
 

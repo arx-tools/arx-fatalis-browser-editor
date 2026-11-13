@@ -170,6 +170,8 @@ void describe('buildExportManifest', () => {
       seed: '590085197',
       files: filesOf(13),
       metadata: undefined,
+      author: undefined,
+      project: undefined,
       editor: editorBuild,
       exportedAt,
     })
@@ -180,7 +182,7 @@ void describe('buildExportManifest', () => {
       version: undefined,
       description: undefined,
       author: undefined,
-      url: undefined,
+      project: undefined,
       editor: { ...editorBuild, exportedAt },
       files: filesOf(13),
     })
@@ -191,6 +193,8 @@ void describe('buildExportManifest', () => {
       seed: undefined,
       files: filesOf(8),
       metadata: undefined,
+      author: undefined,
+      project: undefined,
       editor: editorBuild,
       exportedAt,
     })
@@ -204,6 +208,8 @@ void describe('buildExportManifest', () => {
       seed: 'the seed of my map',
       files: filesOf(8),
       metadata: undefined,
+      author: undefined,
+      project: undefined,
       editor: editorBuild,
       exportedAt,
     })
@@ -216,6 +222,8 @@ void describe('buildExportManifest', () => {
       seed: '590085197',
       files: filesOf(8),
       metadata: undefined,
+      author: undefined,
+      project: undefined,
       editor: editorBuild,
       exportedAt,
     })
@@ -231,11 +239,13 @@ void describe('buildExportManifest', () => {
         name: 'arx-map-lalees-minigame',
         version: '2.1.1',
         description: 'A map',
-        author: 'Lajos Meszaros <m_lajos@hotmail.com>',
-        url: 'https://example.com/the-mod',
+        author: { name: 'Lajos Meszaros' },
+        project: { homepage: 'https://example.com/the-mod' },
         seed: 999,
         files: ['/the/files/of/the/zip'],
       },
+      author: undefined,
+      project: undefined,
       editor: editorBuild,
       exportedAt,
     })
@@ -243,12 +253,30 @@ void describe('buildExportManifest', () => {
     assert.equal(manifest.name, 'arx-map-lalees-minigame')
     assert.equal(manifest.version, '2.1.1')
     assert.equal(manifest.description, 'A map')
-    assert.equal(manifest.author, 'Lajos Meszaros <m_lajos@hotmail.com>')
-    assert.equal(manifest.url, 'https://example.com/the-mod')
+    assert.deepEqual(manifest.author, { name: 'Lajos Meszaros' })
+    assert.deepEqual(manifest.project, { homepage: 'https://example.com/the-mod' })
 
     // the seed of the dialog wins over the one of the base, and the files are the ones of this archive
     assert.equal(manifest.seed, 12_345)
     assert.deepEqual(manifest.files, filesOf(1))
+
+    // the author of the zip is kept when the dialog has none
+    assert.deepEqual(manifest.author, { name: 'Lajos Meszaros' })
+  })
+
+  void it('writes the author and the page the dialog read over the ones of the zip', () => {
+    const manifest = buildExportManifest({
+      seed: '12345',
+      files: filesOf(1),
+      metadata: { author: { name: 'The old author' }, project: { homepage: 'https://example.com/old' } },
+      author: { name: 'Lali' },
+      project: { homepage: 'https://example.com/me' },
+      editor: editorBuild,
+      exportedAt,
+    })
+
+    assert.deepEqual(manifest.author, { name: 'Lali' })
+    assert.deepEqual(manifest.project, { homepage: 'https://example.com/me' })
   })
 
   void it('writes the seed of the base when the dialog has none', () => {
@@ -256,6 +284,8 @@ void describe('buildExportManifest', () => {
       seed: undefined,
       files: filesOf(1),
       metadata: { seed: 987 },
+      author: undefined,
+      project: undefined,
       editor: editorBuild,
       exportedAt,
     })

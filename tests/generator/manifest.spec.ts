@@ -35,7 +35,7 @@ void describe('manifestOf', () => {
       version: undefined,
       description: undefined,
       author: undefined,
-      url: undefined,
+      project: undefined,
       editor: undefined,
       files: undefined,
     })
@@ -47,13 +47,15 @@ void describe('manifestOf', () => {
       name: 'arx-map-lalees-minigame',
       version: '2.1.1',
       description: 'A map',
-      author: 'Lajos Meszaros <m_lajos@hotmail.com>',
+      author: { name: 'Lajos Meszaros' },
+      project: { homepage: 'https://example.com/lali' },
       url: 'https://example.com/the-mod',
       files: ['/game/graph/levels/level1/fast.fts'],
     })
 
     assert.equal(manifest?.name, 'arx-map-lalees-minigame')
-    assert.equal(manifest?.author, 'Lajos Meszaros <m_lajos@hotmail.com>')
+    assert.deepEqual(manifest?.author, { name: 'Lajos Meszaros' })
+    assert.deepEqual(manifest?.project, { homepage: 'https://example.com/lali' })
     assert.equal(manifest?.seed, '12345')
     assert.deepEqual(manifest?.files, ['/game/graph/levels/level1/fast.fts'])
   })
@@ -70,6 +72,30 @@ void describe('manifestOf', () => {
     assert.equal(manifest?.name, undefined)
     assert.equal(manifest?.seed, undefined)
     assert.equal(manifest?.files, undefined)
+  })
+
+  void it('reads the url of an older manifest as the homepage of the project', () => {
+    assert.deepEqual(manifestOf({ url: ' https://example.com/the-mod ' })?.project, {
+      homepage: 'https://example.com/the-mod',
+    })
+  })
+
+  void it('reads no project from a manifest without a page', () => {
+    assert.equal(manifestOf({})?.project, undefined)
+    assert.equal(manifestOf({ project: {} })?.project, undefined)
+    assert.equal(manifestOf({ project: 42 })?.project, undefined)
+  })
+
+  void it('reads an author named in one string as the name of the author', () => {
+    assert.deepEqual(manifestOf({ author: ' Lajos Meszaros <m_lajos@hotmail.com> ' })?.author, {
+      name: 'Lajos Meszaros <m_lajos@hotmail.com>',
+    })
+  })
+
+  void it('reads nothing from an author that names nobody', () => {
+    assert.equal(manifestOf({ author: ' ' })?.author, undefined)
+    assert.equal(manifestOf({ author: {} })?.author, undefined)
+    assert.equal(manifestOf({ author: 42 })?.author, undefined)
   })
 
   void it('reads the block of the editor', () => {

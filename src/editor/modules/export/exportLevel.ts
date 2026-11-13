@@ -4,7 +4,13 @@ import { getCellCoords, isQuad, MAP_WIDTH_IN_CELLS } from 'arx-convert/utils'
 import { getHeaderSize } from 'arx-header-size'
 import JSZip from 'jszip'
 import type { ArxMap } from '../../../generator/ArxMap.ts'
-import { MANIFEST_NAME, type LevelManifest, type ManifestEditor } from '../../../generator/manifest.ts'
+import {
+  MANIFEST_NAME,
+  type LevelManifest,
+  type ManifestAuthor,
+  type ManifestEditor,
+  type ManifestProject,
+} from '../../../generator/manifest.ts'
 import { roomCentersOf, roomDistancesOf } from '../../../generator/roomDistances.ts'
 import type { HistorySnapshot } from '../history/mapHistory.ts'
 import { editorSettingsJsonOf, SETTINGS_PATH, SOURCE_FOLDER } from '../level/source/editorSettings.ts'
@@ -254,6 +260,21 @@ export interface ExportOptions {
    */
   readonly exportedAt?: string
   /**
+   * The author of the level, as the dialog read it.
+   *
+   * @remarks
+   * An empty field of the dialog says nothing: the author of the zip the level came from is kept then, so a mod that is
+   * exported again does not lose the one who made it.
+   */
+  readonly author?: ManifestAuthor
+  /**
+   * The page of the level, as the dialog read it.
+   *
+   * @remarks
+   * The empty field keeps the project of the zip the level came from, the same way the author does.
+   */
+  readonly project?: ManifestProject
+  /**
    * The steps of the level, when it has some.
    *
    * @remarks
@@ -378,6 +399,14 @@ export interface ExportManifestParts {
    */
   readonly seed: string | undefined
   /**
+   * The author the dialog read, when it has one.
+   */
+  readonly author: ManifestAuthor | undefined
+  /**
+   * The page the dialog read, when it has one.
+   */
+  readonly project: ManifestProject | undefined
+  /**
    * The paths of the files the archive holds, in the order they were written into it.
    */
   readonly files: readonly string[]
@@ -450,8 +479,8 @@ export function buildExportManifest(parts: ExportManifestParts): LevelManifest {
     name: base?.name,
     version: base?.version,
     description: base?.description,
-    author: base?.author,
-    url: base?.url,
+    author: parts.author ?? base?.author,
+    project: parts.project ?? base?.project,
     editor,
     files: [...parts.files],
   }
@@ -574,6 +603,8 @@ export async function exportLevelZip(
     seed: options.seed,
     files: written,
     metadata: options.manifest,
+    author: options.author,
+    project: options.project,
     editor: editorBuildOf(),
     exportedAt: options.exportedAt ?? new Date().toISOString(),
   })

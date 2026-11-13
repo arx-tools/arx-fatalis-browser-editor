@@ -74,9 +74,9 @@ const xoConfig: XoConfigItem[] = [
     plugins: {
       'unused-imports': unusedImports,
     },
-    // the vite config and the playwright config are build tooling, they belong to the node project of
-    // the tsconfigs
-    files: ['vite.config.ts', 'playwright.config.ts'],
+    // the vite config, the playwright config and the scripts are build tooling, they belong to the node
+    // project of the tsconfigs
+    files: ['vite.config.ts', 'playwright.config.ts', 'scripts/**/*.ts'],
     languageOptions: {
       parserOptions: {
         projectService: false,
@@ -85,6 +85,15 @@ const xoConfig: XoConfigItem[] = [
       },
     },
     rules,
+  },
+  {
+    // a script of the tooling is a command line program: it reads the repository with the synchronous calls of
+    // node (there is nothing else to do while it waits), and it ends with the code of what it ran
+    files: ['scripts/**/*.ts'],
+    rules: {
+      'n/no-sync': 'off',
+      'unicorn/no-process-exit': 'off',
+    },
   },
 ]
 

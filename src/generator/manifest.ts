@@ -10,6 +10,35 @@
 export const MANIFEST_NAME = 'manifest.json'
 
 /**
+ * Who made the level.
+ *
+ * @remarks
+ * A manifest of another build may name the author in one string, and that one is read as a name (see
+ * {@link manifestOf}).
+ */
+export interface ManifestAuthor {
+  /**
+   * The name of the author, as they write it.
+   */
+  readonly name?: string
+}
+
+/**
+ * The level as a project: the page it is published on.
+ *
+ * @remarks
+ * It is where the level lives, not who made it: a page of a mod site, or a website the author keeps for it. The older
+ * manifests put the same address in a `url` key, and that one is read as the homepage of the project (see
+ * {@link manifestOf}).
+ */
+export interface ManifestProject {
+  /**
+   * The address of the page the level is published on.
+   */
+  readonly homepage?: string
+}
+
+/**
  * The build of the tool that wrote the archive, with the moment it was written.
  *
  * @remarks
@@ -79,11 +108,11 @@ export interface LevelManifest {
   /**
    * Who made the level.
    */
-  readonly author?: string
+  readonly author?: ManifestAuthor
   /**
-   * Where the level lives (its repository, its page).
+   * Where the level lives (its page, its repository).
    */
-  readonly url?: string
+  readonly project?: ManifestProject
   /**
    * The build of the editor that wrote the archive, when it was written by one.
    */
@@ -115,6 +144,74 @@ function stringOf(value: Record<string, unknown>, key: string): string | undefin
   }
 
   return found
+}
+
+/**
+ * Reads the author block of a parsed manifest.
+ *
+ * @remarks
+ * A manifest of an older build names the author in **one string**, and that is read as the name of the author: the
+ * archive keeps it through an export instead of losing it, and the writer of this build writes the block.
+ *
+ * @param value The value of the `author` key.
+ *
+ * @returns The block, or `undefined` when the value names no author.
+ */
+function authorOf(value: unknown): ManifestAuthor | undefined {
+  if (typeof value === 'string') {
+    const name = value.trim()
+
+    if (name === '') {
+      return undefined
+    }
+
+    return { name }
+  }
+
+  if (typeof value !== 'object' || value === null) {
+    return undefined
+  }
+
+  const block = value as Record<string, unknown>
+  const name = stringOf(block, 'name')
+
+  if (name === undefined) {
+    return undefined
+  }
+
+  return { name }
+}
+
+/**
+ * Reads the project block of a parsed manifest.
+ *
+ * @remarks
+ * The homepage of the project is the `url` of the older manifests: a zip of another build keeps its address through an
+ * export, in the place this build writes it.
+ *
+ * @param value The value of the `project` key.
+ * @param url The value of the `url` key of an older manifest.
+ *
+ * @returns The block, or `undefined` when the manifest names no page.
+ */
+function projectOf(value: unknown, url: unknown): ManifestProject | undefined {
+  let block: Record<string, unknown> = {}
+
+  if (value !== null && typeof value === 'object') {
+    block = value as Record<string, unknown>
+  }
+
+  let homepage = stringOf(block, 'homepage')
+
+  if (homepage === undefined && typeof url === 'string' && url.trim() !== '') {
+    homepage = url.trim()
+  }
+
+  if (homepage === undefined) {
+    return undefined
+  }
+
+  return { homepage }
 }
 
 /**
@@ -189,8 +286,8 @@ export function manifestOf(value: unknown): LevelManifest | undefined {
     name: stringOf(parsed, 'name'),
     version: stringOf(parsed, 'version'),
     description: stringOf(parsed, 'description'),
-    author: stringOf(parsed, 'author'),
-    url: stringOf(parsed, 'url'),
+    author: authorOf(parsed.author),
+    project: projectOf(parsed.project, parsed.url),
     editor: editorOf(parsed.editor),
     files: readFiles,
   }

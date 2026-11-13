@@ -40,6 +40,7 @@ shared [`@arx-tools/config`](https://github.com/arx-tools/config) package (20.1)
 | `npm run typecheck`   | type checks the app, the tooling and the tests (4 projects) |
 | `npm run test:unit`   | runs the unit tests with the built-in runner                |
 | `npm run test:e2e`    | runs the browser tests in chromium and firefox              |
+| `npm run test:e2e:changed` | runs the browser tests the changed files reach (the hook runs this) |
 | `npm run test:e2e:ui` | the same, in the playwright ui                              |
 | `npm run build`       | typecheck and build into `dist/`                            |
 | `npm run preview`     | serves the build of `dist/`                                 |
@@ -54,9 +55,13 @@ The browser tests need the engines once, per machine:
 npx playwright install chromium firefox      # --with-deps as well on a fresh linux box
 ```
 
-A commit runs `lint`, `typecheck` and `test` through the [`pre-commit`](https://www.npmjs.com/package/pre-commit)
-package of `package.json` (the same setup the other arx-tools repositories use); the browser tests run on
-the ci, where they are cheap enough (see `.github/workflows/test.yml`).
+A commit runs `lint`, `typecheck`, `test:unit` and `test:e2e:changed` through the
+[`pre-commit`](https://www.npmjs.com/package/pre-commit) package of `package.json` (the same setup the
+other arx-tools repositories use). `test:e2e:changed` is the suite narrowed to the change
+(`scripts/e2e-changed.mjs`): a table says which sources each spec covers, a changed source runs the
+specs that cover it, and a source no spec covers (the shell, the stores, the generator) runs the whole
+suite. The whole suite runs on the ci on every push, so a spec the table does not reach still runs
+there (see `.github/workflows/test.yml`).
 
 ### Test files
 

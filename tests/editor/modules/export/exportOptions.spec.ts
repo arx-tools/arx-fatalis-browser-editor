@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { exportSeedOf, levelIndexOf, MIN_LEVEL_INDEX } from '../../../../src/editor/modules/export/exportOptions.ts'
+import {
+  authorOf,
+  exportSeedOf,
+  levelIndexOf,
+  MIN_LEVEL_INDEX,
+  projectOf,
+} from '../../../../src/editor/modules/export/exportOptions.ts'
 import { NEW_QUEST_LEVEL_INDEX } from '../../../../src/editor/modules/level/blankLevel.ts'
 
 void describe('levelIndexOf', () => {
@@ -40,5 +46,27 @@ void describe('exportSeedOf', () => {
   void it('gives nothing for an empty field', () => {
     assert.equal(exportSeedOf(''), undefined)
     assert.equal(exportSeedOf(' '.repeat(3)), undefined)
+  })
+})
+
+void describe('authorOf', () => {
+  void it('writes the name of the author', () => {
+    assert.deepEqual(authorOf('  Lali  '), { name: 'Lali' })
+  })
+
+  void it('writes no author when the field is empty', () => {
+    assert.equal(authorOf(''), undefined)
+    assert.equal(authorOf('  '), undefined)
+  })
+})
+
+void describe('projectOf', () => {
+  void it('writes the page of the project', () => {
+    assert.deepEqual(projectOf('  https://example.com/me  '), { homepage: 'https://example.com/me' })
+  })
+
+  void it('writes no project when the field is empty', () => {
+    assert.equal(projectOf(''), undefined)
+    assert.equal(projectOf('\t'), undefined)
   })
 })

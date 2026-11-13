@@ -3,7 +3,8 @@ import { Check, Download, LoaderCircle, X } from 'lucide-vue-next'
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { downloadBinaryAs } from '../modules/export/download.ts'
 import { exportLevelZip } from '../modules/export/exportLevel.ts'
-import { exportSeedOf, levelIndexOf } from '../modules/export/exportOptions.ts'
+import { authorName, projectHomepage } from '../modules/export/authorFields.ts'
+import { authorOf, exportSeedOf, levelIndexOf, projectOf } from '../modules/export/exportOptions.ts'
 import { snapshotOfHistory } from '../modules/level/edit/editing.ts'
 import { levelSeed } from '../modules/level/seed.ts'
 import { levelStore } from '../modules/level/edit/levelStore.ts'
@@ -131,6 +132,17 @@ function open(): void {
   seed.value = levelSeed.value ?? ''
   levelIndex.value = String(current.dlf.header.levelIdx)
 
+  // the manifest of the zip the level came from stands in an empty field: what the author typed before wins
+  const inherited = currentMapManifest.value
+
+  if (authorName.value === '' && inherited?.author?.name !== undefined) {
+    authorName.value = inherited.author.name
+  }
+
+  if (projectHomepage.value === '' && inherited?.project?.homepage !== undefined) {
+    projectHomepage.value = inherited.project.homepage
+  }
+
   if (state.value !== 'packing') {
     state.value = 'idle'
     percent.value = 0
@@ -208,6 +220,8 @@ async function exportIt(): Promise<void> {
         // pose of the camera on the level, which a zip opens on
         manifest: currentMapManifest.value,
         camera: poseOfMap(currentMapId.value),
+        author: authorOf(authorName.value),
+        project: projectOf(projectHomepage.value),
         // the steps of the level: an archive with them is a save of the level, not only its result
         history: snapshotOfHistory(),
       },
@@ -265,6 +279,17 @@ onBeforeUnmount(() => {
         <label for="export-level-index">Level index</label>
         <input id="export-level-index" v-model="levelIndex" type="number" min="0" step="1" inputmode="numeric" />
         <p class="helper">Set to 1 to make Arx Fatalis load the map upon starting a new quest.</p>
+      </div>
+
+      <div class="field">
+        <label for="export-author-name">Author's name</label>
+        <input id="export-author-name" v-model="authorName" type="text" autocomplete="off" />
+      </div>
+
+      <div class="field">
+        <label for="export-homepage">Project homepage</label>
+        <input id="export-homepage" v-model="projectHomepage" type="text" autocomplete="off" />
+        <p class="helper">A link to a moddb or nexusmods page or a custom website where this mod is hosted.</p>
       </div>
 
       <!-- the bar is always in the dialog, hidden while nothing runs: a removed element would make the dialog jump -->

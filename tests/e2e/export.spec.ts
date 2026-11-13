@@ -69,8 +69,11 @@ test('the export dialog writes the level under the fields of the dialog', async 
   // the bar of the progress keeps its place while nothing runs, so the dialog does not jump
   await expect(dialog.locator('.progress')).toHaveClass(/is-hidden/u)
 
-  // the level 13 of the dialog
+  // the level 13 of the dialog, and the author of the archive
   await index.fill('13')
+
+  await dialog.locator('#export-author-name').fill("Lali's Workbench")
+  await dialog.locator('#export-homepage').fill('https://example.com/lali')
 
   const [download] = await Promise.all([page.waitForEvent('download'), dialog.locator('.export').click()])
 
@@ -118,6 +121,12 @@ test('the export dialog writes the level under the fields of the dialog', async 
 
   // the list of the files is the whole archive, the manifest itself excepted
   expect(manifest.files).toContain('editor/settings.json')
+
+  // the author is a block of its own, and the page of the level goes under the project
+  expect((manifest as unknown as { readonly author?: unknown }).author).toEqual({ name: "Lali's Workbench" })
+  expect((manifest as unknown as { readonly project?: unknown }).project).toEqual({
+    homepage: 'https://example.com/lali',
+  })
 
   // the end of the export is on the button of the dialog
   await expect(dialog.locator('.export')).toHaveText('Downloaded')

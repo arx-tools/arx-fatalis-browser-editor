@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
-import { OrthographicCamera, type Mesh, type Vector3 } from 'three'
+import { OrthographicCamera, Vector2, type Mesh, type Vector3 } from 'three'
 import type { ArxPolygon, ArxVector3 } from 'arx-convert/types'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { cameraStore } from '../camera/cameraStore.ts'
@@ -19,9 +19,14 @@ import {
 } from '../shared/levelScene.ts'
 import { isMeshVisible, isRoomColorsVisible, isWireframeVisible } from '../shared/levelDisplay.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
-import { litRooms } from '../../../modules/rooms/roomStore.ts'
+import { hoverRoom, litRooms } from '../../../modules/rooms/roomStore.ts'
+import { pickRoom } from '../../../modules/rooms/roomSelection.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
-import { createPolygonSelectionOverlay, type PolygonSelectionOverlay } from '../View3DWidget/polygonSelection.ts'
+import {
+  createPolygonSelectionOverlay,
+  pickPolygonAt,
+  type PolygonSelectionOverlay,
+} from '../View3DWidget/polygonSelection.ts'
 import { createRoomOverlay, type RoomOverlay } from '../shared/roomOverlay.ts'
 import {
   FIELD_OF_VIEW,
@@ -209,11 +214,12 @@ function frameView(): void {
 }
 
 /**
- * The pointer of the view: the jump and the drag of the walkable camera, and the wheel of the zoom.
+ * The pointer of the view: the jump and the drag of the walkable camera, the wheel of the zoom, and the Shift gestures
+ * of the room map.
  *
  * @remarks
  * The gesture has its own module (`useFixedViewPointer.ts`): this is where the widget binds the scene, the level, the
- * zoom and the framing to it.
+ * zoom, the framing and the room of the face under the pointer to it.
  */
 const pointer = useFixedViewPointer({
   view: () => {
@@ -227,6 +233,42 @@ const pointer = useFixedViewPointer({
   },
   zoom,
   frameView,
+  roomAt: (pixel) => {
+    const target = view
+    const map = levelStore.map.value
+
+    if (target === undefined || map === undefined) {
+      return undefined
+    }
+
+    // the middle of the canvas is (0, 0) and the top left corner is (-1, 1), the space the raycaster reads
+    const widthShare = pixel.x / pixel.width
+    const heightShare = pixel.y / pixel.height
+    const doubledWidth = widthShare * 2
+    const doubledHeight = heightShare * 2
+    const point = new Vector2(doubledWidth - 1, 1 - doubledHeight)
+    const index = pickPolygonAt(target.camera, point, shown, map.triangleToPolygon)
+
+    if (index === undefined) {
+      return undefined
+    }
+
+    const room = map.polygons[index]?.room
+
+    if (room === undefined || room < 0) {
+      return undefined
+    }
+
+    return room
+  },
+  hoverRoom,
+  selectRoom: (room) => {
+    // the same gesture the row of the room list makes: Shift adds the room to the selection
+    pickRoom(room, 'add')
+  },
+  isRoomMapVisible: () => {
+    return isRoomColorsVisible.value
+  },
 })
 
 /**
@@ -419,11 +461,13 @@ onMounted(() => {
     host.value.addEventListener('wheel', pointer.onWheel, { passive: false })
   }
 
-  // the click of a fixed view is the navigation of the walkable one (TODO 85)
+  // the click of a fixed view is the navigation of the walkable one (TODO 85), and a Shift pointer belongs to the room
+  // map: the press selects a room and the hover lights one
   target.addEventListener('pointerdown', pointer.onPointerDown)
   target.addEventListener('pointermove', pointer.onPointerMove)
   target.addEventListener('pointerup', pointer.onPointerUp)
   target.addEventListener('pointercancel', pointer.onPointerUp)
+  target.addEventListener('pointerleave', pointer.onPointerLeave)
 
   resize()
 
@@ -495,6 +539,9 @@ stopWatchingRooms = watch(isRoomColorsVisible, () => {
   // the highlight is painted only while the map is on, and the lit set may have changed while it was off
   if (isRoomColorsVisible.value) {
     rooms?.setHighlight(litRooms.value)
+  } else {
+    // the Shift hover belongs to the map: a highlight left over would light a room when the map comes back
+    hoverRoom(undefined)
   }
 
   requestRender()
@@ -550,7 +597,11 @@ onBeforeUnmount(() => {
     stage.removeEventListener('pointermove', pointer.onPointerMove)
     stage.removeEventListener('pointerup', pointer.onPointerUp)
     stage.removeEventListener('pointercancel', pointer.onPointerUp)
+    stage.removeEventListener('pointerleave', pointer.onPointerLeave)
   }
+
+  // a view that goes away can not take its hover with it: the highlight would stay on the map
+  hoverRoom(undefined)
 
   observer?.disconnect()
   observer = undefined

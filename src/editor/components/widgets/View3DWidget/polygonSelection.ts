@@ -12,6 +12,7 @@ import {
   Vector2,
   type Intersection,
   type Mesh as ThreeMesh,
+  type OrthographicCamera,
   type PerspectiveCamera,
   type Scene,
   type Vector3,
@@ -67,6 +68,77 @@ function polygonOfHit(
 }
 
 /**
+ * The middle of the view, in normalised device coordinates: where the crosshair of the walkable view is.
+ */
+const MIDDLE = new Vector2(0, 0)
+
+/**
+ * What a pick of the polygons reads.
+ */
+interface PickRequest {
+  /**
+   * The camera of the view.
+   */
+  readonly camera: PerspectiveCamera | OrthographicCamera
+  /**
+   * The point of the view, in normalised device coordinates.
+   */
+  readonly point: Vector2
+  /**
+   * The meshes of the level in this view.
+   */
+  readonly meshes: readonly ThreeMesh[]
+  /**
+   * The triangle map of the level.
+   */
+  readonly triangleToPolygon: readonly number[]
+  /**
+   * How many faces to read at most.
+   */
+  readonly limit: number
+}
+
+/**
+ * Reads the polygons under a point of a view, nearest first.
+ *
+ * @param request The camera, the point, the meshes and the limit of the pick.
+ *
+ * @returns The polygon indices, nearest first.
+ */
+function pickPolygonsFrom(request: PickRequest): number[] {
+  const { camera, point, meshes, triangleToPolygon, limit } = request
+
+  camera.updateMatrixWorld()
+
+  const raycaster = new Raycaster()
+  // the range of the camera, not a generous one: a polygon beyond the far plane is not drawn, so picking
+  // it would outline a surface that is not on the screen
+  raycaster.near = camera.near
+  raycaster.far = camera.far
+  // the first face the ray meets is the answer: the tree stops at it instead of reading every face along the ray
+  raycaster.firstHitOnly = true
+  raycaster.setFromCamera(point, camera)
+
+  const polygons: number[] = []
+
+  for (const hit of raycaster.intersectObjects([...meshes], false)) {
+    const polygon = polygonOfHit(hit, meshes, triangleToPolygon)
+
+    if (polygon === undefined || polygons.includes(polygon)) {
+      continue
+    }
+
+    polygons.push(polygon)
+
+    if (polygons.length >= limit) {
+      break
+    }
+  }
+
+  return polygons
+}
+
+/**
  * Reads the polygons the camera looks at, nearest first.
  *
  * @remarks
@@ -87,34 +159,7 @@ export function pickPolygons(
   triangleToPolygon: readonly number[],
   limit = 1,
 ): number[] {
-  camera.updateMatrixWorld()
-
-  const raycaster = new Raycaster()
-  // the range of the camera, not a generous one: a polygon beyond the far plane is not drawn, so picking
-  // it would outline a surface that is not on the screen
-  raycaster.near = camera.near
-  raycaster.far = camera.far
-  // the first face the ray meets is the answer: the tree stops at it instead of reading every face along the ray
-  raycaster.firstHitOnly = true
-  raycaster.setFromCamera(new Vector2(0, 0), camera)
-
-  const polygons: number[] = []
-
-  for (const hit of raycaster.intersectObjects([...meshes], false)) {
-    const polygon = polygonOfHit(hit, meshes, triangleToPolygon)
-
-    if (polygon === undefined || polygons.includes(polygon)) {
-      continue
-    }
-
-    polygons.push(polygon)
-
-    if (polygons.length >= limit) {
-      break
-    }
-  }
-
-  return polygons
+  return pickPolygonsFrom({ camera, point: MIDDLE, meshes, triangleToPolygon, limit })
 }
 
 /**
@@ -138,6 +183,30 @@ export function pickPolygon(
   triangleToPolygon: readonly number[],
 ): number | undefined {
   return pickPolygons(camera, meshes, triangleToPolygon)[0]
+}
+
+/**
+ * Reads the polygon under a point of a view.
+ *
+ * @remarks
+ * The fixed views read the level with an orthographic camera, and the point is the normalised device coordinate of the
+ * pointer: the middle is `(0, 0)`, the top left corner `(-1, 1)`. Only the faces turned towards the camera can be hit,
+ * the same way the crosshair of the walkable view reads them.
+ *
+ * @param camera The camera of the view.
+ * @param point The point of the view, in normalised device coordinates.
+ * @param meshes The meshes of the level in this view.
+ * @param triangleToPolygon The triangle map of the level.
+ *
+ * @returns The polygon index, or `undefined` when the ray hits nothing.
+ */
+export function pickPolygonAt(
+  camera: PerspectiveCamera | OrthographicCamera,
+  point: Vector2,
+  meshes: readonly ThreeMesh[],
+  triangleToPolygon: readonly number[],
+): number | undefined {
+  return pickPolygonsFrom({ camera, point, meshes, triangleToPolygon, limit: 1 })[0]
 }
 
 /**

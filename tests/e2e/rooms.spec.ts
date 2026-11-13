@@ -297,6 +297,66 @@ test('shift on a room of the list adds it to the selection', async ({ page }) =>
 })
 
 /**
+ * A `Shift` click on a fixed view selects the room under the pointer, and the camera does not move.
+ *
+ * @remarks
+ * The fixed views are the navigation: a plain click jumps the walkable camera to the place under the pointer. `Shift`
+ * belongs to the room map instead: the press adds the room of the face under the pointer to the selection, the same
+ * gesture the room list has, and the camera keeps its place. The marker of the top view is the place the walkable
+ * camera stands, so the room under it is the one the press reads.
+ */
+test('a shift click on a fixed view selects a room, and the camera stays', async ({ page }) => {
+  test.setTimeout(120_000)
+
+  await seedLayout(page, roomsLayout)
+  await page.goto(levelUrl(12))
+
+  await waitForLevel(page)
+
+  const roomInspector = page.locator('[data-widget-kind="room-inspector"]')
+  const cameraControls = page.locator('[data-widget-kind="camera-controls"]')
+  const xField = cameraControls.locator('input[aria-label="Position x"]')
+
+  // the form holds the pose of the walkable camera: a click that navigates would move these numbers
+  await expect
+    .poll(async () => {
+      return await xField.inputValue()
+    })
+    .not.toBe('')
+
+  const before = await xField.inputValue()
+
+  // the Shift gestures belong to the room map: turn it on first
+  await roomInspector.getByRole('button', { name: 'Show the rooms' }).click()
+
+  const marker = page.locator('[data-widget-kind="top-view"] .camera-mark')
+  const box = await marker.boundingBox()
+
+  if (box === null) {
+    throw new Error('the top view has no marker')
+  }
+
+  // Shift and a press: the room of the face under the marker joins the selection
+  const halfWidth = box.width / 2
+  const halfHeight = box.height / 2
+
+  await page.keyboard.down('Shift')
+  await page.mouse.click(box.x + halfWidth, box.y + halfHeight)
+  await page.keyboard.up('Shift')
+
+  await expect
+    .poll(async () => {
+      return await roomInspector.locator('li.room.is-selected').count()
+    })
+    .toBeGreaterThan(0)
+
+  // the camera form still holds the same position: the press did not jump
+  await page.waitForTimeout(400)
+
+  expect(await xField.inputValue()).toBe(before)
+})
+
+/**
  * The author names a room, and the list shows the name beside the id (TODO 177).
  *
  * @remarks

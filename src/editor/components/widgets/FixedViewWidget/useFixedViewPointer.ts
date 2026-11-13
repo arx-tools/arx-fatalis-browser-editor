@@ -18,6 +18,28 @@ import { planePointAt, targetPositionOf } from './fixedViewTarget.ts'
 const WHEEL_STEP = 0.0015
 
 /**
+ * A point of the canvas of a fixed view, and the size of the canvas.
+ */
+export interface FixedViewPixel {
+  /**
+   * The distance from the left edge, in CSS pixels.
+   */
+  readonly x: number
+  /**
+   * The distance from the top edge, in CSS pixels.
+   */
+  readonly y: number
+  /**
+   * The width of the canvas, in CSS pixels.
+   */
+  readonly width: number
+  /**
+   * The height of the canvas, in CSS pixels.
+   */
+  readonly height: number
+}
+
+/**
  * What the pointer of a fixed view reads.
  */
 export interface FixedViewPointerContext {
@@ -47,6 +69,32 @@ export interface FixedViewPointerContext {
    * Frames the view again, after the zoom changed.
    */
   readonly frameView: () => void
+  /**
+   * Reads the room of the face under a point of the canvas.
+   *
+   * @param pixel The point of the canvas, in CSS pixels.
+   *
+   * @returns The room of the face, or `undefined` when the ray hits nothing or the face has no room.
+   */
+  readonly roomAt: (pixel: FixedViewPixel) => number | undefined
+  /**
+   * Lights a room of the map while the pointer is on it, or clears the highlight.
+   *
+   * @param room The room under the pointer, or `undefined` when the highlight goes away.
+   */
+  readonly hoverRoom: (room: number | undefined) => void
+  /**
+   * Adds the faces of a room to the selection.
+   *
+   * @param room The room the `Shift` click landed on.
+   */
+  readonly selectRoom: (room: number) => void
+  /**
+   * Whether the room map is on: the `Shift` gestures of the pointer belong to it.
+   *
+   * @returns True while the map paints the rooms.
+   */
+  readonly isRoomMapVisible: () => boolean
 }
 
 /**
@@ -56,11 +104,18 @@ export interface FixedViewPointer {
   /**
    * Starts the pointer on the view: a press jumps, and a drag follows the pointer.
    *
+   * @remarks
+   * A `Shift` press on a room of the map does not move the camera: it adds the faces of the room to the selection, the
+   * same gesture the room list has.
+   *
    * @param event The pointer event of the view.
    */
   readonly onPointerDown: (event: PointerEvent) => void
   /**
    * Follows a dragged pointer.
+   *
+   * @remarks
+   * A `Shift` pointer over the map lights the room it is on, and a plain pointer takes the highlight away.
    *
    * @param event The pointer event of the view.
    */
@@ -71,6 +126,10 @@ export interface FixedViewPointer {
    * @param event The pointer event of the view.
    */
   readonly onPointerUp: (event: PointerEvent) => void
+  /**
+   * Takes the hover highlight away when the pointer leaves the canvas.
+   */
+  readonly onPointerLeave: () => void
   /**
    * Zooms the view with the wheel of the pointer.
    *
@@ -93,12 +152,26 @@ export interface FixedViewPointer {
  * @returns The handlers the widget binds.
  */
 export function useFixedViewPointer(context: FixedViewPointerContext): FixedViewPointer {
-  const { view, scenePosition, mode, zoom, frameView } = context
+  const { view, scenePosition, mode, zoom, frameView, roomAt, hoverRoom, selectRoom, isRoomMapVisible } = context
 
   /**
    * Whether the pointer is down on the view.
    */
   let pressing = false
+
+  /**
+   * Reads the pointer and the canvas it is on.
+   *
+   * @param event The pointer event of the view.
+   *
+   * @returns The pointer from the top left corner, and the size of the canvas, in CSS pixels.
+   */
+  function canvasOf(event: PointerEvent): FixedViewPixel {
+    const stage = event.currentTarget as HTMLCanvasElement
+    const box = stage.getBoundingClientRect()
+
+    return { x: event.clientX - box.left, y: event.clientY - box.top, width: box.width, height: box.height }
+  }
 
   /**
    * Reads the pointer in the pixels of the canvas.
@@ -108,10 +181,9 @@ export function useFixedViewPointer(context: FixedViewPointerContext): FixedView
    * @returns The distance of the pointer from the top left corner of the canvas, in CSS pixels.
    */
   function canvasPixel(event: PointerEvent): { x: number; y: number } {
-    const stage = event.currentTarget as HTMLCanvasElement
-    const box = stage.getBoundingClientRect()
+    const { x, y } = canvasOf(event)
 
-    return { x: event.clientX - box.left, y: event.clientY - box.top }
+    return { x, y }
   }
 
   /**
@@ -149,13 +221,35 @@ export function useFixedViewPointer(context: FixedViewPointerContext): FixedView
 
   return {
     onPointerDown: (event): void => {
+      // Shift belongs to the room map: it selects the room under the pointer, and it does not move the camera
+      if (event.shiftKey && isRoomMapVisible()) {
+        const room = roomAt(canvasOf(event))
+
+        if (room !== undefined) {
+          selectRoom(room)
+        }
+
+        return
+      }
+
       pressing = true
+      hoverRoom(undefined)
       moveToPointer(event)
 
       const stage = event.currentTarget as HTMLElement
       stage.setPointerCapture(event.pointerId)
     },
     onPointerMove: (event): void => {
+      // a Shift pointer over the map lights the room it is on, and a plain one takes the highlight away; a press is
+      // the navigation, and it keeps its own gestures
+      if (!pressing) {
+        if (event.shiftKey && isRoomMapVisible()) {
+          hoverRoom(roomAt(canvasOf(event)))
+        } else {
+          hoverRoom(undefined)
+        }
+      }
+
       if (!pressing || zoom.value > 1) {
         return
       }
@@ -170,6 +264,9 @@ export function useFixedViewPointer(context: FixedViewPointerContext): FixedView
       if (stage.hasPointerCapture(event.pointerId)) {
         stage.releasePointerCapture(event.pointerId)
       }
+    },
+    onPointerLeave: (): void => {
+      hoverRoom(undefined)
     },
     onWheel: (event): void => {
       event.preventDefault()

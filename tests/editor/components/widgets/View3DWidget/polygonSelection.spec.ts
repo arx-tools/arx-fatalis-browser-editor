@@ -8,8 +8,10 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshLambertMaterial,
+  OrthographicCamera,
   PerspectiveCamera,
   Scene,
+  Vector2,
   Vector3,
   type BufferAttribute,
   type BufferGeometry,
@@ -21,6 +23,7 @@ import {
   createPolygonSelectionOverlay,
   faceToSweep,
   pickPolygon,
+  pickPolygonAt,
   pickPolygons,
   polygonFillGeometry,
   polygonOutlineGeometry,
@@ -287,6 +290,41 @@ void describe('pickPolygon', () => {
     camera.updateProjectionMatrix()
 
     assert.equal(pickPolygon(camera, meshes, triangleToPolygon), undefined)
+  })
+})
+
+void describe('pickPolygonAt', () => {
+  /**
+   * Builds an orthographic camera over the middle of the floor of the test.
+   *
+   * @returns The camera, the mesh of the floor and the triangle map of its polygon.
+   */
+  function sceneFromAbove(): { camera: OrthographicCamera; meshes: Mesh[]; triangleToPolygon: number[] } {
+    const floor = polygon(true)
+    const geometry = arxPolygonsToGeometry([floor], new Vector3(0, 0, 0))
+    const mesh = new Mesh(geometry, new MeshBasicMaterial())
+
+    mesh.updateMatrixWorld()
+
+    // the floor spans x -10..0 and z 0..10 in the world, so the point in the middle of the view is on it
+    const camera = new OrthographicCamera(-20, 20, 20, -20, 0.1, 100)
+    camera.position.set(-5, 10, 5)
+    camera.lookAt(-5, 0, 5)
+    camera.updateMatrixWorld()
+
+    return { camera, meshes: [mesh], triangleToPolygon: triangleToPolygonMap([floor]) }
+  }
+
+  void it('reads the polygon under a point of an orthographic view', () => {
+    const { camera, meshes, triangleToPolygon } = sceneFromAbove()
+
+    assert.equal(pickPolygonAt(camera, new Vector2(0, 0), meshes, triangleToPolygon), 0)
+  })
+
+  void it('reads nothing when the point is off the face', () => {
+    const { camera, meshes, triangleToPolygon } = sceneFromAbove()
+
+    assert.equal(pickPolygonAt(camera, new Vector2(0.9, 0.9), meshes, triangleToPolygon), undefined)
   })
 })
 

@@ -54,7 +54,7 @@ const selected = computed(() => {
  */
 const selectionLabel = computed(() => {
   if (selected.value === 0) {
-    return 'No face is selected'
+    return 'No faces are selected'
   }
 
   const found = [...rooms.value].filter((room) => {

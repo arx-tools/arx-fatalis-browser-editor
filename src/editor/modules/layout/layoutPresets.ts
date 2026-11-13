@@ -215,16 +215,17 @@ export const painterLayout: LayoutNode = {
 }
 
 /**
- * The layout of the room work: the plan views, the walkable view and the rooms beside them.
+ * The layout of the room work: the statistics, the walkable view and the rooms.
  *
  * @remarks
- * It is the `Editor` preset with the **Room Inspector** panel where the inspector and the keys are: the level work is reading
- * the rooms of a level (the list, the room under the crosshair, the problems), and the split of the level is decided
- * here. The `Rooms` name is what the header shows (2026-11-07, the owner).
+ * The owner measured the layout of the round (2026-11-13): the statistics at **350 x 203** and the selection inspector
+ * under it on the left, the walkable view in the middle, and the top view at **350 x 260**, the room mapper at **350 x
+ * 220** and the room inspector under them on the right. The walkable view's own readout carries the camera (the camera
+ * controls widget is not on this layout), and the room map is the surface the round works on.
  *
- * The **Selection Inspector** sits under the numbers (2026-11-10, the owner): the fill of the selection paints the
- * faces turned towards the camera only, so a fill that takes a whole room also takes the faces behind the camera, and
- * the count of the widget is what says how much came along.
+ * The `Rooms` name is what the header shows (2026-11-07, the owner). The **Selection Inspector** stays under the
+ * numbers (2026-11-10): the fill of the selection paints the faces turned towards the camera only, so a fill that takes
+ * a whole room also takes the faces behind the camera, and the count of the widget is what says how much came along.
  */
 export const roomsLayout: LayoutNode = {
   type: 'split',
@@ -234,36 +235,20 @@ export const roomsLayout: LayoutNode = {
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: [fixed(350), auto(1)],
-      children: [
-        { type: 'widget', kind: WIDGET_KINDS.topView },
-        { type: 'widget', kind: WIDGET_KINDS.frontView },
-      ],
-    },
-    {
-      type: 'split',
-      orientation: 'vertical',
-      sizes: [fixed(THIN_ROW_HEIGHT), auto(1)],
-      children: [
-        {
-          type: 'split',
-          orientation: 'horizontal',
-          sizes: [auto(1), fixed(200)],
-          children: [
-            { type: 'widget', kind: WIDGET_KINDS.cameraControls },
-            { type: 'widget', kind: WIDGET_KINDS.jumpToLocation },
-          ],
-        },
-        { type: 'widget', kind: WIDGET_KINDS.view3d },
-      ],
-    },
-    {
-      type: 'split',
-      orientation: 'vertical',
-      sizes: [fixed(210), fixed(190), auto(1)],
+      sizes: [fixed(203), auto(1)],
       children: [
         { type: 'widget', kind: WIDGET_KINDS.mapStatistics },
         { type: 'widget', kind: WIDGET_KINDS.selectionInspector },
+      ],
+    },
+    { type: 'widget', kind: WIDGET_KINDS.view3d },
+    {
+      type: 'split',
+      orientation: 'vertical',
+      sizes: [fixed(260), fixed(220), auto(1)],
+      children: [
+        { type: 'widget', kind: WIDGET_KINDS.topView },
+        { type: 'widget', kind: WIDGET_KINDS.roomMapper },
         { type: 'widget', kind: WIDGET_KINDS.roomInspector },
       ],
     },

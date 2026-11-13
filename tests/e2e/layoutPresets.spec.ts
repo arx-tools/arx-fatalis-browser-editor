@@ -11,7 +11,8 @@ import { editorUrl } from './support/editor.ts'
  * (2026-11-08, the owner asked for it there), the editor with the plan at 350 x 350, the
  * jump at 200 x 50, the statistics at 350 x 200, the inspector at 350 x 180 and the undo and redo row at 350 x 60
  * (2026-11-09), and the painter (2026-11-04) with the polygon inspector at 360 x 185, the keys at 360 x 430 and the
- * uv mapper at 400 x 430. The widgets the owner did not
+ * uv mapper at 400 x 430. The rooms preset came with the round (2026-11-13): the statistics at 350 x 203, the top view
+ * at 350 x 260 and the room mapper at 350 x 220. The widgets the owner did not
  * size stay free, and the header has to keep the name of the preset after the locks are applied — a layout that comes
  * back differently from the preset would show up as `Blank` — the name now says which layout is active, and a tweak
  * belongs to the preset it was made on (see `layoutHistory.ts`).
@@ -161,6 +162,57 @@ test('the editor preset comes with the four sizes the owner measured', async ({ 
   expect(statisticsAfter.height).toBe(200)
   expect(undoAfter.height).toBe(60)
   expect(selectionAfter.height).toBeGreaterThan(selection.height)
+})
+
+test('the rooms preset comes with the sizes the owner measured', async ({ page }) => {
+  await page.setViewportSize({ width: 1631, height: 850 })
+  await page.goto(editorUrl())
+
+  const errors: string[] = []
+
+  page.on('pageerror', (error) => {
+    errors.push(String(error))
+  })
+
+  await page.locator('header button[aria-label="Presets"]').click()
+  await page.locator('.preset-menu .preset-row', { hasText: 'Rooms' }).click()
+
+  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(6)
+  await page.waitForTimeout(800)
+
+  expect(await presetName(page)).toBe('Rooms')
+
+  const statistics = await boxOf(page, 'map-statistics')
+  const selection = await boxOf(page, 'selection-inspector')
+  const top = await boxOf(page, 'top-view')
+  const mapper = await boxOf(page, 'room-mapper')
+  const inspector = await boxOf(page, 'room-inspector')
+  const view = await boxOf(page, '3d-view')
+
+  expect(statistics.width).toBe(350)
+  expect(statistics.height).toBe(203)
+  expect(top.width).toBe(350)
+  expect(top.height).toBe(260)
+  expect(mapper.width).toBe(350)
+  expect(mapper.height).toBe(220)
+
+  expect(await page.locator('[data-widget-kind="map-statistics"]').getAttribute('data-locked-height')).toBe('203')
+  expect(await page.locator('[data-widget-kind="top-view"]').getAttribute('data-locked-height')).toBe('260')
+  expect(await page.locator('[data-widget-kind="room-mapper"]').getAttribute('data-locked-height')).toBe('220')
+  expect(await page.locator('[data-widget-kind="room-inspector"]').getAttribute('data-locked-height')).toBeNull()
+
+  // the two columns: the statistics and the selection on the left, the view, the top view and the rooms on the right
+  expect(selection.left).toBe(statistics.left)
+  expect(selection.width).toBe(statistics.width)
+  expect(selection.top).toBe(statistics.top + statistics.height + 4)
+  expect(mapper.left).toBe(top.left)
+  expect(mapper.top).toBe(top.top + top.height + 4)
+  expect(inspector.left).toBe(top.left)
+  expect(inspector.top).toBe(mapper.top + mapper.height + 4)
+  expect(view.left).toBe(statistics.left + statistics.width + 4)
+  expect(view.width).toBeGreaterThan(350)
+
+  expect(errors).toEqual([])
 })
 
 test('the painter preset comes with the sizes the owner measured', async ({ page }) => {

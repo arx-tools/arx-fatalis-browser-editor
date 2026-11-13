@@ -1,8 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { roomsLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
-import { WIDGET_KINDS } from '../../src/editor/modules/layout/widgetKinds.ts'
 import { ORIGINAL_LEVEL_PARAMETER } from '../../src/editor/modules/level/source/levelSource.ts'
-import { editorUrl, renameKinds, seedLayout, waitForLevel } from './support/editor.ts'
+import { editorUrl, seedLayout, waitForLevel } from './support/editor.ts'
 
 /**
  * The url of a level of the game's own files.
@@ -96,8 +95,8 @@ test('a room of the list selects its faces, and a second click clears both', asy
 test('the mapper makes a room of the selected faces, and the undo takes them back', async ({ page }) => {
   test.setTimeout(120_000)
 
-  // the mapper takes the row of the selection inspector: the count it shows is its own, and the room list stays
-  await seedLayout(page, renameKinds(roomsLayout, { [WIDGET_KINDS.selectionInspector]: WIDGET_KINDS.roomMapper }))
+  // the mapper is one of the widgets of the preset: its selection count is its own, and the room list stays
+  await seedLayout(page, roomsLayout)
   await page.goto('/?map=blank-flat')
 
   const faces = await waitForLevel(page)
@@ -314,17 +313,16 @@ test('a shift click on a fixed view selects a room, and the camera stays', async
   await waitForLevel(page)
 
   const roomInspector = page.locator('[data-widget-kind="room-inspector"]')
-  const cameraControls = page.locator('[data-widget-kind="camera-controls"]')
-  const xField = cameraControls.locator('input[aria-label="Position x"]')
+  const hud = page.locator('[data-widget-kind="3d-view"] .hud')
 
-  // the form holds the pose of the walkable camera: a click that navigates would move these numbers
+  // the readout of the view holds the pose of the walkable camera: a click that navigates would move these numbers
   await expect
     .poll(async () => {
-      return await xField.inputValue()
+      return (await hud.textContent()) ?? ''
     })
-    .not.toBe('')
+    .toContain('position')
 
-  const before = await xField.inputValue()
+  const before = (await hud.textContent()) ?? ''
 
   // the Shift gestures belong to the room map: turn it on first
   await roomInspector.getByRole('button', { name: 'Show the rooms' }).click()
@@ -361,19 +359,19 @@ test('a shift click on a fixed view selects a room, and the camera stays', async
     })
     .toBe(0)
 
-  // the camera form still holds the same position: neither press jumped
+  // the readout still holds the same pose: neither press jumped
   await page.waitForTimeout(400)
 
-  expect(await xField.inputValue()).toBe(before)
+  expect((await hud.textContent()) ?? '').toBe(before)
 })
 
 /**
  * `Shift` alone lights the room under the pointer of a fixed view, without a move of the mouse.
  *
  * @remarks
- * The pointer of the front view stands on a face of another room, and only the key goes down: the room joins the hover
- * of the crosshair, and the release takes it away again. The front view's middle is over a face of level 12, so the
- * test does not need a mouse move to find one.
+ * The pointer of the top view stands on a face of another room, and only the key goes down: the room joins the hover of
+ * the crosshair, and the release takes it away again. The point is over a room of level 12 that is not the one of the
+ * crosshair, so the two highlights are apart.
  */
 test('shift alone lights the room under the pointer of a fixed view', async ({ page }) => {
   test.setTimeout(120_000)
@@ -388,17 +386,17 @@ test('shift alone lights the room under the pointer of a fixed view', async ({ p
   // the Shift gestures belong to the room map
   await roomInspector.getByRole('button', { name: 'Show the rooms' }).click()
 
-  const front = page.locator('[data-widget-kind="front-view"] canvas.stage')
-  const box = await front.boundingBox()
+  const top = page.locator('[data-widget-kind="top-view"] canvas.stage')
+  const box = await top.boundingBox()
 
   if (box === null) {
-    throw new Error('the front view has no canvas')
+    throw new Error('the top view has no canvas')
   }
 
   const hovered = roomInspector.locator('li.room.is-hovered')
   const before = await hovered.count()
-  const halfWidth = box.width / 2
-  const halfHeight = box.height / 2
+  const alongX = box.width * 0.4
+  const alongY = box.height * 0.3
 
   /**
    * Counts the rows the hover wash marks.
@@ -409,8 +407,8 @@ test('shift alone lights the room under the pointer of a fixed view', async ({ p
     return await hovered.count()
   }
 
-  // the pointer stands on a face of the front view and does not move: only the key goes down
-  await page.mouse.move(box.x + halfWidth, box.y + halfHeight)
+  // the pointer stands on a face of the top view and does not move: only the key goes down
+  await page.mouse.move(box.x + alongX, box.y + alongY)
 
   await expect.poll(hoveredCount).toBe(before)
 

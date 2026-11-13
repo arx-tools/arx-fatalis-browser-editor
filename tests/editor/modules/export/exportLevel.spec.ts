@@ -359,6 +359,9 @@ void describe('buildExportFts', () => {
       ...map.fts,
       rooms: [...map.fts.rooms, { portals: [], polygons: [] }, { portals: [], polygons: [] }],
       portals: [portalOf(1, 2, 0), portalOf(2, 3, 10)],
+      // the file carries a matrix of its own, and the export does not trust it: the polygons of the screen are what the
+      // distances are measured from, not the values of the level that was loaded
+      roomDistances: [{ distance: 999, startPosition: { x: 0, y: 0, z: 0 }, endPosition: { x: 0, y: 0, z: 0 } }],
     }
     const exported = buildExportFts(fts, polygons)
     const size = exported.rooms.length
@@ -368,7 +371,8 @@ void describe('buildExportFts', () => {
     assert.equal(size, 4)
     assert.equal(exported.roomDistances[1 + secondRow].distance, -1)
     assert.equal(exported.roomDistances[2 + size].distance, -1)
-    assert.ok(exported.roomDistances[1 + thirdRow].distance > 0)
+    // the measured path, not the stale 999 of the loaded file
+    assert.equal(exported.roomDistances[1 + thirdRow].distance, 10)
   })
 
   void it('drops a portal of a room that lost its polygons', () => {

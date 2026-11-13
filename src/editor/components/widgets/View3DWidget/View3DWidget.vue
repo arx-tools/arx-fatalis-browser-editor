@@ -32,6 +32,7 @@ import { createFrameLoop } from './frameLoop.ts'
 import { useSelectionDrag } from './useSelectionDrag.ts'
 import { createOrientationGizmo, type OrientationGizmo } from './orientationGizmo.ts'
 import { createPolygonSelectionOverlay, type PolygonSelectionOverlay } from './polygonSelection.ts'
+import { createSelectionGizmo, type SelectionGizmo } from './selectionGizmo.ts'
 
 /**
  * What the widget shows over the canvas: a failure, or nothing while the level is on.
@@ -118,6 +119,7 @@ const gizmoCanvas = useTemplateRef<HTMLCanvasElement>('gizmoCanvas')
 
 let view: ViewScene<PerspectiveCamera> | undefined
 let gizmo: OrientationGizmo | undefined
+let selectionGizmo: SelectionGizmo | undefined
 let shown: Mesh[] = []
 let wireframe: LevelWireframe | undefined
 let rooms: RoomOverlay | undefined
@@ -247,6 +249,14 @@ function createScene(): void {
   addPreviewLights(view.scene)
 
   gizmo = createOrientationGizmo(gizmoTarget, view.camera)
+  selectionGizmo = createSelectionGizmo({
+    scene: view.scene,
+    camera: view.camera,
+    canvas: target,
+    onRender: (): void => {
+      loop.requestRender()
+    },
+  })
   resize()
 }
 
@@ -359,7 +369,12 @@ function showMap(map: ArxMap): void {
       cameraStore.setPose(pose)
       loop.requestRender()
     },
+    canLock: (): boolean => {
+      return selectionGizmo?.canLock() ?? true
+    },
     onLockChange: (locked: boolean): void => {
+      selectionGizmo?.setEnabled(!locked)
+
       if (locked) {
         loop.startLoop()
 
@@ -463,6 +478,8 @@ onMounted(() => {
   // the edit (a walk away and back would refresh it, which is exactly what a still picture can not do)
   stopWatchingEdit = watch(levelRevision, () => {
     repaintRooms()
+    // a moved face is a new fill: the overlay is built from the polygons of the selection
+    dragSelection.updateHighlight()
     loop.requestRender()
   })
 
@@ -535,6 +552,9 @@ onBeforeUnmount(() => {
 
   selection?.dispose()
   selection = undefined
+
+  selectionGizmo?.dispose()
+  selectionGizmo = undefined
 
   observer?.disconnect()
   observer = undefined

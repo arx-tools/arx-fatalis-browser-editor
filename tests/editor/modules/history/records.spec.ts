@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { ArxPolygonFlags, type ArxPolygon } from 'arx-convert/types'
+import { ArxPolygonFlags, type ArxPolygon, type ArxVector3 } from 'arx-convert/types'
+import { isQuad } from 'arx-convert/utils'
 import type { FaceRoom, FaceTexture } from '../../../../src/generator/ArxMap.ts'
 import type { PolygonInsertion } from '../../../../src/generator/arxMap/removal.ts'
 import type { FaceUv } from '../../../../src/generator/arxMap/uvs.ts'
@@ -9,6 +10,7 @@ import {
   createDeleteFacesRecord,
   createSetTextureRecord,
   createSetUvRecord,
+  createTranslateFacesRecord,
   HISTORY_RECORD_VERSION,
   labelOf,
   type MutableLevel,
@@ -78,6 +80,31 @@ function fakeLevel(count: number): {
       insertPolygons: (insertions: readonly PolygonInsertion[]): void => {
         for (const insertion of insertions) {
           polygons.splice(insertion.index, 0, insertion.polygon)
+        }
+      },
+      translatePolygons: (faces: readonly number[], delta: ArxVector3): void => {
+        for (const index of faces) {
+          const polygon = polygons[index]
+
+          if (polygon === undefined) {
+            continue
+          }
+
+          let corners = 3
+
+          if (isQuad(polygon)) {
+            corners = 4
+          }
+
+          for (let corner = 0; corner < corners; corner++) {
+            const vertex = polygon.vertices[corner]
+
+            if (vertex !== undefined) {
+              vertex.x = vertex.x + delta.x
+              vertex.y = vertex.y + delta.y
+              vertex.z = vertex.z + delta.z
+            }
+          }
         }
       },
       setFaceTextures: (changes: readonly FaceTexture[]): void => {
@@ -435,5 +462,54 @@ void describe('commandOf a uv edit', () => {
     const { level } = fakeLevel(2)
 
     assert.equal(commandOf(createSetUvRecord([5], [], []), level), undefined)
+  })
+})
+
+void describe('createTranslateFacesRecord', () => {
+  void it('writes the faces sorted, once each, and the delta', () => {
+    const record = createTranslateFacesRecord([3, 1, 3], { x: 1, y: -2, z: 3 })
+
+    assert.deepEqual(record.faces, [1, 3])
+    assert.deepEqual(record.delta, { x: 1, y: -2, z: 3 })
+    assert.equal(record.kind, 'translateFaces')
+    assert.equal(record.version, HISTORY_RECORD_VERSION)
+  })
+
+  void it('copies the delta, so the record does not follow the drag', () => {
+    const delta = { x: 1, y: 2, z: 3 }
+    const record = createTranslateFacesRecord([0], delta)
+
+    delta.x = 9
+
+    assert.equal(record.delta.x, 1)
+  })
+
+  void it('says how many faces it moves', () => {
+    assert.equal(labelOf(createTranslateFacesRecord([1, 2], { x: 1, y: 0, z: 0 })), 'Move 2 face(s)')
+  })
+})
+
+void describe('commandOf a move', () => {
+  void it('moves the corners on apply, and takes them back on revert', () => {
+    const { polygons, level } = fakeLevel(2)
+    const command = commandOf(createTranslateFacesRecord([1], { x: 10, y: -5, z: 2 }), level)
+
+    command?.apply()
+
+    const moved = polygons[1]?.vertices[0]
+
+    assert.deepEqual([moved?.x, moved?.y, moved?.z], [11, -5, 2])
+
+    command?.revert()
+
+    const back = polygons[1]?.vertices[0]
+
+    assert.deepEqual([back?.x, back?.y, back?.z], [1, 0, 0])
+  })
+
+  void it('gives no command when the face is not in the level', () => {
+    const { level } = fakeLevel(2)
+
+    assert.equal(commandOf(createTranslateFacesRecord([5], { x: 1, y: 0, z: 0 }), level), undefined)
   })
 })

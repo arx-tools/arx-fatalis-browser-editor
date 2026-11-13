@@ -56,6 +56,17 @@ export interface CameraControlsOptions {
    * @param locked True while the pointer is locked.
    */
   readonly onLockChange?: (locked: boolean) => void
+  /**
+   * Whether a click of the canvas may lock the pointer.
+   *
+   * @remarks
+   * A click that ends a drag of the move gizmo is not a click of the view: the gizmo tells the widget that it just
+   * moved the selection, and the camera stays free (the click would otherwise lock it around the gizmo). A click that
+   * moved nothing is a click of the view, and it locks.
+   *
+   * @returns False while the click belongs to a drag of the gizmo.
+   */
+  readonly canLock?: () => boolean
 }
 
 /**
@@ -296,6 +307,10 @@ export class CameraControls {
    * Locks the pointer when the canvas is clicked.
    */
   private readonly handleCanvasClick = (): void => {
+    if (this.options.canLock?.() === false) {
+      return
+    }
+
     this.lock()
   }
 

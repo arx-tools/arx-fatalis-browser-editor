@@ -296,10 +296,9 @@ export async function lockPointer(page: Page, view: Locator): Promise<void> {
     throw new Error('the view has no box')
   }
 
-  const halfWidth = box.width / 2
-  const halfHeight = box.height / 2
-
-  await page.mouse.click(box.x + halfWidth, box.y + halfHeight)
+  // the click goes to the lower left corner, away from the middle of the view: the move gizmo of a selection stands in
+  // the middle, and a click on its plane would grab it (and nudge the selection) instead of locking the camera
+  await page.mouse.click(box.x + 20, box.y + box.height - 20)
 }
 
 /**

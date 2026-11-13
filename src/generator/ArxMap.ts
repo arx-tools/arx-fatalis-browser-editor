@@ -1,6 +1,6 @@
 import { DLF, FTS, LLF } from 'arx-convert'
 import type { ArxDLF, ArxFTS, ArxLight, ArxLLF, ArxPolygon, ArxVector3 } from 'arx-convert/types'
-import { BufferGeometry, Mesh } from 'three'
+import { BufferGeometry, Mesh, type BufferAttribute } from 'three'
 import { isQuad } from 'arx-convert/utils'
 import {
   type GeometrySlice,
@@ -554,6 +554,96 @@ export class ArxMap {
       faceIndex,
       uvs,
     )
+  }
+
+  /**
+   * Moves the corners of faces by an offset.
+   *
+   * @remarks
+   * The vertices of the polygons are the model every reader uses (the export, the picking, the wireframe), and the
+   * positions of the meshes follow **in place**: a drag runs this on every frame, so the geometry is not built again
+   * (a build of the big level is ~260 ms). A face owns three corners in the solid geometry (six for the two triangles of
+   * a quad) and two per edge in the wireframe, and the polygons are in the order the geometry was built with.
+   *
+   * The tree of the picking is **refitted**, not built again: the moved faces are the only boxes that changed, and the
+   * topology of the tree is the same. The index of the welded vertices is dropped: a move can break the weld of the
+   * level, and the next drag or fill builds it from the positions.
+   *
+   * The delta is in the coordinates of the level (the game's), and the buffers are the mirrored scene
+   * ({@link arxVector3toVector3}), so the buffer takes the mirrored delta.
+   *
+   * @param faces The faces to move, by their index in {@link polygons}.
+   * @param delta The offset of their corners, in the coordinates of the level.
+   */
+  translatePolygons(faces: readonly number[], delta: ArxVector3): void {
+    const moved = new Set(faces)
+    const solid = this.solidMeshes[0]
+
+    if (solid === undefined || moved.size === 0) {
+      return
+    }
+
+    const positions = solid.geometry.getAttribute('position') as BufferAttribute
+    const wirePositions = this.wireframeGeometry.getAttribute('position') as BufferAttribute
+    const bufferDelta = arxVector3toVector3(delta)
+    let solidOffset = 0
+    let wireOffset = 0
+
+    for (let index = 0; index < this.polygons.length; index++) {
+      const polygon = this.polygons[index]
+      const quad = isQuad(polygon)
+      let solidCount = 3
+      let wireCount = 6
+      let corners = 3
+
+      if (quad) {
+        solidCount = 6
+        wireCount = 8
+        corners = 4
+      }
+
+      if (moved.has(index)) {
+        for (let corner = 0; corner < corners; corner++) {
+          const vertex = polygon.vertices[corner]
+
+          if (vertex !== undefined) {
+            vertex.x = vertex.x + delta.x
+            vertex.y = vertex.y + delta.y
+            vertex.z = vertex.z + delta.z
+          }
+        }
+
+        for (let vertex = 0; vertex < solidCount; vertex++) {
+          const at = solidOffset + vertex
+          positions.setXYZ(
+            at,
+            positions.getX(at) + bufferDelta.x,
+            positions.getY(at) + bufferDelta.y,
+            positions.getZ(at) + bufferDelta.z,
+          )
+        }
+
+        for (let vertex = 0; vertex < wireCount; vertex++) {
+          const at = wireOffset + vertex
+          wirePositions.setXYZ(
+            at,
+            wirePositions.getX(at) + bufferDelta.x,
+            wirePositions.getY(at) + bufferDelta.y,
+            wirePositions.getZ(at) + bufferDelta.z,
+          )
+        }
+      }
+
+      solidOffset = solidOffset + solidCount
+      wireOffset = wireOffset + wireCount
+    }
+
+    positions.needsUpdate = true
+    wirePositions.needsUpdate = true
+    solid.geometry.boundsTree?.refit()
+    solid.geometry.computeBoundingSphere()
+    this.wireframeGeometry.computeBoundingSphere()
+    this.vertexPolygons = undefined
   }
 
   /**

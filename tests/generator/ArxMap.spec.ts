@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { isQuad } from 'arx-convert/utils'
 import { getBVHExtremes } from 'three-mesh-bvh'
 import { BufferAttribute, Raycaster, Triangle, Vector3 } from 'three'
 import { createBlankLevelFiles, FLAT_PRESET } from '../../src/editor/modules/level/blankLevel.ts'
 import { ArxMap } from '../../src/generator/ArxMap.ts'
+import { arxVector3toVector3 } from '../../src/generator/meshes.ts'
 import { Settings } from '../../src/generator/Settings.ts'
 
 /**
@@ -464,5 +466,72 @@ void describe('ArxMap', () => {
       // and the face before it is untouched
       assert.deepEqual([rounded(attribute.getX(0)), rounded(attribute.getY(0))], before)
     })
+  })
+})
+
+void describe('translatePolygons', () => {
+  void it('moves the vertices of the faces, and the buffers with them', () => {
+    const map = flatMap()
+    const face = map.polygons[0]
+
+    if (face === undefined) {
+      throw new Error('the level has no face')
+    }
+
+    const quad = isQuad(face)
+    let solidCount = 3
+    let wireCount = 6
+
+    if (quad) {
+      solidCount = 6
+      wireCount = 8
+    }
+
+    const positions = map.solidMeshes[0].geometry.getAttribute('position')
+    const wireframe = map.wireframeGeometry.getAttribute('position')
+    const delta = { x: 10, y: -5, z: 2 }
+    const sceneDelta = arxVector3toVector3(delta)
+    const vertex = face.vertices[0]
+    const nextVertex = map.polygons[1]?.vertices[0]
+    const beforeVertex = { x: vertex.x, y: vertex.y, z: vertex.z }
+    let beforeNext: { x: number; y: number; z: number } | undefined
+
+    if (nextVertex !== undefined) {
+      beforeNext = { x: nextVertex.x, y: nextVertex.y, z: nextVertex.z }
+    }
+
+    const beforeSolid = [positions.getX(0), positions.getY(0), positions.getZ(0)]
+    const beforeWire = [wireframe.getX(0), wireframe.getY(0), wireframe.getZ(0)]
+    const secondSolid = [positions.getX(solidCount), positions.getY(solidCount), positions.getZ(solidCount)]
+    const secondWire = [wireframe.getX(wireCount), wireframe.getY(wireCount), wireframe.getZ(wireCount)]
+
+    map.translatePolygons([0], delta)
+
+    // the model takes the delta, the buffers the mirrored one
+    assert.deepEqual(
+      [vertex.x, vertex.y, vertex.z],
+      [beforeVertex.x + delta.x, beforeVertex.y + delta.y, beforeVertex.z + delta.z],
+    )
+    assert.deepEqual(
+      [positions.getX(0), positions.getY(0), positions.getZ(0)],
+      [
+        Math.fround(beforeSolid[0] + sceneDelta.x),
+        Math.fround(beforeSolid[1] + sceneDelta.y),
+        Math.fround(beforeSolid[2] + sceneDelta.z),
+      ],
+    )
+    assert.deepEqual(
+      [wireframe.getX(0), wireframe.getY(0), wireframe.getZ(0)],
+      [
+        Math.fround(beforeWire[0] + sceneDelta.x),
+        Math.fround(beforeWire[1] + sceneDelta.y),
+        Math.fround(beforeWire[2] + sceneDelta.z),
+      ],
+    )
+
+    // the face next to it stays where it was
+    assert.deepEqual([positions.getX(solidCount), positions.getY(solidCount), positions.getZ(solidCount)], secondSolid)
+    assert.deepEqual([wireframe.getX(wireCount), wireframe.getY(wireCount), wireframe.getZ(wireCount)], secondWire)
+    assert.deepEqual([nextVertex?.x, nextVertex?.y, nextVertex?.z], [beforeNext?.x, beforeNext?.y, beforeNext?.z])
   })
 })

@@ -1,4 +1,4 @@
-import type { ArxPolygon } from 'arx-convert/types'
+import type { ArxPolygon, ArxVector3 } from 'arx-convert/types'
 import type { FaceRoom, FaceTexture } from '../../../generator/ArxMap.ts'
 import type { PolygonInsertion } from '../../../generator/arxMap/removal.ts'
 import type { FaceUv } from '../../../generator/arxMap/uvs.ts'
@@ -151,6 +151,33 @@ export interface SetUvRecord {
 }
 
 /**
+ * The step that moves the corners of faces by an offset.
+ *
+ * @remarks
+ * The delta is in the coordinates of the level (the game's), so the step replays on the polygons and the meshes follow
+ * their own mirrored buffers. The drag writes the model while it runs; the step goes on the stack when the pointer is
+ * let go, with the whole offset of the drag (the command applies it once, and the undo takes it back).
+ */
+export interface TranslateFacesRecord {
+  /**
+   * The version of the shape of this record, see {@link HISTORY_RECORD_VERSION}.
+   */
+  readonly version: number
+  /**
+   * What the step does, which names its payload.
+   */
+  readonly kind: 'translateFaces'
+  /**
+   * The faces the step moves, by their index in the level, sorted.
+   */
+  readonly faces: readonly number[]
+  /**
+   * The offset the corners take, in the coordinates of the level.
+   */
+  readonly delta: ArxVector3
+}
+
+/**
  * A step the way a JSON can hold it.
  *
  * @remarks
@@ -162,7 +189,7 @@ export interface SetUvRecord {
  * The union grows with the kinds of the steps: `deleteFaces` and `setTexture` today, `moveVertex`, `moveLight` and the
  * rest as they arrive.
  */
-export type HistoryRecord = DeleteFacesRecord | SetRoomRecord | SetTextureRecord | SetUvRecord
+export type HistoryRecord = DeleteFacesRecord | SetRoomRecord | SetTextureRecord | SetUvRecord | TranslateFacesRecord
 
 /**
  * The part of the level a step may touch.
@@ -221,6 +248,13 @@ export interface MutableLevel {
    * @param uvs The uv of the corners, in the order they are stored.
    */
   setFaceUvs(faceIndex: number, uvs: readonly FaceUv[]): void
+  /**
+   * Moves the corners of faces by an offset.
+   *
+   * @param faces The faces to move, by their index in the level.
+   * @param delta The offset, in the coordinates of the level.
+   */
+  translatePolygons(faces: readonly number[], delta: ArxVector3): void
 }
 
 /**
@@ -359,6 +393,31 @@ export function createSetUvRecord(
 }
 
 /**
+ * Builds the record of a move, the way a step writes it down.
+ *
+ * @remarks
+ * The faces are sorted and made unique, and the delta is copied: the same drag gives the same record whatever order
+ * the selection held the faces in, and the record does not share the vector of the gesture.
+ *
+ * @param faces The faces the step moves.
+ * @param delta The offset their corners take, in the coordinates of the level.
+ *
+ * @returns The record of the step.
+ */
+export function createTranslateFacesRecord(faces: Iterable<number>, delta: ArxVector3): TranslateFacesRecord {
+  const unique = [...new Set(faces)].toSorted((one, other) => {
+    return one - other
+  })
+
+  return {
+    version: HISTORY_RECORD_VERSION,
+    kind: 'translateFaces',
+    faces: unique,
+    delta: { x: delta.x, y: delta.y, z: delta.z },
+  }
+}
+
+/**
  * The caption of a step, from its record.
  *
  * @param record The record of the step.
@@ -384,6 +443,10 @@ export function labelOf(record: HistoryRecord): string {
     }
 
     return `Move the uv of ${String(record.faces.length)} face(s)`
+  }
+
+  if (record.kind === 'translateFaces') {
+    return `Move ${String(record.faces.length)} face(s)`
   }
 
   return `Delete ${String(record.faces.length)} face(s)`

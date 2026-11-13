@@ -9,6 +9,7 @@ import {
   type SetRoomRecord,
   type SetTextureRecord,
   type SetUvRecord,
+  type TranslateFacesRecord,
 } from './records.ts'
 
 /**
@@ -130,6 +131,41 @@ function uvCommandOf(record: SetUvRecord, level: MutableLevel): HistoryCommand |
 }
 
 /**
+ * Builds the command of a move.
+ *
+ * @remarks
+ * The two halves are the two states of the corners: the step adds the delta, the undo takes it back. The faces are
+ * checked on the level, so a step of another level (or of a level that lost a face) gives no command instead of moving
+ * the wrong indices.
+ *
+ * @param record The record of the step.
+ * @param level The level the step changes.
+ *
+ * @returns The command, or undefined when a face of the record is not in the level.
+ */
+function translateFacesCommandOf(record: TranslateFacesRecord, level: MutableLevel): HistoryCommand | undefined {
+  for (const index of record.faces) {
+    if (level.polygons[index] === undefined) {
+      return undefined
+    }
+  }
+
+  const delta = { x: record.delta.x, y: record.delta.y, z: record.delta.z }
+  const opposite = { x: -delta.x, y: -delta.y, z: -delta.z }
+
+  return {
+    label: labelOf(record),
+    record,
+    apply: (): void => {
+      level.translatePolygons(record.faces, delta)
+    },
+    revert: (): void => {
+      level.translatePolygons(record.faces, opposite)
+    },
+  }
+}
+
+/**
  * Builds the command of a record: the step a replay runs.
  *
  * @remarks
@@ -162,6 +198,10 @@ export function commandOf(record: HistoryRecord, level: MutableLevel): HistoryCo
 
   if (record.kind === 'setUv') {
     return uvCommandOf(record, level)
+  }
+
+  if (record.kind === 'translateFaces') {
+    return translateFacesCommandOf(record, level)
   }
 
   if (record.kind !== 'deleteFaces') {

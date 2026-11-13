@@ -526,6 +526,13 @@ stopWatchingWireframe = watch(isWireframeVisible, (visible) => {
 // the views draw on demand, so without this the canvas would keep the picture of the level before the edit.
 stopWatchingEdit = watch(levelRevision, () => {
   repaintRooms()
+
+  const current = levelStore.map.value
+
+  if (current !== undefined) {
+    selectionOverlay?.setHighlight(selectedPolygonsOf(current))
+  }
+
   requestRender()
 })
 

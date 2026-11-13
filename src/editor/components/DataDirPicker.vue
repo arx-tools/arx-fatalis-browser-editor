@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { Check, CircleQuestionMark, FolderOpen, TriangleAlert, X } from 'lucide-vue-next'
+import { Check, CircleQuestionMark, FolderOpen, LoaderCircle, TriangleAlert, X } from 'lucide-vue-next'
 import { siYoutube } from 'simple-icons'
-import { computed, useTemplateRef, watch } from 'vue'
+import { computed, ref, useTemplateRef, watch } from 'vue'
 import {
   dataDirKind,
   dataDirPermission,
@@ -53,6 +53,18 @@ const dirInput = useTemplateRef<HTMLInputElement>('dirInput')
  * The browser has the directory picker of the File System Access API (Chromium), so a folder can be remembered.
  */
 const hasPicker = directoryPickerOf() !== undefined
+
+/**
+ * Whether a folder the user gave is being set up.
+ *
+ * @remarks
+ * The press of the way in gives the folder, and the state takes a moment to follow (the browser saves or forgets the
+ * handle, and the index of the files is built): the block of the state turns its mark into a throbber while it runs, so
+ * the dialog says it is working instead of showing the mark of "no folder" over a folder that is already on its way.
+ * The flag goes with the state, not with the level: the dialog closes half a second after the state is set, and the
+ * level can still be loading when it is gone.
+ */
+const isSettingUp = ref(false)
 
 /**
  * Whether the editor asks for the folder again after a reload.
@@ -159,6 +171,21 @@ const stateClass = computed(() => {
   }
 
   return 'is-missing'
+})
+
+/**
+ * The class of the state panel: the throbber while the folder is set up, the state of the folder otherwise.
+ *
+ * @remarks
+ * The button of the header keeps the real state of the folder (the panel is the one that shows the work): a busy button
+ * would lose the amber of a folder that is not there yet, while the press that opens the dialog is behind the cover.
+ */
+const panelClass = computed(() => {
+  if (isSettingUp.value) {
+    return 'is-setting'
+  }
+
+  return stateClass.value
 })
 
 /**
@@ -342,13 +369,15 @@ watch(
  *
  * @remarks
  * The state of the dialog is the answer to the press: the author sees the check and the name of the folder, and then the
- * dialog goes out of the way, because the next thing they want is the level (2026-11-12, the owner). A dialog that is
- * opened by hand is never closed by itself: this runs only on the press that gives a folder.
+ * dialog goes out of the way, because the next thing they want is the level (2026-11-12, the owner). Half a second is
+ * enough for the check to be seen (2026-11-13, the owner: the folder shows at once, the dialog can go), and the longer
+ * pause was in the way. A dialog that is opened by hand is never closed by itself: this runs only on the press that
+ * gives a folder.
  */
 function closeWhenTheFolderIsSeen(): void {
   setTimeout(() => {
     isDataDirSetupOpen.value = false
-  }, 1000)
+  }, 500)
 }
 
 /**
@@ -367,7 +396,14 @@ async function chooseDir(): Promise<void> {
     return
   }
 
-  await setDataDirHandle(handle, await permissionOf(handle))
+  isSettingUp.value = true
+
+  try {
+    await setDataDirHandle(handle, await permissionOf(handle))
+  } finally {
+    isSettingUp.value = false
+  }
+
   closeWhenTheFolderIsSeen()
   await afterDataDirChanged()
 }
@@ -401,16 +437,23 @@ async function loadDir(event: Event): Promise<void> {
   const files: DataDirFile[] = []
   let name = 'the data dir'
 
-  for (const file of chosen) {
-    // the relative path starts with the folder the user picked: the data dir itself is the root of a path
-    const parts = file.webkitRelativePath.split('/')
+  isSettingUp.value = true
 
-    name = parts[0] ?? name
-    parts.shift()
-    files.push({ path: parts.join('/'), file })
+  try {
+    for (const file of chosen) {
+      // the relative path starts with the folder the user picked: the data dir itself is the root of a path
+      const parts = file.webkitRelativePath.split('/')
+
+      name = parts[0] ?? name
+      parts.shift()
+      files.push({ path: parts.join('/'), file })
+    }
+
+    await setPickedDataDir(files, name)
+  } finally {
+    isSettingUp.value = false
   }
 
-  await setPickedDataDir(files, name)
   console.info(`Data dir: ${name}, ${String(files.length)} files (temporary).`)
   closeWhenTheFolderIsSeen()
   await afterDataDirChanged()
@@ -492,15 +535,19 @@ async function reconnectDir(): Promise<void> {
 
       <!-- the state of the folder is the point of the dialog: it is the first thing on it, in the middle, with air
            around it, so a reader sees at once whether the editor has the files of the game -->
-      <div class="state-panel" :class="stateClass">
-        <Check v-if="hasFolder" class="state-icon" :size="28" />
+      <div class="state-panel" :class="panelClass">
+        <LoaderCircle v-if="isSettingUp" class="state-icon is-spinning" :size="28" />
+        <Check v-else-if="hasFolder" class="state-icon" :size="28" />
         <TriangleAlert v-else class="state-icon" :size="28" />
         <span class="state-title">
-          <template v-if="hasFolder">The <strong>Arx data dir</strong> is set to the following folder</template>
+          <template v-if="isSettingUp">Setting up the data dir</template>
+          <template v-else-if="hasFolder">The <strong>Arx data dir</strong> is set to the following folder</template>
           <template v-else>{{ stateLabel }}</template>
         </span>
-        <span v-if="folderName !== undefined" class="state-name" :title="folderName">{{ folderName }}</span>
-        <span v-if="stateNote !== undefined" class="state-note">({{ stateNote }})</span>
+        <span v-if="!isSettingUp && folderName !== undefined" class="state-name" :title="folderName">{{
+          folderName
+        }}</span>
+        <span v-if="!isSettingUp && stateNote !== undefined" class="state-note">({{ stateNote }})</span>
         <button v-if="needsPermission" class="reconnect" type="button" @click="reconnectDir">
           Reconnect the folder
         </button>
@@ -630,6 +677,16 @@ async function reconnectDir(): Promise<void> {
     margin-bottom: 2px;
   }
 
+  // the mark of the folder being set up: a throbber, not the amber warning of a folder that is not there
+  &.is-setting .state-icon {
+    color: $text-muted;
+  }
+
+  // the throbber turns while the browser saves or forgets the handle and the files are indexed
+  .state-icon.is-spinning {
+    animation: spin 0.9s linear infinite;
+  }
+
   &.is-set .state-icon {
     color: $ok;
   }
@@ -681,6 +738,12 @@ async function reconnectDir(): Promise<void> {
     &:hover {
       background: $surface-float;
     }
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 

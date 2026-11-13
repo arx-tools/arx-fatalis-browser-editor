@@ -111,7 +111,7 @@ test('the files of a folder are a temporary data dir', async ({ page, browserNam
   await page.locator('.DataDirPicker > button').click()
   await page.locator('.dir-input').setInputFiles(dataDir)
 
-  // the dialog closes itself a second after the folder: the state is read when it is opened again
+  // the dialog closes itself half a second after the folder: the state is read when it is opened again
   const dialog = page.locator('[role="dialog"][aria-label="Setting up Arx data dir"]')
 
   await expect(dialog).toHaveCount(0, { timeout: 5000 })

@@ -357,9 +357,20 @@ test('the data directory of the header opens the level of the url', async ({ pag
     element.dispatchEvent(new view.Event('change', { bubbles: true }))
   }, entries)
 
-  // the dialog shows the folder as set, and the button of the header carries the state as its icon
-  await expect(dialog.locator('.state-title')).toHaveText('The Arx data dir is set to the following folder')
-  await expect(dialog.locator('.state-name')).toHaveText('header-data')
+  // the dialog shows the folder and goes half a second later: the flash is read in one poll, the button of the header
+  // keeps the state as its icon
+  await expect
+    .poll(
+      async () => {
+        return await page.evaluate(() => {
+          const element = globalThis.document.querySelector('[role="dialog"][aria-label="Setting up Arx data dir"]')
+
+          return element?.textContent ?? ''
+        })
+      },
+      { timeout: 5000, intervals: [20] },
+    )
+    .toContain('header-data')
   await expect(setup).toHaveAttribute('aria-label', /The Arx data dir is set/u)
 
   // the level of the url loads from the folder of the header, no url change needed

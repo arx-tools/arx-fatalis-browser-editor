@@ -30,6 +30,24 @@ test('the export dialog writes the level under the fields of the dialog', async 
 
   await expect(dialog).toBeVisible()
 
+  // the close button keeps the right edge of the header, and the title the left one: the button is not after the title
+  // (it was, in a dialog without title actions, because the free space was made by those)
+  const head = dialog.locator('.head')
+  const title = head.locator('h2')
+  const close = head.locator('.close')
+  const titleBox = await title.boundingBox()
+  const closeBox = await close.boundingBox()
+  const headBox = await head.boundingBox()
+
+  expect(titleBox).not.toBeNull()
+  expect(closeBox).not.toBeNull()
+  expect(headBox).not.toBeNull()
+
+  if (titleBox !== null && closeBox !== null && headBox !== null) {
+    expect(titleBox.x).toBeLessThan(headBox.x + 40)
+    expect(closeBox.x + closeBox.width).toBeGreaterThan(headBox.x + headBox.width - 20)
+  }
+
   // the seed of the url: the level of the test is opened without one, so the level made its own, and the url carries it
   const seed = await dialog.locator('#export-seed').inputValue()
 
@@ -65,9 +83,9 @@ test('the export dialog writes the level under the fields of the dialog', async 
   })
 
   // the files are under the index of the dialog, and the manifest says what the level is made with
-  expect(entries).toContain('/game/graph/levels/level13/fast.fts')
-  expect(entries).toContain('/graph/levels/level13/level13.dlf')
-  expect(entries).toContain('/graph/levels/level13/level13.llf')
+  expect(entries).toContain('game/graph/levels/level13/fast.fts')
+  expect(entries).toContain('graph/levels/level13/level13.dlf')
+  expect(entries).toContain('graph/levels/level13/level13.llf')
   expect(entries).toContain('manifest.json')
 
   const manifest = JSON.parse((await archive.file('manifest.json')?.async('string')) ?? '{}') as {
@@ -76,13 +94,11 @@ test('the export dialog writes the level under the fields of the dialog', async 
   }
 
   expect(manifest.seed).toBe(Number(seed))
-  expect(manifest.files).toContain('/game/graph/levels/level13/fast.fts')
+  expect(manifest.files).toContain('game/graph/levels/level13/fast.fts')
 
-  // the manifest says which generator made the level, and which build of the editor wrote the archive, with its code
+  // the manifest says which build of the editor wrote the archive, with its code: one signing key, not two
   const signed = manifest as unknown as {
     readonly generator?: string
-    readonly generatorVersion?: string
-    readonly generatorUrl?: string
     readonly editor?: {
       readonly name?: string
       readonly version?: string
@@ -93,14 +109,15 @@ test('the export dialog writes the level under the fields of the dialog', async 
     }
   }
 
-  expect(signed.generator).toBe('arx-level-generator2')
-  expect(signed.generatorVersion).toMatch(/^\d+\.\d+\.\d+/u)
-  expect(signed.generatorUrl).toBe('https://github.com/arx-tools/arx-fatalis-browser-editor')
+  expect(signed.generator).toBeUndefined()
   expect(signed.editor?.name).toBe('arx-fatalis-browser-editor')
   expect(signed.editor?.version).toMatch(/^\d+\.\d+\.\d+/u)
   expect(signed.editor?.commit).toMatch(/^(?:[0-9a-f]{7}|local)$/u)
   expect(signed.editor?.builtAt).toMatch(/^\d{4}-\d{2}-\d{2}$/u)
   expect(signed.editor?.exportedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/u)
+
+  // the list of the files is the whole archive, the manifest itself excepted
+  expect(manifest.files).toContain('editor/settings.json')
 
   // the end of the export is on the button of the dialog
   await expect(dialog.locator('.export')).toHaveText('Downloaded')
@@ -123,15 +140,15 @@ test('a level of a zip opens on the camera pose the export wrote', async ({ page
   const [download] = await Promise.all([page.waitForEvent('download'), dialog.locator('.export').click()])
   const data = await readFile((await download.path()) ?? '')
   const archive = await JSZip.loadAsync(data)
-  const manifest = JSON.parse((await archive.file('manifest.json')?.async('string')) ?? '{}') as {
+  const settings = JSON.parse((await archive.file('editor/settings.json')?.async('string')) ?? '{}') as {
     readonly camera?: { readonly position?: readonly number[]; readonly rotation?: readonly number[] }
   }
 
-  // the camera of the level is in the manifest, and it is not the spawn of the player
-  expect(manifest.camera?.position?.[0]).toBeCloseTo(120, 1)
-  expect(manifest.camera?.position?.[1]).toBeCloseTo(-60, 1)
-  expect(manifest.camera?.position?.[2]).toBeCloseTo(430, 1)
-  expect(manifest.camera?.rotation?.[1]).toBeCloseTo(45, 1)
+  // the camera of the level is in the settings of the editor, and it is not the spawn of the player
+  expect(settings.camera?.position?.[0]).toBeCloseTo(120, 1)
+  expect(settings.camera?.position?.[1]).toBeCloseTo(-60, 1)
+  expect(settings.camera?.position?.[2]).toBeCloseTo(430, 1)
+  expect(settings.camera?.rotation?.[1]).toBeCloseTo(45, 1)
 
   // the dialog goes, and the camera is taken somewhere else: the pose of the archive is not the one on the screen any more
   await dialog.locator('.close').click()

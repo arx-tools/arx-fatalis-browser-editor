@@ -4,6 +4,8 @@ import { DLF, FTS, LLF } from 'arx-convert'
 import type { ArxColor, ArxLLF, ArxPolygon } from 'arx-convert/types'
 import JSZip from 'jszip'
 import { createBlankLevelFiles, FLAT_PRESET } from '../../../../src/editor/modules/level/blankLevel.ts'
+import { SETTINGS_PATH, SOURCE_FOLDER } from '../../../../src/editor/modules/level/source/editorSettings.ts'
+import type { StoredPose } from '../../../../src/editor/modules/level/source/maps/mapPoses.ts'
 import {
   buildExportDlf,
   buildExportManifest,
@@ -15,7 +17,6 @@ import {
 } from '../../../../src/editor/modules/export/exportLevel.ts'
 import { ArxMap } from '../../../../src/generator/ArxMap.ts'
 import { unpackArxFile } from '../../../../src/generator/files.ts'
-import { GENERATOR_NAME, GENERATOR_URL, type ManifestCamera } from '../../../../src/generator/manifest.ts'
 import { Settings } from '../../../../src/generator/Settings.ts'
 
 /**
@@ -164,28 +165,23 @@ function filesOf(level: number): string[] {
 }
 
 void describe('buildExportManifest', () => {
-  void it('signs the archive with the generator and the build of the editor', () => {
+  void it('signs the archive with the build of the editor', () => {
     const manifest = buildExportManifest({
       seed: '590085197',
       files: filesOf(13),
       metadata: undefined,
-      camera: undefined,
       editor: editorBuild,
       exportedAt,
     })
 
     assert.deepEqual(manifest, {
       seed: 590_085_197,
-      generator: GENERATOR_NAME,
-      generatorVersion: '0.23.1',
-      generatorUrl: GENERATOR_URL,
       name: undefined,
       version: undefined,
       description: undefined,
       author: undefined,
       url: undefined,
       editor: { ...editorBuild, exportedAt },
-      camera: undefined,
       files: filesOf(13),
     })
   })
@@ -195,7 +191,6 @@ void describe('buildExportManifest', () => {
       seed: undefined,
       files: filesOf(8),
       metadata: undefined,
-      camera: undefined,
       editor: editorBuild,
       exportedAt,
     })
@@ -209,7 +204,6 @@ void describe('buildExportManifest', () => {
       seed: 'the seed of my map',
       files: filesOf(8),
       metadata: undefined,
-      camera: undefined,
       editor: editorBuild,
       exportedAt,
     })
@@ -222,7 +216,6 @@ void describe('buildExportManifest', () => {
       seed: '590085197',
       files: filesOf(8),
       metadata: undefined,
-      camera: undefined,
       editor: editorBuild,
       exportedAt,
     })
@@ -242,9 +235,7 @@ void describe('buildExportManifest', () => {
         url: 'https://example.com/the-mod',
         seed: 999,
         files: ['/the/files/of/the/zip'],
-        generator: 'arx-level-generator',
       },
-      camera: undefined,
       editor: editorBuild,
       exportedAt,
     })
@@ -258,9 +249,6 @@ void describe('buildExportManifest', () => {
     // the seed of the dialog wins over the one of the base, and the files are the ones of this archive
     assert.equal(manifest.seed, 12_345)
     assert.deepEqual(manifest.files, filesOf(1))
-
-    // the generator's keys say which generator wrote the level now, not which one wrote the zip before
-    assert.equal(manifest.generator, GENERATOR_NAME)
   })
 
   void it('writes the seed of the base when the dialog has none', () => {
@@ -268,27 +256,11 @@ void describe('buildExportManifest', () => {
       seed: undefined,
       files: filesOf(1),
       metadata: { seed: 987 },
-      camera: undefined,
       editor: editorBuild,
       exportedAt,
     })
 
     assert.equal(manifest.seed, 987)
-  })
-
-  void it('carries the camera pose of the level', () => {
-    const camera: ManifestCamera = { position: [5320.35, 307.39, 10_713.8], rotation: [0, 180, 0] }
-
-    const manifest = buildExportManifest({
-      seed: undefined,
-      files: filesOf(1),
-      metadata: undefined,
-      camera,
-      editor: editorBuild,
-      exportedAt,
-    })
-
-    assert.deepEqual(manifest.camera, camera)
   })
 })
 
@@ -449,6 +421,7 @@ void describe('exportLevelZip', () => {
         levelFilePath(level, 'dlf'),
         levelFilePath(level, 'fts'),
         levelFilePath(level, 'llf'),
+        SETTINGS_PATH,
         'manifest.json',
       ].toSorted(),
     )
@@ -483,40 +456,70 @@ void describe('exportLevelZip', () => {
     assert.ok(written.has(sourcePath('fts')))
     assert.ok(written.has(sourcePath('dlf')))
     assert.ok(written.has(sourcePath('llf')))
-    assert.ok(written.has('history.json'))
+    assert.ok(written.has(SETTINGS_PATH))
 
     // the source is the level the map was built from, byte for byte
     const source = await archive.file(sourcePath('fts'))?.async('arraybuffer')
 
     assert.deepEqual(new Uint8Array(source ?? new ArrayBuffer(0)), new Uint8Array(map.source.fts))
 
-    // and the steps carry the fingerprint of that level, so a replay lands on it
-    const history = JSON.parse((await archive.file('history.json')?.async('string')) ?? '{}') as {
-      readonly version?: number
-      readonly fingerprint?: string
-      readonly records?: readonly unknown[]
-      readonly position?: number
+    // the steps are in the settings of the editor, with the fingerprint of that level, so a replay lands on it
+    const settings = JSON.parse((await archive.file(SETTINGS_PATH)?.async('string')) ?? '{}') as {
+      readonly history?: {
+        readonly version?: number
+        readonly fingerprint?: string
+        readonly records?: readonly unknown[]
+        readonly position?: number
+      }
     }
 
-    assert.equal(history.version, 2)
-    assert.equal(history.fingerprint, map.fingerprint)
-    assert.deepEqual(history.records, [record])
-    assert.equal(history.position, 1)
+    assert.equal(settings.history?.version, 2)
+    assert.equal(settings.history?.fingerprint, map.fingerprint)
+    assert.deepEqual(settings.history?.records, [record])
+    assert.equal(settings.history?.position, 1)
+
+    // and the manifest lists every file of the archive: the level, the source and the settings
+    const manifest = JSON.parse((await archive.file('manifest.json')?.async('string')) ?? '{}') as {
+      readonly files?: readonly string[]
+    }
+
+    assert.deepEqual(manifest.files, [
+      levelFilePath(13, 'fts'),
+      levelFilePath(13, 'dlf'),
+      levelFilePath(13, 'llf'),
+      SETTINGS_PATH,
+      sourcePath('fts'),
+      sourcePath('dlf'),
+      sourcePath('llf'),
+    ])
   })
 
-  void it('writes only the result when the level has no steps', async () => {
-    const { data } = await exportLevelZip(flatMap())
+  void it('writes the settings of the editor without a source when the level has no steps', async () => {
+    const camera: StoredPose = { position: [120, -60, 430], rotation: [10, 45, 0] }
+    const { data } = await exportLevelZip(flatMap(), undefined, { camera })
     const archive = await JSZip.loadAsync(data)
-    const entries = Object.values(archive.files).map((entry) => {
-      return entry.name
-    })
+    const entries = new Set(
+      Object.values(archive.files).map((entry) => {
+        return entry.name
+      }),
+    )
 
+    // the pose of the camera is the state of the editor: it goes into the settings, and the settings into the manifest
+    assert.ok(entries.has(SETTINGS_PATH))
     assert.equal(
-      entries.some((entry) => {
-        return entry.startsWith('editor/') || entry === 'history.json'
+      [...entries].some((entry) => {
+        return entry.startsWith(SOURCE_FOLDER)
       }),
       false,
     )
+
+    const settings = JSON.parse((await archive.file(SETTINGS_PATH)?.async('string')) ?? '{}') as {
+      readonly camera?: unknown
+      readonly history?: unknown
+    }
+
+    assert.deepEqual(settings.camera, camera)
+    assert.equal(settings.history, undefined)
   })
 
   void it('writes the level under the index and the seed of the dialog', async () => {
@@ -532,9 +535,11 @@ void describe('exportLevelZip', () => {
     // the manifest says what the level is made with, and the three files are under the index of the dialog
     const manifest = JSON.parse(raw) as Record<string, unknown>
 
-    assert.deepEqual(manifest.files, filesOf(13))
+    assert.deepEqual(manifest.files, [...filesOf(13), SETTINGS_PATH])
     assert.equal(manifest.seed, 590_085_197)
-    assert.equal(manifest.generator, GENERATOR_NAME)
+
+    // one signing key, the editor's: two of them would say the same thing twice
+    assert.equal('generator' in manifest, false)
 
     // the block of the editor is the build, and a key without a value is not written at all
     assert.deepEqual(manifest.editor, {

@@ -168,13 +168,16 @@ test('the export of a level that came from a zip keeps the keys of that zip', as
   expect(manifest.version).toBe('1.0.0')
   expect(manifest.editor?.name).toBe('arx-fatalis-browser-editor')
 
-  // and the files are the ones of this archive, not the machine paths the base wrote
-  expect(manifest.files).toHaveLength(3)
+  // and the files are the ones of this archive, not the machine paths the base wrote: the level, and the state of the
+  // editor beside it, every path relative the way a zip path is
+  expect(manifest.files).toHaveLength(4)
 
   for (const file of manifest.files ?? []) {
-    expect(file.startsWith('/')).toBe(true)
+    expect(file.startsWith('/')).toBe(false)
     expect(file).not.toContain('/home/')
   }
+
+  expect(manifest.files).toContain('editor/settings.json')
 })
 
 test('a level of a zip comes back with the steps it was exported with', async ({ page, browserName }) => {
@@ -231,7 +234,7 @@ test('a level of a zip comes back with the steps it was exported with', async ({
       return entry.startsWith('editor/source/')
     }),
   ).toBe(true)
-  expect(entries).toContain('history.json')
+  expect(entries).toContain('editor/settings.json')
 
   // the zip opens the level as it was left, and the step is a step of it: the undo takes it back
   await openZip(page, 'mod.zip', data)

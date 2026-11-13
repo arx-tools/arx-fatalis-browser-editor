@@ -11,6 +11,7 @@ import { restoreMapHistory, saveMapHistory } from '../edit/editing.ts'
 import { paintLevel } from '../edit/levelTextures.ts'
 import { levelStore } from '../edit/levelStore.ts'
 import type { LevelManifest } from '../../../../generator/manifest.ts'
+import type { EditorSettings } from './editorSettings.ts'
 import { clearDataDirScan, readDataFile, scanLevelNumbers } from './dataDir.ts'
 import { MAP_PARAMETER, mapSlugOf, rememberMapId } from './maps/mapId.ts'
 import {
@@ -285,6 +286,15 @@ export function rememberStartupPose(): void {
 }
 
 /**
+ * The state the editor kept in the zip the map on the screen came from.
+ *
+ * @remarks
+ * The editor's state is the pose of its camera (which is not the spawn of the level) and the steps of the level: an
+ * archive of an editor carries both, in its `editor/settings.json`.
+ */
+export const currentMapSettings = shallowRef<EditorSettings | undefined>(undefined)
+
+/**
  * The manifest of the zip the map on the screen came from.
  *
  * @remarks
@@ -310,20 +320,18 @@ export function zipManifestOf(source: LevelSource): LevelManifest | undefined {
 }
 
 /**
- * Reads the pose the manifest of a zip carries, when the camera can take it.
+ * Reads the state the editor kept in a zip, once it is loaded.
  *
- * @param manifest The manifest of the zip.
+ * @param source The source the map was opened from.
  *
- * @returns The pose, or `undefined` when the manifest has none, or has one the camera can not apply.
+ * @returns The state, or `undefined` when the source is not a zip, or its zip has none.
  */
-function manifestPoseOf(manifest: LevelManifest | undefined): StoredPose | undefined {
-  const camera = manifest?.camera
-
-  if (camera === undefined || !isStoredPose(camera)) {
+export function zipSettingsOf(source: LevelSource): EditorSettings | undefined {
+  if (!isZipLevelSource(source)) {
     return undefined
   }
 
-  return camera
+  return source.settings()
 }
 
 /**
@@ -343,7 +351,7 @@ export function adoptHistoryOf(id: string, source: LevelSource): void {
     return
   }
 
-  const history = source.history()
+  const history = source.settings()?.history
 
   if (history === undefined) {
     return
@@ -388,7 +396,7 @@ export function moveCameraToPoseOfOpen(id: string): void {
     urlPose: startupPose,
     urlMapId: startupMapId,
     storedPoses: readMapPoses(),
-    manifestPose: manifestPoseOf(currentMapManifest.value),
+    archivePose: currentMapSettings.value?.camera,
     isFirstOpen,
   })
 
@@ -713,6 +721,7 @@ export async function openMap(id: string): Promise<void> {
 
   currentMapId.value = id
   currentMapManifest.value = zipManifestOf(source)
+  currentMapSettings.value = zipSettingsOf(source)
   adoptHistoryOf(id, source)
 
   // the address bar keeps the map of the screen, and a map picked from the list is not the zip of the url any more: the

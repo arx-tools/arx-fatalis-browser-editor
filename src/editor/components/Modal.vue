@@ -122,14 +122,12 @@ onBeforeUnmount(() => {
     border-bottom: 1px solid $border-dark;
   }
 
-  // the links that belong to the title: the icons of the subject of the dialog, right after the title (the free space
-  // after them is what puts the close button on the right edge)
+  // the links that belong to the title: the icons of the subject of the dialog, right after the title
   .title-actions {
     display: flex;
     flex: none;
     align-items: center;
     gap: 10px;
-    margin-right: auto;
   }
 
   h2 {
@@ -138,8 +136,10 @@ onBeforeUnmount(() => {
     font-weight: 600;
   }
 
+  // the right edge is the button's own, so a dialog without title actions keeps it too (the free space goes before it)
   .close {
     display: inline-flex;
+    margin-left: auto;
     align-items: center;
     justify-content: center;
     width: 24px;

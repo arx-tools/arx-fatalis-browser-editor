@@ -303,10 +303,10 @@ export interface PoseForOpenQuery {
    * The pose the zip the map came from carries, when it came from a zip and carries one.
    *
    * @remarks
-   * The manifest of an export says where the camera stood on the level when the archive was written, so a level that
-   * travels in a zip opens on the view it was left at, on any machine.
+   * The settings of an archive say where the camera stood on the level when it was written, so a level that travels in a
+   * zip opens on the view it was left at, on any machine.
    */
-  readonly manifestPose: StoredPose | undefined
+  readonly archivePose: StoredPose | undefined
   /**
    * Whether this is the first map of the visit.
    */
@@ -322,7 +322,7 @@ export interface PoseForOpenQuery {
  *
  * 1. the first map of the visit, when the url carries a pose of it (or a pose without a map), takes that pose;
  * 2. the pose the browser stored for the map, which is the memory of the visit that left it;
- * 3. the pose the zip of the map carries, when it came from a zip (the level's own view, from another machine);
+ * 3. the pose the zip of the map carries, when it came from a zip (the settings of that archive);
  * 4. the spawn of the map, which is what `undefined` means.
  *
  * @param query What the map, the url and the browser say.
@@ -330,7 +330,7 @@ export interface PoseForOpenQuery {
  * @returns The pose to take, or `undefined` when the map opens on its spawn.
  */
 export function poseForOpenOf(query: PoseForOpenQuery): StoredPose | undefined {
-  const { id, key, urlPose, urlMapId, storedPoses, manifestPose, isFirstOpen } = query
+  const { id, key, urlPose, urlMapId, storedPoses, archivePose, isFirstOpen } = query
 
   if (isFirstOpen && urlPose !== undefined && (urlMapId === undefined || urlMapId === id)) {
     return urlPose
@@ -342,7 +342,7 @@ export function poseForOpenOf(query: PoseForOpenQuery): StoredPose | undefined {
     return stored
   }
 
-  return manifestPose
+  return archivePose
 }
 
 /**

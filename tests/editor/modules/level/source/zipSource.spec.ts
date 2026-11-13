@@ -75,7 +75,9 @@ void describe('readLevelFromZip', () => {
         'editor/source/game/graph/levels/level8/fast.fts': 'fts-source',
         'editor/source/graph/levels/level8/level8.dlf': 'dlf-source',
         'editor/source/graph/levels/level8/level8.llf': 'llf-source',
-        'history.json': JSON.stringify({ version: 2, fingerprint: 'abc:10', records: [record], position: 1 }),
+        'editor/settings.json': JSON.stringify({
+          history: { version: 2, fingerprint: 'abc:10', records: [record], position: 1 },
+        }),
       }),
       'level8.zip',
     )
@@ -84,9 +86,9 @@ void describe('readLevelFromZip', () => {
     assert.equal(textOf(level.files.fts), 'fts-source')
     assert.equal(textOf(level.files.dlf), 'dlf-source')
     assert.equal(textOf(level.files.llf), 'llf-source')
-    assert.equal(level.history?.fingerprint, 'abc:10')
-    assert.deepEqual(level.history?.records, [record])
-    assert.equal(level.history?.position, 1)
+    assert.equal(level.settings?.history?.fingerprint, 'abc:10')
+    assert.deepEqual(level.settings?.history?.records, [record])
+    assert.equal(level.settings?.history?.position, 1)
   })
 
   void it('opens the result when the editor kept a source without steps', async () => {
@@ -102,7 +104,23 @@ void describe('readLevelFromZip', () => {
     )
 
     assert.equal(textOf(level.files.fts), 'fts-result')
-    assert.equal(level.history, undefined)
+    assert.equal(level.settings, undefined)
+  })
+
+  void it('reads the pose of the camera from the settings, with no steps and no source', async () => {
+    const camera = { position: [100, 200, 300], rotation: [0, 90, 0] }
+    const level = await readLevelFromZip(
+      await zipOf({
+        ...installedLevel('level8', 'result'),
+        'editor/settings.json': JSON.stringify({ camera }),
+      }),
+      'level8.zip',
+    )
+
+    // the camera is the state of the editor, not the level: the files are the result, and the pose comes beside them
+    assert.equal(textOf(level.files.fts), 'fts-result')
+    assert.deepEqual(level.settings?.camera, camera)
+    assert.equal(level.settings?.history, undefined)
   })
 
   void it('keeps the name of the zip when the zip has no manifest', async () => {
@@ -233,20 +251,22 @@ void describe('createZipLevelSource', () => {
     const source = createZipLevelSource('level8.zip', new ArrayBuffer(0))
 
     assert.equal(source.manifest(), undefined)
+    assert.equal(source.settings(), undefined)
   })
 
-  void it('keeps the manifest the zip carries, once the level is loaded', async () => {
+  void it('keeps what the zip carries, once the level is loaded', async () => {
     const camera = { position: [100, 200, 300], rotation: [0, 90, 0] }
     const files = {
       ...installedLevel('level8', 'a'),
-      'manifest.json': JSON.stringify({ name: 'Lalee minigame', seed: 42, camera }),
+      'manifest.json': JSON.stringify({ name: 'Lalee minigame', seed: 42 }),
+      'editor/settings.json': JSON.stringify({ camera }),
     }
     const source = createZipLevelSource('level8.zip', await zipOf(files))
 
     await source.load()
 
     assert.equal(source.manifest()?.name, 'Lalee minigame')
-    assert.deepEqual(source.manifest()?.camera, camera)
+    assert.deepEqual(source.settings()?.camera, camera)
   })
 
   void it('reads the zip when the level is loaded', async () => {

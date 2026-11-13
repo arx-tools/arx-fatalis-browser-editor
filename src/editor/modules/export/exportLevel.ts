@@ -4,17 +4,11 @@ import { getCellCoords, isQuad, MAP_WIDTH_IN_CELLS } from 'arx-convert/utils'
 import { getHeaderSize } from 'arx-header-size'
 import JSZip from 'jszip'
 import type { ArxMap } from '../../../generator/ArxMap.ts'
-import {
-  generatorInfoOf,
-  GENERATOR_URL,
-  MANIFEST_NAME,
-  type LevelManifest,
-  type ManifestCamera,
-  type ManifestEditor,
-} from '../../../generator/manifest.ts'
+import { MANIFEST_NAME, type LevelManifest, type ManifestEditor } from '../../../generator/manifest.ts'
 import { roomCentersOf, roomDistancesOf } from '../../../generator/roomDistances.ts'
 import type { HistorySnapshot } from '../history/mapHistory.ts'
-import { storedHistoryJsonOf } from '../history/mapHistoryStorage.ts'
+import { editorSettingsJsonOf, SETTINGS_PATH, SOURCE_FOLDER } from '../level/source/editorSettings.ts'
+import type { StoredPose } from '../level/source/maps/mapPoses.ts'
 import type { LevelFiles } from '../level/source/levelSource.ts'
 import { packLevelFile, packWholeFile } from '../level/source/packedFile.ts'
 
@@ -248,9 +242,10 @@ export interface ExportOptions {
    *
    * @remarks
    * It is the view of the editor, not the spawn of the player: the spawn is the level's own, and a later round may let it
-   * be set on the map. The archive carries the pose so the same level opens on the same view on another machine.
+   * be set on the map. The archive carries the pose so the same level opens on the same view on another machine; it goes
+   * into the settings of the editor, not into the manifest.
    */
-  readonly camera?: ManifestCamera
+  readonly camera?: StoredPose
   /**
    * The moment the archive is written, as an ISO timestamp, for the block of the editor.
    *
@@ -269,16 +264,6 @@ export interface ExportOptions {
    */
   readonly history?: HistorySnapshot
 }
-
-/**
- * The folder of the archive the editor keeps the level its steps were made on in.
- */
-const SOURCE_FOLDER = 'editor/source/'
-
-/**
- * The name of the file the steps of the level are kept in, beside the manifest.
- */
-const HISTORY_NAME = 'history.json'
 
 /**
  * Rebuilds the description of a level.
@@ -345,14 +330,14 @@ export function exportLevelFiles(map: ArxMap, options: ExportOptions = {}): Leve
  * @param level The number of the level.
  * @param kind Which file of the level.
  *
- * @returns The path of the file, with a leading slash.
+ * @returns The path of the file inside the archive, relative the way a zip path is.
  */
 export function levelFilePath(level: number, kind: 'dlf' | 'fts' | 'llf'): string {
   if (kind === 'fts') {
-    return `/game/graph/levels/level${String(level)}/fast.fts`
+    return `game/graph/levels/level${String(level)}/fast.fts`
   }
 
-  return `/graph/levels/level${String(level)}/level${String(level)}.${kind}`
+  return `graph/levels/level${String(level)}/level${String(level)}.${kind}`
 }
 
 /**
@@ -377,7 +362,7 @@ function editorBuildOf(): EditorBuild {
       version: 'local',
       commit: 'local',
       builtAt: 'local',
-      url: GENERATOR_URL,
+      url: 'https://github.com/arx-tools/arx-fatalis-browser-editor',
     }
   }
 
@@ -400,10 +385,6 @@ export interface ExportManifestParts {
    * The manifest of the zip the level came from, when it came from one.
    */
   readonly metadata: LevelManifest | undefined
-  /**
-   * The pose of the camera on the level, when there is one to write.
-   */
-  readonly camera: ManifestCamera | undefined
   /**
    * The build of the editor that writes the archive.
    */
@@ -445,12 +426,13 @@ function seedOf(text: string | number | undefined): number | string | undefined 
  * @remarks
  * The manifest is the base the level generator issues, with the block of the editor written over it:
  *
- * - the generator's keys say which build of the generator wrote the level, and the seed it made it with
- * - the keys of the level (name, version, description, author, url) are the ones the archive came with, so a mod that is
- * exported again stays the mod it was
- * - the block of the editor says which build wrote the archive, and when
- * - the camera is the view of the level, which is not the spawn of the player
- * - the files are the ones the archive holds, with a leading slash, the way the loader of the zips matches them
+ * - the keys of the level (seed, name, version, description, author, url) are the ones the archive came with, so a mod
+ * that is exported again stays the mod it was, and the seed the dialog shows when the level has none
+ * - the block of the editor says which build wrote the archive, and when: one signing key, the editor's
+ * - the files are every file the archive holds, the manifest itself excepted, so the list is the content and not a
+ * part of it
+ *
+ * The pose of the camera is not here: it is the state of the editor, and it goes into the settings of the archive.
  *
  * A key that has no value is left out, so the manifest of an archive made from a level of the game says what it knows
  * and nothing else. The seed of the dialog wins over the one of the base: the dialog is the last look at the level.
@@ -465,14 +447,12 @@ export function buildExportManifest(parts: ExportManifestParts): LevelManifest {
 
   return {
     seed: seedOf(parts.seed) ?? seedOf(base?.seed),
-    ...generatorInfoOf(parts.editor.version),
     name: base?.name,
     version: base?.version,
     description: base?.description,
     author: base?.author,
     url: base?.url,
     editor,
-    camera: parts.camera,
     files: [...parts.files],
   }
 }
@@ -487,13 +467,21 @@ export function buildExportManifest(parts: ExportManifestParts): LevelManifest {
  *
  * @param map The map to write the source of.
  * @param archive The archive to write into.
+ *
+ * @returns The paths it wrote, for the list of the files of the archive.
  */
-function writeSource(map: ArxMap, archive: JSZip): void {
+function writeSource(map: ArxMap, archive: JSZip): string[] {
   const level = map.dlf.header.levelIdx
+  const written: string[] = []
 
   for (const kind of ['fts', 'dlf', 'llf'] as const) {
-    archive.file(`${SOURCE_FOLDER}${levelFilePath(level, kind).replace(/^\/+/, '')}`, map.source[kind])
+    const path = `${SOURCE_FOLDER}${levelFilePath(level, kind)}`
+
+    archive.file(path, map.source[kind])
+    written.push(path)
   }
+
+  return written
 }
 
 /**
@@ -551,7 +539,7 @@ export async function exportLevelZip(
 
   const archive = new JSZip()
 
-  // the files the archive holds, in the order they are written: the manifest lists them, so a file that joins the
+  // the files the archive holds, in the order they are written: the manifest lists all of them, so a file that joins the
   // archive later is in the list without a change here
   const written = [levelFilePath(levelIndex, 'fts'), levelFilePath(levelIndex, 'dlf'), levelFilePath(levelIndex, 'llf')]
 
@@ -559,33 +547,38 @@ export async function exportLevelZip(
   archive.file(written[1], dlf)
   archive.file(written[2], llf)
 
+  // the state of the editor: the pose of the camera, which is not the spawn of the level, and the steps of the level when
+  // it has some. A level with steps is also a save of itself: the steps are indices of the level they were made on, so
+  // that level goes beside the result, and only with them (the two are read together, or neither is)
+  const steps = options.history?.records ?? []
+  let stepsOfTheArchive: { fingerprint: string; records: typeof steps; position: number } | undefined
+
+  if (steps.length > 0) {
+    stepsOfTheArchive = { fingerprint: map.fingerprint, records: steps, position: options.history?.position ?? 0 }
+  }
+
+  if (steps.length > 0) {
+    stepsOfTheArchive = { fingerprint: map.fingerprint, records: steps, position: options.history?.position ?? 0 }
+  }
+
+  const settings = { camera: options.camera, history: stepsOfTheArchive }
+
+  archive.file(SETTINGS_PATH, JSON.stringify(editorSettingsJsonOf(settings), undefined, 2))
+  written.push(SETTINGS_PATH)
+
+  if (steps.length > 0) {
+    written.push(...writeSource(map, archive))
+  }
+
   const manifest = buildExportManifest({
     seed: options.seed,
     files: written,
     metadata: options.manifest,
-    camera: options.camera,
     editor: editorBuildOf(),
     exportedAt: options.exportedAt ?? new Date().toISOString(),
   })
 
   archive.file(MANIFEST_NAME, JSON.stringify(manifest, undefined, 2))
-
-  // a level with steps is also a save of itself: the steps are indices of the level they were made on, so that level
-  // goes beside the result (under the folder of the editor), and the steps into the history file of the archive
-  const steps = options.history?.records ?? []
-
-  if (steps.length > 0) {
-    writeSource(map, archive)
-
-    archive.file(
-      HISTORY_NAME,
-      JSON.stringify(
-        storedHistoryJsonOf({ fingerprint: map.fingerprint, records: steps, position: options.history?.position ?? 0 }),
-        undefined,
-        2,
-      ),
-    )
-  }
 
   const data = await archive.generateAsync({ type: 'arraybuffer' })
 

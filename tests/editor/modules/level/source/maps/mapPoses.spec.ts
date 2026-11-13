@@ -174,7 +174,7 @@ void describe('poseForOpenOf', () => {
       urlPose: pose,
       urlMapId: 'arx:11',
       storedPoses: { 'arx:11': { position: [1, 2, 3], rotation: [0, 90, 0] } },
-      manifestPose: undefined,
+      archivePose: undefined,
       isFirstOpen: true,
     })
 
@@ -188,7 +188,7 @@ void describe('poseForOpenOf', () => {
       urlPose: pose,
       urlMapId: undefined,
       storedPoses: {},
-      manifestPose: undefined,
+      archivePose: undefined,
       isFirstOpen: true,
     })
 
@@ -202,7 +202,7 @@ void describe('poseForOpenOf', () => {
       urlPose: undefined,
       urlMapId: 'arx:11',
       storedPoses: { 'arx:11': pose },
-      manifestPose: undefined,
+      archivePose: undefined,
       isFirstOpen: true,
     })
 
@@ -216,7 +216,7 @@ void describe('poseForOpenOf', () => {
       urlPose: undefined,
       urlMapId: undefined,
       storedPoses: { 'arx:11': pose },
-      manifestPose: undefined,
+      archivePose: undefined,
       isFirstOpen: true,
     })
 
@@ -230,7 +230,7 @@ void describe('poseForOpenOf', () => {
       urlPose: undefined,
       urlMapId: undefined,
       storedPoses: { 'arx:11': pose },
-      manifestPose: undefined,
+      archivePose: undefined,
       isFirstOpen: true,
     })
 
@@ -244,7 +244,7 @@ void describe('poseForOpenOf', () => {
       urlPose: pose,
       urlMapId: 'arx:11',
       storedPoses: {},
-      manifestPose: undefined,
+      archivePose: undefined,
       isFirstOpen: false,
     })
 
@@ -259,7 +259,7 @@ void describe('poseForOpenOf', () => {
       urlPose: pose,
       urlMapId: 'arx:11',
       storedPoses: { 'blank:flat': { position: [550, -180, 550], rotation: [0, 180, 0] } },
-      manifestPose: undefined,
+      archivePose: undefined,
       isFirstOpen: true,
     })
 
@@ -273,7 +273,7 @@ void describe('poseForOpenOf', () => {
       urlPose: undefined,
       urlMapId: undefined,
       storedPoses: {},
-      manifestPose: pose,
+      archivePose: pose,
       isFirstOpen: true,
     })
 
@@ -289,7 +289,7 @@ void describe('poseForOpenOf', () => {
       urlPose: undefined,
       urlMapId: undefined,
       storedPoses: { 'custom:0:lalee-s_minigame.zip:8': stored },
-      manifestPose: pose,
+      archivePose: pose,
       isFirstOpen: true,
     })
 
@@ -303,7 +303,7 @@ void describe('poseForOpenOf', () => {
       urlPose: { position: [4, 5, 6], rotation: [0, 45, 0] },
       urlMapId: undefined,
       storedPoses: {},
-      manifestPose: pose,
+      archivePose: pose,
       isFirstOpen: true,
     })
 
@@ -317,7 +317,7 @@ void describe('poseForOpenOf', () => {
       urlPose: undefined,
       urlMapId: undefined,
       storedPoses: { 'custom:0:lalee-s_minigame.zip:8': pose },
-      manifestPose: undefined,
+      archivePose: undefined,
       isFirstOpen: true,
     })
 

@@ -7,6 +7,7 @@ import LoadingOverlay from './components/LoadingOverlay.vue'
 import MissingMapPrompt from './components/MissingMapPrompt.vue'
 import { startLevelDisplay } from './components/widgets/shared/levelDisplay.ts'
 import { startLevelEditing } from './modules/level/edit/editing.ts'
+import { insertLevelFromUrl } from './modules/level/edit/insertLevel.ts'
 import { startSelection } from './modules/selection/selectionStore.ts'
 import { paintLevel, startLevelTextures } from './modules/level/edit/levelTextures.ts'
 import { MAP_PARAMETER, mapIdFromUrl, mapSlugOf, storedMapId } from './modules/level/source/maps/mapId.ts'
@@ -31,6 +32,7 @@ import {
   availableMapIdOf,
   currentMapId,
   currentMapManifest,
+  currentMapSettings,
   DEFAULT_MAP_ID,
   hasChangesOf,
   MAP_GROUP_PREFIXES,
@@ -47,6 +49,7 @@ import {
   setStartupSource,
   startMapPersistence,
   zipManifestOf,
+  zipSettingsOf,
 } from './modules/level/source/maps.ts'
 import { migrateLegacyPose } from './modules/level/source/maps/mapPoses.ts'
 import { startPoseTracking } from './modules/level/source/maps/poseTracking.ts'
@@ -167,6 +170,7 @@ onMounted(async () => {
         if (data !== undefined) {
           currentMapId.value = rememberCustomMap(source.label, data)
           currentMapManifest.value = zipManifestOf(source)
+          currentMapSettings.value = zipSettingsOf(source)
           adoptHistoryOf(currentMapId.value, source)
         }
       } else if (isOriginalLevelSource(source)) {
@@ -254,6 +258,12 @@ onMounted(async () => {
         writeUrlValue(url, DATA_DIR_PARAMETER, undefined)
       }
     }
+
+    // a spike (2026-11-13, the owner's idea): the geometry of another level, inserted into the map of the url. It is not a
+    // part of the load, so a level the insert can not read leaves the map as it was
+    await insertLevelFromUrl().catch(() => {
+      // the map stays as it was
+    })
   }
 
   begin().catch(() => {

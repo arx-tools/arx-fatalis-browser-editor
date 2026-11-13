@@ -49,6 +49,18 @@ export function bumpLevelRevision(): void {
 }
 
 /**
+ * Tells the paint of the level that its groups are stale.
+ *
+ * @remarks
+ * A change that takes faces out or puts them in drops the groups of the geometry (`refillGeometry`: a group is a root of
+ * the BVH), so the paint has to build them again, or the solid mesh draws nothing. The steps do it themselves
+ * (`withRevision`), and a change that is not a step of the history — an insert of a level, a spike — calls this.
+ */
+export function bumpTextureRevision(): void {
+  textureRevision.value = textureRevision.value + 1
+}
+
+/**
  * Wraps a step, so the views follow what it does.
  *
  * @remarks

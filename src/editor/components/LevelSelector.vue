@@ -10,7 +10,9 @@ import {
   moveCameraToPoseOfOpen,
   rememberCustomMap,
   restorePersistedHistory,
+  currentMapSettings,
   zipManifestOf,
+  zipSettingsOf,
 } from '../modules/level/source/maps.ts'
 import { createZipLevelSource } from '../modules/level/source/zipSource.ts'
 
@@ -68,6 +70,7 @@ async function loadZip(event: Event): Promise<void> {
   // (a zip is a value of the session, its pose belongs to the name and the size of the zip)
   currentMapId.value = rememberCustomMap(file.name, data)
   currentMapManifest.value = zipManifestOf(source)
+  currentMapSettings.value = zipSettingsOf(source)
   adoptHistoryOf(currentMapId.value, source)
 
   // the steps the archive carries come back on the level the same way they do on a reload, and then the camera goes

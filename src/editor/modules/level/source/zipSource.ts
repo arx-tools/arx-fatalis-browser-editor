@@ -1,27 +1,13 @@
 import JSZip from 'jszip'
 import { MANIFEST_NAME, manifestOf, type LevelManifest } from '../../../../generator/manifest.ts'
-import { storedHistoryOfValue, type StoredHistory } from '../../history/mapHistoryStorage.ts'
+import {
+  EDITOR_FOLDER,
+  editorSettingsOfValue,
+  SETTINGS_PATH,
+  SOURCE_FOLDER,
+  type EditorSettings,
+} from './editorSettings.ts'
 import type { LevelFiles, LevelSource } from './levelSource.ts'
-
-/**
- * The folder of the zip the editor keeps its own state in.
- *
- * @remarks
- * An archive the editor writes carries the level it was made from (the steps of the history are indices of that level,
- * so a replay needs it beside the result). Nothing under this folder is a level: the reader of a zip skips it, or a
- * level and its own source would be two candidates of the same three files.
- */
-const EDITOR_FOLDER = 'editor/'
-
-/**
- * The folder of the zip the level the editor's steps were made on is kept in.
- */
-const SOURCE_FOLDER = `${EDITOR_FOLDER}source/`
-
-/**
- * The name of the file the steps of the level are kept in, beside the manifest.
- */
-const HISTORY_NAME = 'history.json'
 
 /**
  * The extensions of the three files a level is made of.
@@ -54,9 +40,9 @@ export interface ZipLevel {
    */
   readonly manifest: LevelManifest | undefined
   /**
-   * The steps the editor kept in the zip, when it kept them with the source they were made on.
+   * The state the editor kept in the zip, when it kept one.
    */
-  readonly history: StoredHistory | undefined
+  readonly settings: EditorSettings | undefined
 }
 
 /**
@@ -288,19 +274,20 @@ async function sourceFilesOf(entries: readonly JSZip.JSZipObject[], label: strin
 }
 
 /**
- * Reads the steps the editor kept in the zip, beside the manifest.
+ * Reads the state the editor kept in the zip.
  *
  * @remarks
- * The value is the one the browser stores for a map (see `mapHistoryStorage`), so the same reader reads both: a value of
- * another build, or a broken one, is dropped and the level opens without steps.
+ * The file holds the pose of the camera and the steps of the level, in the shape the browser stores them, so the same
+ * reader reads an archive and a reload. A file of another build (or a broken one) is dropped: the level opens on the
+ * files of the archive, without a pose and without steps.
  *
  * @param archive The zip to read.
  *
- * @returns The steps, or `undefined` when the zip has none.
+ * @returns The state, or `undefined` when the zip has none.
  */
-async function readHistory(archive: JSZip): Promise<StoredHistory | undefined> {
+async function readSettings(archive: JSZip): Promise<EditorSettings | undefined> {
   const entry = Object.values(archive.files).find((file) => {
-    return !file.dir && baseNameOf(file.name).toLowerCase() === HISTORY_NAME
+    return !file.dir && zipPathOf(file.name) === SETTINGS_PATH
   })
 
   if (entry === undefined) {
@@ -315,7 +302,7 @@ async function readHistory(archive: JSZip): Promise<StoredHistory | undefined> {
     return undefined
   }
 
-  return storedHistoryOfValue(parsed)
+  return editorSettingsOfValue(parsed)
 }
 
 /**
@@ -349,22 +336,17 @@ export async function readLevelFromZip(data: ArrayBuffer, label: string): Promis
     }),
   )
   const files = await levelFilesOf(entriesOf(archive), mentioned, label)
+  const settings = await readSettings(archive)
 
   // the source and the steps are one idea: the steps are indices of the source, so the editor opens the source only
   // when the steps that belong to it are there. A zip of the game, or one of an older editor, has neither
   const source = await sourceFilesOf(Object.values(archive.files), label)
 
-  if (source === undefined) {
-    return { label: manifest?.name ?? label, files, manifest, history: undefined }
+  if (source === undefined || settings?.history === undefined) {
+    return { label: manifest?.name ?? label, files, manifest, settings }
   }
 
-  const history = await readHistory(archive)
-
-  if (history === undefined) {
-    return { label: manifest?.name ?? label, files, manifest, history: undefined }
-  }
-
-  return { label: manifest?.name ?? label, files: source, manifest, history }
+  return { label: manifest?.name ?? label, files: source, manifest, settings }
 }
 
 /**
@@ -401,16 +383,17 @@ export interface ZipLevelSource extends LevelSource {
    */
   readonly manifest: () => LevelManifest | undefined
   /**
-   * The steps the editor kept in the zip, once it is loaded.
+   * The state the editor kept in the zip, once it is loaded.
    *
    * @remarks
-   * The steps are indices of the level the zip carries with them, so the two are read together: when this is set, the
-   * level the source loads is the source the steps were made on, and the caller replays them onto it.
+   * It is the pose of the camera and the steps of the level: the steps are indices of the level the zip carries with
+   * them, so when they are there, the level the source loads is the source they were made on, and the caller replays them
+   * onto it.
    *
-   * @returns The steps, or `undefined` when the zip was not written by an editor that keeps them (or has not been read
+   * @returns The state, or `undefined` when the zip was not written by an editor that keeps one (or has not been read
    * yet).
    */
-  readonly history: () => StoredHistory | undefined
+  readonly settings: () => EditorSettings | undefined
 }
 
 /**
@@ -423,7 +406,7 @@ export interface ZipLevelSource extends LevelSource {
  */
 export function createZipLevelSource(name: string, data: ArrayBuffer): ZipLevelSource {
   let manifest: LevelManifest | undefined
-  let history: StoredHistory | undefined
+  let settings: EditorSettings | undefined
 
   return {
     label: name,
@@ -433,14 +416,14 @@ export function createZipLevelSource(name: string, data: ArrayBuffer): ZipLevelS
     manifest: (): LevelManifest | undefined => {
       return manifest
     },
-    history: (): StoredHistory | undefined => {
-      return history
+    settings: (): EditorSettings | undefined => {
+      return settings
     },
     load: async (): Promise<LevelFiles> => {
       const level = await readLevelFromZip(data, name)
 
       manifest = level.manifest
-      history = level.history
+      settings = level.settings
 
       return level.files
     },
@@ -556,7 +539,7 @@ function fileNameOf(value: string): string {
 export function createZipUrlLevelSource(url: string, isDev = IS_DEVELOPMENT): ZipLevelSource {
   let data: ArrayBuffer | undefined
   let manifest: LevelManifest | undefined
-  let history: StoredHistory | undefined
+  let settings: EditorSettings | undefined
 
   const name = fileNameOf(url)
 
@@ -568,8 +551,8 @@ export function createZipUrlLevelSource(url: string, isDev = IS_DEVELOPMENT): Zi
     manifest: (): LevelManifest | undefined => {
       return manifest
     },
-    history: (): StoredHistory | undefined => {
-      return history
+    settings: (): EditorSettings | undefined => {
+      return settings
     },
     load: async (fetchImpl: typeof fetch = fetch): Promise<LevelFiles> => {
       const response = await fetchImpl(zipFetchUrl(url, isDev))
@@ -583,7 +566,7 @@ export function createZipUrlLevelSource(url: string, isDev = IS_DEVELOPMENT): Zi
       const level = await readLevelFromZip(data, name)
 
       manifest = level.manifest
-      history = level.history
+      settings = level.settings
 
       return level.files
     },

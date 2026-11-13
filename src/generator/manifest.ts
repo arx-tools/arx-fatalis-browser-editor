@@ -1,32 +1,13 @@
-import type { TripleOf } from 'arx-convert/utils'
-
 /**
- * The name of the file the zip of a level carries its own state in.
+ * The name of the file the zip of a level says what it is in.
  *
  * @remarks
- * The archive is not only the three files of the level: it says what the level is (a name, a version, who made it), what
- * the archive holds (the paths of its files), and what the editor that wrote it knows of the view (the camera pose). A
- * reader that finds the file reads the level by it; a reader that does not still finds the level files by their name.
+ * The archive is not only the three files of the level: this says what the level is (a name, a version, who made it),
+ * which build of the editor wrote it, and which files the archive holds. The state of the **editor** (the pose of the
+ * camera, the steps of the history) is not here: it lives in `editor/settings.json`, under the folder of the editor, so
+ * the manifest stays the description of the level and a reader of it does not walk the state of a program.
  */
 export const MANIFEST_NAME = 'manifest.json'
-
-/**
- * The camera pose the manifest carries: where the camera stands and looks on the level.
- *
- * @remarks
- * It is the pose of the editor's camera when the level was written, and it is **not** the spawn of the player: the spawn
- * is the level's own (`player.position` in the DLF), and it is a separate idea.
- */
-export interface ManifestCamera {
-  /**
-   * The eye of the camera, in the game's coordinates.
-   */
-  readonly position: TripleOf<number>
-  /**
-   * The facing of the camera: pitch and yaw in the game's degrees, and a roll that is always `0`.
-   */
-  readonly rotation: TripleOf<number>
-}
 
 /**
  * The build of the tool that wrote the archive, with the moment it was written.
@@ -67,9 +48,10 @@ export interface ManifestEditor {
  * What the `manifest.json` of a level zip says.
  *
  * @remarks
- * The keys are the ones the level generator writes, in its order: the seed it made the level with, the program that made
- * it, the level itself, and the paths of the files. The editor adds {@link ManifestEditor} and {@link ManifestCamera}
- * to that base, so a manifest says both where the level came from and which build wrote the archive.
+ * The keys are the ones the level generator writes for a level (its seed, its name and version, who made it, where it
+ * lives), the block of the build of the editor that wrote the archive, and the files the archive holds. There is one
+ * signing key, the editor's: two of them side by side would say the same thing twice, and the files of the archive are
+ * written by the editor.
  *
  * Every key is optional: a manifest of another build may hold some of them, and the loader reads the level without it.
  */
@@ -82,18 +64,6 @@ export interface LevelManifest {
    * level is whatever text starts its random numbers, not only a number.
    */
   readonly seed?: number | string
-  /**
-   * The name of the program that made the level.
-   */
-  readonly generator?: string
-  /**
-   * The version of that program.
-   */
-  readonly generatorVersion?: string
-  /**
-   * Where the code of that program lives.
-   */
-  readonly generatorUrl?: string
   /**
    * The name of the level.
    */
@@ -119,15 +89,12 @@ export interface LevelManifest {
    */
   readonly editor?: ManifestEditor
   /**
-   * The pose of the editor's camera when the archive was written.
-   */
-  readonly camera?: ManifestCamera
-  /**
-   * The paths of the files of the archive.
+   * The paths of every file the archive holds, the manifest itself excepted.
    *
    * @remarks
-   * The paths are the ones inside the zip, with a leading slash (`/game/graph/levels/level8/fast.fts`). An older
-   * generator wrote absolute machine paths of its output folder, so a reader matches on the base names instead.
+   * The list is the content of the archive, not only the files the game reads: the level, the source the editor kept,
+   * and the settings of the editor among them. An older generator wrote absolute machine paths of its own folder, so a
+   * reader matches the files of a level on their base names.
    */
   readonly files?: readonly string[]
 }
@@ -148,31 +115,6 @@ function stringOf(value: Record<string, unknown>, key: string): string | undefin
   }
 
   return found
-}
-
-/**
- * Reads a triplet of finite numbers, the shape the camera pose is written in.
- *
- * @param value The value to read.
- *
- * @returns The triplet, or `undefined` when the value is not three finite numbers.
- */
-function tripletOf(value: unknown): TripleOf<number> | undefined {
-  if (!Array.isArray(value) || value.length !== 3) {
-    return undefined
-  }
-
-  const parts = value as unknown[]
-
-  if (
-    parts.some((part) => {
-      return typeof part !== 'number' || !Number.isFinite(part)
-    })
-  ) {
-    return undefined
-  }
-
-  return parts as TripleOf<number>
 }
 
 /**
@@ -210,33 +152,6 @@ function editorOf(value: unknown): ManifestEditor | undefined {
 }
 
 /**
- * Reads the camera pose of a parsed manifest.
- *
- * @remarks
- * The numbers of the pose are checked here, but whether the camera **can** take the angle is the camera's business: the
- * reader that moves a camera drops a pose it can not apply.
- *
- * @param value The value of the `camera` key.
- *
- * @returns The pose, or `undefined` when the value is not a pose.
- */
-function cameraOf(value: unknown): ManifestCamera | undefined {
-  if (typeof value !== 'object' || value === null) {
-    return undefined
-  }
-
-  const block = value as Record<string, unknown>
-  const position = tripletOf(block.position)
-  const rotation = tripletOf(block.rotation)
-
-  if (position === undefined || rotation === undefined) {
-    return undefined
-  }
-
-  return { position, rotation }
-}
-
-/**
  * Reads a parsed `manifest.json`.
  *
  * @remarks
@@ -271,66 +186,14 @@ export function manifestOf(value: unknown): LevelManifest | undefined {
 
   const manifest: LevelManifest = {
     seed: readSeed,
-    generator: stringOf(parsed, 'generator'),
-    generatorVersion: stringOf(parsed, 'generatorVersion'),
-    generatorUrl: stringOf(parsed, 'generatorUrl'),
     name: stringOf(parsed, 'name'),
     version: stringOf(parsed, 'version'),
     description: stringOf(parsed, 'description'),
     author: stringOf(parsed, 'author'),
     url: stringOf(parsed, 'url'),
     editor: editorOf(parsed.editor),
-    camera: cameraOf(parsed.camera),
     files: readFiles,
   }
 
   return manifest
-}
-
-/**
- * What the level generator says about itself in a manifest.
- */
-export interface GeneratorInfo {
-  /**
-   * The name of the program that made the files of the level.
-   */
-  readonly generator: string
-  /**
-   * The version of that program.
-   */
-  readonly generatorVersion: string
-  /**
-   * Where the code of that program lives.
-   */
-  readonly generatorUrl: string
-}
-
-/**
- * The name the generator writes into a manifest.
- *
- * @remarks
- * The generator of the editor is the one that will be a library of its own, and its version is not one of its own yet:
- * it is built with the editor and takes the version of that build. The name says which generator it is, not which
- * version of a numbered program, which is why it carries the `2` of the next one.
- */
-export const GENERATOR_NAME = 'arx-level-generator2'
-
-/**
- * Where the code of the generator lives.
- *
- * @remarks
- * The generator is a part of the editor today, so the address is the one of the editor. It moves to its own repository
- * when the generator is a library, and this value moves with it.
- */
-export const GENERATOR_URL = 'https://github.com/arx-tools/arx-fatalis-browser-editor'
-
-/**
- * The generator's part of a manifest.
- *
- * @param version The version of the build the generator is a part of.
- *
- * @returns The three keys the generator signs a manifest with.
- */
-export function generatorInfoOf(version: string): GeneratorInfo {
-  return { generator: GENERATOR_NAME, generatorVersion: version, generatorUrl: GENERATOR_URL }
 }

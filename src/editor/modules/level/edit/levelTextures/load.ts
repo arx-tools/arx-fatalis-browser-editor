@@ -1,7 +1,8 @@
 import JSZip from 'jszip'
 import { RepeatWrapping, SRGBColorSpace, Texture } from 'three'
 import { BLANK_LEVEL_TEXTURE, GENERATOR_ASSETS } from '../../../../../generator/assets.ts'
-import { decodeTextureBitmap } from '../../../textures/image.ts'
+import { hasGameFlatColor, registerFlatColor } from '../../../../../generator/flatColors.ts'
+import { averageColorOfImage, decodeTextureBitmap } from '../../../textures/image.ts'
 
 /**
  * Where the textures of a level come from, and how a file becomes a texture.
@@ -231,14 +232,49 @@ export function createLevelTexture(image: TexImageSource): Texture {
  *
  * @returns The textures, by the same names. A file the browser can not decode is left out.
  */
+/**
+ * Learns the flat colour of a texture the table of the game does not know, from the average of its own pixels.
+ *
+ * @remarks
+ * A level may bring its own textures (the zip of a custom level, a file the user drops, a texture of a modded data
+ * directory): the table of the game has no colour for those, so the editor reads the average of the decoded image and
+ * registers it. The wireframe takes the colour of the texture from the registry (see `flatColors.ts`), and the level
+ * writes its lines again when a colour it did not have arrives (the caller of this function is the texture loading).
+ *
+ * A texture the table knows keeps the colour of the table: the files of the game are what the table was made from, and
+ * a level of the game loads dozens of them.
+ *
+ * @param name The name the level calls the texture.
+ * @param image The decoded image.
+ *
+ * @returns True when a colour was registered, so the caller can write the colours of the wireframe again.
+ */
+export function learnFlatColorOfTexture(name: string, image: CanvasImageSource): boolean {
+  if (hasGameFlatColor(name)) {
+    return false
+  }
+
+  const average = averageColorOfImage(image)
+
+  if (average === undefined) {
+    return false
+  }
+
+  registerFlatColor(name, average)
+
+  return true
+}
+
 export async function decodeTextures(files: ReadonlyMap<string, ArrayBuffer>): Promise<Map<string, Texture>> {
   const textures = new Map<string, Texture>()
 
   for (const [name, bytes] of files) {
     try {
-      const texture = createLevelTexture(await decodeTextureBitmap(name, bytes))
+      const bitmap = await decodeTextureBitmap(name, bytes)
 
-      textures.set(name, texture)
+      learnFlatColorOfTexture(name, bitmap)
+
+      textures.set(name, createLevelTexture(bitmap))
     } catch {
       // a texture the browser can not read stays flat: the level is still complete
     }

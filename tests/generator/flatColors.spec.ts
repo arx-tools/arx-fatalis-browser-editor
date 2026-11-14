@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { afterEach, describe, it } from 'node:test'
 import { Color, SRGBColorSpace } from 'three'
-import { flatColorOf, wireframeLineColorOf, type FlatColor } from '../../src/generator/flatColors.ts'
+import {
+  clearRegisteredFlatColors,
+  flatColorOf,
+  hasGameFlatColor,
+  registerFlatColor,
+  wireframeLineColorOf,
+  type FlatColor,
+} from '../../src/generator/flatColors.ts'
 
 /**
  * Reads the display HSL of a colour of the vertex colours (the linear space three draws with).
@@ -97,5 +104,46 @@ void describe('wireframeLineColorOf', () => {
 
   void it('gives a white line for a face without a texture name', () => {
     assert.deepEqual(wireframeLineColorOf(undefined), [1, 1, 1])
+  })
+})
+
+void describe('the flat colours registered at runtime', () => {
+  afterEach(() => {
+    clearRegisteredFlatColors()
+  })
+
+  void it('knows which textures the table of the game has', () => {
+    assert.equal(hasGameFlatColor('(fabric)_gobelin_bed.bmp'), true)
+    assert.equal(hasGameFlatColor('a-custom-wall.jpg'), false)
+  })
+
+  void it('reads the registered colour of a texture the table does not know', () => {
+    registerFlatColor('a-custom-wall.jpg', [200, 120, 40])
+
+    assert.deepEqual(flatColorOf('a-custom-wall.jpg'), [200, 120, 40])
+  })
+
+  void it('takes the registered colour of a game texture over the table', () => {
+    // a level may bring its own file of a name the game knows: the colour of the file on the screen wins
+    registerFlatColor('(fabric)_gobelin_bed.bmp', [10, 20, 30])
+
+    assert.deepEqual(flatColorOf('(fabric)_gobelin_bed.bmp'), [10, 20, 30])
+  })
+
+  void it('gives the line of a registered texture from its own colour', () => {
+    const flat = flatHslOf([200, 120, 40])
+
+    registerFlatColor('a-custom-wall.jpg', [200, 120, 40])
+
+    const line = hslOf(wireframeLineColorOf('a-custom-wall.jpg'))
+
+    assert.ok(hueDistanceOf(line.h, flat.h + 0.5) < 1e-4)
+  })
+
+  void it('forgets the registered colours when it is cleared', () => {
+    registerFlatColor('a-custom-wall.jpg', [200, 120, 40])
+    clearRegisteredFlatColors()
+
+    assert.equal(flatColorOf('a-custom-wall.jpg'), undefined)
   })
 })

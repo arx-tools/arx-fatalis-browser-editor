@@ -10,6 +10,7 @@ import {
   createLevelTexture,
   decodeTextures,
   findTextureFiles,
+  learnFlatColorOfTexture,
   loadMissingTexture,
   zipImageNames,
 } from './levelTextures/load.ts'
@@ -294,6 +295,12 @@ export async function paintLevel(map: ArxMap, zipData?: ArrayBuffer): Promise<vo
   }
 
   const textures = await decodeTextures(files)
+
+  // a texture the table of the game does not know got its flat colour from the decoded file (a custom texture of the
+  // zip, a file of the data directory): the wireframe was built before the textures arrived, so it writes its lines
+  // again, with the colours of the textures on the screen
+  map.refreshWireframeColors()
+
   // the containers left without a texture take the placeholder of the generator
   const missing = await loadMissingTexture()
   const painted = paintZipTextures(map, textures, missing)
@@ -338,7 +345,15 @@ export async function registerLevelTexture(name: string, bytes: ArrayBuffer): Pr
   }
 
   try {
-    current.textures.set(name, createLevelTexture(await decodeTextureBitmap(name, bytes)))
+    const bitmap = await decodeTextureBitmap(name, bytes)
+
+    current.textures.set(name, createLevelTexture(bitmap))
+
+    // a texture the table of the game does not know arrives with its flat colour (the average of its pixels): the lines
+    // of the faces that draw with it take that colour from now on
+    if (learnFlatColorOfTexture(name, bitmap)) {
+      current.map.refreshWireframeColors()
+    }
 
     return true
   } catch {

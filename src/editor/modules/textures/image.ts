@@ -1,3 +1,5 @@
+import type { FlatColor } from '../../../generator/flatColors.ts'
+
 /**
  * The images of the game, read the way the game reads them.
  *
@@ -247,4 +249,83 @@ export function thumbnailUrlOf(bitmap: ImageBitmap, size = THUMBNAIL_SIZE): stri
   context.drawImage(bitmap, 0, 0, size, size)
 
   return canvas.toDataURL('image/png')
+}
+
+/**
+ * Reads the average colour of the pixels of an image.
+ *
+ * @remarks
+ * The average is what the flat mode of the game paints a face with, and the editor reads it for a texture the table of
+ * the game does not know (a custom texture a level brings). A pixel with no alpha takes no part in it: the holes of a
+ * fence are not black cloth.
+ *
+ * @param pixels The pixels, four channels each (RGBA).
+ * @param width The width of the image, in pixels.
+ * @param height The height of the image, in pixels.
+ *
+ * @returns The average, sRGB bytes, or `undefined` when no pixel is opaque.
+ */
+export function averageColorOfPixels(pixels: Uint8ClampedArray, width: number, height: number): FlatColor | undefined {
+  let red = 0
+  let green = 0
+  let blue = 0
+  let count = 0
+
+  for (let index = 0; index < width * height; index++) {
+    const at = index * 4
+
+    if ((pixels[at + 3] ?? 0) === 0) {
+      continue
+    }
+
+    red = red + (pixels[at] ?? 0)
+    green = green + (pixels[at + 1] ?? 0)
+    blue = blue + (pixels[at + 2] ?? 0)
+    count = count + 1
+  }
+
+  if (count === 0) {
+    return undefined
+  }
+
+  return [Math.round(red / count), Math.round(green / count), Math.round(blue / count)]
+}
+
+/**
+ * The side of the square an image is drawn into for its average, in pixels.
+ *
+ * @remarks
+ * The average of a few thousand pixels is the average of the image within a byte or two, and it does not walk a
+ * 1024 square one pixel at a time: the texture this is read for may be any size.
+ */
+const AVERAGE_SIZE = 64
+
+/**
+ * Reads the average colour of a decoded image, through a canvas.
+ *
+ * @remarks
+ * A decoded image has no pixels of its own to read: the canvas is where they can be read, the same way the colour key
+ * of a BMP is cut (see `decodeTextureBitmap`).
+ *
+ * @param image The decoded image.
+ *
+ * @returns The average, sRGB bytes, or `undefined` when the browser gives no canvas.
+ */
+export function averageColorOfImage(image: CanvasImageSource): FlatColor | undefined {
+  const canvas = document.createElement('canvas')
+
+  canvas.width = AVERAGE_SIZE
+  canvas.height = AVERAGE_SIZE
+
+  const context = canvas.getContext('2d', { willReadFrequently: true })
+
+  if (context === null) {
+    return undefined
+  }
+
+  context.drawImage(image, 0, 0, AVERAGE_SIZE, AVERAGE_SIZE)
+
+  const imageData = context.getImageData(0, 0, AVERAGE_SIZE, AVERAGE_SIZE)
+
+  return averageColorOfPixels(imageData.data, AVERAGE_SIZE, AVERAGE_SIZE)
 }

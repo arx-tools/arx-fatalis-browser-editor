@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { afterEach, describe, it } from 'node:test'
 import { isQuad } from 'arx-convert/utils'
 import { getBVHExtremes } from 'three-mesh-bvh'
 import { BufferAttribute, Quaternion, Raycaster, Triangle, Vector3 } from 'three'
 import { createBlankLevelFiles, FLAT_PRESET } from '../../src/editor/modules/level/blankLevel.ts'
 import { ArxMap, MIN_SCALE_FACTOR } from '../../src/generator/ArxMap.ts'
-import { wireframeLineColorOf } from '../../src/generator/flatColors.ts'
+import { clearRegisteredFlatColors, registerFlatColor, wireframeLineColorOf } from '../../src/generator/flatColors.ts'
 import { arxVector3toVector3 } from '../../src/generator/meshes.ts'
 import { Settings } from '../../src/generator/Settings.ts'
 
@@ -739,5 +739,33 @@ void describe('the wireframe colours of the map', () => {
       [light.getX(0), light.getY(0), light.getZ(0)],
       [Math.fround(lightRed), Math.fround(lightGreen), Math.fround(lightBlue)],
     )
+  })
+})
+
+void describe('refreshWireframeColors', () => {
+  afterEach(() => {
+    clearRegisteredFlatColors()
+  })
+
+  void it('writes the colours again when a custom flat colour arrives', () => {
+    const map = flatMap()
+    const before = map.wireframeGeometry.getAttribute('color')
+
+    // the blank level's texture is not in the table of the game: its line is the white of the dark faces
+    assert.deepEqual([before.getX(0), before.getY(0), before.getZ(0)], [1, 1, 1])
+
+    // the texture of the level is decoded after the level was built: its average arrives later
+    registerFlatColor('jorge-[stone].jpg', [200, 120, 40])
+    map.refreshWireframeColors()
+
+    const after = map.wireframeGeometry.getAttribute('color')
+    const [red, green, blue] = wireframeLineColorOf('jorge-[stone].jpg')
+
+    // the buffer holds the numbers as float32
+    assert.deepEqual(
+      [after.getX(0), after.getY(0), after.getZ(0)],
+      [Math.fround(red), Math.fround(green), Math.fround(blue)],
+    )
+    assert.notDeepEqual([after.getX(0), after.getY(0), after.getZ(0)], [1, 1, 1])
   })
 })

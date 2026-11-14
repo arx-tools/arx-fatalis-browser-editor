@@ -46,13 +46,13 @@ const DARK_LINE_LIGHTNESS = 0.22
 const MIN_LINE_SATURATION = 0.45
 
 /**
- * The flat colour of every texture, by its name in lower case.
+ * The flat colour of every texture of the game, by its name in lower case.
  *
  * @remarks
  * The names of the textures come from two places (the containers of the level and the file names the browser reads),
  * and they may differ in case only: the table is matched without case, the way the data directory is.
  */
-const flatColorsByName = new Map<string, FlatColor>()
+const gameColorsByName = new Map<string, FlatColor>()
 
 for (const [name, channels] of Object.entries(flatColors)) {
   const [red, green, blue] = channels
@@ -61,7 +61,59 @@ for (const [name, channels] of Object.entries(flatColors)) {
     continue
   }
 
-  flatColorsByName.set(name.toLowerCase(), [red, green, blue])
+  gameColorsByName.set(name.toLowerCase(), [red, green, blue])
+}
+
+/**
+ * The flat colours of the textures the table does not know, by their name in lower case.
+ *
+ * @remarks
+ * A level may bring its own textures (a zip of a custom level, a file the user drops, a texture of a modded data
+ * directory): those are not in the table of the game, so their colour is the **average of their own pixels**, computed
+ * when the image is decoded (see `averageColorOfImage`). The map is filled at runtime and the last file of a name wins:
+ * two levels may bring a texture of the same name with different pictures.
+ */
+const registeredColorsByName = new Map<string, FlatColor>()
+
+/**
+ * Whether the table of the game knows the flat colour of a texture.
+ *
+ * @remarks
+ * A texture the table knows takes the colour of the table (the game's files are what it was made from), so the editor
+ * does not read its pixels: only the textures of a level that are not the game's are averaged.
+ *
+ * @param textureName The name of the texture, the way the level stores it.
+ *
+ * @returns True when the table has the colour of the texture.
+ */
+export function hasGameFlatColor(textureName: string): boolean {
+  return gameColorsByName.has(textureName.toLowerCase())
+}
+
+/**
+ * Registers the flat colour of a texture the table does not know.
+ *
+ * @remarks
+ * The colour comes from the average of the pixels of the file the level brought (see `averageColorOfImage`). A later
+ * registration of the same name replaces the earlier one, so the texture of the level on the screen is the one that
+ * decides the colour of its wireframe.
+ *
+ * @param textureName The name of the texture, the way the level stores it.
+ * @param color The flat colour, sRGB bytes.
+ */
+export function registerFlatColor(textureName: string, color: FlatColor): void {
+  registeredColorsByName.set(textureName.toLowerCase(), color)
+}
+
+/**
+ * Forgets every flat colour registered at runtime.
+ *
+ * @remarks
+ * A test seam: the registry is a module level map, and a test that registers a colour would leave it for the next one.
+ * The editor does not clear it, because the last file of a name is the one on the screen.
+ */
+export function clearRegisteredFlatColors(): void {
+  registeredColorsByName.clear()
 }
 
 /**
@@ -70,15 +122,22 @@ for (const [name, channels] of Object.entries(flatColors)) {
  *
  * @remarks
  * The table is the one of the **Underworld** (UW) mode of the game (the reference is Ultima Underworld): every texture
- * has one colour, so a face reads as the texture it draws and the level stays readable without the textures. The
- * values are sRGB bytes, `0..255` per channel.
+ * has one colour, so a face reads as the texture it draws and the level stays readable without the textures. A texture
+ * of the table is always read from the table; a texture the table does not know takes the colour registered for it (the
+ * average of its file), when there is one. The values are sRGB bytes, `0..255` per channel.
  *
  * @param textureName The name of the texture, the way the level stores it.
  *
- * @returns The flat colour, or `undefined` when the table does not know the texture.
+ * @returns The flat colour, or `undefined` when neither the table nor the registry knows the texture.
  */
 export function flatColorOf(textureName: string): FlatColor | undefined {
-  return flatColorsByName.get(textureName.toLowerCase())
+  const registered = registeredColorsByName.get(textureName.toLowerCase())
+
+  if (registered !== undefined) {
+    return registered
+  }
+
+  return gameColorsByName.get(textureName.toLowerCase())
 }
 
 /**
@@ -105,8 +164,8 @@ function luminanceOf(color: FlatColor): number {
  * complement is too pale on the middle tones (both the face and its inverse sit around half the range), so the
  * lightness is forced to the end the contrast needs, and the saturation is kept from turning the line grey.
  *
- * A texture the table does not know (a mod, or a level of another build) has no colour to invert, so it gets the white
- * line of the dark faces.
+ * A texture no flat colour is known for (neither the table nor the registry) has nothing to invert, so it gets the
+ * white line of the dark faces: the editor registers the average of a custom texture when it decodes the file.
  *
  * @param textureName The name of the texture of the face.
  *

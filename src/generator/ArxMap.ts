@@ -584,6 +584,30 @@ export class ArxMap {
   }
 
   /**
+   * Writes the colour of every vertex of the wireframe again, from the flat colour of the texture of its polygon.
+   *
+   * @remarks
+   * The colour of a line follows the texture of its face, so a paint, and the undo of a paint, has to write it again:
+   * the positions do not move, so the attribute is replaced in place and the geometry is not built again (a build of
+   * the big level is ~260 ms, a paint is a click).
+   *
+   * A texture the table of the game does not know gets its flat colour when the editor decodes its file, which can be
+   * after the level was built (a custom texture of a zip, a dropped file): the caller writes the colours again then, so
+   * the lines of those faces take the colour of the texture on the screen.
+   */
+  refreshWireframeColors(): void {
+    if (this.wireframeGeometry.getAttribute('color') === undefined) {
+      return
+    }
+
+    const colors = wireframeColorsOf(this.polygons, (polygon) => {
+      return this.wireframeColorOf(polygon)
+    })
+
+    this.wireframeGeometry.setAttribute('color', new BufferAttribute(colors, 3))
+  }
+
+  /**
    * Moves faces into rooms.
    *
    * @remarks
@@ -1237,26 +1261,6 @@ export class ArxMap {
    */
   private wireframeColorOf(polygon: ArxPolygon): readonly [number, number, number] {
     return wireframeLineColorOf(this.textureNameOf(polygon.textureContainerId))
-  }
-
-  /**
-   * Writes the colour of every vertex of the wireframe again, from the flat colour of the texture of its polygon.
-   *
-   * @remarks
-   * The colour of a line follows the texture of its face, so a paint, and the undo of a paint, has to write it again:
-   * the positions do not move, so the attribute is replaced in place and the geometry is not built again (a build of
-   * the big level is ~260 ms, a paint is a click).
-   */
-  private refreshWireframeColors(): void {
-    if (this.wireframeGeometry.getAttribute('color') === undefined) {
-      return
-    }
-
-    const colors = wireframeColorsOf(this.polygons, (polygon) => {
-      return this.wireframeColorOf(polygon)
-    })
-
-    this.wireframeGeometry.setAttribute('color', new BufferAttribute(colors, 3))
   }
 
   /**

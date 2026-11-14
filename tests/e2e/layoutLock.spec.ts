@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
-import { editorUrl, seedLayout, waitForLevel } from './support/editor.ts'
+import { editorUrl, seedLayout, waitForLayoutSettled, waitForLevel } from './support/editor.ts'
 
 /**
  * The lock of a widget: a widget the user pinned keeps its size while the window changes, and the others take the
@@ -117,7 +117,7 @@ test('a widget dropped beside a locked one keeps the split the drop made', async
   await page.locator('.preset-menu .preset-row', { hasText: 'Painter' }).click()
 
   await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(7)
-  await page.waitForTimeout(900)
+  await waitForLayoutSettled(page)
 
   // the uv mapper is alone in its column, so it takes the whole height (and its lock follows, after the pass). The
   // texture list and the row of the history go, or the column keeps a split under the mapper and the drop below would
@@ -125,7 +125,7 @@ test('a widget dropped beside a locked one keeps the split the drop made', async
   await page.locator('header button[aria-label="Unlock the layout"]').click()
   await page.locator('[data-widget-kind="textures"] button[aria-label="Remove the Texture Mapper widget"]').click()
   await page.locator('[data-widget-kind="undo-redo"] button[aria-label="Remove the Undo and Redo widget"]').click()
-  await page.waitForTimeout(800)
+  await waitForLayoutSettled(page)
 
   const mapper = await boxOf(page, 'uv-mapper')
 
@@ -177,7 +177,7 @@ test('a lock survives a reload when the widget is alone in its column', async ({
 
   await page.reload()
   await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(5)
-  await page.waitForTimeout(1000)
+  await waitForLayoutSettled(page)
 
   // the lock came back with the box: the mapper keeps its width, and it does not grow over the walkable view
   const reloaded = await boxOf(page, 'uv-mapper')
@@ -204,7 +204,7 @@ test('a locked widget keeps its size, the others take the rest', async ({ page }
 
   // a taller window: the locked plan keeps its height, the free view under it grows
   await page.setViewportSize({ width: 1280, height: 1100 })
-  await page.waitForTimeout(600)
+  await waitForLayoutSettled(page)
 
   expect(await heightOf(page, 'top-view')).toBe(locked)
   expect(await heightOf(page, 'front-view')).toBeGreaterThan(frontBefore)
@@ -219,17 +219,19 @@ test('the lock is in the stored layout, so a reload keeps it', async ({ page }) 
 
   // the elevation under the plan is free, so the lock is the one the button takes
   await page.locator('[data-widget-kind="left-view"] button[aria-label="Lock the widget"]').click()
-  await page.waitForTimeout(600)
+  await waitForLayoutSettled(page)
 
   const locked = await heightOf(page, 'left-view')
 
-  // the stored history of the preset says the size is fixed
-  const stored: string | null = await page.evaluate(() => {
-    return localStorage.getItem('layoutHistories')
-  })
-
-  expect(stored).not.toBeNull()
-  expect(stored).toContain(`"kind":"fixed","px":${String(locked)}`)
+  // the stored history of the preset says the size is fixed: the layout is written to the storage after a debounce, so
+  // the wait is for the value and not for a moment after the click
+  await expect
+    .poll(async () => {
+      return await page.evaluate(() => {
+        return localStorage.getItem('layoutHistories') ?? ''
+      })
+    })
+    .toContain(`"kind":"fixed","px":${String(locked)}`)
 
   await page.reload()
 

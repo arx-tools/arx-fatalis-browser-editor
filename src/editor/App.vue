@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import Cover from './components/Cover.vue'
+import HelpPopup from './components/HelpPopup.vue'
 import Dock from './components/Dock.vue'
 import EditorHeader from './components/EditorHeader.vue'
 import LoadingOverlay from './components/LoadingOverlay.vue'
 import MissingMapPrompt from './components/MissingMapPrompt.vue'
 import { startEditModes } from './components/widgets/shared/editModes.ts'
 import { startLevelDisplay } from './components/widgets/shared/levelDisplay.ts'
+import { startHelpPopup } from './modules/help/helpPopup.ts'
 import { startLevelEditing } from './modules/level/edit/editing.ts'
 import { insertLevelFromUrl } from './modules/level/edit/insertLevel.ts'
 import { startSelection } from './modules/selection/selectionStore.ts'
@@ -116,6 +118,7 @@ onMounted(async () => {
   // map of the url is read before the level is opened)
   startLevelDisplay()
   startEditModes()
+  startHelpPopup()
   startSelection()
   startLevelEditing()
   startMapHistoryPersistence()
@@ -287,6 +290,7 @@ onMounted(async () => {
     <Dock />
     <Cover />
     <MissingMapPrompt />
+    <HelpPopup />
   </div>
 </template>
 

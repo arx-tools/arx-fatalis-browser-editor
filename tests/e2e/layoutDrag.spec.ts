@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
-import { editorUrl, seedLayout, waitForLevel } from './support/editor.ts'
+import { editorUrl, seedLayout, waitForLayoutSettled, waitForLevel } from './support/editor.ts'
 
 /**
  * A border of the dock and what it does to a locked widget.
@@ -90,7 +90,7 @@ async function openWithALockedJump(page: Page): Promise<Box> {
   await waitForLevel(page)
 
   await page.locator('header button[aria-label="Unlock the layout"]').click()
-  await page.waitForTimeout(600)
+  await waitForLayoutSettled(page)
 
   const locked = await lockOf(page, 'jump-to-location')
 

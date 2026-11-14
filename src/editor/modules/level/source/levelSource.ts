@@ -62,6 +62,35 @@ export interface LevelSource {
 const LEVEL_FILES_BASE_URL = 'https://raw.githubusercontent.com/arx-tools/pkware-test-files/main/arx-fatalis'
 
 /**
+ * Where the development server serves the same files (see `localLevelRoute` of `vite.config.ts`).
+ *
+ * @remarks
+ * The route reads the checkout of the repository next to this one, and the cache of the machine, and downloads a level
+ * only when neither has it. The tests and a hand session of the editor therefore read the level from the disk.
+ */
+const LOCAL_LEVEL_FILES_BASE_URL = '/__local-levels/arx-fatalis'
+
+/**
+ * The base url the packed level files are read from.
+ *
+ * @remarks
+ * On the development server the level comes from the machine itself (`LOCAL_LEVEL_FILES_BASE_URL`), which is what makes
+ * a browser test fast and a checkout of the `pkware-test-files` repository a source; the shipped editor has no server
+ * behind it, so it downloads from the repository.
+ *
+ * @param isDevelopment Whether the editor runs on the development server.
+ *
+ * @returns The url the three files of a level hang under.
+ */
+export function levelFilesBaseUrlOf(isDevelopment: boolean): string {
+  if (isDevelopment) {
+    return LOCAL_LEVEL_FILES_BASE_URL
+  }
+
+  return LEVEL_FILES_BASE_URL
+}
+
+/**
  * The url parameter that opens one of the original levels of the game.
  *
  * @remarks
@@ -157,7 +186,7 @@ export function levelFileNames(level: number): { dlf: string; fts: string; llf: 
  */
 export function levelFileUrls(level: number): { dlf: string; fts: string; llf: string } {
   const names = levelFileNames(level)
-  const base = `${LEVEL_FILES_BASE_URL}/level${level}`
+  const base = `${levelFilesBaseUrlOf(IS_DEVELOPMENT)}/level${level}`
 
   return { dlf: `${base}/${names.dlf}`, fts: `${base}/${names.fts}`, llf: `${base}/${names.llf}` }
 }

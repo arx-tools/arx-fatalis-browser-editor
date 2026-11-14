@@ -59,7 +59,6 @@ test('the map of the link says what it needs, and both ways out of the notice wo
 
   // a link to a level of the game, without the folder it comes from: the blank level opens, and the view says why
   await page.goto('/?map=arx-fatalis-level-11')
-  await page.waitForTimeout(1200)
 
   const notice = page.locator('.MissingMapPrompt')
   const dialog = page.locator('[role="dialog"][aria-label="Setting up Arx data dir"]')
@@ -95,19 +94,16 @@ test('the map of the link says what it needs, and both ways out of the notice wo
     .toBe('blank-flat')
 
   await page.reload()
-  await page.waitForTimeout(1200)
   await expect(page.locator('.MissingMapPrompt')).toHaveCount(0)
 
   // the first button opens the dialog of the folder
   await page.goto('/?map=arx-fatalis-level-11')
-  await page.waitForTimeout(1200)
   await expect(notice).toBeVisible()
   await notice.locator('.notice-button').click()
   await expect(dialog).toBeVisible()
 
   // a map that is not a level of the game has nothing to say about the folder
   await page.goto('/?map=blank-flat')
-  await page.waitForTimeout(1200)
   await expect(page.locator('.MissingMapPrompt')).toHaveCount(0)
 })
 
@@ -128,7 +124,6 @@ test('a level with steps of a visit before says that the edits are safe, and off
   })
 
   await page.goto('/?map=arx-fatalis-level-11')
-  await page.waitForTimeout(1200)
 
   const notice = page.locator('.MissingMapPrompt')
 
@@ -154,14 +149,12 @@ test('the steps of a level of the link are not overwritten by the answer of the 
   }, steps)
 
   await page.goto('/?map=arx-fatalis-level-11')
-  await page.waitForTimeout(1200)
 
   const notice = page.locator('.MissingMapPrompt')
 
   await expect(notice).toBeVisible()
   await notice.locator('.notice-dismiss').click()
   await expect(notice).toHaveCount(0)
-  await page.waitForTimeout(800)
 
   // the blank map has no steps of its own, and the steps of the level of the link are still there
   expect(
@@ -196,7 +189,6 @@ test('the dialog closes itself after the folder is seen, and a hand-opened one s
   // the dialog opened by hand stays open
   await page.locator('.DataDirPicker .setup').click()
   await expect(dialog).toBeVisible()
-  await page.waitForTimeout(1500)
   await expect(dialog).toBeVisible()
 })
 
@@ -212,7 +204,6 @@ test('the level of the link opens when the folder arrives later, in the dialog',
 
   await seedLayout(page, editorLayout)
   await page.goto('/?map=arx-fatalis-level-11')
-  await page.waitForTimeout(1200)
 
   const notice = page.locator('.MissingMapPrompt')
 

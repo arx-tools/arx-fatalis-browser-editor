@@ -1,11 +1,157 @@
 import { createReadStream } from 'node:fs'
-import { readdir, readFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
+import { Buffer } from 'node:buffer'
 import process from 'node:process'
 import { basename, dirname, extname, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import type { ServerResponse } from 'node:http'
 import vue from '@vitejs/plugin-vue'
 import { config as loadEnv } from 'dotenv'
 import { defineConfig, type Plugin } from 'vite'
+
+/**
+ * Where the levels of the game live in the `pkware-test-files` repository.
+ */
+const LEVELS_REMOTE_BASE = 'https://raw.githubusercontent.com/arx-tools/pkware-test-files/main'
+
+/**
+ * Where the levels of the game are downloaded from, when the machine has no checkout of the repository.
+ *
+ * @remarks
+ * The folder is a **cache**: a level is downloaded once, and the file is served from here from then on — by the browser
+ * tests of a run, and by the next run of the same machine or of the ci (the workflow keeps this folder between two
+ * runs). It lives under `node_modules/`, so it is never committed and `npm ci` may take it away.
+ */
+const LEVELS_CACHE_DIR = 'node_modules/.cache/arx-levels'
+
+/**
+ * The route the page asks the packed level files of the game from, on the development server.
+ *
+ * @remarks
+ * The editor downloads the three files of an original level from the `pkware-test-files` repository (see
+ * `levelSource.ts`), and a browser test loads a level per page: the same handful of megabytes over and over, from the
+ * network, on every run (2026-11-14, the owner: *„legyen cache, hogy a CI/CD is gyorsabb legyen"*).
+ *
+ * The **development** server serves them instead, in three steps: the checkout of the repository next to this one
+ * (`../pkware-test-files`, a clone of it beside the editor), the cache under `node_modules/`, and — the first time a level is
+ * asked on a machine without either — the repository itself, whose answer is written into the cache. A shipped editor
+ * has no server behind it, so the production build keeps the urls of the repository.
+ *
+ * The route takes a path of three pieces (`arx-fatalis/level8/level8.dlf`): no piece may climb out of the folder, and
+ * only a machine of the server may ask (the same rule as the routes of the zip and of the data directory).
+ *
+ * @returns The plugin that adds the route to the server.
+ */
+function localLevelRoute(): Plugin {
+  return {
+    name: 'arx-local-levels',
+    apply: 'serve',
+    configureServer(server): void {
+      const editorDir = fileURLToPath(new URL('.', import.meta.url))
+      const checkout = resolve(editorDir, '..', 'pkware-test-files')
+      const cache = resolve(editorDir, LEVELS_CACHE_DIR)
+
+      /**
+       * Sends a file of the disk as the answer of the route.
+       *
+       * @param path The file to send.
+       * @param response The answer of the route.
+       */
+      function sendFile(path: string, response: ServerResponse): void {
+        response.setHeader('Content-Type', 'application/octet-stream')
+        // the file of a level of the game never changes: the browser may keep it for a day
+        response.setHeader('Cache-Control', 'public, max-age=86400')
+        createReadStream(path)
+          .on('error', () => {
+            response.statusCode = 404
+            response.end(`No such file: ${path}`)
+          })
+          .pipe(response)
+      }
+
+      /**
+       * Tells whether a file of the disk exists.
+       *
+       * @param path The file to look at.
+       *
+       * @returns True when the path is a file.
+       */
+      async function isFileOf(path: string): Promise<boolean> {
+        try {
+          const found = await stat(path)
+
+          return found.isFile()
+        } catch {
+          return false
+        }
+      }
+
+      server.middlewares.use('/__local-levels', (request, response) => {
+        const address = request.socket.remoteAddress ?? ''
+        const local = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(address)
+        const requested = decodeURIComponent(new URL(request.url ?? '/', 'http://localhost').pathname)
+        const parts = requested.split('/').filter((part) => {
+          return part !== '' && part !== '.' && part !== '..'
+        })
+
+        if (!local) {
+          response.statusCode = 403
+          response.end('The local levels route is for the machine of the server.')
+
+          return
+        }
+
+        if (parts.length !== 3) {
+          response.statusCode = 400
+          response.end('The local levels route serves a folder, a level and a file: arx-fatalis/level8/level8.dlf')
+
+          return
+        }
+
+        const relative = parts.join('/')
+        const inCheckout = resolve(checkout, relative)
+        const inCache = resolve(cache, relative)
+
+        void (async (): Promise<void> => {
+          if (await isFileOf(inCheckout)) {
+            sendFile(inCheckout, response)
+
+            return
+          }
+
+          if (await isFileOf(inCache)) {
+            sendFile(inCache, response)
+
+            return
+          }
+
+          try {
+            const answer = await fetch(`${LEVELS_REMOTE_BASE}/${relative}`)
+
+            if (!answer.ok) {
+              response.statusCode = 404
+              response.end(`The repository has no ${relative}: ${String(answer.status)}`)
+
+              return
+            }
+
+            const bytes = Buffer.from(await answer.arrayBuffer())
+
+            await mkdir(dirname(inCache), { recursive: true })
+            await writeFile(inCache, bytes)
+
+            response.setHeader('Content-Type', 'application/octet-stream')
+            response.setHeader('Cache-Control', 'public, max-age=86400')
+            response.end(bytes)
+          } catch (error) {
+            response.statusCode = 502
+            response.end(`The level could not be downloaded: ${String(error)}`)
+          }
+        })()
+      })
+    },
+  }
+}
 
 /**
  * The route the page asks a zip of the disk from, on the development server.
@@ -529,7 +675,7 @@ export default defineConfig(async () => {
     // /editor/, and the hashed file names of the assets make the browser fetch a new one after
     // every build without any ?v= suffix.
     base: '/editor/',
-    plugins: [vue(), localZipRoute(), localDataRoute()],
+    plugins: [vue(), localZipRoute(), localDataRoute(), localLevelRoute()],
     build: {
       // the level, the dock, vue and three in one chunk is a megabyte the browser takes in one piece, and
       // every deploy of the editor makes it download the level code again. The split below does not make

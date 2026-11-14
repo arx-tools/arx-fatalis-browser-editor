@@ -54,7 +54,13 @@ test('the gizmo moves the selected face, and the undo takes it back', async ({ p
   await page.evaluate(() => {
     globalThis.document.exitPointerLock()
   })
-  await page.waitForTimeout(500)
+  await expect
+    .poll(async () => {
+      return await page.evaluate(() => {
+        return globalThis.document.pointerLockElement === null
+      })
+    })
+    .toBe(true)
 
   // the green arrow of the gizmo, from the middle of the face up
   await page.mouse.move(860, 230)

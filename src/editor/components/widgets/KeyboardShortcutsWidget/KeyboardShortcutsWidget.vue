@@ -206,6 +206,12 @@ const sections = computed<readonly HelpSection[]>(() => {
         { keys: [{ kind: 'text', text: 'Delete' }], action: 'Delete face(s)' },
       ],
     },
+    {
+      // the last section: the keys that belong to none of the others (2026-11-14, the owner). The row of the popup is
+      // here, so a layout without the widget still shows the list, and the dialog says how it opens
+      title: 'Miscellaneous',
+      rows: [{ keys: [{ kind: 'text', text: 'H' }], action: 'Show keyboard shortcuts popup' }],
+    },
   ]
 })
 
@@ -214,6 +220,11 @@ const sections = computed<readonly HelpSection[]>(() => {
  */
 const props = defineProps<{
   readonly label: string
+  /**
+   * Whether the list draws its own heading (the default), or the box around it carries the title: the popup of the keys
+   * is a dialog, and the title of a dialog is its head (TODO 187).
+   */
+  readonly heading?: boolean
 }>()
 
 /**
@@ -351,7 +362,7 @@ function toggleTitle(row: HelpRow): string {
 
 <template>
   <div class="KeyboardShortcutsWidget">
-    <WidgetHeading :label="props.label" />
+    <WidgetHeading v-if="props.heading !== false" :label="props.label" />
     <section v-for="section in sections" :key="section.title" class="section">
       <div class="section-head">
         <h3 class="section-title">{{ section.title }}</h3>

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { editorUrl } from './support/editor.ts'
+import { editorUrl, waitForLayoutSettled } from './support/editor.ts'
 
 /**
  * The factory presets carry the sizes the owner measured.
@@ -71,9 +71,12 @@ test('the default layout is the viewer, with the plan and the jump of the owner 
   // the shell builds the dock before the level is downloaded, which is all this test needs
   await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(5)
   await expect(page.locator('[data-widget-kind="top-view"]')).toBeVisible()
-  await page.waitForTimeout(600)
-
-  expect(await presetName(page)).toBe('Viewer')
+  await expect
+    .poll(async () => {
+      return await presetName(page)
+    })
+    .toBe('Viewer')
+  await waitForLayoutSettled(page)
 
   const plan = await boxOf(page, 'top-view')
   const jump = await boxOf(page, 'jump-to-location')
@@ -118,9 +121,12 @@ test('the editor preset comes with the four sizes the owner measured', async ({ 
   await page.locator('.preset-menu .preset-row', { hasText: 'Editor' }).click()
 
   await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(10)
-  await page.waitForTimeout(800)
-
-  expect(await presetName(page)).toBe('Editor')
+  await expect
+    .poll(async () => {
+      return await presetName(page)
+    })
+    .toBe('Editor')
+  await waitForLayoutSettled(page)
 
   const plan = await boxOf(page, 'top-view')
   const jump = await boxOf(page, 'jump-to-location')
@@ -158,7 +164,7 @@ test('the editor preset comes with the four sizes the owner measured', async ({ 
 
   // a taller window: the locks hold, the free widgets take the room, and the header keeps the name of the preset
   await page.setViewportSize({ width: 1631, height: 1100 })
-  await page.waitForTimeout(800)
+  await waitForLayoutSettled(page)
 
   const planAfter = await boxOf(page, 'top-view')
   const statisticsAfter = await boxOf(page, 'map-statistics')
@@ -186,9 +192,12 @@ test('the rooms preset comes with the sizes the owner measured', async ({ page }
   await page.locator('.preset-menu .preset-row', { hasText: 'Rooms' }).click()
 
   await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(6)
-  await page.waitForTimeout(800)
-
-  expect(await presetName(page)).toBe('Rooms')
+  await expect
+    .poll(async () => {
+      return await presetName(page)
+    })
+    .toBe('Rooms')
+  await waitForLayoutSettled(page)
 
   const statistics = await boxOf(page, 'map-statistics')
   const selection = await boxOf(page, 'selection-inspector')
@@ -231,9 +240,12 @@ test('the painter preset comes with the sizes the owner measured', async ({ page
   await page.locator('.preset-menu .preset-row', { hasText: 'Painter' }).click()
 
   await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(7)
-  await page.waitForTimeout(800)
-
-  expect(await presetName(page)).toBe('Painter')
+  await expect
+    .poll(async () => {
+      return await presetName(page)
+    })
+    .toBe('Painter')
+  await waitForLayoutSettled(page)
 
   const inspector = await boxOf(page, 'polygon-inspector')
   const keys = await boxOf(page, 'keyboard-shortcuts')
@@ -281,7 +293,7 @@ test('every layout keeps its own history, and the steps of the menu take it back
   await page.goto(editorUrl())
 
   await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(5)
-  await page.waitForTimeout(800)
+  await waitForLayoutSettled(page)
 
   const menu = page.locator('header button[aria-label="Presets"]')
   const viewerRow = page.locator('.preset-row', { hasText: 'Viewer' })
@@ -318,7 +330,6 @@ test('every layout keeps its own history, and the steps of the menu take it back
   // a layout change: the view is locked in the edit mode (a lock is a step, like a drop)
   await page.locator('header button[aria-label="Unlock the layout"]').click()
   await keys.locator('button[aria-label="Lock the widget"]').click()
-  await page.waitForTimeout(900)
 
   await expect(keys).toHaveAttribute('data-locked-height', /.+/u)
 
@@ -329,28 +340,23 @@ test('every layout keeps its own history, and the steps of the menu take it back
 
   // the undo takes the lock away, the redo puts it back (the menu stays open through a step)
   await viewerRow.locator('.step').first().click()
-  await page.waitForTimeout(700)
   await expect(keys).not.toHaveAttribute('data-locked-height', /.+/u)
 
   await viewerRow.locator('.step').last().click()
-  await page.waitForTimeout(700)
   await expect(keys).toHaveAttribute('data-locked-height', /.+/u)
 
   // switching away and back keeps the history of the viewer
   await editorRow.locator('.choose').click()
-  await page.waitForTimeout(700)
 
   await expect(page.locator('header button[aria-label="Presets"] .name')).toHaveText('Editor')
 
   // a step on the editor too, so both rows have one
   await selection.locator('button[aria-label="Lock the widget"]').click()
-  await page.waitForTimeout(900)
 
   await expect(selection).toHaveAttribute('data-locked-height', /.+/u)
 
   await menu.click()
   await viewerRow.locator('.choose').click()
-  await page.waitForTimeout(700)
 
   await expect(page.locator('header button[aria-label="Presets"] .name')).toHaveText('Viewer')
   await expect(keys).toHaveAttribute('data-locked-height', /.+/u)
@@ -359,7 +365,6 @@ test('every layout keeps its own history, and the steps of the menu take it back
   await openMenu()
   await expect(editorRow.locator('.step').first()).toBeEnabled()
   await editorRow.locator('.step').first().click()
-  await page.waitForTimeout(700)
 
   await expect(page.locator('header button[aria-label="Presets"] .name')).toHaveText('Editor')
   await expect(selection).not.toHaveAttribute('data-locked-height', /.+/u)
@@ -367,14 +372,12 @@ test('every layout keeps its own history, and the steps of the menu take it back
   // the viewer is the one with the lock now, and the dock is back on it for the reload
   await openMenu()
   await viewerRow.locator('.choose').click()
-  await page.waitForTimeout(700)
 
   await expect(page.locator('header button[aria-label="Presets"] .name')).toHaveText('Viewer')
   await expect(keys).toHaveAttribute('data-locked-height', /.+/u)
 
   // and the history is in the browser, so a reload brings the layout back as it was left
   await page.reload()
-  await page.waitForTimeout(900)
 
   await expect(page.locator('header button[aria-label="Presets"] .name')).toHaveText('Viewer')
   await expect(page.locator('[data-widget-kind="keyboard-shortcuts"]')).toHaveAttribute('data-locked-height', /.+/u)

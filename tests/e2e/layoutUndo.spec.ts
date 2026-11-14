@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
 import type { LayoutNode } from '../../src/editor/modules/layout/layoutNode.ts'
-import { editorUrl, waitForLevel } from './support/editor.ts'
+import { editorUrl, waitForLayoutSettled, waitForLevel } from './support/editor.ts'
 
 /**
  * The box of a widget on the dock, in whole pixels.
@@ -70,7 +70,7 @@ test('a step back to another ratio of two free widgets keeps the layout and the 
 
   await page.goto(editorUrl())
   await waitForLevel(page)
-  await page.waitForTimeout(800)
+  await waitForLayoutSettled(page)
 
   // the factory state first: the two elevations are the same height
   const leftBefore = await boxOf(page, 'left-view')
@@ -81,7 +81,7 @@ test('a step back to another ratio of two free widgets keeps the layout and the 
   // the step of the row, and the first state comes back
   await page.locator('header button[aria-label="Presets"]').click()
   await page.locator('.preset-row', { hasText: 'Editor' }).locator('button.step').first().click()
-  await page.waitForTimeout(900)
+  await waitForLayoutSettled(page)
 
   const left = await boxOf(page, 'left-view')
   const front = await boxOf(page, 'front-view')

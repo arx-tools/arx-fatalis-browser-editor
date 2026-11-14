@@ -88,18 +88,33 @@ export async function seedLayout(page: Page, layout: LayoutNode): Promise<void> 
  * @returns The text of the value next to the label, an empty string when the widget has no such row.
  */
 export async function rowOf(page: Page, kind: string, label: string): Promise<string> {
-  const widget = page.locator(`[data-widget-kind="${kind}"]`)
-  const index = await widget.locator('dt').evaluateAll((cells, wanted) => {
-    return cells.findIndex((cell) => {
-      return cell.textContent === wanted
-    })
-  }, label)
+  // the row in one round trip: a poll asks for it again and again, and each call of the protocol is a wait on the main
+  // thread of a page that draws a level
+  const text = await page.evaluate(
+    ({ kind: widgetKind, label: wanted }) => {
+      const widget = [...globalThis.document.querySelectorAll<HTMLElement>('[data-widget-kind]')].find((node) => {
+        return node.dataset.widgetKind === widgetKind
+      })
 
-  if (index < 0) {
-    return ''
-  }
+      if (widget === undefined) {
+        return ''
+      }
 
-  return (await widget.locator('dd').nth(index).textContent()) ?? ''
+      const terms = [...widget.querySelectorAll('dt')]
+      const index = terms.findIndex((cell) => {
+        return cell.textContent === wanted
+      })
+
+      if (index === -1) {
+        return ''
+      }
+
+      return widget.querySelectorAll('dd')[index]?.textContent ?? ''
+    },
+    { kind, label },
+  )
+
+  return text
 }
 
 /**
@@ -280,6 +295,32 @@ export async function waitForLevel(page: Page, label = 'Total faces'): Promise<n
 }
 
 /**
+ * Lets the page draw a few frames.
+ *
+ * @remarks
+ * The editor draws on the animation frames, and a pick, a relayout or a paint that the input of the moment set off lands
+ * in the next one or two. A fixed sleep is a guess at the length of that (the first tests waited 400 ms here); two
+ * frames are the length the browser itself takes, and a gesture that changes nothing emits no event to wait for, which
+ * is why the frames are the condition. The view renders on every frame, so a browser that is asked for a frame answers.
+ *
+ * @param page The page to wait in.
+ * @param count How many frames to let the page draw.
+ */
+export async function nextFrames(page: Page, count = 2): Promise<void> {
+  await page.evaluate(async (frames) => {
+    const view = globalThis
+
+    for (let index = 0; index < frames; index++) {
+      await new Promise<void>((resolve) => {
+        view.requestAnimationFrame(() => {
+          resolve()
+        })
+      })
+    }
+  }, count)
+}
+
+/**
  * Takes the pointer lock, with a real click in the middle of the walkable view.
  *
  * @remarks
@@ -368,9 +409,9 @@ export async function clickCrosshair(view: Locator, gesture: SelectionGesture = 
     }
   }, gesture)
 
-  // the press and the pick of the double click run on the next frame, and the statistics follows the selection
-  // a tick later; there is no event of the editor to wait for (a gesture that changes nothing emits none)
-  await view.page().waitForTimeout(400)
+  // the press and the pick run on the next frame, and the widget that follows the selection a tick later: three frames
+  // are the length of that (a gesture that changes nothing emits no event to wait for)
+  await nextFrames(view.page(), 3)
 }
 
 /**
@@ -384,6 +425,98 @@ const CAMERA_FIELDS = ['x', 'y', 'z', 'pitch', 'yaw', 'roll'] as const
 export type CameraPoseFields = Record<(typeof CAMERA_FIELDS)[number], string>
 
 /**
+ * Waits for the boxes of the dock to settle.
+ *
+ * @remarks
+ * A preset, a lock, a drag or a reset moves the widgets of the dock in one or two frames, and a test that asserts a
+ * geometry reads the boxes of the moment: the wait ends when two frames in a row give the same boxes (a widget of a
+ * resizing dock moves by more than a pixel), and a dock that keeps moving is waited for at most a second and a half. The
+ * first tests slept a fixed 600-900 ms here, which is both slower than the dock and a guess at the frames of a loaded
+ * machine. A caller that needs the **new** tree first waits for it (the count or the name of the preset), and then for
+ * the boxes: this wait says "the dock stands still", not "the dock is done".
+ *
+ * @param page The page to wait in.
+ */
+export async function waitForLayoutSettled(page: Page): Promise<void> {
+  await page.waitForFunction(
+    async () => {
+      const { document, requestAnimationFrame } = globalThis
+
+      /**
+       * Reads the boxes of the widgets of the dock as one text.
+       *
+       * @returns The boxes, rounded to the pixels.
+       */
+      function boxesOf(): string {
+        return [...document.querySelectorAll('.lm-DockPanel-widget')]
+          .map((node) => {
+            const box = node.getBoundingClientRect()
+            const numbers = [box.x, box.y, box.width, box.height].map((value) => {
+              return String(Math.round(value))
+            })
+
+            return numbers.join(':')
+          })
+          .join(' ')
+      }
+
+      /**
+       * Waits for a frame, so the dock has drawn what it did.
+       *
+       * @returns Nothing, when the frame is over.
+       */
+      async function nextFrame(): Promise<void> {
+        await new Promise<void>((resolve) => {
+          requestAnimationFrame(() => {
+            resolve()
+          })
+        })
+      }
+
+      let previous = ''
+
+      for (let round = 0; round < 90; round++) {
+        const current = boxesOf()
+
+        if (current === previous) {
+          return true
+        }
+
+        previous = current
+        await nextFrame()
+      }
+
+      return false
+    },
+    undefined,
+    { timeout: 5000 },
+  )
+}
+
+/**
+ * Waits for the camera store to take a position, as the url of the editor carries it.
+ *
+ * @remarks
+ * The text of the camera form reaches the store of the camera through a debounce, so a test that clicks a button right
+ * after {@link writePose} can read the camera of a moment before it (measured: the export of the settings wrote the
+ * spawn of the level instead of the pose of the test). The url is the mirror of the store, and the position of it is the
+ * signal. It is for a position the page does **not** already carry: a link that holds the same numbers hides the write,
+ * and the poll would end before the store took it (measured: the first version of this wait flaked on exactly that).
+ *
+ * @param page The page to wait in.
+ * @param position The position the test wrote, as the url carries it.
+ */
+export async function waitForUrlPose(page: Page, position: readonly number[]): Promise<void> {
+  const wanted = position.join(',')
+
+  await expect
+    .poll(() => {
+      return new URL(page.url()).searchParams.get('position')
+    })
+    .toBe(wanted)
+}
+
+/**
  * Reads the pose the camera form shows.
  *
  * @remarks
@@ -395,11 +528,25 @@ export type CameraPoseFields = Record<(typeof CAMERA_FIELDS)[number], string>
  * @returns The text of the six fields.
  */
 export async function readPose(page: Page): Promise<CameraPoseFields> {
-  const pose: Partial<CameraPoseFields> = {}
+  // one round trip for the six fields: each `inputValue` is a protocol call of its own, and the tests read the pose
+  // before every gesture (a dozen calls of a millisecond each is a rounding error, a hundred of them is not)
+  const pose = await page.evaluate(
+    (fields: readonly string[]) => {
+      const values: Record<string, string> = {}
+      const { document } = globalThis
 
-  for (const field of CAMERA_FIELDS) {
-    pose[field] = await page.locator(`#camera-${field}`).inputValue()
-  }
+      for (const field of fields) {
+        const input = document.querySelector<HTMLInputElement>(`#camera-${field}`)
+
+        if (input !== null) {
+          values[field] = input.value
+        }
+      }
+
+      return values
+    },
+    [...CAMERA_FIELDS],
+  )
 
   return pose as CameraPoseFields
 }
@@ -418,33 +565,38 @@ export async function readPose(page: Page): Promise<CameraPoseFields> {
  * @param pose The text of the six fields.
  */
 export async function writePose(page: Page, pose: CameraPoseFields): Promise<void> {
-  for (const field of CAMERA_FIELDS) {
-    const input = page.locator(`#camera-${field}`)
+  // the roll is disabled: the camera has no roll, and a disabled input takes no text. The flags come in one read, so
+  // the loop below is the only work of the write
+  const enabled = await page.evaluate(
+    (fields) => {
+      const { document } = globalThis
 
-    // the roll is disabled: the camera has no roll, and a disabled input takes no text
-    if (await input.isDisabled()) {
-      continue
-    }
+      return fields.filter((field) => {
+        const input = document.querySelector<HTMLInputElement>(`#camera-${field}`)
 
-    await input.fill(pose[field])
+        return input !== null && !input.disabled
+      })
+    },
+    [...CAMERA_FIELDS],
+  )
+
+  for (const field of enabled) {
+    await page.locator(`#camera-${field}`).fill(pose[field])
   }
 
-  // every field is blurred, not just the first one: `fill` leaves the last field it wrote focused, and a
-  // focused input puts the keyboard into its typing mode, where the keys of the editor do nothing
-  for (const field of CAMERA_FIELDS) {
-    const input = page.locator(`#camera-${field}`)
+  // every field is blurred, not just the first one: `fill` leaves the last field it wrote focused, and a focused input
+  // puts the keyboard into its typing mode, where the keys of the editor do nothing
+  await page.evaluate((fields) => {
+    const { document } = globalThis
 
-    if (await input.isDisabled()) {
-      continue
+    for (const field of fields) {
+      document.querySelector<HTMLInputElement>(`#camera-${field}`)?.blur()
     }
+  }, enabled)
 
-    await input.evaluate((element) => {
-      element.blur()
-    })
-  }
-
-  // the pose reaches the view on the input, and the view draws the next frame: a moment for the pick
-  await page.waitForTimeout(400)
+  // the pose reaches the view on the input, and the view draws the next frame: the pick of a click after this reads the
+  // camera of that frame
+  await nextFrames(page, 3)
 }
 
 /**

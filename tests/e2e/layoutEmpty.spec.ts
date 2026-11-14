@@ -151,7 +151,6 @@ test('the custom preset empties the dock and shows the invitation in the middle'
 
   // and it is the empty layout the editor starts from, so a reload comes back to it
   await page.reload()
-  await page.waitForTimeout(900)
 
   await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(0)
   await expect(page.locator('header button[aria-label="Presets"] .name')).toHaveText('Blank')
@@ -199,7 +198,6 @@ test('a widget dropped on the empty dock is the first step, and the step back em
   await expect(blankRow.locator('.step').first()).toBeEnabled()
 
   await blankRow.locator('.step').first().click()
-  await page.waitForTimeout(700)
 
   await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(0)
   await expect(page.locator('.empty-hint')).toHaveText(INVITATION)
@@ -207,7 +205,6 @@ test('a widget dropped on the empty dock is the first step, and the step back em
   // the redo puts the widget back, so the step is a real state of the layout
   await openMenu(page)
   await page.locator('.preset-row', { hasText: 'Blank' }).locator('.step').last().click()
-  await page.waitForTimeout(700)
 
   await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(1)
   await expect(page.locator('.empty-hint')).toHaveCount(0)

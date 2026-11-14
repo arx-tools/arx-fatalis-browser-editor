@@ -4,6 +4,7 @@ import {
   createOriginalLevelSource,
   fetchLevelFiles,
   levelFileNames,
+  levelFilesBaseUrlOf,
   levelFileUrls,
   loadStarterLevel,
   ORIGINAL_LEVEL_PARAMETER,
@@ -262,6 +263,20 @@ void describe('the level of a data directory', () => {
         return await source.load(fetchImpl)
       })(),
       /has no level 8/u,
+    )
+  })
+})
+
+void describe('levelFilesBaseUrlOf', () => {
+  void it('reads the levels from the machine on the development server', () => {
+    // the route of `vite.config.ts` serves the checkout of the repository and the cache of the machine
+    assert.equal(levelFilesBaseUrlOf(true), '/__local-levels/arx-fatalis')
+  })
+
+  void it('downloads them from the repository in the build', () => {
+    assert.equal(
+      levelFilesBaseUrlOf(false),
+      'https://raw.githubusercontent.com/arx-tools/pkware-test-files/main/arx-fatalis',
     )
   })
 })

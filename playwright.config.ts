@@ -50,11 +50,11 @@ if (isCI) {
  * How many files the suite runs at a time.
  *
  * @remarks
- * The owner's machine has enough memory now (64 GB, 2026-11-05), so a local run takes four: the eight workers the
- * default gave it took the memory the editor's own pages need when the machine had less (the commit of 2026-11-04 ran
- * two). The ci runners are small, they keep the two.
+ * The suite is cpu bound on the pages it opens (each one parses a level and draws it), so the wall of a run is the sum of
+ * the tests over this number: on a machine of 16 cores and 64 GB RAM it is 97 s at eight workers, 92 s at twelve and
+ * 94 s at fourteen (tested on 2026-11-14), so it takes twelve. The ci runners are small, they keep the two.
  */
-let workers = 4
+let workers = 12
 
 if (isCI) {
   workers = 2
@@ -75,13 +75,22 @@ export default defineConfig({
     // the dock stores shares, but the widgets are measured in pixels: the window is fixed, so a
     // geometry assertion means the same thing on every machine
     viewport: { width: 1631, height: 850 },
-    trace: 'retain-on-failure',
+    // a trace is recorded from the **second** try of a test: recording one for every green run was the most expensive
+    // thing of the suite (a snapshot per action: 137 s of the chromium half against 99 s, measured 2026-11-14), and the
+    // ci retries, so a red test still brings its trace
+    trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
   projects: [
-    // the two engines the editor is used in: the owner browses in firefox, most of the world in a
+    // the two engines the editor is used in: firefox on the desktop of the project, most of the world in a
     // chromium based one
-    { name: 'chromium', use: { browserName: 'chromium' } },
+    // the **full** chromium, not the headless shell of playwright: the shell has no gpu, it renders the level with
+    // swiftshader on the cpu, and four pages of it saturate the machine (measured 2026-11-14: the suite of this project
+    // was 81 s at four workers and 44 s at eight, on the same machine, with the full build)
+    {
+      name: 'chromium',
+      use: { browserName: 'chromium', channel: 'chromium' },
+    },
     {
       name: 'firefox',
       use: {

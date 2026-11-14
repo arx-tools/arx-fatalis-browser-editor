@@ -2,7 +2,16 @@ import { readFile } from 'node:fs/promises'
 import { expect, test } from '@playwright/test'
 import JSZip from 'jszip'
 import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
-import { E2E_LEVEL, editorUrl, openZip, readPose, seedLayout, waitForLevel, writePose } from './support/editor.ts'
+import {
+  E2E_LEVEL,
+  editorUrl,
+  openZip,
+  readPose,
+  seedLayout,
+  waitForLevel,
+  waitForUrlPose,
+  writePose,
+} from './support/editor.ts'
 
 /**
  * The export: a dialog with the two values a mod is known by, and the archive the panel of the header used to write.
@@ -135,13 +144,10 @@ test('the export dialog writes the level under the fields of the dialog', async 
 test('a level of a zip opens on the camera pose the export wrote', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
   await seedLayout(page, editorLayout)
-  await page.goto('/?map=blank-flat')
+  // the view the level is left at: the link carries it, so the store of the camera has it from the load, and the export
+  // reads the store (the form reaches it through a debounce, which a write just before a click can lose)
+  await page.goto('/?map=blank-flat&position=120,-60,430&rotation=10,45,0')
   await waitForLevel(page)
-
-  // the view the level is left at
-  const pose = { x: '120', y: '-60', z: '430', pitch: '10', yaw: '45', roll: '0' }
-
-  await writePose(page, pose)
 
   await page.locator('header button[aria-label="Export the level as a zip"]').click()
 
@@ -163,6 +169,8 @@ test('a level of a zip opens on the camera pose the export wrote', async ({ page
   await dialog.locator('.close').click()
 
   await writePose(page, { x: '550', y: '-180', z: '550', pitch: '0', yaw: '180', roll: '0' })
+  // the camera store follows the form through a debounce, and the url is the mirror of it
+  await waitForUrlPose(page, [550, -180, 550])
 
   // the zip opens on the pose it was written with
   await openZip(page, 'mod.zip', data)

@@ -22,6 +22,7 @@ export type KeyboardActionId =
   | 'toggleCameraInfo'
   | 'toggleCameraLight'
   | 'toggleDebugPanel'
+  | 'toggleHelp'
   | 'toggleLights'
   | 'toggleMesh'
   | 'togglePortals'
@@ -144,6 +145,13 @@ export const keyboardActions: readonly KeyboardAction[] = [
     label: 'Toggle the lights',
     group: 'overlay',
     keys: [{ code: 'KeyL' }],
+    modes: ['editor', 'pointerLocked'],
+  },
+  {
+    id: 'toggleHelp',
+    label: 'Toggle the keys',
+    group: 'view',
+    keys: [{ code: 'KeyH' }],
     modes: ['editor', 'pointerLocked'],
   },
   {

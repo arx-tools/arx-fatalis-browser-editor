@@ -55,9 +55,15 @@ jobs:
         run: npm run build
 
   e2e:
-    name: e2e (chromium)
+    name: e2e (chromium, shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
     needs: check
+    # the suite grows with the features, so the ci runs it in two halves on two runners instead of one: the wall is the
+    # half of the tests plus the setup, and a third shard is a line more (the tests do not depend on the order)
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     steps:
       - name: checkout the editor
         uses: actions/checkout@v7.0.1
@@ -80,9 +86,18 @@ jobs:
       - name: install the browsers
         run: npx playwright install --with-deps chromium
 
+      # the levels of the game are megabytes of binaries of another repository, and a browser test loads a level
+      # for a handful of tests: the development server serves them from the cache below (see `localLevelRoute` of
+      # `vite.config.ts`), so a run after the first reads them from the cache of the runner and not from the network
+      - name: cache the levels
+        uses: actions/cache@v4
+        with:
+          path: node_modules/.cache/arx-levels
+          key: arx-levels-v1
+
       # the development server is started by the playwright config (`webServer`), no build is needed
       - name: e2e
-        run: npm run test:e2e -- --project=chromium
+        run: npm run test:e2e -- --project=chromium --shard=${{ matrix.shard }}/${{ strategy.job-total }}
 
       # a failed browser test is debugged from its trace and screenshot, so they are kept (a few days:
       # the artifacts of a green run are empty, `test-results/` only fills up on a failure)
@@ -90,6 +105,6 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: playwright-results
+          name: playwright-results-${{ matrix.shard }}
           path: test-results/
           retention-days: 7

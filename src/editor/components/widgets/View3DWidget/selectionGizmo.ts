@@ -9,6 +9,7 @@ import { createTranslateFacesRecord } from '../../../modules/history/records.ts'
 import { bumpLevelRevision, levelRevision, runStep } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
+import { transformVisible } from '../shared/editModes.ts'
 import { selectionCenterOf } from './selectionCenter.ts'
 
 /**
@@ -78,7 +79,8 @@ export interface SelectionGizmo {
  * The drag writes the model on every frame (the view follows it), and the step of the history goes on the stack when
  * the pointer is let go: the model is taken back to the start of the drag first, so the one command adds the whole
  * offset once. The middle of the selection is read again when the selection or the level changes; the gizmo is hidden
- * while nothing is selected, and it can not be grabbed while the camera holds the pointer (Escape releases it).
+ * while nothing is selected or while the author hid it with `E` (`transformVisible`), and it can not be grabbed while
+ * the camera holds the pointer (Escape releases it).
  *
  * @param options What the gizmo reads from the widget.
  *
@@ -112,7 +114,8 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
     map = levelStore.map.value
     faces = [...selectionStore.polygons.value]
 
-    if (map === undefined || faces.length === 0) {
+    // the gizmo is a tool of an edit: the author hides it with `E`, and the selection stays as it is
+    if (map === undefined || faces.length === 0 || !transformVisible.value) {
       controls.detach()
 
       return
@@ -211,7 +214,9 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
     sync()
   }
 
-  const stop = watch([levelStore.map, selectionStore.polygons, levelRevision], sync, { immediate: true })
+  const stop = watch([levelStore.map, selectionStore.polygons, levelRevision, transformVisible], sync, {
+    immediate: true,
+  })
 
   controls.addEventListener('change', options.onRender)
   controls.addEventListener('objectChange', onObjectChange)

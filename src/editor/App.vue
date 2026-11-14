@@ -5,6 +5,7 @@ import Dock from './components/Dock.vue'
 import EditorHeader from './components/EditorHeader.vue'
 import LoadingOverlay from './components/LoadingOverlay.vue'
 import MissingMapPrompt from './components/MissingMapPrompt.vue'
+import { startEditModes } from './components/widgets/shared/editModes.ts'
 import { startLevelDisplay } from './components/widgets/shared/levelDisplay.ts'
 import { startLevelEditing } from './modules/level/edit/editing.ts'
 import { insertLevelFromUrl } from './modules/level/edit/insertLevel.ts'
@@ -114,6 +115,7 @@ onMounted(async () => {
   // the modules that follow the level start before it arrives: their watchers have to be there when it lands (and the
   // map of the url is read before the level is opened)
   startLevelDisplay()
+  startEditModes()
   startSelection()
   startLevelEditing()
   startMapHistoryPersistence()

@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { Command, Eye, EyeOff, MouseLeft, Redo2, Undo2, UndoDot } from 'lucide-vue-next'
-import { computed } from 'vue'
+import { computed, type ShallowRef } from 'vue'
 import { history } from '../../../modules/history/history.ts'
 import { redoLastStep, resetHistorySteps, undoLastStep } from '../../../modules/level/edit/editing.ts'
 import { isMacKeyboard } from '../../../modules/keyboard/keyboard.ts'
 import WidgetHeading from '../../WidgetHeading.vue'
+import { editModeSwitches, type EditModeSwitch } from '../shared/editModes.ts'
 import { isViewAtDefault, resetViewSwitches, viewSwitches, type ViewSwitch } from '../shared/levelDisplay.ts'
 
 /**
@@ -14,9 +15,21 @@ type HelpKey =
   { readonly kind: 'icon'; readonly icon: 'command' | 'mouse-left' } | { readonly kind: 'text'; readonly text: string }
 
 /**
+ * The switches the help can flip from its row: the view context and the edit modes.
+ *
+ * @remarks
+ * The two sections keep their own list of switches (`levelDisplay.ts`, `editModes.ts`), and the help reads both through
+ * this one table: a row names the switch it carries, wherever that switch lives.
+ */
+const switches = { ...viewSwitches, ...editModeSwitches } as const satisfies Record<
+  string,
+  { readonly ref: ShallowRef<boolean>; readonly defaultValue: boolean }
+>
+
+/**
  * A switch the help can flip from its row.
  */
-type HelpToggle = ViewSwitch
+type HelpToggle = ViewSwitch | EditModeSwitch
 
 /**
  * One row of the key help: the keys of an action, what they do, and the switch behind it.
@@ -104,6 +117,7 @@ const switchNames: Record<HelpToggle, string> = {
   mesh: 'the mesh',
   wireframe: 'the wireframe',
   roomColors: 'the rooms',
+  transform: 'the transform gizmo',
 }
 
 /**
@@ -162,6 +176,12 @@ const sections = computed<readonly HelpSection[]>(() => {
       ],
     },
     {
+      title: 'Edit modes',
+      // the eye of a row is the switch of the mode, as in the view context; the `Q` of the rotate gizmo comes with
+      // TODO 182/184
+      rows: [{ keys: [{ kind: 'text', text: 'E' }], action: 'Transform', toggle: 'transform' }],
+    },
+    {
       title: 'History',
       reset: { title: 'Take every step back', disabled: isHistoryAtStart, run: resetHistorySteps },
       rows: [
@@ -198,7 +218,7 @@ const props = defineProps<{
  * @returns Whether the thing it shows is visible.
  */
 function isOn(toggle: HelpToggle): boolean {
-  return viewSwitches[toggle].ref.value
+  return switches[toggle].ref.value
 }
 
 /**
@@ -207,7 +227,7 @@ function isOn(toggle: HelpToggle): boolean {
  * @param toggle The switch of the row.
  */
 function flip(toggle: HelpToggle): void {
-  viewSwitches[toggle].ref.value = !viewSwitches[toggle].ref.value
+  switches[toggle].ref.value = !switches[toggle].ref.value
 }
 
 /**

@@ -26,6 +26,7 @@ export type KeyboardActionId =
   | 'toggleMesh'
   | 'togglePortals'
   | 'toggleRooms'
+  | 'toggleTransform'
   | 'toggleWireframe'
   | 'redo'
   | 'undo'
@@ -67,6 +68,13 @@ export type KeyboardAction = {
  * dialog mode, where the pointer is not locked.
  */
 export const keyboardActions: readonly KeyboardAction[] = [
+  {
+    id: 'toggleTransform',
+    label: 'Toggle the transform gizmo',
+    group: 'view',
+    keys: [{ code: 'KeyE' }],
+    modes: ['editor', 'pointerLocked'],
+  },
   {
     id: 'toggleMesh',
     label: 'Toggle the mesh',

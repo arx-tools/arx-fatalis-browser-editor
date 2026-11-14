@@ -109,7 +109,10 @@ test('the files of a folder are a temporary data dir', async ({ page, browserNam
   await page.waitForTimeout(800)
 
   await page.locator('.DataDirPicker > button').click()
-  await page.locator('.dir-input').setInputFiles(dataDir)
+  // the timeout is the half a minute of a slow machine: the upload of a directory hangs in firefox once in a few hundred
+  // runs of the suite (measured 2026-11-14: two of 885 tests hit the 120 s ceiling of the test, and no assertion was
+  // reached), so a hang fails here with a message and the retry of the ci can take it again
+  await page.locator('.dir-input').setInputFiles(dataDir, { timeout: 30_000 })
 
   // the dialog closes itself half a second after the folder: the state is read when it is opened again
   const dialog = page.locator('[role="dialog"][aria-label="Setting up Arx data dir"]')

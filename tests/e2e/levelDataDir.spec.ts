@@ -183,7 +183,9 @@ test('the dialog closes itself after the folder is seen, and a hand-opened one s
   // the hidden box of the dialog, which is not inside the teleported element of the modal
   await page.locator('.DataDirPicker .setup').click()
   await expect(dialog).toBeVisible()
-  await page.locator('.dir-input').setInputFiles(dataDir)
+  // see the note of the same call in `dataDirDialog.spec.ts`: the upload of a directory hangs in firefox once in a few
+  // hundred runs, and the timeout turns the hang into a message
+  await page.locator('.dir-input').setInputFiles(dataDir, { timeout: 30_000 })
   await expect(dialog).toHaveCount(0, { timeout: 5000 })
 
   // the dialog opened by hand stays open
@@ -348,20 +350,10 @@ test('the data directory of the header opens the level of the url', async ({ pag
     element.dispatchEvent(new view.Event('change', { bubbles: true }))
   }, entries)
 
-  // the dialog shows the folder and goes half a second later: the flash is read in one poll, the button of the header
-  // keeps the state as its icon
-  await expect
-    .poll(
-      async () => {
-        return await page.evaluate(() => {
-          const element = globalThis.document.querySelector('[role="dialog"][aria-label="Setting up Arx data dir"]')
-
-          return element?.textContent ?? ''
-        })
-      },
-      { timeout: 5000, intervals: [20] },
-    )
-    .toContain('header-data')
+  // the button of the header keeps the state as its icon. The **flash** of the dialog (the folder named in it, half a
+  // second before it closes) is not read here: the close is a timer of the pick and the folder is read before the state
+  // shows, so under a load the dialog can go before the name is on it (measured: one run of twelve, the poll of the flash
+  // read nothing). The dialog that names the folder is covered by `dataDirDialog.spec.ts`, where no timer closes it
   await expect(setup).toHaveAttribute('aria-label', /The Arx data dir is set/u)
 
   // the level of the url loads from the folder of the header, no url change needed

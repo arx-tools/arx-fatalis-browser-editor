@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { ArxPolygonFlags, type ArxPolygon, type ArxVector3 } from 'arx-convert/types'
 import {
+  type Color as ThreeColor,
   Mesh,
   MeshLambertMaterial,
   NormalBlending,
@@ -17,9 +18,11 @@ import {
   copyVertexSegments,
   keptRuns,
   arxPolygonsToWireframeGeometry,
+  createColoredWireframeMaterial,
   createWireframeMaterial,
   arxVector3toVector3,
   createLevelMaterial,
+  wireframeColorsOf,
 } from '../../src/generator/meshes.ts'
 import { Color } from '../../src/generator/Color.ts'
 
@@ -285,6 +288,32 @@ void describe('arxPolygonsToWireframeGeometry', () => {
     assert.deepEqual([first.x, first.y, first.z], [-10, -20, -30])
   })
 
+  void it('carries the normal of the corners when it colours the lines', () => {
+    const geometry = arxPolygonsToWireframeGeometry([polygon(false)], new Vector3(0, 0, 0), () => {
+      return [1, 1, 1]
+    })
+    const normals = geometry.getAttribute('normal')
+
+    assert.equal(normals.count, 6)
+    // the polygon's normal is (0, 1, 0) in the game, which the mesh mirrors to (0, -1, 0); the mirrored zero of X is
+    // the negative zero of the mirror, so it is normalized back
+    assert.deepEqual([normals.getX(0) + 0, normals.getY(0), normals.getZ(0)], [0, -1, 0])
+  })
+
+  void it('marks a face the level draws from both sides', () => {
+    const twoSided = polygon(false)
+
+    twoSided.flags = ArxPolygonFlags.DoubleSided
+
+    const geometry = arxPolygonsToWireframeGeometry([twoSided], new Vector3(0, 0, 0), () => {
+      return [1, 1, 1]
+    })
+    const doubleSided = geometry.getAttribute('aDoubleSided')
+
+    assert.equal(doubleSided.count, 6)
+    assert.equal(doubleSided.getX(0), 1)
+  })
+
   void it('gives an empty geometry for no polygon', () => {
     const geometry = arxPolygonsToWireframeGeometry([], new Vector3(0, 0, 0))
 
@@ -309,5 +338,69 @@ void describe('createWireframeMaterial', () => {
     assert.equal(material.color.getHex(), 0x77_77_77)
     assert.equal(material.blending, NormalBlending)
     assert.equal(material.transparent, true)
+  })
+
+  void it('takes the grey of the view when it is asked for one', () => {
+    // the walkable view draws the plain line of the hidden mesh lighter than the fixed views
+    const material = createWireframeMaterial({ color: 0x99_99_99 })
+
+    assert.equal(material.color.getHex(), 0x99_99_99)
+  })
+
+  void it('gives a shader that colours the faces, and greys the back of them', () => {
+    const material = createColoredWireframeMaterial()
+    const backFaceColor = material.uniforms.backFaceColor.value as ThreeColor
+
+    assert.equal(material.type, 'ShaderMaterial')
+    assert.equal(material.vertexColors, true)
+    assert.equal(material.transparent, true)
+    // a face the camera sees from behind belongs to the geometry the game culls, so its line is the grey of the hidden
+    // mesh, not the colour of a texture that is not on the screen
+    assert.equal(backFaceColor.getHex(), 0x99_99_99)
+  })
+})
+
+void describe('wireframeColorsOf', () => {
+  void it('gives the colour of the face to both ends of every edge', () => {
+    const colors = wireframeColorsOf([polygon(false)], () => {
+      return [0.25, 0.5, 0.75]
+    })
+
+    // three edges, two vertices each, three channels per vertex
+    assert.equal(colors.length, 6 * 3)
+    assert.deepEqual([...colors.slice(0, 3)], [0.25, 0.5, 0.75])
+    assert.deepEqual([...colors.slice(15, 18)], [0.25, 0.5, 0.75])
+  })
+
+  void it('walks the faces in the order they are stored in', () => {
+    const colors = wireframeColorsOf([polygon(false, 1), polygon(true, 2)], (face) => {
+      if (face.textureContainerId === 1) {
+        return [1, 1, 1]
+      }
+
+      return [0, 0, 0]
+    })
+
+    // the triangle is 6 vertices, the quad 8: the first black vertex is the seventh of the buffer
+    assert.deepEqual([...colors.slice(0, 3)], [1, 1, 1])
+    assert.deepEqual([...colors.slice(18, 21)], [0, 0, 0])
+  })
+})
+
+void describe('the colour attribute of the wireframe', () => {
+  void it('is left out without a colour of the faces', () => {
+    const geometry = arxPolygonsToWireframeGeometry([polygon(false)], new Vector3(0, 0, 0))
+
+    assert.equal(geometry.getAttribute('color'), undefined)
+  })
+
+  void it('colours the points of the lines from the faces', () => {
+    const geometry = arxPolygonsToWireframeGeometry([polygon(false)], new Vector3(0, 0, 0), () => {
+      return [0, 0, 0]
+    })
+    const colors = geometry.getAttribute('color')
+
+    assert.equal(colors.count, 6)
+    assert.deepEqual([colors.getX(0), colors.getY(0), colors.getZ(0)], [0, 0, 0])
   })
 })

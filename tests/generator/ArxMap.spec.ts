@@ -5,6 +5,7 @@ import { getBVHExtremes } from 'three-mesh-bvh'
 import { BufferAttribute, Quaternion, Raycaster, Triangle, Vector3 } from 'three'
 import { createBlankLevelFiles, FLAT_PRESET } from '../../src/editor/modules/level/blankLevel.ts'
 import { ArxMap, MIN_SCALE_FACTOR } from '../../src/generator/ArxMap.ts'
+import { wireframeLineColorOf } from '../../src/generator/flatColors.ts'
 import { arxVector3toVector3 } from '../../src/generator/meshes.ts'
 import { Settings } from '../../src/generator/Settings.ts'
 
@@ -699,5 +700,44 @@ void describe('scalePolygons', () => {
     map.scalePolygons([0], { x: 0, y: 0, z: 0 }, { x: 1, y: 1, z: 1 })
 
     assert.deepEqual([face.vertices[1].x, face.vertices[1].y, face.vertices[1].z], [before.x, before.y, before.z])
+  })
+})
+
+void describe('the wireframe colours of the map', () => {
+  void it('takes the flat colour of the texture of every face', () => {
+    const map = flatMap()
+    const colors = map.wireframeGeometry.getAttribute('color')
+
+    // the blank level's own texture is not in the table of the flat colours: its faces take the white line of the
+    // textures the table does not know
+    assert.deepEqual([colors.getX(0), colors.getY(0), colors.getZ(0)], [1, 1, 1])
+  })
+
+  void it('writes the colours again when a face takes another texture', () => {
+    const map = flatMap()
+
+    map.addTextureContainer(7, '(fabric)_gobelin_bed.bmp')
+    map.setFaceTextures([{ index: 0, textureContainerId: 7 }])
+
+    const dark = map.wireframeGeometry.getAttribute('color')
+    const [darkRed, darkGreen, darkBlue] = wireframeLineColorOf('(fabric)_gobelin_bed.bmp')
+
+    // 53, 33, 20: a dark cloth, so the line is its light inverse (the buffer holds the numbers as float32)
+    assert.deepEqual(
+      [dark.getX(0), dark.getY(0), dark.getZ(0)],
+      [Math.fround(darkRed), Math.fround(darkGreen), Math.fround(darkBlue)],
+    )
+
+    map.addTextureContainer(8, '[fabric]_human_observatory1.bmp')
+    map.setFaceTextures([{ index: 0, textureContainerId: 8 }])
+
+    const light = map.wireframeGeometry.getAttribute('color')
+    const [lightRed, lightGreen, lightBlue] = wireframeLineColorOf('[fabric]_human_observatory1.bmp')
+
+    // 163, 148, 126: a light cloth, so the line turns its dark inverse without the geometry being built again
+    assert.deepEqual(
+      [light.getX(0), light.getY(0), light.getZ(0)],
+      [Math.fround(lightRed), Math.fround(lightGreen), Math.fround(lightBlue)],
+    )
   })
 })

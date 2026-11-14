@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue
 import { PerspectiveCamera, type Mesh } from 'three'
 import Crosshair from '../../Crosshair.vue'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
-import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
+import { WIREFRAME_WITHOUT_MESH, arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { currentMapId } from '../../../modules/level/source/maps.ts'
@@ -278,6 +278,10 @@ function updateVisibility(): void {
   if (rooms !== undefined) {
     rooms.mesh.visible = showRooms
   }
+
+  // the line reads the flat colour of the texture of its face: on the room map and with the mesh off there is no
+  // texture under it, so the plain grey stays
+  wireframe?.setColored(visible && !isRoomColorsVisible.value)
 }
 
 /**
@@ -343,8 +347,12 @@ function showMap(map: ArxMap): void {
   applyRoomHighlight()
   view.scene.add(rooms.mesh)
 
-  // the wireframe is a switch: the view puts it over the mesh only while it is on
-  wireframe = attachWireframe(view.scene, map.wireframeGeometry)
+  // the wireframe is a switch: the view puts it over the mesh only while it is on, and every line takes the colour of
+  // the flat colour of the texture of its face
+  wireframe = attachWireframe(view.scene, map.wireframeGeometry, {
+    colored: true,
+    grey: WIREFRAME_WITHOUT_MESH,
+  })
   wireframe.setVisible(isWireframeVisible.value)
 
   // the switches read the wireframe too (its lines follow the mesh), so they come after it is there: a fresh load
@@ -552,6 +560,11 @@ onBeforeUnmount(() => {
 
   selection?.dispose()
   selection = undefined
+
+  // the wireframe holds the render target of the negative look, so it goes with the widget (the level stays: its
+  // geometry and material belong to the store)
+  wireframe?.dispose()
+  wireframe = undefined
 
   selectionGizmo?.dispose()
   selectionGizmo = undefined

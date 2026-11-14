@@ -21,6 +21,11 @@ const xoConfig: XoConfigItem[] = [
     ignores: ['src/_old/**'],
   },
   {
+    // the flat colours are a data table of the game's textures (1727 entries on one line): prettier would
+    // spread it over the file, and the table is read by name, not by eye
+    ignores: ['src/generator/flat-colors.json'],
+  },
+  {
     // the vue block below sets its own parser, and the browser environment does not come along with
     // it, so the dom globals the components use are named here; the two build values are compile
     // time constants the vite config injects (`define`), their type side is in `src/editor/vite-env.d.ts`

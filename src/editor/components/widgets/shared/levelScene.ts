@@ -10,10 +10,11 @@ import {
   type BufferGeometry,
   type Material,
   type Scene,
+  type ShaderMaterial,
   Vector3,
 } from 'three'
 import { Color } from '../../../../generator/Color.ts'
-import { createWireframeMaterial } from '../../../../generator/meshes.ts'
+import { createColoredWireframeMaterial, createWireframeMaterial } from '../../../../generator/meshes.ts'
 import { worldPositionToGame } from '../camera/cameraPose.ts'
 import type { CameraBounds } from './cameraBounds.ts'
 
@@ -207,9 +208,38 @@ export interface LevelWireframe {
    */
   readonly setVisible: (visible: boolean) => void
   /**
-   * Takes the wireframe out of the scene and frees its material. The geometry stays: it is the map's.
+   * Draws the lines in the colour of the faces (the flat colour of their textures) or in the plain grey.
+   *
+   * @param colored Whether the lines should read the colour of the faces.
+   */
+  readonly setColored: (colored: boolean) => void
+  /**
+   * Takes the wireframe out of the scene and frees its materials. The geometry stays: it is the map's.
    */
   readonly dispose: () => void
+}
+
+/**
+ * How the wireframe of a view draws, when it can choose.
+ */
+export interface WireframeOptions {
+  /**
+   * Whether the view can draw the lines in the colour of the faces.
+   *
+   * @remarks
+   * The walkable view reads the colours of its faces (the flat colour of their textures), so it asks for the second
+   * material; the fixed views keep the plain grey. The colours are on the geometry of the map, so the material only
+   * has to read them.
+   */
+  readonly colored?: boolean
+  /**
+   * The colour of the plain grey line; `#777` when it is left out.
+   *
+   * @remarks
+   * The walkable view asks for a lighter grey than the fixed views (the line over the black of a hidden mesh), see
+   * `WIREFRAME_WITHOUT_MESH`.
+   */
+  readonly grey?: number
 }
 
 /**
@@ -221,11 +251,23 @@ export interface LevelWireframe {
  *
  * @param scene The scene of the widget.
  * @param geometry The wireframe geometry of the map.
+ * @param options Whether the lines can take the colour of the faces; the plain grey when it is left out.
  *
- * @returns The handle that shows, hides and disposes it.
+ * @returns The handle that shows, colours and disposes it.
  */
-export function attachWireframe(scene: Scene, geometry: BufferGeometry): LevelWireframe {
-  const lines = new LineSegments(geometry, createWireframeMaterial())
+export function attachWireframe(
+  scene: Scene,
+  geometry: BufferGeometry,
+  options: WireframeOptions = {},
+): LevelWireframe {
+  const plainMaterial = createWireframeMaterial({ color: options.grey })
+  let coloredMaterial: ShaderMaterial | undefined
+
+  if (options.colored === true) {
+    coloredMaterial = createColoredWireframeMaterial()
+  }
+
+  const lines = new LineSegments<BufferGeometry, Material>(geometry, plainMaterial)
   lines.renderOrder = 5
   let visible = false
 
@@ -243,9 +285,21 @@ export function attachWireframe(scene: Scene, geometry: BufferGeometry): LevelWi
         scene.remove(lines)
       }
     },
+    setColored: (colored: boolean): void => {
+      if (coloredMaterial === undefined) {
+        return
+      }
+
+      if (colored) {
+        lines.material = coloredMaterial
+      } else {
+        lines.material = plainMaterial
+      }
+    },
     dispose: (): void => {
       scene.remove(lines)
-      lines.material.dispose()
+      plainMaterial.dispose()
+      coloredMaterial?.dispose()
     },
   }
 }

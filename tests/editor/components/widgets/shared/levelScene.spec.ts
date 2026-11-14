@@ -4,15 +4,17 @@ import {
   AmbientLight,
   Box3,
   BufferGeometry,
-  type LineBasicMaterial,
-  type LineSegments,
   DirectionalLight,
+  LineBasicMaterial,
   Mesh,
   MeshLambertMaterial,
   PerspectiveCamera,
   PlaneGeometry,
   Scene,
+  ShaderMaterial,
   Vector3,
+  type LineSegments,
+  type Material,
 } from 'three'
 import {
   addPreviewLights,
@@ -268,5 +270,75 @@ void describe('attachWireframe', () => {
     assert.equal(disposed, 1)
     assert.equal(scene.children.length, 0)
     assert.equal(geometry.getAttribute('position') === undefined, true)
+  })
+})
+
+void describe('the colour of the wireframe', () => {
+  void it('keeps the plain grey when the view can not colour the lines', () => {
+    const scene = new Scene()
+    const wireframe = attachWireframe(scene, new BufferGeometry())
+
+    wireframe.setVisible(true)
+    wireframe.setColored(true)
+
+    const [lines] = scene.children as Array<LineSegments<BufferGeometry, Material>>
+
+    assert.ok(lines.material instanceof LineBasicMaterial)
+    assert.equal(lines.material.color.getHex(), 0x77_77_77)
+  })
+
+  void it('swaps to the colour of the faces when the view asks for it', () => {
+    const scene = new Scene()
+    const wireframe = attachWireframe(scene, new BufferGeometry(), { colored: true })
+
+    wireframe.setVisible(true)
+
+    const [lines] = scene.children as Array<LineSegments<BufferGeometry, Material>>
+
+    assert.ok(lines.material instanceof LineBasicMaterial)
+
+    wireframe.setColored(true)
+    assert.ok(lines.material instanceof ShaderMaterial)
+
+    wireframe.setColored(false)
+    assert.ok(lines.material instanceof LineBasicMaterial)
+  })
+
+  void it('draws the plain line in the grey the view asks for', () => {
+    const scene = new Scene()
+    const wireframe = attachWireframe(scene, new BufferGeometry(), { grey: 0x99_99_99 })
+
+    wireframe.setVisible(true)
+
+    const [lines] = scene.children as Array<LineSegments<BufferGeometry, LineBasicMaterial>>
+
+    assert.equal(lines.material.color.getHex(), 0x99_99_99)
+  })
+
+  void it('frees both of its materials on dispose', () => {
+    const scene = new Scene()
+    const wireframe = attachWireframe(scene, new BufferGeometry(), { colored: true })
+    let disposed = 0
+
+    wireframe.setVisible(true)
+
+    const [lines] = scene.children as Array<LineSegments<BufferGeometry, Material>>
+    const plain = lines.material
+
+    wireframe.setColored(true)
+
+    const colored = lines.material
+
+    plain.addEventListener('dispose', () => {
+      disposed = disposed + 1
+    })
+    colored.addEventListener('dispose', () => {
+      disposed = disposed + 1
+    })
+
+    wireframe.dispose()
+
+    assert.equal(disposed, 2)
+    assert.equal(scene.children.length, 0)
   })
 })

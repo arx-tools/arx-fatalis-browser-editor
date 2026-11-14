@@ -1,6 +1,6 @@
 import { DLF, FTS, LLF } from 'arx-convert'
 import type { ArxDLF, ArxFTS, ArxLight, ArxLLF, ArxPolygon, ArxVector3 } from 'arx-convert/types'
-import { BufferGeometry, Mesh, Quaternion, Vector3, type BufferAttribute } from 'three'
+import { BufferAttribute, BufferGeometry, Mesh, Quaternion, Vector3 } from 'three'
 import { isQuad } from 'arx-convert/utils'
 import {
   type GeometrySlice,
@@ -14,12 +14,14 @@ import { type TextureRun, indexSolidGeometryInTextureOrder, readTextureRuns } fr
 import { type FaceUv, writeFaceUvs } from './arxMap/uvs.ts'
 import { unpackArxFile } from './files.ts'
 import { fingerprintOf } from './fingerprint.ts'
+import { wireframeLineColorOf } from './flatColors.ts'
 import {
   accelerateRaycast,
   arxPolygonsToGeometry,
   arxPolygonsToWireframeGeometry,
   arxVector3toVector3,
   createLevelMaterial,
+  wireframeColorsOf,
 } from './meshes.ts'
 import { countFacesOfTriangles } from './polygonCounts.ts'
 import { Settings } from './Settings.ts'
@@ -577,6 +579,7 @@ export class ArxMap {
 
     if (changed) {
       this.textureRuns = readTextureRuns(this.solidMeshes[0].geometry, this.polygons, this.triangleToPolygon)
+      this.refreshWireframeColors()
     }
   }
 
@@ -1153,6 +1156,9 @@ export class ArxMap {
         return restored.has(polygon)
       }),
       offset,
+      (polygon) => {
+        return this.wireframeColorOf(polygon)
+      },
     )
 
     const solidSlices: GeometrySlice[] = []
@@ -1223,6 +1229,37 @@ export class ArxMap {
   }
 
   /**
+   * Reads the colour of the wireframe of a polygon, from the flat colour of its texture.
+   *
+   * @param polygon The face to read.
+   *
+   * @returns The colour of the line, in the colour of the vertices.
+   */
+  private wireframeColorOf(polygon: ArxPolygon): readonly [number, number, number] {
+    return wireframeLineColorOf(this.textureNameOf(polygon.textureContainerId))
+  }
+
+  /**
+   * Writes the colour of every vertex of the wireframe again, from the flat colour of the texture of its polygon.
+   *
+   * @remarks
+   * The colour of a line follows the texture of its face, so a paint, and the undo of a paint, has to write it again:
+   * the positions do not move, so the attribute is replaced in place and the geometry is not built again (a build of
+   * the big level is ~260 ms, a paint is a click).
+   */
+  private refreshWireframeColors(): void {
+    if (this.wireframeGeometry.getAttribute('color') === undefined) {
+      return
+    }
+
+    const colors = wireframeColorsOf(this.polygons, (polygon) => {
+      return this.wireframeColorOf(polygon)
+    })
+
+    this.wireframeGeometry.setAttribute('color', new BufferAttribute(colors, 3))
+  }
+
+  /**
    * Rebuilds every field that comes from the polygons, on the first build of the level.
    *
    * @param polygons Every polygon of the level, in the order of the mesh.
@@ -1234,7 +1271,12 @@ export class ArxMap {
     this.triangleToPolygon = triangleToPolygonMap(polygons)
     this.vertexPolygons = undefined
 
-    refillFromGeometry(this.wireframeGeometry, arxPolygonsToWireframeGeometry(polygons, offset))
+    refillFromGeometry(
+      this.wireframeGeometry,
+      arxPolygonsToWireframeGeometry(polygons, offset, (polygon) => {
+        return this.wireframeColorOf(polygon)
+      }),
+    )
     refillFromGeometry(this.solidMeshes[0].geometry, arxPolygonsToGeometry(polygons, offset))
 
     this.textureRuns = indexSolidGeometryInTextureOrder(

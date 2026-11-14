@@ -14,6 +14,7 @@ import {
   zipImageNames,
 } from './levelTextures/load.ts'
 import { buildMaterial, paintedNamesOf, paintKeyOf, paintKeyOfPolygon } from './levelTextures/paint.ts'
+import { applyTemporaryUvsOf } from './levelTextures/temporaryUvs.ts'
 import {
   addRunGroups,
   drawnRunsOf,
@@ -135,6 +136,10 @@ export function paintLevelTextures(map: ArxMap, textures: ReadonlyMap<string, Te
   const started = painted
   const materials = started?.materials ?? []
   const polygons = solidPolygonsOf(map)
+
+  // a face the level gives no texture has no uv either: without one the placeholder would sample a single texel of it, so
+  // its corners are laid on the square of its plane (the polygons keep their own uvs, see `temporaryUvs.ts`)
+  applyTemporaryUvsOf(map, polygons, mesh.geometry)
 
   // the keys the paint needs, in the order they first appear: the materials are built for these, and a repaint (an
   // edit) keeps them — the same keys, the same materials, no shader of thirty textures built again for a delete

@@ -74,19 +74,25 @@ const imageShown = shallowRef<ImageBitmap | undefined>(undefined)
 const shown = shallowRef<ShownFace | undefined>(undefined)
 
 /**
- * The line of the stage: a face whose texture the editor has no file for.
+ * Whether the face on the screen has no picture to edit: the level has no texture for it, or the editor has no file of
+ * that one.
  *
  * @remarks
- * The square is the picture of the texture, so without one there is nothing to drag and the stage says why. The line
- * about the **selection** (what the user has to do, or why the faces can not be edited together) is not here: it takes
- * the place of the controls under the square (2026-11-12, the owner).
+ * The square is the picture of the texture, so without a picture there is nothing to drag a corner on. The widget then
+ * reads as the other selections it can not edit: the corners and the controls are not there, and the line under the
+ * square says why (2026-11-14, the owner; before it the message sat in the middle of the stage over a collapsed face).
  */
-const stageLine = computed(() => {
-  if (shown.value !== undefined && imageShown.value === undefined) {
+const pictureMissing = shallowRef(false)
+
+/**
+ * What the widget says under the square: the line of the selection, or the lack of a picture.
+ */
+const notice = computed(() => {
+  if (shown.value !== undefined && pictureMissing.value) {
     return 'The texture of this face is not loaded.'
   }
 
-  return ''
+  return hint.value
 })
 
 /**
@@ -702,10 +708,12 @@ watch(
   entry,
   async (value) => {
     imageShown.value = undefined
+    pictureMissing.value = value === undefined
 
     if (value !== undefined) {
       await loadBitmap(value)
       imageShown.value = bitmapOf(value).value
+      pictureMissing.value = imageShown.value === undefined
 
       // the square is not in the page while there is no picture (it is hidden with a `v-if`): the canvas of it can only be
       // drawn after the tick that puts it there
@@ -743,28 +751,28 @@ watch(
           @pointerup="onPanEnd"
           @pointercancel="onPanEnd"
         ></canvas>
-        <button
-          v-for="handle in handles"
-          :key="handle.index"
-          class="corner"
-          :class="{ 'is-dragged': dragged === handle.index, 'is-active': active === handle.index }"
-          type="button"
-          :data-corner="handle.index"
-          :aria-label="`Corner ${cornerNameOf(handle.index)}`"
-          :style="{ left: `${handle.x}px`, top: `${handle.y}px` }"
-          @pointerdown="onPointerDown(handle.index, $event)"
-          @pointermove="onPointerMove"
-          @pointerup="onPointerUp"
-          @pointercancel="onPointerUp"
-        >
-          <span class="index">{{ cornerNameOf(handle.index) }}</span>
-        </button>
+        <template v-if="imageShown !== undefined">
+          <button
+            v-for="handle in handles"
+            :key="handle.index"
+            class="corner"
+            :class="{ 'is-dragged': dragged === handle.index, 'is-active': active === handle.index }"
+            type="button"
+            :data-corner="handle.index"
+            :aria-label="`Corner ${cornerNameOf(handle.index)}`"
+            :style="{ left: `${handle.x}px`, top: `${handle.y}px` }"
+            @pointerdown="onPointerDown(handle.index, $event)"
+            @pointermove="onPointerMove"
+            @pointerup="onPointerUp"
+            @pointercancel="onPointerUp"
+          >
+            <span class="index">{{ cornerNameOf(handle.index) }}</span>
+          </button>
+        </template>
       </div>
-
-      <p v-if="stageLine !== ''" class="stage-line">{{ stageLine }}</p>
     </div>
 
-    <p v-if="shown === undefined" class="hint">{{ hint }}</p>
+    <p v-if="shown === undefined || pictureMissing" class="hint">{{ notice }}</p>
     <div v-else class="fields">
       <div class="corner-pick" @keydown.esc.stop="onCornerEscape()">
         <button
@@ -1049,17 +1057,6 @@ watch(
   &.is-dragged {
     cursor: grabbing;
   }
-}
-
-// the line of the stage: the face has a texture the editor has no file for, so the square is not there
-.stage-line {
-  position: absolute;
-  margin: 0;
-  padding: 0 12px;
-  color: $text-dim;
-  font-size: 12px;
-  line-height: 1.4;
-  text-align: center;
 }
 
 // the line of a selection the widget can not edit: it takes the place of the controls under the square, so the numbers

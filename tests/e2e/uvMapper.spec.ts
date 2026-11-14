@@ -561,3 +561,50 @@ test('a selection of faces with other uv shows the texture, and the message in t
   // and the view is back on the whole texture: the default zoom, from the middle of it
   await expect(mapper.locator('.head .zoom')).toHaveText('0.8×')
 })
+
+/**
+ * A face whose texture the session has no file for says so under the square, without the tools of an edit.
+ *
+ * @remarks
+ * Every level of the game opened without a data directory is that case: the level names the textures of the game, and
+ * nothing decodes them. The widget shows no picture, so a collapsed face would only read as a dot in the middle, and the
+ * controls would read as tools that work (the owner's screenshot of 2026-11-14). The line under the square says why the
+ * square is empty, and the corners and the controls are not there.
+ */
+test('a face without a loaded texture says so under the square, without the corners and the controls', async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName !== 'chromium', 'the pointer lock of the walkable view needs chromium here')
+  test.setTimeout(120_000)
+
+  await seedLayout(page, uvLayout())
+  await page.goto('/?fromOriginalArxLevel=12')
+
+  const view = page.locator('[data-widget-kind="3d-view"] canvas').first()
+  const mapper = page.locator('[data-widget-kind="uv-mapper"]')
+
+  await expect(view).toBeVisible()
+  await waitForLevel(page)
+  await expect(mapper).toBeVisible()
+
+  const spawn = await readPose(page)
+
+  await lockPointer(page, view)
+  await writePose(page, { ...spawn, pitch: '60' })
+  await clickCrosshair(view)
+
+  await expect
+    .poll(async () => {
+      return await selectionCount(page)
+    })
+    .toBe(1)
+
+  // the line is the one of the widget, in the place under the square where its other messages stand
+  await expect(mapper.locator('.hint')).toHaveText('The texture of this face is not loaded.')
+  // and the stage is only the frame of the place: no collapsed corners, no controls of an edit
+  await expect(mapper.locator('.corner')).toHaveCount(0)
+  await expect(mapper.locator('.fields')).toHaveCount(0)
+  await expect(mapper.locator('.square')).toBeVisible()
+  await expect(mapper.locator('.square canvas')).toHaveCount(0)
+})

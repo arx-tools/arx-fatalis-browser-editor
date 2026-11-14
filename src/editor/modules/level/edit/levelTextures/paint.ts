@@ -26,6 +26,17 @@ import { blendModeOf, blendTransOf, isDoubleSided, type PolygonBlendMode } from 
 const ALPHA_CUTOUT = 0.5
 
 /**
+ * How much of the placeholder a face without a texture shows.
+ *
+ * @remarks
+ * The game draws nothing where the level gives a face no texture: such a face is an invisible blocker (the two faces that
+ * keep the player out of the room of a cutscene). The editor has to say where the face is without hiding what stands
+ * behind it, so the placeholder of the generator is drawn **half see-through** — at a distance the tiled checkerboard
+ * reads as one flat colour, and a solid one would look like a wall of the level.
+ */
+const NO_TEXTURE_OPACITY = 0.5
+
+/**
  * What a run of faces draws with: the texture (or none), the side of the face, and how the game blends it.
  *
  * @remarks
@@ -201,11 +212,53 @@ export function paintedNamesOf(keys: readonly PaintKey[], textures: ReadonlyMap<
 }
 
 /**
+ * Builds the material of a face the level gives no texture.
+ *
+ * @remarks
+ * The placeholder of the generator says "a texture belongs here", and it is drawn see-through ({@link NO_TEXTURE_OPACITY}):
+ * the face is invisible in the game, so the editor may not hide the level with it. Without a placeholder the face keeps
+ * the flat colour of the generator, which is opaque, and the blend mode of its key is kept on both: a torch's flame
+ * without its texture still darkens the wall.
+ *
+ * @param key What the faces draw with, with no name.
+ * @param missing The texture the containers the level has none for draw with, when there is one.
+ *
+ * @returns The material of the key.
+ */
+function noTextureMaterialOf(key: PaintKey, missing: Texture | undefined): MeshLambertMaterial {
+  if (missing === undefined) {
+    const material = createLevelMaterial({ side: sideOf(key.doubleSided) })
+
+    applyBlend(material, key)
+
+    return material
+  }
+
+  const material = new MeshLambertMaterial({
+    map: missing,
+    side: sideOf(key.doubleSided),
+    opacity: NO_TEXTURE_OPACITY,
+    transparent: true,
+  })
+
+  applyBlend(material, key)
+
+  // a see-through face writes no depth: what stands behind it must stay visible
+  material.depthWrite = false
+
+  return material
+}
+
+/**
  * Builds the material of a paint key.
  *
  * @remarks
- * The faces without a texture of their own draw with the placeholder of the generator (a flat grey when there is none),
- * and they keep the blend mode of their key: a torch's flame without its texture still darkens the wall.
+ * A face the level gives **no texture** draws the placeholder of the generator see-through ({@link noTextureMaterialOf}),
+ * because the game draws nothing there. A face whose texture the level names but the session has no file for draws the
+ * placeholder **as it is**: a whole level without a data directory is that case, and a see-through level would say less
+ * than the opaque placeholder does (the texture list names the missing ones). Without a placeholder the face keeps the
+ * flat colour of the generator, and every one of them keeps the blend mode of its key: a torch's flame without its
+ * texture still darkens the wall.
  *
  * @param key What the faces draw with.
  * @param textures The textures of the level, by the name it calls them.
@@ -218,11 +271,11 @@ export function buildMaterial(
   textures: ReadonlyMap<string, Texture>,
   missing: Texture | undefined,
 ): MeshLambertMaterial {
-  let texture = missing
-
-  if (key.name !== undefined) {
-    texture = textures.get(key.name) ?? missing
+  if (key.name === undefined) {
+    return noTextureMaterialOf(key, missing)
   }
+
+  const texture = textures.get(key.name) ?? missing
 
   if (texture === undefined) {
     const material = createLevelMaterial({ side: sideOf(key.doubleSided) })

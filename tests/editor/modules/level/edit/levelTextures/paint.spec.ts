@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { ArxPolygonFlags, type ArxPolygon } from 'arx-convert/types'
-import { CustomBlending, DoubleSide, FrontSide, Texture } from 'three'
+import { CustomBlending, DoubleSide, FrontSide, NormalBlending, Texture } from 'three'
+import { Color } from '../../../../../../src/generator/Color.ts'
 import type { ArxMap } from '../../../../../../src/generator/ArxMap.ts'
 import {
   buildMaterial,
@@ -23,7 +24,7 @@ const texture = new Texture()
  * @returns A key of a face without a texture, drawn opaque and from one side.
  */
 function keyOf(overrides: Partial<PaintKey> = {}): PaintKey {
-  return { name: undefined, doubleSided: false, blend: 'opaque', trans: 1, ...overrides }
+  return { name: undefined, doubleSided: false, blend: 'opaque', trans: 1, water: false, ...overrides }
 }
 
 /**
@@ -101,6 +102,24 @@ void describe('buildMaterial', () => {
     assert.equal(material.transparent, false)
   })
 
+  void it('draws the water as a translucent sheet at the brightness of its texture', () => {
+    const material = buildMaterial(
+      keyOf({ name: 'water.bmp', water: true, blend: 'additive', trans: 0.2 }),
+      new Map([['water.bmp', texture]]),
+      undefined,
+    )
+
+    assert.equal(material.map, texture)
+    assert.equal(material.transparent, true)
+    assert.equal(material.opacity, 0.62)
+    assert.equal(material.depthWrite, false)
+    // the game draws the water in a pass of its own: the blend mode and the brightness of the face do not dim it, and
+    // the alpha of its texture does not cut it
+    assert.equal(material.blending, NormalBlending)
+    assert.equal(material.alphaTest, 0)
+    assert.equal(material.color.getHex(), Color.white.getHex())
+  })
+
   void it('draws both sides of a two-sided face', () => {
     const material = buildMaterial(keyOf({ doubleSided: true }), new Map(), undefined)
 
@@ -130,6 +149,14 @@ void describe('paintKeyOfPolygon', () => {
     assert.equal(key.doubleSided, true)
     assert.equal(key.blend, 'alpha')
     assert.equal(key.trans, 0.5)
+  })
+
+  void it('marks a face of the water as one of the water pass of the game', () => {
+    const water = ArxPolygonFlags.Water | ArxPolygonFlags.Transparent
+    const key = paintKeyOfPolygon(levelOf(new Map([[7, 'water.bmp']])), faceOf(water, 1.2, 7))
+
+    assert.equal(key.water, true)
+    assert.equal(paintKeyOf(key), 'front|additive|0.20|water.bmp|water')
   })
 
   void it('reads a face without a texture, which is opaque and one-sided', () => {

@@ -15,7 +15,13 @@ import {
 } from 'three'
 import type { ArxMap } from '../../../../../generator/ArxMap.ts'
 import { createLevelMaterial } from '../../../../../generator/meshes.ts'
-import { blendModeOf, blendTransOf, isDoubleSided, type PolygonBlendMode } from '../../../../../generator/polygons.ts'
+import {
+  blendModeOf,
+  blendTransOf,
+  isDoubleSided,
+  isWater,
+  type PolygonBlendMode,
+} from '../../../../../generator/polygons.ts'
 
 /**
  * The alpha cut of the material of a face: the texels of the texture below it are not drawn.
@@ -35,6 +41,18 @@ const ALPHA_CUTOUT = 0.5
  * reads as one flat colour, and a solid one would look like a wall of the level.
  */
 const NO_TEXTURE_OPACITY = 0.5
+
+/**
+ * How much of the water a water face shows.
+ *
+ * @remarks
+ * The game draws the water in a pass of its own, with the environment map and a moving reflection
+ * (`RenderWater` of `Scene.cpp`): the texture and the `transval` blend of the face are not what makes it visible, so a
+ * paint that follows them draws a dim additive sheet — nothing at all on the dark texture of a cave river (2026-11-14,
+ * the owner: the water of level 12 was invisible). The editor draws the texture of the face as a translucent sheet
+ * instead, so the water reads where the level has it and the bed still shows through.
+ */
+const WATER_OPACITY = 0.62
 
 /**
  * What a run of faces draws with: the texture (or none), the side of the face, and how the game blends it.
@@ -65,6 +83,10 @@ export interface PaintKey {
    * The brightness the game multiplies the texture with, in hundredths: the key of a run holds it that way.
    */
   readonly trans: number
+  /**
+   * Whether the face is water, which the game draws in a pass of its own (`generator/polygons.ts` `isWater`).
+   */
+  readonly water: boolean
 }
 
 /**
@@ -81,7 +103,15 @@ export function paintKeyOf(key: PaintKey): string {
     side = 'double'
   }
 
-  return `${side}|${key.blend}|${key.trans.toFixed(2)}|${key.name ?? ''}`
+  // the water is a part of its own, and only for the faces that are water: the key of every other face stays the one the
+  // materials were built with
+  let water = ''
+
+  if (key.water) {
+    water = '|water'
+  }
+
+  return `${side}|${key.blend}|${key.trans.toFixed(2)}|${key.name ?? ''}${water}`
 }
 
 /**
@@ -104,6 +134,7 @@ export function paintKeyOfPolygon(map: ArxMap, polygon: ArxPolygon): PaintKey {
     doubleSided: isDoubleSided(polygon),
     blend: blendModeOf(polygon),
     trans: Math.min(255, Math.max(0, trans)) / 100,
+    water: isWater(polygon),
   }
 }
 
@@ -250,6 +281,33 @@ function noTextureMaterialOf(key: PaintKey, missing: Texture | undefined): MeshL
 }
 
 /**
+ * Builds the material of a water face.
+ *
+ * @remarks
+ * The texture of a water face is drawn as a translucent sheet at its own brightness (`WATER_OPACITY`): the colour is
+ * not modulated by the `transval` of the face, because the game's water pass does not read it either, and no alpha test
+ * cuts the texture (the game draws the water without one). The sheet writes no depth, so the bed of the river stays
+ * behind it and a face of the water behind another one is not lost.
+ *
+ * @param key What the faces draw with, one of the water.
+ * @param texture The texture of the level for the name of the key.
+ *
+ * @returns The lit, translucent sheet of the water.
+ */
+function waterMaterialOf(key: PaintKey, texture: Texture): MeshLambertMaterial {
+  const material = new MeshLambertMaterial({
+    map: texture,
+    side: sideOf(key.doubleSided),
+    transparent: true,
+    opacity: WATER_OPACITY,
+  })
+
+  material.depthWrite = false
+
+  return material
+}
+
+/**
  * Builds the material of a paint key.
  *
  * @remarks
@@ -283,6 +341,10 @@ export function buildMaterial(
     applyBlend(material, key)
 
     return material
+  }
+
+  if (key.water) {
+    return waterMaterialOf(key, texture)
   }
 
   const material = new MeshLambertMaterial({ map: texture, side: sideOf(key.doubleSided) })

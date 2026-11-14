@@ -46,7 +46,7 @@ function polygonOf(textureContainerId: number, quad: boolean): ArxPolygon {
  * @returns What the face draws with.
  */
 function opaqueKeyOf(name: string | undefined): PaintKey {
-  return { name, doubleSided: false, blend: 'opaque', trans: 1 }
+  return { name, doubleSided: false, blend: 'opaque', trans: 1, water: false }
 }
 
 /**

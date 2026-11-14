@@ -144,7 +144,7 @@ export function drawnRunsOf(map: ArxMap, index: BufferAttribute, indexOfKey: Rea
     // the first vertex of the triangle is the start of its polygon in the plain order: three vertices per triangle
     const plain = index.getX(triangle * 3) / 3
     const polygon = map.polygons[map.triangleToPolygon[plain] ?? -1]
-    let key: PaintKey = { name: undefined, doubleSided: false, blend: 'opaque', trans: 1 }
+    let key: PaintKey = { name: undefined, doubleSided: false, blend: 'opaque', trans: 1, water: false }
 
     if (polygon !== undefined) {
       key = paintKeyOfPolygon(map, polygon)
@@ -209,6 +209,7 @@ export function addRunGroups(
       doubleSided: run.doubleSided,
       blend: run.blend,
       trans: run.trans,
+      water: run.water,
     })
     const current = indexOfKey.get(key) ?? 0
 

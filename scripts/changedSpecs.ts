@@ -66,11 +66,16 @@ export const coverage: readonly SpecCoverage[] = [
   },
   {
     spec: 'tests/e2e/deletion.spec.ts',
-    covers: ['src/editor/modules/level/edit/deletion.ts', 'src/generator/arxMap/removal.ts'],
+    covers: [
+      'src/editor/modules/level/edit/deletion.ts',
+      'src/generator/arxMap/removal.ts',
+      'src/generator/polygons.ts',
+    ],
   },
   {
     spec: 'tests/e2e/editor.spec.ts',
     covers: [
+      'src/editor/App.vue',
       'src/editor/components/EditorHeader.vue',
       'src/editor/components/LoadingOverlay.vue',
       'src/editor/components/MapsToOpen.vue',
@@ -143,17 +148,35 @@ export const coverage: readonly SpecCoverage[] = [
       'src/editor/components/widgets/RoomMapperWidget/**',
       'src/editor/components/widgets/shared/roomOverlay.ts',
       'src/editor/modules/rooms/**',
+      'src/generator/polygons.ts',
       'src/generator/rooms.ts',
     ],
   },
   {
     spec: 'tests/e2e/selection.spec.ts',
-    covers: ['src/editor/components/widgets/SelectionInspectorWidget/**', 'src/editor/modules/selection/**'],
+    covers: [
+      'src/editor/components/widgets/SelectionInspectorWidget/**',
+      'src/editor/components/widgets/View3DWidget/polygonSelection.ts',
+      'src/editor/modules/keyboard/**',
+      'src/editor/modules/selection/**',
+      'src/generator/polygons.ts',
+    ],
+  },
+  {
+    spec: 'tests/e2e/selectionMove.spec.ts',
+    covers: [
+      'src/editor/components/widgets/View3DWidget/polygonSelection.ts',
+      'src/editor/components/widgets/View3DWidget/selectionCenter.ts',
+      'src/editor/components/widgets/View3DWidget/selectionGizmo.ts',
+      'src/editor/components/widgets/shared/editModes.ts',
+      'src/editor/modules/keyboard/**',
+    ],
   },
   {
     spec: 'tests/e2e/textures.spec.ts',
     covers: [
       'src/editor/components/widgets/TextureBrowserWidget/**',
+      'src/generator/arxMap/textureRuns.ts',
       'src/editor/modules/level/edit/levelTextures.ts',
       'src/editor/modules/level/edit/levelTextures/**',
       'src/editor/modules/textures/**',

@@ -20,6 +20,24 @@ export function isDoubleSided(polygon: Pick<ArxPolygon, 'flags'>): boolean {
 }
 
 /**
+ * Tells whether a face is water.
+ *
+ * @remarks
+ * The level marks the surface of a lake or a river with the `Water` bit. The game does **not** draw such a face with its
+ * own texture and blend: it collects the water faces and renders them in a pass of their own, with the environment map
+ * and a moving reflection (`RenderWater` of `Scene.cpp`, `transval` is not what makes it visible). An editor that only
+ * follows the `transval` blend draws a dim additive sheet, which on the dark texture of a cave river is nothing at all
+ * (2026-11-14, the owner: the water of level 12 was invisible).
+ *
+ * @param polygon The polygon to read.
+ *
+ * @returns True when the game draws it in the pass of the water.
+ */
+export function isWater(polygon: Pick<ArxPolygon, 'flags'>): boolean {
+  return (polygon.flags & ArxPolygonFlags.Water) !== 0
+}
+
+/**
  * How the game blends a face with what is behind it.
  *
  * @remarks

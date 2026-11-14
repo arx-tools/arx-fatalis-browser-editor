@@ -6,6 +6,7 @@ import {
   blendTransOf,
   connectedAreaOf,
   isTouchingVertices,
+  isWater,
   polygonFillTriangles,
   polygonOfTriangle,
   polygonPerimeter,
@@ -226,6 +227,17 @@ void describe('sameTextureAreaOf', () => {
     const polygons = [quadAt(0, 1)]
 
     assert.deepEqual(sameTextureAreaOf(polygons, vertexToPolygonsMap(polygons), 7), [])
+  })
+})
+
+void describe('isWater', () => {
+  void it('reads the water bit of a face, and not the other bits of it', () => {
+    assert.equal(isWater({ flags: ArxPolygonFlags.Water }), true)
+    const flags = ArxPolygonFlags.Water | ArxPolygonFlags.Transparent | ArxPolygonFlags.DoubleSided
+
+    assert.equal(isWater({ flags }), true)
+    assert.equal(isWater({ flags: ArxPolygonFlags.Transparent | ArxPolygonFlags.Quad }), false)
+    assert.equal(isWater({ flags: ArxPolygonFlags.None }), false)
   })
 })
 

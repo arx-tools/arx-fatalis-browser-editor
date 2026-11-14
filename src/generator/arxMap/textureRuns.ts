@@ -1,6 +1,13 @@
 import type { ArxPolygon } from 'arx-convert/types'
 import { BufferAttribute, type BufferGeometry } from 'three'
-import { blendModeOf, blendTransOf, isDoubleSided, POLYGON_BLEND_MODES, type PolygonBlendMode } from '../polygons.ts'
+import {
+  blendModeOf,
+  blendTransOf,
+  isDoubleSided,
+  isWater,
+  POLYGON_BLEND_MODES,
+  type PolygonBlendMode,
+} from '../polygons.ts'
 
 /**
  * A run of solid faces that share a texture, in the order the geometry draws them.
@@ -49,6 +56,14 @@ export interface TextureRun {
    * one brightness.
    */
   readonly trans: number
+  /**
+   * Whether the faces of the run are water.
+   *
+   * @remarks
+   * The game draws the water in a pass of its own, so its material is not the one of the other faces of the texture (see
+   * `isWater` and `levelTextures/paint.ts`), and a run of water has to be a run of its own.
+   */
+  readonly water: boolean
 }
 
 /**
@@ -79,9 +94,17 @@ const CONTAINER_KEY_SPAN = 2 ** 27
 const BLEND_SIDE_STEP = CONTAINER_KEY_SPAN * BLEND_TRANS_STEP
 
 /**
+ * How many kinds of side one blend mode holds: one-sided, two-sided, and the same two for the water.
+ *
+ * @remarks
+ * The side of a face is a number of the key: the first bit is the two sides of it, the second is the water.
+ */
+const SIDE_COUNT = 4
+
+/**
  * The distance of two blend modes in a run key.
  */
-const BLEND_MODE_STEP = BLEND_SIDE_STEP * 2
+const BLEND_MODE_STEP = BLEND_SIDE_STEP * SIDE_COUNT
 
 /**
  * The key of a run: its container, its side, its blend mode and its brightness, in one number.
@@ -91,21 +114,15 @@ const BLEND_MODE_STEP = BLEND_SIDE_STEP * 2
  * `Float64Array` of integers, so the number stays exact: the sort of the triangles is still a subtraction.
  *
  * @param container The id of the texture container.
- * @param doubleSided Whether the faces draw on both sides.
+ * @param side The kind of side: the first bit is the two sides of the face, the second is the water.
  * @param blendIndex The place of the blend mode in {@link POLYGON_BLEND_MODES}.
  * @param trans The brightness of the faces.
  *
  * @returns The key the triangles of the run sort with.
  */
-function runKeyOf(container: number, doubleSided: boolean, blendIndex: number, trans: number): number {
+function runKeyOf(container: number, side: number, blendIndex: number, trans: number): number {
   const transStep = Math.min(BLEND_TRANS_STEP - 1, Math.max(0, Math.round(trans * 100)))
-  let side = 0
-
-  if (doubleSided) {
-    side = 1
-  }
-
-  const modeOffset = blendIndex * 2
+  const modeOffset = blendIndex * SIDE_COUNT
   const sideOffset = modeOffset + side
   const containerOffset = sideOffset * CONTAINER_KEY_SPAN
   const key = containerOffset + container
@@ -139,6 +156,31 @@ function blendOfRunKey(key: number): PolygonBlendMode {
 }
 
 /**
+ * The side of a face, as the number the key of a run holds.
+ *
+ * @param polygon The polygon to read, or `undefined` when the triangle has none.
+ *
+ * @returns The kind of side of {@link SIDE_COUNT}: the first bit is the two sides, the second is the water.
+ */
+function sideOfPolygon(polygon: ArxPolygon | undefined): number {
+  if (polygon === undefined) {
+    return 0
+  }
+
+  let side = 0
+
+  if (isDoubleSided(polygon)) {
+    side = side + 1
+  }
+
+  if (isWater(polygon)) {
+    side = side + 2
+  }
+
+  return side
+}
+
+/**
  * Reads the run key of a polygon.
  *
  * @remarks
@@ -162,7 +204,7 @@ function runKeyOfPolygon(polygon: ArxPolygon | undefined): number {
     trans = blendTransOf(polygon)
   }
 
-  return runKeyOf(container, polygon !== undefined && isDoubleSided(polygon), blendIndex, trans)
+  return runKeyOf(container, sideOfPolygon(polygon), blendIndex, trans)
 }
 
 /**
@@ -179,9 +221,10 @@ function textureRunOf(key: number, start: number, count: number): TextureRun {
     start,
     count,
     textureContainerId: containerOfRunKey(key),
-    doubleSided: Math.trunc(key / BLEND_SIDE_STEP) % 2 === 1,
+    doubleSided: (Math.trunc(key / BLEND_SIDE_STEP) % SIDE_COUNT) % 2 === 1,
     blend: blendOfRunKey(key),
     trans: (key % BLEND_TRANS_STEP) / 100,
+    water: Math.trunc(key / BLEND_SIDE_STEP) % SIDE_COUNT >= 2,
   }
 }
 

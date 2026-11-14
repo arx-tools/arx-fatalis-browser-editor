@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Locator } from '@playwright/test'
 import { roomsLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
 import { ORIGINAL_LEVEL_PARAMETER } from '../../src/editor/modules/level/source/levelSource.ts'
 import { editorUrl, seedLayout, waitForLevel } from './support/editor.ts'
@@ -77,6 +77,10 @@ test('a room of the list selects its faces, and a second click clears both', asy
   // the blank plane has a hundred and some faces, so the count has no grouping to write
   expect(await selectedOf('Selected faces')).toBe(String(faces))
 
+  // the pick does not turn the room map on: the switch of the map stays as the author left it
+  await expect(roomInspector.getByRole('button', { name: 'Show the rooms' })).toBeVisible()
+  await expect(page.locator('[data-widget-kind="3d-view"] .room-readout')).toHaveCount(0)
+
   // a second click clears the pick and the selection with it
   await row.click()
 
@@ -122,6 +126,119 @@ test('the mapper makes a room of the selected faces, and the undo takes them bac
   // the step is one of the history: the undo puts every face back into room 1
   await page.keyboard.press('ControlOrMeta+z')
 
+  await expect(mapper.locator('.selection')).toContainText('in room 1')
+})
+
+/**
+ * The target list of the mapper is a coloured list, and a search narrows it (TODO 180).
+ *
+ * @remarks
+ * The rows are the rooms the room map paints, with the colour of the map and the count of their faces: the swatch of a
+ * room is the same colour in the mapper and in the room inspector, because both read the colouring of the level. The
+ * search reads the number and the name of a room, and the list says when nothing matches.
+ */
+test('the mapper lists the rooms with the colour of the map, and the search narrows them', async ({ page }) => {
+  test.setTimeout(120_000)
+
+  await seedLayout(page, roomsLayout)
+  await page.goto(levelUrl(12))
+
+  await waitForLevel(page)
+
+  const roomInspector = page.locator('[data-widget-kind="room-inspector"]')
+  const mapper = page.locator('[data-widget-kind="room-mapper"]')
+  const rows = mapper.locator('li.room')
+
+  await expect(mapper).toBeVisible()
+  expect(await rows.count()).toBeGreaterThan(1)
+
+  // the row of a room reads as the row of the inspector: the colour, the number and the count of the faces
+  const first = rows.first()
+
+  await expect(first).toContainText('room 1')
+  await expect(first).toContainText(/faces?/u)
+
+  async function swatchOf(row: Locator): Promise<string> {
+    return await row.locator('.swatch').evaluate((element) => {
+      return getComputedStyle(element).backgroundColor
+    })
+  }
+
+  expect(await swatchOf(first)).toBe(await swatchOf(roomInspector.locator('li.room').first()))
+
+  // the row click is the target of the move, not the pick of the room: the selection is untouched
+  await first.click()
+
+  await expect(first).toHaveClass(/is-target/u)
+  await expect(mapper.locator('.selection')).toContainText('No faces are selected')
+
+  // the search narrows the list to the rooms whose number it reads
+  const all = await rows.count()
+  const search = mapper.getByRole('searchbox', { name: 'Search rooms' })
+
+  await search.fill('room 12')
+
+  await expect(rows.first()).toContainText('room 12')
+  expect(await rows.count()).toBeLessThan(all)
+
+  // a search that matches nothing leaves the list empty, and the panel says so
+  await search.fill('no such room')
+
+  await expect(rows).toHaveCount(0)
+  await expect(mapper.locator('.empty')).toContainText('No room matches the search')
+
+  // the clear button empties the field, and the list comes back
+  await mapper.getByRole('button', { name: 'Empty the search' }).click()
+
+  await expect(search).toHaveValue('')
+  expect(await rows.count()).toBe(all)
+})
+
+/**
+ * The mapper moves the selected faces into the room picked in its list (TODO 162, 180).
+ *
+ * @remarks
+ * The list is the target of the move: a row click picks the room, the search finds the room to pick, and the move is the
+ * step of the history the undo takes back. A target that is the room of the selection already leaves the move off, so a
+ * click of the row next door writes nothing into the history.
+ */
+test('the mapper moves the selection into the room picked in the list', async ({ page }) => {
+  test.setTimeout(120_000)
+
+  await seedLayout(page, roomsLayout)
+  await page.goto(levelUrl(12))
+
+  await waitForLevel(page)
+
+  const roomInspector = page.locator('[data-widget-kind="room-inspector"]')
+  const mapper = page.locator('[data-widget-kind="room-mapper"]')
+  const rows = mapper.locator('li.room')
+  const moveButton = mapper.getByRole('button', { name: 'Move', exact: true })
+  const search = mapper.getByRole('searchbox', { name: 'Search rooms' })
+
+  // the pick of the room selects its faces, which is what the mapper moves
+  await roomInspector.locator('li.room').first().click()
+  await expect(mapper.locator('.selection')).toContainText('in room 1')
+
+  // the room of the selection is no target: its move would write the same room back
+  await search.fill('room 1')
+  await expect(rows.first()).toContainText('room 1')
+  await rows.first().click()
+
+  await expect(rows.first()).toHaveClass(/is-target/u)
+  await expect(moveButton).toBeDisabled()
+
+  // a row of another room: the move takes the faces there
+  await search.fill('room 12')
+  await expect(rows.first()).toContainText('room 12')
+  await rows.first().click()
+  await expect(moveButton).toBeEnabled()
+
+  await moveButton.click()
+  await expect(mapper.locator('.selection')).toContainText('in room 12')
+
+  // the undo puts the faces back into room 1
+  await page.keyboard.press('ControlOrMeta+z')
   await expect(mapper.locator('.selection')).toContainText('in room 1')
 })
 
@@ -183,7 +300,8 @@ test('the pointer previews a room, and the row picks it without a checkbox', asy
  *
  * @remarks
  * The map is the overlay that colours the rooms: the line names the room the crosshair is in, so the number and the
- * bright room of the map say the same thing. It stays away while the map is off.
+ * bright room of the map say the same thing. It stays away while the map is off. The number of the room comes from the
+ * washed row of the list, which follows the crosshair without the map.
  */
 test('the room under the crosshair is written on the view while the map is on', async ({ page }) => {
   test.setTimeout(120_000)
@@ -200,18 +318,20 @@ test('the room under the crosshair is written on the view while the map is on', 
   // the map starts off: the view does not write a room
   await expect(readout).toHaveCount(0)
 
-  // the panel names the room of the face under the crosshair, once the view picked one
-  const here = roomInspector.locator('.here')
+  // the list washes the row of the room the crosshair points at, once the view found one
+  const washed = roomInspector.locator('li.room.is-hovered')
 
   await expect
     .poll(async () => {
-      return (await here.textContent()) ?? ''
+      return await washed.count()
     })
-    .toMatch(/room \d+/u)
+    .toBe(1)
 
-  const room = /room (?<room>\d+)/u.exec((await here.textContent()) ?? '')?.groups?.room ?? ''
+  // the name of the row is the number of the room: the count beside it is another cell of the row
+  const name = washed.first().locator('.name')
+  const room = /room (?<room>\d+)/u.exec((await name.textContent()) ?? '')?.groups?.room ?? ''
 
-  // the map on: the readout writes the room the panel points at
+  // the map on: the readout writes the room the list washes
   await roomInspector.getByRole('button', { name: 'Show the rooms' }).click()
 
   await expect(readout).toContainText(`room ${room}`)
@@ -223,14 +343,14 @@ test('the room under the crosshair is written on the view while the map is on', 
 })
 
 /**
- * The room under the crosshair of the walkable view is hovered in the room list.
+ * The crosshair washes the row of its room in the list, and the pointer adds a second wash.
  *
  * @remarks
- * The map lights the room the camera points at; the row of the same room takes the hover wash, so the list and the
- * view say where the camera is without a click. The number comes from the line above the list, which is the same value
- * the highlight reads.
+ * The row of the room the camera points at takes the hover wash, so the list says where the camera is without a click
+ * and without the map. The pointer over another row is a preview of that room, so its row joins the wash; leaving the
+ * list takes it back, and the row of the crosshair keeps its own.
  */
-test('the room under the crosshair is hovered in the list', async ({ page }) => {
+test('the crosshair washes its row, and the pointer adds another one', async ({ page }) => {
   test.setTimeout(120_000)
 
   await seedLayout(page, roomsLayout)
@@ -239,18 +359,59 @@ test('the room under the crosshair is hovered in the list', async ({ page }) => 
   await waitForLevel(page)
 
   const roomInspector = page.locator('[data-widget-kind="room-inspector"]')
-  const here = roomInspector.locator('.here')
+  const rows = roomInspector.locator('li.room')
+  const washed = roomInspector.locator('li.room.is-hovered')
+
+  // the map is off: the row of the crosshair room is the only washed one
+  await expect
+    .poll(async () => {
+      return await washed.count()
+    })
+    .toBe(1)
+
+  const name = washed.first().locator('.name')
+  const crosshair = /room (?<room>\d+)/u.exec((await name.textContent()) ?? '')?.groups?.room ?? ''
+
+  expect(crosshair).toMatch(/^\d+$/u)
+
+  // the pointer on a row of another room: a second wash, while the crosshair keeps its own
+  const label = `room ${crosshair}`
+  const texts = await rows.locator('.name').evaluateAll((all) => {
+    return all.map((row) => {
+      return (row.textContent ?? '').trim()
+    })
+  })
+  const other = texts.findIndex((text) => {
+    return text !== label && !text.startsWith(`${label} ·`)
+  })
+
+  expect(other).toBeGreaterThanOrEqual(0)
+
+  await rows.nth(other).hover()
 
   await expect
     .poll(async () => {
-      return (await here.textContent()) ?? ''
+      return await washed.count()
     })
-    .toMatch(/room \d+/u)
+    .toBe(2)
 
-  const room = /room (?<room>\d+)/u.exec((await here.textContent()) ?? '')?.groups?.room ?? ''
-  const row = roomInspector.locator('li.room', { hasText: `room ${room}` }).first()
+  // the pointer off the list: only the crosshair is left
+  const heading = await roomInspector.locator('h2').boundingBox()
 
-  await expect(row).toHaveClass(/is-hovered/u)
+  if (heading === null) {
+    throw new Error('the room inspector has no heading')
+  }
+
+  const halfWidth = heading.width / 2
+  const halfHeight = heading.height / 2
+
+  await page.mouse.move(heading.x + halfWidth, heading.y + halfHeight)
+
+  await expect
+    .poll(async () => {
+      return await washed.count()
+    })
+    .toBe(1)
 })
 
 /**

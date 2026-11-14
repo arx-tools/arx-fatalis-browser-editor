@@ -4,6 +4,7 @@ import { computed, shallowRef, watch } from 'vue'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { currentMapId } from '../../../modules/level/source/maps.ts'
+import { faceCountLabelOf, roomRowsOf, type RoomRow } from '../../../modules/rooms/roomList.ts'
 import { nameOf, renameRoom, roomNameOf, UNNAMED_ROOM } from '../../../modules/rooms/roomNames.ts'
 import {
   clearRoomHover,
@@ -18,7 +19,7 @@ import { currentRoom } from '../../../modules/rooms/roomUnderCrosshair.ts'
 import { selectionModeOf } from '../../../modules/selection/selectionStore.ts'
 import WidgetHeading from '../../WidgetHeading.vue'
 import { isMeshVisible, isRoomColorsVisible, toggleRoomColors } from '../shared/levelDisplay.ts'
-import { faceCountLabelOf, roomProblemsOf, roomRowsOf, type RoomProblem, type RoomRow } from './roomInspector.ts'
+import { roomProblemsOf, type RoomProblem } from './roomInspector.ts'
 
 /**
  * The label of the widget, from the widget definition.
@@ -127,13 +128,13 @@ function commitName(room: number, event: Event): void {
 }
 
 /**
- * Picks a room, shows the room map, or clears the pick when the picked room is clicked again.
+ * Picks a room, or clears the pick when the picked room is clicked again.
  *
  * @remarks
- * The pick is a face selection (`roomSelection.ts`): the room lights up and its faces arrive selected, so the same
- * gesture that shows the room is the one that makes it the working set. The author who clicks a room wants to see it,
- * so the map comes on with the pick (the switch stays his to turn off), and a second click on the same row clears the
- * pick and the selection with it.
+ * The pick is a face selection (`roomSelection.ts`): its faces arrive selected, so the same gesture that shows the room
+ * is the one that makes it the working set. The room map stays as the author left it: a pick writes the selection, not
+ * the switch of the map (2026-11-14, the owner overrode the earlier "the map comes on with the pick"), and a second
+ * click on the same row clears the pick and the selection with it.
  *
  * `Shift` adds the room to the selection and `Ctrl`/`Meta` takes it away, the modes of the walkable view: a room
  * clicked with `Shift` while another one is picked makes the selection span both, and the rows of both light up.
@@ -151,7 +152,6 @@ function pick(room: number, event: MouseEvent): void {
   }
 
   pickRoom(room, mode)
-  isRoomColorsVisible.value = true
 }
 </script>
 
@@ -173,12 +173,6 @@ function pick(room: number, event: MouseEvent): void {
         </button>
       </template>
     </WidgetHeading>
-    <p class="here">
-      <template v-if="currentRoom !== undefined"
-        >You are pointing to a face in <b>room {{ currentRoom }}</b></template
-      >
-      <template v-else>No face under the crosshair</template>
-    </p>
     <ul class="rooms">
       <li
         v-for="row in rows"
@@ -223,8 +217,8 @@ function pick(room: number, event: MouseEvent): void {
 <style scoped lang="scss">
 @use '../../../palette' as *;
 
-// The rooms of the level: the room the player stands in, the list of them, and what is wrong with them. The list is
-// the part that scrolls; the line above it and the problems below it stay where they are.
+// The rooms of the level: the list of them, and what is wrong with them. The list is the part that scrolls; the name
+// field and the problems under it stay where they are.
 .RoomInspectorWidget {
   display: flex;
   flex-direction: column;
@@ -232,17 +226,6 @@ function pick(room: number, event: MouseEvent): void {
   height: 100%;
   padding: 8px;
   font-size: 13px;
-}
-
-.here {
-  margin: 0 0 6px;
-  padding: 0 6px;
-  color: $text-muted;
-
-  b {
-    color: $text;
-    font-weight: normal;
-  }
 }
 
 // the switch of the title: the frame and the sizes of the eye of the key help, so the same switch reads the same in

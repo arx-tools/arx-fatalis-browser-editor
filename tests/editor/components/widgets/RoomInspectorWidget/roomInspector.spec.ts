@@ -3,11 +3,7 @@ import { describe, it } from 'node:test'
 import type { ArxPolygon } from 'arx-convert/types'
 import type { ArxMap } from '../../../../../src/generator/ArxMap.ts'
 import type { RoomLink } from '../../../../../src/generator/rooms.ts'
-import {
-  faceCountLabelOf,
-  roomProblemsOf,
-  roomRowsOf,
-} from '../../../../../src/editor/components/widgets/RoomInspectorWidget/roomInspector.ts'
+import { roomProblemsOf } from '../../../../../src/editor/components/widgets/RoomInspectorWidget/roomInspector.ts'
 
 /**
  * Builds a face of the test: only the room is read by the panel.
@@ -31,53 +27,6 @@ function faceOf(room: number): ArxPolygon {
 function levelOf(polygons: readonly ArxPolygon[], portals: readonly RoomLink[] = []): ArxMap {
   return { polygons, fts: { portals } } as unknown as ArxMap
 }
-
-void describe('roomRowsOf', () => {
-  void it('lists the rooms of the level with their faces and their colour', () => {
-    const level = levelOf([faceOf(2), faceOf(1), faceOf(2)], [{ room1: 1, room2: 2 }])
-    const rows = roomRowsOf(level, 'arx:2')
-
-    assert.deepEqual(
-      rows.map((row) => {
-        return { room: row.room, faceCount: row.faceCount }
-      }),
-      [
-        { room: 1, faceCount: 1 },
-        { room: 2, faceCount: 2 },
-      ],
-    )
-    assert.notEqual(rows[0].color, rows[1].color)
-  })
-
-  void it('gives the same rooms the same colours as the room map of the level', () => {
-    const level = levelOf([faceOf(1), faceOf(2)], [{ room1: 1, room2: 2 }])
-    const first = roomRowsOf(level, 'arx:2')
-    const second = roomRowsOf(level, 'arx:2')
-
-    assert.deepEqual(
-      first.map((row) => {
-        return row.color
-      }),
-      second.map((row) => {
-        return row.color
-      }),
-    )
-  })
-
-  void it('lists no room for a level without a face', () => {
-    assert.deepEqual(roomRowsOf(levelOf([]), 'arx:2'), [])
-  })
-})
-
-void describe('faceCountLabelOf', () => {
-  void it('writes the count with the unit the faces of a level are counted in', () => {
-    assert.equal(faceCountLabelOf(1571), '1 571 faces')
-  })
-
-  void it('says one face in the singular', () => {
-    assert.equal(faceCountLabelOf(1), '1 face')
-  })
-})
 
 void describe('roomProblemsOf', () => {
   void it('says nothing about a level with two rooms and an opening', () => {

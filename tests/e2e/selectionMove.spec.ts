@@ -73,14 +73,14 @@ test('the gizmo moves the selected face, and the undo takes it back', async ({ p
 })
 
 /**
- * `E` puts the gizmo away, and the selection stays: the key is an edit mode, not a way to drop the faces.
+ * `1` puts the gizmo away, and the selection stays: the key is an edit mode, not a way to drop the faces.
  *
  * @remarks
  * The gizmo stands in the middle of the selection, over the art the author is looking at, so the editor hides it with a
  * key (TODO 185, the first half of the edit modes). The view is the one of the drag above: the same green arrow, pressed
- * after the `E`, must leave the history alone — the arrow of a hidden gizmo is the camera's gesture.
+ * after the `1`, must leave the history alone — the arrow of a hidden gizmo is the camera's gesture.
  */
-test('E hides the transform gizmo, and the selection stays', async ({ page, browserName }) => {
+test('1 hides the transform gizmo, and the selection stays', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium', 'the pointer lock of the walkable view needs chromium here')
   test.setTimeout(120_000)
 
@@ -116,7 +116,7 @@ test('E hides the transform gizmo, and the selection stays', async ({ page, brow
   })
   await page.waitForTimeout(500)
 
-  await page.keyboard.press('e')
+  await page.keyboard.press('1')
 
   await expect
     .poll(async () => {
@@ -161,4 +161,58 @@ test('E hides the transform gizmo, and the selection stays', async ({ page, brow
   await page.mouse.up()
 
   await expect(undo).toBeEnabled()
+})
+
+/**
+ * The edit modes are exclusive: `1`, `2` and `3` put one gizmo away and bring another one back.
+ *
+ * @remarks
+ * The gizmos sit on the same faces, so the editor shows one of them or none (TODO 182, the owner): the key of a mode
+ * flips it, and the eye of the row does the same. The switches are the rows of the key help, which name the state of a
+ * switch in their tooltip ("Show" when it is off, "Hide" when it is on), so the test reads them without a screenshot.
+ */
+test('the edit modes are exclusive, and the keys and the eyes flip them', async ({ page }) => {
+  await seedLayout(page, layoutWithTheKeys())
+  await page.goto(editorUrl())
+
+  const keys = page.locator('[data-widget-kind="keyboard-shortcuts"]')
+  const hideTransform = keys.locator('button[aria-label="Hide the transform gizmo"]')
+  const showTransform = keys.locator('button[aria-label="Show the transform gizmo"]')
+  const hideRotate = keys.locator('button[aria-label="Hide the rotate gizmo"]')
+  const showRotate = keys.locator('button[aria-label="Show the rotate gizmo"]')
+
+  // the editor starts with the transform gizmo on and the rotate off
+  await expect(hideTransform).toHaveAttribute('aria-pressed', 'true')
+  await expect(showRotate).toHaveAttribute('aria-pressed', 'false')
+
+  // `2`: the rotate comes on and the transform goes
+  await page.keyboard.press('2')
+
+  await expect(hideRotate).toHaveAttribute('aria-pressed', 'true')
+  await expect(showTransform).toHaveAttribute('aria-pressed', 'false')
+
+  // `1`: back to the transform
+  await page.keyboard.press('1')
+
+  await expect(hideTransform).toHaveAttribute('aria-pressed', 'true')
+  await expect(showRotate).toHaveAttribute('aria-pressed', 'false')
+
+  // `1` again: neither gizmo, the selection stays
+  await page.keyboard.press('1')
+
+  await expect(showTransform).toHaveAttribute('aria-pressed', 'false')
+  await expect(showRotate).toHaveAttribute('aria-pressed', 'false')
+
+  // the eye of the row is the same switch: a click on the rotate brings it in, and the transform stays out
+  await showRotate.click()
+
+  await expect(hideRotate).toHaveAttribute('aria-pressed', 'true')
+  await expect(showTransform).toHaveAttribute('aria-pressed', 'false')
+
+  // the two switches are remembered by the browser
+  const stored = await page.evaluate(() => {
+    return { transform: localStorage.getItem('transformVisible'), rotate: localStorage.getItem('rotateVisible') }
+  })
+
+  expect(stored).toEqual({ transform: 'false', rotate: 'true' })
 })

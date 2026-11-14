@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { ArxPolygonFlags, type ArxPolygon, type ArxVector3 } from 'arx-convert/types'
+import { Quaternion, Vector3 } from 'three'
 import { isQuad } from 'arx-convert/utils'
 import type { FaceRoom, FaceTexture } from '../../../../src/generator/ArxMap.ts'
 import type { PolygonInsertion } from '../../../../src/generator/arxMap/removal.ts'
@@ -10,6 +11,8 @@ import {
   createDeleteFacesRecord,
   createSetTextureRecord,
   createSetUvRecord,
+  createRotateFacesRecord,
+  createScaleFacesRecord,
   createTranslateFacesRecord,
   HISTORY_RECORD_VERSION,
   labelOf,
@@ -104,6 +107,69 @@ function fakeLevel(count: number): {
               vertex.y = vertex.y + delta.y
               vertex.z = vertex.z + delta.z
             }
+          }
+        }
+      },
+      rotatePolygons: (faces: readonly number[], pivot: ArxVector3, axis: ArxVector3, angle: number): void => {
+        const turn = new Quaternion().setFromAxisAngle(new Vector3(axis.x, axis.y, axis.z).normalize(), angle)
+        const centre = new Vector3(pivot.x, pivot.y, pivot.z)
+        const point = new Vector3()
+
+        for (const index of faces) {
+          const polygon = polygons[index]
+
+          if (polygon === undefined) {
+            continue
+          }
+
+          let corners = 3
+
+          if (isQuad(polygon)) {
+            corners = 4
+          }
+
+          for (let corner = 0; corner < corners; corner++) {
+            const vertex = polygon.vertices[corner]
+
+            if (vertex === undefined) {
+              continue
+            }
+
+            point.set(vertex.x, vertex.y, vertex.z).sub(centre).applyQuaternion(turn).add(centre)
+            vertex.x = point.x
+            vertex.y = point.y
+            vertex.z = point.z
+          }
+        }
+      },
+      scalePolygons: (faces: readonly number[], pivot: ArxVector3, scale: ArxVector3): void => {
+        for (const index of faces) {
+          const polygon = polygons[index]
+
+          if (polygon === undefined) {
+            continue
+          }
+
+          let corners = 3
+
+          if (isQuad(polygon)) {
+            corners = 4
+          }
+
+          for (let corner = 0; corner < corners; corner++) {
+            const vertex = polygon.vertices[corner]
+
+            if (vertex === undefined) {
+              continue
+            }
+
+            const offsetX = (vertex.x - pivot.x) * scale.x
+            const offsetY = (vertex.y - pivot.y) * scale.y
+            const offsetZ = (vertex.z - pivot.z) * scale.z
+
+            vertex.x = pivot.x + offsetX
+            vertex.y = pivot.y + offsetY
+            vertex.z = pivot.z + offsetZ
           }
         }
       },
@@ -511,5 +577,128 @@ void describe('commandOf a move', () => {
     const { level } = fakeLevel(2)
 
     assert.equal(commandOf(createTranslateFacesRecord([5], { x: 1, y: 0, z: 0 }), level), undefined)
+  })
+})
+
+void describe('createRotateFacesRecord', () => {
+  void it('writes the faces sorted and once each, with the pivot, the axis and the angle', () => {
+    const record = createRotateFacesRecord([3, 1, 3], { x: 1, y: 2, z: 3 }, { x: 0, y: 0, z: 1 }, 0.5)
+
+    assert.deepEqual(record.faces, [1, 3])
+    assert.deepEqual(record.pivot, { x: 1, y: 2, z: 3 })
+    assert.deepEqual(record.axis, { x: 0, y: 0, z: 1 })
+    assert.equal(record.angle, 0.5)
+    assert.equal(record.kind, 'rotateFaces')
+    assert.equal(record.version, HISTORY_RECORD_VERSION)
+  })
+
+  void it('copies the pivot and the axis, so the record does not follow the drag', () => {
+    const pivot = { x: 1, y: 2, z: 3 }
+    const axis = { x: 0, y: 0, z: 1 }
+    const record = createRotateFacesRecord([0], pivot, axis, 0.5)
+
+    pivot.x = 9
+    axis.z = 9
+
+    assert.equal(record.pivot.x, 1)
+    assert.equal(record.axis.z, 1)
+  })
+
+  void it('says how many faces it turns', () => {
+    const record = createRotateFacesRecord([1, 2], { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }, 1)
+
+    assert.equal(labelOf(record), 'Rotate 2 face(s)')
+  })
+})
+
+void describe('commandOf a turn', () => {
+  void it('turns the corners on apply, and turns them back on revert', () => {
+    const { polygons, level } = fakeLevel(2)
+    const record = createRotateFacesRecord([1], { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }, Math.PI / 2)
+    const command = commandOf(record, level)
+
+    command?.apply()
+
+    // a quarter turn around Z: (x, y) becomes (-y, x), up to the rounding of the maths
+    const turned = polygons[1]?.vertices[0] ?? { x: 0, y: 0, z: 0 }
+
+    assert.ok(Math.abs(turned.x) < 1e-9)
+    assert.ok(Math.abs(turned.y - 1) < 1e-9)
+    assert.ok(Math.abs(turned.z) < 1e-9)
+
+    command?.revert()
+
+    const back = polygons[1]?.vertices[0] ?? { x: 0, y: 0, z: 0 }
+
+    assert.ok(Math.abs(back.x - 1) < 1e-9)
+    assert.ok(Math.abs(back.y) < 1e-9)
+    assert.ok(Math.abs(back.z) < 1e-9)
+  })
+
+  void it('gives no command when the face is not in the level', () => {
+    const { level } = fakeLevel(2)
+    const record = createRotateFacesRecord([5], { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }, 1)
+
+    assert.equal(commandOf(record, level), undefined)
+  })
+})
+
+void describe('createScaleFacesRecord', () => {
+  void it('writes the faces sorted and once each, with the pivot and the factors', () => {
+    const record = createScaleFacesRecord([3, 1, 3], { x: 1, y: 2, z: 3 }, { x: 2, y: 0.5, z: 1 })
+
+    assert.deepEqual(record.faces, [1, 3])
+    assert.deepEqual(record.pivot, { x: 1, y: 2, z: 3 })
+    assert.deepEqual(record.scale, { x: 2, y: 0.5, z: 1 })
+    assert.equal(record.kind, 'scaleFaces')
+    assert.equal(record.version, HISTORY_RECORD_VERSION)
+  })
+
+  void it('copies the pivot and the factors, so the record does not follow the drag', () => {
+    const pivot = { x: 1, y: 2, z: 3 }
+    const scale = { x: 2, y: 2, z: 2 }
+    const record = createScaleFacesRecord([0], pivot, scale)
+
+    pivot.x = 9
+    scale.x = 9
+
+    assert.equal(record.pivot.x, 1)
+    assert.equal(record.scale.x, 2)
+  })
+
+  void it('says how many faces it scales', () => {
+    const record = createScaleFacesRecord([1, 2], { x: 0, y: 0, z: 0 }, { x: 2, y: 2, z: 2 })
+
+    assert.equal(labelOf(record), 'Scale 2 face(s)')
+  })
+})
+
+void describe('commandOf a scale', () => {
+  void it('scales the corners on apply, and scales them back on revert', () => {
+    const { polygons, level } = fakeLevel(2)
+    const record = createScaleFacesRecord([1], { x: 1, y: 0, z: 0 }, { x: 2, y: 2, z: 2 })
+    const command = commandOf(record, level)
+
+    command?.apply()
+
+    // the pivot is the left corner of the triangle: the next one is twice as far from it
+    const scaled = polygons[1]?.vertices[1] ?? { x: 0, y: 0, z: 0 }
+
+    assert.ok(Math.abs(scaled.x - 3) < 1e-9)
+    assert.ok(Math.abs(scaled.z) < 1e-9)
+
+    command?.revert()
+
+    const back = polygons[1]?.vertices[1] ?? { x: 0, y: 0, z: 0 }
+
+    assert.ok(Math.abs(back.x - 2) < 1e-9)
+    assert.ok(Math.abs(back.z) < 1e-9)
+  })
+
+  void it('gives no command when the face is not in the level', () => {
+    const { level } = fakeLevel(2)
+    const record = createScaleFacesRecord([5], { x: 0, y: 0, z: 0 }, { x: 2, y: 2, z: 2 })
+
+    assert.equal(commandOf(record, level), undefined)
   })
 })

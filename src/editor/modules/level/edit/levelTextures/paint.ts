@@ -286,8 +286,14 @@ function noTextureMaterialOf(key: PaintKey, missing: Texture | undefined): MeshL
  * @remarks
  * The texture of a water face is drawn as a translucent sheet at its own brightness (`WATER_OPACITY`): the colour is
  * not modulated by the `transval` of the face, because the game's water pass does not read it either, and no alpha test
- * cuts the texture (the game draws the water without one). The sheet writes no depth, so the bed of the river stays
- * behind it and a face of the water behind another one is not lost.
+ * cuts the texture (the game draws the water without one).
+ *
+ * The sheet **writes depth**, which is what the depth of the material is for: the faces of the water are one mesh and
+ * one material, so the renderer draws them in the order of the geometry, and without a depth a face behind another one
+ * covers it as soon as it comes later in that order — an author who scales a patch of a river up and lifts it sees the
+ * far faces of the river painted over it (2026-11-14, the owner's screenshots). With the depth written, the nearer face
+ * wins and the order of the geometry does not matter; the bed of the river is opaque and drawn before the water, so it
+ * still shows through, and a face of the water behind another one no longer blends twice.
  *
  * @param key What the faces draw with, one of the water.
  * @param texture The texture of the level for the name of the key.
@@ -295,16 +301,12 @@ function noTextureMaterialOf(key: PaintKey, missing: Texture | undefined): MeshL
  * @returns The lit, translucent sheet of the water.
  */
 function waterMaterialOf(key: PaintKey, texture: Texture): MeshLambertMaterial {
-  const material = new MeshLambertMaterial({
+  return new MeshLambertMaterial({
     map: texture,
     side: sideOf(key.doubleSided),
     transparent: true,
     opacity: WATER_OPACITY,
   })
-
-  material.depthWrite = false
-
-  return material
 }
 
 /**

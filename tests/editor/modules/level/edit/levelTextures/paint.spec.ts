@@ -112,7 +112,8 @@ void describe('buildMaterial', () => {
     assert.equal(material.map, texture)
     assert.equal(material.transparent, true)
     assert.equal(material.opacity, 0.62)
-    assert.equal(material.depthWrite, false)
+    // a face of the water behind another one must not cover it: the depth decides, not the order of the geometry
+    assert.equal(material.depthWrite, true)
     // the game draws the water in a pass of its own: the blend mode and the brightness of the face do not dim it, and
     // the alpha of its texture does not cut it
     assert.equal(material.blending, NormalBlending)

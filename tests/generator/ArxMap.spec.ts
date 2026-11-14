@@ -2,9 +2,9 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { isQuad } from 'arx-convert/utils'
 import { getBVHExtremes } from 'three-mesh-bvh'
-import { BufferAttribute, Raycaster, Triangle, Vector3 } from 'three'
+import { BufferAttribute, Quaternion, Raycaster, Triangle, Vector3 } from 'three'
 import { createBlankLevelFiles, FLAT_PRESET } from '../../src/editor/modules/level/blankLevel.ts'
-import { ArxMap } from '../../src/generator/ArxMap.ts'
+import { ArxMap, MIN_SCALE_FACTOR } from '../../src/generator/ArxMap.ts'
 import { arxVector3toVector3 } from '../../src/generator/meshes.ts'
 import { Settings } from '../../src/generator/Settings.ts'
 
@@ -17,6 +17,22 @@ function flatMap(): ArxMap {
   const files = createBlankLevelFiles(FLAT_PRESET)
 
   return new ArxMap(files.dlf, files.fts, files.llf, new Settings({ seed: '1' }))
+}
+
+/**
+ * Reads a coordinate scaled around a pivot, the way the step of a scale does it.
+ *
+ * @param value The coordinate to scale.
+ * @param pivot The point it moves away from.
+ * @param factor How far it moves.
+ *
+ * @returns The coordinate after the scale.
+ */
+function scaledAround(value: number, pivot: number, factor: number): number {
+  const offset = value - pivot
+  const scaled = offset * factor
+
+  return pivot + scaled
 }
 
 void describe('ArxMap', () => {
@@ -533,5 +549,155 @@ void describe('translatePolygons', () => {
     assert.deepEqual([positions.getX(solidCount), positions.getY(solidCount), positions.getZ(solidCount)], secondSolid)
     assert.deepEqual([wireframe.getX(wireCount), wireframe.getY(wireCount), wireframe.getZ(wireCount)], secondWire)
     assert.deepEqual([nextVertex?.x, nextVertex?.y, nextVertex?.z], [beforeNext?.x, beforeNext?.y, beforeNext?.z])
+  })
+})
+
+void describe('rotatePolygons', () => {
+  void it('turns the corners and the normals of the faces, and the buffers with them', () => {
+    const map = flatMap()
+    const face = map.polygons[0]
+
+    if (face === undefined) {
+      throw new Error('the level has no face')
+    }
+
+    const solid = map.solidMeshes[0].geometry
+    const positions = solid.getAttribute('position')
+    const normals = solid.getAttribute('normal')
+    const wireframe = map.wireframeGeometry.getAttribute('position')
+    const corner = face.vertices[0]
+    const pivot = { x: corner.x, y: corner.y, z: corner.z }
+    const axis = { x: 1, y: 0, z: 0 }
+    const angle = Math.PI / 2
+    const turn = new Quaternion().setFromAxisAngle(new Vector3(axis.x, axis.y, axis.z), angle)
+    const before = face.vertices[1]
+    const expected = new Vector3(before.x - pivot.x, before.y - pivot.y, before.z - pivot.z)
+      .applyQuaternion(turn)
+      .add(new Vector3(pivot.x, pivot.y, pivot.z))
+    const nextVertex = map.polygons[1]?.vertices[0]
+    const beforeNext = { x: nextVertex?.x, y: nextVertex?.y, z: nextVertex?.z }
+    const beforeNormal = { x: face.norm.x, y: face.norm.y, z: face.norm.z }
+    const expectedNormal = new Vector3(beforeNormal.x, beforeNormal.y, beforeNormal.z).applyQuaternion(turn)
+    const beforeSolidNormal = [normals.getX(0), normals.getY(0), normals.getZ(0)]
+
+    map.rotatePolygons([0], pivot, axis, angle)
+
+    // the corner the turn is around stays, the one beside it turns
+    assert.ok(Math.abs(corner.x - pivot.x) < 1e-4)
+    assert.ok(Math.abs(corner.y - pivot.y) < 1e-4)
+    assert.ok(Math.abs(corner.z - pivot.z) < 1e-4)
+    assert.ok(Math.abs(before.x - expected.x) < 1e-4)
+    assert.ok(Math.abs(before.y - expected.y) < 1e-4)
+    assert.ok(Math.abs(before.z - expected.z) < 1e-4)
+
+    // the model and the buffer keep the normal of the face turned the same way
+    assert.ok(Math.abs(face.norm.x - expectedNormal.x) < 1e-4)
+    assert.ok(Math.abs(face.norm.y - expectedNormal.y) < 1e-4)
+    assert.ok(Math.abs(face.norm.z - expectedNormal.z) < 1e-4)
+
+    const solidNormal = [normals.getX(0), normals.getY(0), normals.getZ(0)]
+    const mirrored = arxVector3toVector3({ x: expectedNormal.x, y: expectedNormal.y, z: expectedNormal.z })
+
+    assert.ok(Math.abs(solidNormal[0] - mirrored.x) < 1e-4)
+    assert.ok(Math.abs(solidNormal[1] - mirrored.y) < 1e-4)
+    assert.ok(Math.abs(solidNormal[2] - mirrored.z) < 1e-4)
+    assert.notDeepEqual([solidNormal[0], solidNormal[1], solidNormal[2]], beforeSolidNormal)
+    assert.ok(positions.count > 0)
+    assert.ok(wireframe.count > 0)
+
+    // the face next to it stays where it was
+    assert.deepEqual([nextVertex?.x, nextVertex?.y, nextVertex?.z], [beforeNext.x, beforeNext.y, beforeNext.z])
+  })
+
+  void it('leaves the level alone when there is nothing to turn', () => {
+    const map = flatMap()
+    const face = map.polygons[0]
+
+    if (face === undefined) {
+      throw new Error('the level has no face')
+    }
+
+    const before = { x: face.vertices[0].x, y: face.vertices[0].y, z: face.vertices[0].z }
+
+    map.rotatePolygons([], { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }, Math.PI)
+    map.rotatePolygons([0], { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }, 0)
+
+    assert.deepEqual([face.vertices[0].x, face.vertices[0].y, face.vertices[0].z], [before.x, before.y, before.z])
+  })
+})
+
+void describe('scalePolygons', () => {
+  void it('scales the corners around the pivot, in the model and in the buffers', () => {
+    const map = flatMap()
+    const face = map.polygons[0]
+
+    if (face === undefined) {
+      throw new Error('the level has no face')
+    }
+
+    const solid = map.solidMeshes[0].geometry
+    const positions = solid.getAttribute('position')
+    const corner = face.vertices[0]
+    const pivot = { x: corner.x, y: corner.y, z: corner.z }
+    const before = { x: face.vertices[1].x, y: face.vertices[1].y, z: face.vertices[1].z }
+    const beforeSolid = [positions.getX(0), positions.getY(0), positions.getZ(0)]
+    const nextVertex = map.polygons[1]?.vertices[0]
+    const beforeNext = { x: nextVertex?.x, y: nextVertex?.y, z: nextVertex?.z }
+
+    map.scalePolygons([0], pivot, { x: 2, y: 2, z: 2 })
+
+    // the corner of the pivot stays, the one beside it is twice as far from it
+    assert.ok(Math.abs(corner.x - pivot.x) < 1e-4)
+    const expectedX = scaledAround(before.x, pivot.x, 2)
+    const expectedY = scaledAround(before.y, pivot.y, 2)
+    const expectedZ = scaledAround(before.z, pivot.z, 2)
+
+    assert.ok(Math.abs(face.vertices[1].x - expectedX) < 1e-4)
+    assert.ok(Math.abs(face.vertices[1].y - expectedY) < 1e-4)
+    assert.ok(Math.abs(face.vertices[1].z - expectedZ) < 1e-4)
+
+    // the buffer of the first corner stays too, since the pivot is the corner itself
+    assert.ok(Math.abs(positions.getX(0) - beforeSolid[0]) < 1e-3)
+    assert.ok(Math.abs(positions.getY(0) - beforeSolid[1]) < 1e-3)
+    assert.ok(Math.abs(positions.getZ(0) - beforeSolid[2]) < 1e-3)
+
+    // the face next to it stays where it was
+    assert.deepEqual([nextVertex?.x, nextVertex?.y, nextVertex?.z], [beforeNext.x, beforeNext.y, beforeNext.z])
+  })
+
+  void it('holds a scale of zero at the smallest factor, so the faces can come back', () => {
+    const map = flatMap()
+    const face = map.polygons[0]
+
+    if (face === undefined) {
+      throw new Error('the level has no face')
+    }
+
+    const corner = face.vertices[0]
+    const pivot = { x: corner.x, y: corner.y, z: corner.z }
+    const before = { x: face.vertices[1].x, y: face.vertices[1].y, z: face.vertices[1].z }
+
+    map.scalePolygons([0], pivot, { x: 0, y: 0, z: 0 })
+
+    // five percent of the way to the pivot, and not a line
+    const expected = scaledAround(before.x, pivot.x, MIN_SCALE_FACTOR)
+
+    assert.ok(Math.abs(face.vertices[1].x - expected) < 1e-4)
+  })
+
+  void it('leaves the level alone when there is nothing to scale', () => {
+    const map = flatMap()
+    const face = map.polygons[0]
+
+    if (face === undefined) {
+      throw new Error('the level has no face')
+    }
+
+    const before = { x: face.vertices[1].x, y: face.vertices[1].y, z: face.vertices[1].z }
+
+    map.scalePolygons([], { x: 0, y: 0, z: 0 }, { x: 2, y: 2, z: 2 })
+    map.scalePolygons([0], { x: 0, y: 0, z: 0 }, { x: 1, y: 1, z: 1 })
+
+    assert.deepEqual([face.vertices[1].x, face.vertices[1].y, face.vertices[1].z], [before.x, before.y, before.z])
   })
 })

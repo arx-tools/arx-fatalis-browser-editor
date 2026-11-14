@@ -68,6 +68,7 @@ export const coverage: readonly SpecCoverage[] = [
     spec: 'tests/e2e/deletion.spec.ts',
     covers: [
       'src/editor/modules/level/edit/deletion.ts',
+      'src/generator/ArxMap.ts',
       'src/generator/arxMap/removal.ts',
       'src/generator/polygons.ts',
     ],
@@ -149,6 +150,7 @@ export const coverage: readonly SpecCoverage[] = [
       'src/editor/components/widgets/RoomMapperWidget/**',
       'src/editor/components/widgets/shared/roomOverlay.ts',
       'src/editor/modules/rooms/**',
+      'src/generator/ArxMap.ts',
       'src/generator/polygons.ts',
       'src/generator/rooms.ts',
     ],
@@ -160,6 +162,7 @@ export const coverage: readonly SpecCoverage[] = [
       'src/editor/components/widgets/View3DWidget/polygonSelection.ts',
       'src/editor/modules/keyboard/**',
       'src/editor/modules/selection/**',
+      'src/generator/ArxMap.ts',
       'src/generator/polygons.ts',
     ],
   },
@@ -177,6 +180,7 @@ export const coverage: readonly SpecCoverage[] = [
     spec: 'tests/e2e/textures.spec.ts',
     covers: [
       'src/editor/components/widgets/TextureBrowserWidget/**',
+      'src/generator/ArxMap.ts',
       'src/generator/arxMap/textureRuns.ts',
       'src/editor/modules/level/edit/levelTextures.ts',
       'src/editor/modules/level/edit/levelTextures/**',

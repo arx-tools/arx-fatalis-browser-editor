@@ -6,6 +6,8 @@ import {
   labelOf,
   type HistoryRecord,
   type MutableLevel,
+  type RotateFacesRecord,
+  type ScaleFacesRecord,
   type SetRoomRecord,
   type SetTextureRecord,
   type SetUvRecord,
@@ -166,6 +168,76 @@ function translateFacesCommandOf(record: TranslateFacesRecord, level: MutableLev
 }
 
 /**
+ * Builds the command of a turn.
+ *
+ * @remarks
+ * A turn is its own undo: the same axis with the opposite angle takes the faces back, so the record needs no second
+ * state. The pivot and the axis are copied, because the level may turn the very vectors the record carries.
+ *
+ * @param record The record of the step.
+ * @param level The level the step changes.
+ *
+ * @returns The command, or undefined when a face of the record is not in the level.
+ */
+function rotateFacesCommandOf(record: RotateFacesRecord, level: MutableLevel): HistoryCommand | undefined {
+  for (const index of record.faces) {
+    if (level.polygons[index] === undefined) {
+      return undefined
+    }
+  }
+
+  const pivot = { x: record.pivot.x, y: record.pivot.y, z: record.pivot.z }
+  const axis = { x: record.axis.x, y: record.axis.y, z: record.axis.z }
+
+  return {
+    label: labelOf(record),
+    record,
+    apply: (): void => {
+      level.rotatePolygons(record.faces, pivot, axis, record.angle)
+    },
+    revert: (): void => {
+      level.rotatePolygons(record.faces, pivot, axis, -record.angle)
+    },
+  }
+}
+
+/**
+ * Builds the command of a scale.
+ *
+ * @remarks
+ * A scale is its own undo: the inverse of the factors takes the faces back, so the record needs no second state. The
+ * factors are never zero (`MIN_SCALE_FACTOR` of `ArxMap`), which is what makes the inverse a number. The pivot and the
+ * factors are copied, because the level may write the very vectors the record carries.
+ *
+ * @param record The record of the step.
+ * @param level The level the step changes.
+ *
+ * @returns The command, or undefined when a face of the record is not in the level.
+ */
+function scaleFacesCommandOf(record: ScaleFacesRecord, level: MutableLevel): HistoryCommand | undefined {
+  for (const index of record.faces) {
+    if (level.polygons[index] === undefined) {
+      return undefined
+    }
+  }
+
+  const pivot = { x: record.pivot.x, y: record.pivot.y, z: record.pivot.z }
+  const scale = { x: record.scale.x, y: record.scale.y, z: record.scale.z }
+  const inverse = { x: 1 / scale.x, y: 1 / scale.y, z: 1 / scale.z }
+
+  return {
+    label: labelOf(record),
+    record,
+    apply: (): void => {
+      level.scalePolygons(record.faces, pivot, scale)
+    },
+    revert: (): void => {
+      level.scalePolygons(record.faces, pivot, inverse)
+    },
+  }
+}
+
+/**
  * Builds the command of a record: the step a replay runs.
  *
  * @remarks
@@ -202,6 +274,14 @@ export function commandOf(record: HistoryRecord, level: MutableLevel): HistoryCo
 
   if (record.kind === 'translateFaces') {
     return translateFacesCommandOf(record, level)
+  }
+
+  if (record.kind === 'rotateFaces') {
+    return rotateFacesCommandOf(record, level)
+  }
+
+  if (record.kind === 'scaleFaces') {
+    return scaleFacesCommandOf(record, level)
   }
 
   if (record.kind !== 'deleteFaces') {

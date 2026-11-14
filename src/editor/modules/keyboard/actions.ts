@@ -25,6 +25,8 @@ export type KeyboardActionId =
   | 'toggleLights'
   | 'toggleMesh'
   | 'togglePortals'
+  | 'toggleRotate'
+  | 'toggleScale'
   | 'toggleRooms'
   | 'toggleTransform'
   | 'toggleWireframe'
@@ -72,8 +74,21 @@ export const keyboardActions: readonly KeyboardAction[] = [
     id: 'toggleTransform',
     label: 'Toggle the transform gizmo',
     group: 'view',
-    keys: [{ code: 'KeyE' }],
+    keys: [{ code: 'Digit1' }],
     modes: ['editor', 'pointerLocked'],
+  },
+  {
+    id: 'toggleRotate',
+    label: 'Toggle the rotate gizmo',
+    group: 'view',
+    keys: [{ code: 'Digit2' }],
+    modes: ['editor', 'pointerLocked'],
+  },
+  {
+    id: 'toggleScale',
+    label: 'Toggle the scale gizmo',
+    group: 'view',
+    keys: [{ code: 'Digit3' }],
   },
   {
     id: 'toggleMesh',

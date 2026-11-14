@@ -178,6 +178,71 @@ export interface TranslateFacesRecord {
 }
 
 /**
+ * A step that turns faces around a point.
+ *
+ * @remarks
+ * The turn is stored as the axis and the angle of it, the way the game writes a rotation: the step applies it, and the
+ * undo applies the same axis with the opposite angle. A turn of more than half a circle is stored as the shorter way
+ * around (a quaternion has no memory of the other one), which is what a dragged ring gives anyway.
+ */
+export interface RotateFacesRecord {
+  /**
+   * The version of the shape of this record, see {@link HISTORY_RECORD_VERSION}.
+   */
+  readonly version: number
+  /**
+   * What the step does, which names its payload.
+   */
+  readonly kind: 'rotateFaces'
+  /**
+   * The faces the step turns, by their index in the level, sorted.
+   */
+  readonly faces: readonly number[]
+  /**
+   * The point they turn around, in the coordinates of the level.
+   */
+  readonly pivot: ArxVector3
+  /**
+   * The axis of the turn, in the coordinates of the level (a unit vector).
+   */
+  readonly axis: ArxVector3
+  /**
+   * The angle of the turn, in radians, in the 0..π range of the shortest way of the axis.
+   */
+  readonly angle: number
+}
+
+/**
+ * A step that scales faces around a point.
+ *
+ * @remarks
+ * The factors of the scale are stored with the point it scales around: the step applies them, and the undo applies their
+ * inverse (a factor is never zero, see `MIN_SCALE_FACTOR` of `ArxMap`), so the record needs no second state.
+ */
+export interface ScaleFacesRecord {
+  /**
+   * The version of the shape of this record, see {@link HISTORY_RECORD_VERSION}.
+   */
+  readonly version: number
+  /**
+   * What the step does, which names its payload.
+   */
+  readonly kind: 'scaleFaces'
+  /**
+   * The faces the step scales, by their index in the level, sorted.
+   */
+  readonly faces: readonly number[]
+  /**
+   * The point they scale around, in the coordinates of the level.
+   */
+  readonly pivot: ArxVector3
+  /**
+   * How far the corners move along the three axes, around 1.
+   */
+  readonly scale: ArxVector3
+}
+
+/**
  * A step the way a JSON can hold it.
  *
  * @remarks
@@ -189,7 +254,14 @@ export interface TranslateFacesRecord {
  * The union grows with the kinds of the steps: `deleteFaces` and `setTexture` today, `moveVertex`, `moveLight` and the
  * rest as they arrive.
  */
-export type HistoryRecord = DeleteFacesRecord | SetRoomRecord | SetTextureRecord | SetUvRecord | TranslateFacesRecord
+export type HistoryRecord =
+  | DeleteFacesRecord
+  | RotateFacesRecord
+  | ScaleFacesRecord
+  | SetRoomRecord
+  | SetTextureRecord
+  | SetUvRecord
+  | TranslateFacesRecord
 
 /**
  * The part of the level a step may touch.
@@ -255,6 +327,23 @@ export interface MutableLevel {
    * @param delta The offset, in the coordinates of the level.
    */
   translatePolygons(faces: readonly number[], delta: ArxVector3): void
+  /**
+   * Turns the corners and the normals of faces around a point.
+   *
+   * @param faces The faces to turn, by their index in the level.
+   * @param pivot The point they turn around, in the coordinates of the level.
+   * @param axis The axis of the turn, in the coordinates of the level.
+   * @param angle The angle of the turn, in radians.
+   */
+  rotatePolygons(faces: readonly number[], pivot: ArxVector3, axis: ArxVector3, angle: number): void
+  /**
+   * Scales the corners and the normals of faces around a point.
+   *
+   * @param faces The faces to scale, by their index in the level.
+   * @param pivot The point they scale around, in the coordinates of the level.
+   * @param scale How far the corners move along the three axes, around 1.
+   */
+  scalePolygons(faces: readonly number[], pivot: ArxVector3, scale: ArxVector3): void
 }
 
 /**
@@ -418,6 +507,71 @@ export function createTranslateFacesRecord(faces: Iterable<number>, delta: ArxVe
 }
 
 /**
+ * Builds the record of a turn, the way a step writes it down.
+ *
+ * @remarks
+ * The faces are sorted and made unique, and the pivot and the axis are copied: the same drag gives the same record
+ * whatever order the selection held the faces in, and the record does not share the vectors of the gesture.
+ *
+ * @param faces The faces the step turns.
+ * @param pivot The point they turn around, in the coordinates of the level.
+ * @param axis The axis of the turn, in the coordinates of the level.
+ * @param angle The angle of the turn, in radians.
+ *
+ * @returns The record of the step.
+ */
+export function createRotateFacesRecord(
+  faces: Iterable<number>,
+  pivot: ArxVector3,
+  axis: ArxVector3,
+  angle: number,
+): RotateFacesRecord {
+  const unique = [...new Set(faces)].toSorted((one, other) => {
+    return one - other
+  })
+
+  return {
+    version: HISTORY_RECORD_VERSION,
+    kind: 'rotateFaces',
+    faces: unique,
+    pivot: { x: pivot.x, y: pivot.y, z: pivot.z },
+    axis: { x: axis.x, y: axis.y, z: axis.z },
+    angle,
+  }
+}
+
+/**
+ * Builds the record of a scale, the way a step writes it down.
+ *
+ * @remarks
+ * The faces are sorted and made unique, and the pivot and the factors are copied: the same drag gives the same record
+ * whatever order the selection held the faces in, and the record does not share the vectors of the gesture.
+ *
+ * @param faces The faces the step scales.
+ * @param pivot The point they scale around, in the coordinates of the level.
+ * @param scale How far the corners move along the three axes, around 1.
+ *
+ * @returns The record of the step.
+ */
+export function createScaleFacesRecord(
+  faces: Iterable<number>,
+  pivot: ArxVector3,
+  scale: ArxVector3,
+): ScaleFacesRecord {
+  const unique = [...new Set(faces)].toSorted((one, other) => {
+    return one - other
+  })
+
+  return {
+    version: HISTORY_RECORD_VERSION,
+    kind: 'scaleFaces',
+    faces: unique,
+    pivot: { x: pivot.x, y: pivot.y, z: pivot.z },
+    scale: { x: scale.x, y: scale.y, z: scale.z },
+  }
+}
+
+/**
  * The caption of a step, from its record.
  *
  * @param record The record of the step.
@@ -447,6 +601,14 @@ export function labelOf(record: HistoryRecord): string {
 
   if (record.kind === 'translateFaces') {
     return `Move ${String(record.faces.length)} face(s)`
+  }
+
+  if (record.kind === 'rotateFaces') {
+    return `Rotate ${String(record.faces.length)} face(s)`
+  }
+
+  if (record.kind === 'scaleFaces') {
+    return `Scale ${String(record.faces.length)} face(s)`
   }
 
   return `Delete ${String(record.faces.length)} face(s)`

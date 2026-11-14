@@ -118,6 +118,8 @@ const switchNames: Record<HelpToggle, string> = {
   wireframe: 'the wireframe',
   roomColors: 'the rooms',
   transform: 'the transform gizmo',
+  rotate: 'the rotate gizmo',
+  scale: 'the scale gizmo',
 }
 
 /**
@@ -177,9 +179,13 @@ const sections = computed<readonly HelpSection[]>(() => {
     },
     {
       title: 'Edit modes',
-      // the eye of a row is the switch of the mode, as in the view context; the `Q` of the rotate gizmo comes with
-      // TODO 182/184
-      rows: [{ keys: [{ kind: 'text', text: 'E' }], action: 'Transform', toggle: 'transform' }],
+      // the eye of a row is the switch of the mode, as in the view context, and the two modes are exclusive (the
+      // store keeps them apart, so the eyes can not show both on)
+      rows: [
+        { keys: [{ kind: 'text', text: '1' }], action: 'Transform', toggle: 'transform' },
+        { keys: [{ kind: 'text', text: '2' }], action: 'Rotate', toggle: 'rotate' },
+        { keys: [{ kind: 'text', text: '3' }], action: 'Scale', toggle: 'scale' },
+      ],
     },
     {
       title: 'History',

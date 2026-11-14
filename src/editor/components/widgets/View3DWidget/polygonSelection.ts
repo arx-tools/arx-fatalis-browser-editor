@@ -3,6 +3,7 @@ import {
   BufferAttribute,
   BufferGeometry,
   Color as ThreeColor,
+  DoubleSide,
   FrontSide,
   LineBasicMaterial,
   LineSegments,
@@ -15,12 +16,14 @@ import {
   type OrthographicCamera,
   type PerspectiveCamera,
   type Scene,
+  type Side,
   type Vector3,
 } from 'three'
 import { Color } from '../../../../generator/Color.ts'
 import type { SelectionMode } from '../../../modules/selection/selectionStore.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import {
+  isDoubleSided,
   isTouchingVertices,
   polygonFillTriangles,
   polygonPerimeter,
@@ -260,11 +263,13 @@ const BACKDROP_OPACITY = 0.92
  * The outline is green, and red while the click would take the polygon away; the fill is a translucent
  * yellow, drawn over the level (`renderOrder` 7) and without depth writes, so it does not fight the mesh.
  *
- * The fill is **front side only**, like the material of the level (2026-11-10, the owner): the faces turned away from
- * the camera are not painted, so the yellow always means "this is selected and this is what I see". A selected face
- * turned away (the other side of a wall, the ceiling above the camera) is in the selection and is deleted with it, and
- * the panels count it; painting it would turn the selection into two colours and would read as if the surfaces in
- * front of the camera were selected.
+ * The fill is **front side only**, like the material of the level (2026-11-10, the owner): a face turned away from the
+ * camera is in the selection and is deleted with it, and the panels count it, but painting it would turn the selection
+ * into two colours and would read as if the surfaces in front of the camera were selected.
+ *
+ * The one exception is the face the level itself draws from both sides (`DoubleSided`): it is painted from both sides,
+ * because the level shows it from both, and its mark would vanish exactly when the author walks around it (2026-11-14,
+ * the owner; the 14549th face of level 12 is one, the banner of the cutscene room).
  */
 export interface PolygonSelectionOverlay {
   /**
@@ -425,6 +430,77 @@ export function polygonFillGeometry(
 }
 
 /**
+ * The two halves of a selection: the faces the level draws from one side, and the ones it draws from both.
+ *
+ * @remarks
+ * The fill of a face is painted on the sides the level paints it on, so the mark of the selection does not show a face
+ * the level culls, and does not hide a face it shows from behind (2026-11-14, the owner). The order of the faces is
+ * kept inside each half, so the geometry of a half is the one of the level.
+ *
+ * @param polygons The faces to split.
+ *
+ * @returns The faces with the `DoubleSided` bit and the ones without it, in the order they came in.
+ */
+export function splitBySide(polygons: readonly ArxPolygon[]): {
+  readonly singleSided: ArxPolygon[]
+  readonly doubleSided: ArxPolygon[]
+} {
+  const singleSided: ArxPolygon[] = []
+  const doubleSided: ArxPolygon[] = []
+
+  for (const polygon of polygons) {
+    if (isDoubleSided(polygon)) {
+      doubleSided.push(polygon)
+
+      continue
+    }
+
+    singleSided.push(polygon)
+  }
+
+  return { singleSided, doubleSided }
+}
+
+/**
+ * Builds the material of the fill: the yellow mark of the selected faces.
+ *
+ * @param side The sides of a face it paints: one for a face the level culls, two for the one it draws from both.
+ *
+ * @returns The yellow, lit, translucent mark of the fill.
+ */
+function fillMaterialOf(side: Side): MeshLambertMaterial {
+  return new MeshLambertMaterial({
+    color: Color.yellow.getHex(),
+    vertexColors: true,
+    side,
+    transparent: true,
+    opacity: FILL_OPACITY,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -4,
+  })
+}
+
+/**
+ * Builds the material of the grey base under the fill.
+ *
+ * @param side The sides of a face it paints, the ones of the fill it sits under.
+ *
+ * @returns The grey, lit, nearly opaque base.
+ */
+function backdropMaterialOf(side: Side): MeshLambertMaterial {
+  return new MeshLambertMaterial({
+    color: BACKDROP_COLOR,
+    side,
+    transparent: true,
+    opacity: BACKDROP_OPACITY,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -2,
+  })
+}
+
+/**
  * Builds the overlay of the walkable view.
  *
  * @param scene The scene of the widget.
@@ -464,38 +540,35 @@ export function createPolygonSelectionOverlay(scene: Scene, offset: Vector3): Po
   // It is lit (`MeshLambertMaterial`): on the room map the yellow is nearly solid, and a flat colour swallowed the
   // beams and the corners of the room (2026-11-10, the owner). The lit yellow keeps the shading of the surfaces it
   // covers, so the mark is bright and the geometry still reads.
-  const fillMaterial = new MeshLambertMaterial({
-    color: Color.yellow.getHex(),
-    vertexColors: true,
-    side: FrontSide,
-    transparent: true,
-    opacity: FILL_OPACITY,
-    polygonOffset: true,
-    polygonOffsetFactor: -1,
-    polygonOffsetUnits: -4,
-  })
+  //
+  // The faces the level draws from both sides have a fill of their own, with a material of two sides: the level shows
+  // such a face from behind too, and the mark of a selection may not vanish when the author walks around it (2026-11-14,
+  // the owner). Two meshes and not one material of two sides for all, because a face the level culls has to keep a fill
+  // the camera sees only from the front.
+  const fillMaterial = fillMaterialOf(FrontSide)
+  const doubleFillMaterial = fillMaterialOf(DoubleSide)
   const fill = new Mesh(new BufferGeometry(), fillMaterial)
   fill.renderOrder = 7
   fill.frustumCulled = false
+  const doubleFill = new Mesh(new BufferGeometry(), doubleFillMaterial)
+  doubleFill.renderOrder = 7
+  doubleFill.frustumCulled = false
 
   // the grey base sits just under the fill: the same geometry with a weaker polygon offset and a lower render order,
   // so the yellow is always the one on top
   // it is lit on purpose (`MeshLambertMaterial`, like the material of the room map): a flat grey hid the beams of a
   // ceiling and read as one colour, while the lit one keeps the shading of the surfaces and only takes their colour away
-  const backdropMaterial = new MeshLambertMaterial({
-    color: BACKDROP_COLOR,
-    side: FrontSide,
-    transparent: true,
-    opacity: BACKDROP_OPACITY,
-    polygonOffset: true,
-    polygonOffsetFactor: -1,
-    polygonOffsetUnits: -2,
-  })
+  const backdropMaterial = backdropMaterialOf(FrontSide)
+  const doubleBackdropMaterial = backdropMaterialOf(DoubleSide)
   const backdrop = new Mesh(new BufferGeometry(), backdropMaterial)
   backdrop.renderOrder = 6
   backdrop.frustumCulled = false
+  const doubleBackdrop = new Mesh(new BufferGeometry(), doubleBackdropMaterial)
+  doubleBackdrop.renderOrder = 6
+  doubleBackdrop.frustumCulled = false
 
-  let hasSelection = false
+  let hasSingleSided = false
+  let hasDoubleSided = false
   let hasBackdrop = false
 
   /**
@@ -520,8 +593,10 @@ export function createPolygonSelectionOverlay(scene: Scene, offset: Vector3): Po
    * Follows the two states of the highlight: whether there is a selection, and whether the base is drawn.
    */
   function updateHighlight(): void {
-    put(fill, hasSelection)
-    put(backdrop, hasSelection && hasBackdrop)
+    put(fill, hasSingleSided)
+    put(backdrop, hasSingleSided && hasBackdrop)
+    put(doubleFill, hasDoubleSided)
+    put(doubleBackdrop, hasDoubleSided && hasBackdrop)
   }
 
   /**
@@ -557,12 +632,20 @@ export function createPolygonSelectionOverlay(scene: Scene, offset: Vector3): Po
       outlineMaterial.color.set(colour)
     },
     setHighlight: (polygons: readonly ArxPolygon[], tintOf): void => {
-      fill.geometry.dispose()
+      const { singleSided, doubleSided } = splitBySide(polygons)
 
-      const geometry = polygonFillGeometry(polygons, offset, tintOf)
-      fill.geometry = geometry
-      backdrop.geometry = geometry
-      hasSelection = polygons.length > 0
+      fill.geometry.dispose()
+      doubleFill.geometry.dispose()
+
+      const singleGeometry = polygonFillGeometry(singleSided, offset, tintOf)
+      const doubleGeometry = polygonFillGeometry(doubleSided, offset, tintOf)
+
+      fill.geometry = singleGeometry
+      backdrop.geometry = singleGeometry
+      doubleFill.geometry = doubleGeometry
+      doubleBackdrop.geometry = doubleGeometry
+      hasSingleSided = singleSided.length > 0
+      hasDoubleSided = doubleSided.length > 0
       updateHighlight()
     },
     setBackdrop: (visible: boolean): void => {
@@ -570,11 +653,14 @@ export function createPolygonSelectionOverlay(scene: Scene, offset: Vector3): Po
 
       // the base under the fill means the room map: there the yellow is the mark itself, and on the level it stays a
       // tint that the art shows through
+      let fillOpacity = FILL_OPACITY
+
       if (visible) {
-        fillMaterial.opacity = FILL_ON_MAP_OPACITY
-      } else {
-        fillMaterial.opacity = FILL_OPACITY
+        fillOpacity = FILL_ON_MAP_OPACITY
       }
+
+      fillMaterial.opacity = fillOpacity
+      doubleFillMaterial.opacity = fillOpacity
 
       updateHighlight()
     },
@@ -582,11 +668,16 @@ export function createPolygonSelectionOverlay(scene: Scene, offset: Vector3): Po
       scene.remove(outline)
       scene.remove(fill)
       scene.remove(backdrop)
+      scene.remove(doubleFill)
+      scene.remove(doubleBackdrop)
       outline.geometry.dispose()
       fill.geometry.dispose()
+      doubleFill.geometry.dispose()
       outlineMaterial.dispose()
       fillMaterial.dispose()
+      doubleFillMaterial.dispose()
       backdropMaterial.dispose()
+      doubleBackdropMaterial.dispose()
     },
   }
 }

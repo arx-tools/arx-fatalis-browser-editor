@@ -8,7 +8,7 @@ import {
   parseLayoutNode,
   type LayoutNode,
 } from '../../../../src/editor/modules/layout/layoutNode.ts'
-import { editorLayout, viewerLayout } from '../../../../src/editor/modules/layout/layoutPresets.ts'
+import { editorLayout, painterLayout, viewerLayout } from '../../../../src/editor/modules/layout/layoutPresets.ts'
 
 /**
  * A widget leaf of the test trees.
@@ -160,9 +160,18 @@ void describe('the viewer preset', () => {
     assert.deepEqual(lockOfKind(viewerLayout, 'jump-to-location'), { width: 350, height: 80 })
   })
 
-  void it('leaves the walkable view and the keys free', () => {
+  void it('closes the column with the keys in a locked 520 high block', () => {
+    // 2026-11-14, the owner: the keys were free, and a free block grew and shrank with the window
+    assert.deepEqual(lockOfKind(viewerLayout, 'keyboard-shortcuts'), { width: 350, height: 520 })
     assert.equal(lockOfKind(viewerLayout, '3d-view'), undefined)
-    assert.equal(lockOfKind(viewerLayout, 'keyboard-shortcuts'), undefined)
+  })
+})
+
+void describe('the painter preset', () => {
+  void it('locks the keys at 520 high under the two inspectors', () => {
+    // 2026-11-14, the owner: the keys were 430, and the selection inspector above them keeps what is left
+    assert.deepEqual(lockOfKind(painterLayout, 'keyboard-shortcuts'), { width: 360, height: 520 })
+    assert.equal(lockOfKind(painterLayout, 'selection-inspector'), undefined)
   })
 })
 

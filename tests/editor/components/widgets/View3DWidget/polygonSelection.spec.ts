@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { ArxPolygonFlags, type ArxPolygon, type ArxVector3 } from 'arx-convert/types'
 import {
+  DoubleSide,
   FrontSide,
   type LineBasicMaterial,
   type LineSegments,
@@ -27,6 +28,7 @@ import {
   pickPolygons,
   polygonFillGeometry,
   polygonOutlineGeometry,
+  splitBySide,
 } from '../../../../../src/editor/components/widgets/View3DWidget/polygonSelection.ts'
 
 /**
@@ -60,6 +62,15 @@ function polygon(isQuad: boolean): ArxPolygon {
     flags,
     room: 1,
   }
+}
+
+/**
+ * A quad of the test that the level draws from both sides.
+ *
+ * @returns Two faces of the same square: the one the level culls, and the one it draws from behind too.
+ */
+function doubleSidedQuad(): ArxPolygon {
+  return { ...polygon(true), flags: ArxPolygonFlags.Quad | ArxPolygonFlags.DoubleSided }
 }
 
 /**
@@ -580,5 +591,79 @@ void describe('faceToSweep', () => {
 
     // taking away the face the selection holds is the point of a remove gesture
     assert.deepEqual(chosen, { kind: 'take', index: 1 })
+  })
+})
+
+void describe('splitBySide', () => {
+  void it('separates the faces the level draws from both sides, in the order they came in', () => {
+    const one = polygon(true)
+    const both = doubleSidedQuad()
+    const { singleSided, doubleSided } = splitBySide([one, both])
+
+    assert.deepEqual(singleSided, [one])
+    assert.deepEqual(doubleSided, [both])
+  })
+
+  void it('leaves a selection of one side alone', () => {
+    const one = polygon(true)
+    const { singleSided, doubleSided } = splitBySide([one])
+
+    assert.deepEqual(singleSided, [one])
+    assert.deepEqual(doubleSided, [])
+  })
+
+  void it('gives nothing for no face', () => {
+    assert.deepEqual(splitBySide([]), { singleSided: [], doubleSided: [] })
+  })
+})
+
+void describe('the sides of the fill', () => {
+  void it('paints the faces the level culls on the front only', () => {
+    const scene = new Scene()
+    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0))
+
+    overlay.setHighlight([polygon(true)])
+
+    const [fill] = scene.children as Array<Mesh<BufferGeometry, MeshLambertMaterial>>
+
+    assert.equal(fill.material.side, FrontSide)
+  })
+
+  void it('paints the face the level draws from both sides on both sides', () => {
+    const scene = new Scene()
+    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0))
+
+    overlay.setHighlight([doubleSidedQuad()])
+
+    const [fill] = scene.children as Array<Mesh<BufferGeometry, MeshLambertMaterial>>
+
+    assert.equal(fill.material.side, DoubleSide)
+    assert.equal(fill.material.color.getHex(), Color.yellow.getHex())
+  })
+
+  void it('puts the base of the room map under both kinds of face', () => {
+    const scene = new Scene()
+    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0))
+
+    overlay.setHighlight([polygon(true), doubleSidedQuad()])
+    overlay.setBackdrop(true)
+
+    const sides = (scene.children as Array<Mesh<BufferGeometry, MeshLambertMaterial>>).map((mesh) => {
+      return mesh.material.side
+    })
+
+    // the fill and the base of the front side faces, and the same two for the ones the level draws from both sides
+    assert.equal(
+      sides.filter((side) => {
+        return side === FrontSide
+      }).length,
+      2,
+    )
+    assert.equal(
+      sides.filter((side) => {
+        return side === DoubleSide
+      }).length,
+      2,
+    )
   })
 })

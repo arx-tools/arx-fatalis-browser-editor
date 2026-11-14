@@ -7,11 +7,12 @@ import { editorUrl } from './support/editor.ts'
  * @remarks
  * The lock of a widget is a box, and a preset spells it on two levels of the tree: the width on the horizontal split
  * the widget sits in and the height on the vertical one. These tests are the acceptance of the numbers (2026-11-01):
- * the viewer comes with the plan at 350 x 285, the jump at 350 x 80 and the render performance readout at 350 x 210
- * (2026-11-08, the owner asked for it there), the editor with the plan at 350 x 350, the
+ * the viewer comes with the plan at 350 x 285, the jump at 350 x 80, the render performance readout at 350 x 210
+ * (2026-11-08, the owner asked for it there) and the keys at 350 x 520 (2026-11-14, they were free before), the editor
+ * with the plan at 350 x 350, the
  * jump at 200 x 50, the statistics at 350 x 200, the inspector at 350 x 180 and the undo and redo row at 350 x 60
- * (2026-11-09), and the painter (2026-11-04) with the polygon inspector at 360 x 185, the keys at 360 x 430 and the
- * uv mapper at 400 x 430. The rooms preset came with the round (2026-11-13): the statistics at 350 x 203, the top view
+ * (2026-11-09), and the painter (2026-11-04) with the polygon inspector at 360 x 185, the keys at 360 x 520 (430 until
+ * 2026-11-14) and the uv mapper at 400 x 430. The rooms preset came with the round (2026-11-13): the statistics at 350 x 203, the top view
  * at 350 x 260 and the room mapper at 350 x 220. The widgets the owner did not
  * size stay free, and the header has to keep the name of the preset after the locks are applied — a layout that comes
  * back differently from the preset would show up as `Blank` — the name now says which layout is active, and a tweak
@@ -62,7 +63,9 @@ async function presetName(page: Page): Promise<string> {
 }
 
 test('the default layout is the viewer, with the plan and the jump of the owner locked', async ({ page }) => {
-  await page.setViewportSize({ width: 1631, height: 850 })
+  // the column of the viewer is 285 + 80 + 210 + 520 plus the gaps, and a lock is a **maximum**: a window shorter than
+  // that squeezes the whole column, so the test of the sizes uses one that holds them (2026-11-14, the keys got 520)
+  await page.setViewportSize({ width: 1631, height: 1200 })
   await page.goto(editorUrl())
 
   // the shell builds the dock before the level is downloaded, which is all this test needs
@@ -81,10 +84,13 @@ test('the default layout is the viewer, with the plan and the jump of the owner 
   expect(jump.width).toBe(350)
   expect(jump.height).toBe(80)
   expect(numbers.width).toBe(350)
-  expect(numbers.height).toBe(210)
   expect(await page.locator('[data-widget-kind="top-view"]').getAttribute('data-locked-width')).toBe('350')
   expect(await page.locator('[data-widget-kind="jump-to-location"]').getAttribute('data-locked-height')).toBe('80')
-  expect(await page.locator('[data-widget-kind="render-performance"]').getAttribute('data-locked-height')).toBe('210')
+
+  // the numbers are the one block of the column that follows the window (2026-11-14: they were locked to 210, and the
+  // column has no child left for the space a taller window leaves)
+  expect(await page.locator('[data-widget-kind="render-performance"]').getAttribute('data-locked-height')).toBeNull()
+  expect(numbers.height).toBeGreaterThan(210)
 
   // the three follow each other, and the walkable view takes what the locked column does not
   expect(jump.top).toBe(plan.top + plan.height + 4)
@@ -95,10 +101,12 @@ test('the default layout is the viewer, with the plan and the jump of the owner 
   expect(view.width).toBeGreaterThan(350)
   expect(view.left + view.width + 4).toBe(plan.left)
 
-  // the keys are free: they keep what the locked widgets leave
+  // the keys close the column in a locked block: the owner measured 520 on 2026-11-14 (they were free before)
   const keys = await boxOf(page, 'keyboard-shortcuts')
 
-  expect(await page.locator('[data-widget-kind="keyboard-shortcuts"]').getAttribute('data-locked-height')).toBeNull()
+  expect(keys.width).toBe(350)
+  expect(keys.height).toBe(520)
+  expect(await page.locator('[data-widget-kind="keyboard-shortcuts"]').getAttribute('data-locked-height')).toBe('520')
   expect(keys.top).toBe(numbers.top + numbers.height + 4)
 })
 
@@ -236,11 +244,12 @@ test('the painter preset comes with the sizes the owner measured', async ({ page
   expect(inspector.width).toBe(360)
   expect(inspector.height).toBe(185)
   expect(keys.width).toBe(360)
-  expect(keys.height).toBe(430)
+  expect(keys.height).toBe(520)
   expect(mapper.width).toBe(400)
   expect(mapper.height).toBe(430)
 
   expect(await page.locator('[data-widget-kind="polygon-inspector"]').getAttribute('data-locked-height')).toBe('185')
+  expect(await page.locator('[data-widget-kind="keyboard-shortcuts"]').getAttribute('data-locked-height')).toBe('520')
   expect(await page.locator('[data-widget-kind="uv-mapper"]').getAttribute('data-locked-width')).toBe('400')
 
   // the row of the undo and the redo: a locked 60 pixel strip under the uv mapper (2026-11-06, the owner's request)
@@ -277,7 +286,9 @@ test('every layout keeps its own history, and the steps of the menu take it back
   const menu = page.locator('header button[aria-label="Presets"]')
   const viewerRow = page.locator('.preset-row', { hasText: 'Viewer' })
   const editorRow = page.locator('.preset-row', { hasText: 'Editor' })
-  const keys = page.locator('[data-widget-kind="keyboard-shortcuts"]')
+  // the viewer has no free info widget since the keys are locked (2026-11-14): the walkable view is the one that a step
+  // of the layout can move
+  const keys = page.locator('[data-widget-kind="3d-view"]')
   // the editor has no keys since 2026-11-09: its free widget for the step below is the selection inspector
   const selection = page.locator('[data-widget-kind="selection-inspector"]')
 
@@ -298,13 +309,13 @@ test('every layout keeps its own history, and the steps of the menu take it back
     }
   }
 
-  // the viewer comes from the preset: the keys are free, and the menu has no step to take
+  // the viewer comes from the preset: the walkable view is free, and the menu has no step to take
   await expect(keys).not.toHaveAttribute('data-locked-height', /.+/u)
   await openMenu()
   await expect(viewerRow.locator('.step').first()).toBeDisabled()
   await menu.click()
 
-  // a layout change: the keys are locked in the edit mode (a lock is a step, like a drop)
+  // a layout change: the view is locked in the edit mode (a lock is a step, like a drop)
   await page.locator('header button[aria-label="Unlock the layout"]').click()
   await keys.locator('button[aria-label="Lock the widget"]').click()
   await page.waitForTimeout(900)

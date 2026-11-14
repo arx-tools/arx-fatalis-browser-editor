@@ -145,9 +145,11 @@ export const editorLayout: LayoutNode = {
  * @remarks
  * - the left 70% is the walkable view, the whole height of the dock: this layout is not for editing, it is
  * for walking around and reading the number under the crosshair
- * - the right column is locked to 350 wide (the plan and the jump), the plan to 285 high, the jump to 80 and the render
- * performance readout to 210 (2026-11-08, the owner asked for it here): the plan sits above, under it the jump, then
- * the numbers of the renderer, and the keyboard shortcuts take the rest of the column
+ * - the right column is locked to 350 wide (the plan and the jump), the plan to 285 high and the jump to 80, and the
+ * keyboard shortcuts close the column in a locked **520** high block (2026-11-14, the owner; the keys were free before,
+ * and a free block grew and shrank with the window): the plan sits above, under it the jump, then the keys
+ * - the numbers of the renderer take what the locked blocks leave (2026-11-14: they were locked to 210, and a column
+ * of four locks has no child for the space a taller window leaves)
  *
  * The locks are the sizes the owner read off the badge of the plate (2026-11-01).
  */
@@ -160,7 +162,7 @@ export const viewerLayout: LayoutNode = {
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: [fixed(285), fixed(80), fixed(210), auto(1)],
+      sizes: [fixed(285), fixed(80), auto(1), fixed(520)],
       children: [
         { type: 'widget', kind: WIDGET_KINDS.topView },
         { type: 'widget', kind: WIDGET_KINDS.jumpToLocation },
@@ -178,8 +180,9 @@ export const viewerLayout: LayoutNode = {
  * @remarks
  * The owner arranged this one in the editor (2026-11-04): the column of the work is the **right** one — the texture list
  * with the uv mapper above it — and the left column has the two inspectors and the keys. The numbers are the sizes he
- * read off the plates of the edit mode: the polygon inspector 360 x 185, the keys 360 x 430 (which is the width of the
- * left column too) and the uv mapper 400 x 430 (the width of the right column). The **undo and redo** row under the uv
+ * read off the plates of the edit mode: the polygon inspector 360 x 185, the keys 360 x **520** (the width of the left
+ * column, and the height the owner gave them on 2026-11-14; they were 430) and the uv mapper 400 x 430 (the width of the
+ * right column). The **undo and redo** row under the uv
  * mapper is his later request (2026-11-06): a locked 60 px strip, so the two steps of the history are a click away from
  * the texture work. The painters do not need the six fixed
  * views, and the middle column is the **walkable view alone**: the camera form is not in this layout (the pose of the
@@ -193,7 +196,7 @@ export const painterLayout: LayoutNode = {
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: [fixed(185), auto(1), fixed(430)],
+      sizes: [fixed(185), auto(1), fixed(520)],
       children: [
         { type: 'widget', kind: WIDGET_KINDS.polygonInspector },
         { type: 'widget', kind: WIDGET_KINDS.selectionInspector },

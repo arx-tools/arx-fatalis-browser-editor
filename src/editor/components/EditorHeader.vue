@@ -8,15 +8,28 @@ import LevelSelector from './LevelSelector.vue'
 import MapsToOpen from './MapsToOpen.vue'
 import WidgetManager from './WidgetManager.vue'
 
-// the version, the commit and the build date of this build (see `vite.config.ts`)
-const buildInfo = BUILD_INFO
+/**
+ * The version of this build, like `v0.23.1`.
+ *
+ * @remarks
+ * The header shows it at every width, and the commit and the date beside it only when the window is wide enough for the
+ * brand to keep them: the middle of the bar and the tools of the layout need the room first (2026-11-14, the owner).
+ */
+const version = `v${EDITOR_INFO.version}`
+
+/**
+ * The commit and the build date of this build, like `(local, 2026-11-14)`, with the space before them.
+ */
+const build = ` (${EDITOR_INFO.commit}, ${EDITOR_INFO.builtAt})`
 </script>
 
 <template>
   <header class="EditorHeader">
     <div class="brand">
       <span class="title">Arx Fatalis Browser Editor</span>
-      <span class="version">{{ buildInfo }}</span>
+      <span class="version"
+        >{{ version }}<span class="build">{{ build }}</span></span
+      >
       <span class="dot" aria-hidden="true">·</span>
       <a
         class="source"
@@ -107,6 +120,12 @@ const buildInfo = BUILD_INFO
       color: $text-subtle;
       font-size: 11px;
       white-space: nowrap;
+
+      // the commit and the date of the build: the same line as the version, and the first to go when the window is
+      // narrow (the media query under the header)
+      .build {
+        white-space: nowrap;
+      }
     }
 
     // the mark of the source: it reads as a part of the version line, so it takes its colour, and it lights
@@ -147,6 +166,21 @@ const buildInfo = BUILD_INFO
     .source-mark {
       width: 14px;
       height: 14px;
+    }
+  }
+
+  // A window narrower than 1510 keeps the title and the version of the brand, and nothing else of it: the middle of the
+  // bar (the level and the folder) and the tools of the layout are what the header is for, and they were the ones that
+  // a long brand squeezed (2026-11-14, the owner). The dots between the gone parts go with them, so no separator is left
+  // hanging. The `1509.98` is the half pixel of a zoomed window: the query is "below 1510".
+  @media (max-width: 1509.98px) {
+    .brand {
+      .build,
+      .dot,
+      .source,
+      .support {
+        display: none;
+      }
     }
   }
 }

@@ -512,10 +512,6 @@ function builtAtOf(): string {
  *
  * @returns The one line build info the shell header shows.
  */
-function buildInfo(version: string): string {
-  return `v${version} (${commitOf()}, ${builtAtOf()})`
-}
-
 export default defineConfig(async () => {
   // the ports live in `.env`, next to this config (`.env.sample` documents them, and the defaults below are
   // the same numbers, so a clone without a `.env` works too)
@@ -562,7 +558,6 @@ export default defineConfig(async () => {
     define: {
       // the header of the shell renders it, so it is a compile time constant instead of a
       // placeholder in index.html (the header is a vue component, the html can not reach into it)
-      BUILD_INFO: JSON.stringify(buildInfo(packageJson.version)),
       // the same build, in the shape the manifest of an export carries: which build of which program
       // wrote the archive, and where its code lives
       EDITOR_INFO: JSON.stringify({

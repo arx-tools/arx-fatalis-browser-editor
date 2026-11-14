@@ -22,12 +22,12 @@ const xoConfig: XoConfigItem[] = [
   },
   {
     // the vue block below sets its own parser, and the browser environment does not come along with
-    // it, so the dom globals the components use are named here; `BUILD_INFO` is a compile time
-    // constant the vite config injects (`define`), its type side is in `src/editor/vite-env.d.ts`
+    // it, so the dom globals the components use are named here; the two build values are compile
+    // time constants the vite config injects (`define`), their type side is in `src/editor/vite-env.d.ts`
     files: ['src/**/*.ts', 'src/**/*.vue'],
     languageOptions: {
       globals: {
-        BUILD_INFO: 'readonly',
+        EDITOR_INFO: 'readonly',
         cancelAnimationFrame: 'readonly',
         document: 'readonly',
         window: 'readonly',

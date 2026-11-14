@@ -218,6 +218,9 @@ onBeforeUnmount(() => {
     >
       <Settings :size="14" />
     </button>
+    <!-- the divider between the tools of the widgets and the presets: the quiet dot of the header, so the two groups of
+         the right side read as two (2026-11-14, the owner) -->
+    <span class="dot" aria-hidden="true"></span>
     <span class="presets">
       <span class="label">Presets</span>
       <button
@@ -290,6 +293,16 @@ onBeforeUnmount(() => {
   .label {
     margin-right: 2px;
     opacity: 0.65;
+  }
+
+  // the divider between the groups of the right side: the colour of the header's quiet dots, drawn as a circle instead of
+  // the glyph, so it stands in the middle of the row of a button and a label and not on their baseline
+  .dot {
+    flex: none;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: $text-subtle;
   }
 
   // the preset menu hangs from here, so the wrapper is the positioning context

@@ -80,6 +80,7 @@ export const coverage: readonly SpecCoverage[] = [
       'src/editor/components/LoadingOverlay.vue',
       'src/editor/components/MapsToOpen.vue',
       'src/editor/components/MissingMapPrompt.vue',
+      'src/editor/components/WidgetManager.vue',
     ],
   },
   {

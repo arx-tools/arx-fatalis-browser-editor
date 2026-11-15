@@ -14,6 +14,7 @@ import {
 import { roomCentersOf, roomDistancesOf } from '../../../generator/roomDistances.ts'
 import { roomRenumberingOf } from '../../../generator/rooms.ts'
 import type { HistorySnapshot } from '../history/mapHistory.ts'
+import { syncGeneratedPortals } from '../level/edit/generatedPortals.ts'
 import { editorSettingsJsonOf, SETTINGS_PATH, SOURCE_FOLDER } from '../level/source/editorSettings.ts'
 import type { StoredPose } from '../level/source/maps/mapPoses.ts'
 import type { LevelFiles } from '../level/source/levelSource.ts'
@@ -107,7 +108,9 @@ function colorCountOf(polygon: ArxPolygon): number {
  *
  * - the **cells** are written by `arx-convert` from the polygons, so they are not touched here;
  * - the **rooms** list the polygons of a room by cell (`cellX`, `cellY` and the index of the polygon inside the cell);
- * - a **portal** joins two rooms, so a portal of a room that lost its every polygon goes, and the list is remapped;
+ * - a **portal** joins two rooms, so a portal of a room that lost its every polygon goes, and the portal list of the
+ * rooms is **rebuilt** from the portals that stay: a room may have lost its own list (a generated portal), and the
+ * game walks the portals from both of its rooms;
  * - the **room distances** are the sound and **interaction** cache: the game measures an entity through them, and `-1` means "the straight line" (so the player could reach through a wall), so they are computed from the portal graph (see `generator/roomDistances.ts`).
  *
  * @param fts The scene as it was loaded.
@@ -161,7 +164,6 @@ export function buildExportFts(fts: ArxFTS, polygons: readonly ArxPolygon[]): Ar
     }
   }
 
-  const portalIndexRemap = new Map<number, number>()
   const portals = fts.portals
     .map((portal) => {
       return {
@@ -170,24 +172,20 @@ export function buildExportFts(fts: ArxFTS, polygons: readonly ArxPolygon[]): Ar
         room2: renumbering.get(portal.room2) ?? portal.room2,
       }
     })
-    .filter((portal, index) => {
-      if (portal.room1 > highestRoomId || portal.room2 > highestRoomId) {
-        return false
-      }
-
-      portalIndexRemap.set(index, portalIndexRemap.size)
-
-      return true
+    .filter((portal) => {
+      return portal.room1 <= highestRoomId && portal.room2 <= highestRoomId
     })
 
+  // the portals are the truth of the room lists: the game walks them from both of their rooms, and a generated portal
+  // never went through the lists of the file the level was loaded from
   for (const room of rooms) {
-    room.portals = room.portals
-      .map((portalIndex) => {
-        return portalIndexRemap.get(portalIndex)
-      })
-      .filter((portalIndex): portalIndex is number => {
-        return portalIndex !== undefined
-      })
+    room.portals = []
+  }
+
+  for (const [index, portal] of portals.entries()) {
+    for (const roomId of new Set([portal.room1, portal.room2])) {
+      rooms[roomId]?.portals.push(index)
+    }
   }
 
   // the distances are what the game measures an entity with, and a `-1` would measure the straight line through
@@ -358,6 +356,9 @@ export function buildExportDlf(dlf: ArxDLF, polygonCount: number, levelIndex?: n
  * @throws When the level has no polygon left (`buildExportFts` throws).
  */
 export function exportLevelFiles(map: ArxMap, options: ExportOptions = {}): LevelFiles {
+  // the portals of a flat level come from its rooms: the file is written with the portals of the rooms it has now, even
+  // if the watch of the editor has not run since the last step of the rooms
+  syncGeneratedPortals(map)
   const { polygons } = map
   const scene = FTS.save(buildExportFts(map.fts, polygons))
   const lighting = LLF.save(buildExportLlf(map.llf, polygons))
@@ -626,6 +627,8 @@ export async function exportLevelZip(
   onProgress?: ExportProgressHandler,
   options: ExportOptions = {},
 ): Promise<{ readonly name: string; readonly data: ArrayBuffer }> {
+  // the portals of a flat level come from its rooms: the file is written with the portals of the rooms it has now
+  syncGeneratedPortals(map)
   const { polygons } = map
 
   onProgress?.(EXPORT_PROGRESS.start)

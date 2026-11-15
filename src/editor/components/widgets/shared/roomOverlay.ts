@@ -71,6 +71,10 @@ export interface RoomOverlay {
   /**
    * Picks the rooms the map keeps at full colour, or clears the highlight.
    *
+   * @remarks
+   * The colours of the rooms are read again here: the rooms of the faces can change without a repaint (the replay of
+   * the stored steps), and a highlight written from the colouring before that would leave the new rooms grey.
+   *
    * @param rooms The rooms to show at full colour; an empty set dims every room.
    */
   readonly setHighlight: (rooms: ReadonlySet<number>) => void
@@ -179,6 +183,23 @@ export function roomsNeedRepaint(state: RoomRepaintState): boolean {
 }
 
 /**
+ * Reads the colour of the rooms of a level.
+ *
+ * @param map The level to read.
+ *
+ * @returns The colour of every room the level has a face in.
+ */
+function coloringOfLevel(map: ArxMap): RoomColoring {
+  return roomColoringForLevel(
+    roomIdsOf(
+      map.polygons.map((polygon) => {
+        return polygon.room
+      }),
+    ),
+  )
+}
+
+/**
  * Builds the room map of a level.
  *
  * @param map The level to colour.
@@ -202,14 +223,8 @@ export function createRoomOverlay(map: ArxMap): RoomOverlay {
    * @param next The level to read.
    */
   function repaint(next: ArxMap): void {
-    const rooms = roomIdsOf(
-      next.polygons.map((polygon) => {
-        return polygon.room
-      }),
-    )
-
-    coloring = roomColoringForLevel(rooms)
     level = next
+    coloring = coloringOfLevel(next)
 
     writeRoomColors(next, coloring, highlighted)
   }
@@ -223,11 +238,13 @@ export function createRoomOverlay(map: ArxMap): RoomOverlay {
     },
     repaint,
     setHighlight: (rooms: ReadonlySet<number>): void => {
-      if (rooms === highlighted) {
-        return
-      }
-
       highlighted = rooms
+
+      // the rooms of the faces can change without a repaint: the replay of the stored steps writes them, and the
+      // selection that follows comes through here. The colour of a room is read again with the highlight, or the
+      // vertices of the new rooms would fall back to the grey of the faces without a room (2026-11-15)
+      coloring = coloringOfLevel(level)
+
       writeRoomColors(level, coloring, highlighted)
     },
     dispose: (): void => {

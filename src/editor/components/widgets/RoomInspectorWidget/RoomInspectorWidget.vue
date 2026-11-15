@@ -12,6 +12,7 @@ import {
 } from '../../../modules/rooms/roomList.ts'
 import { createRoomWithSelection, moveSelectionToRoom } from '../../../modules/rooms/roomMapper.ts'
 import { nameOf, renameRoom, roomNameOf, UNNAMED_ROOM } from '../../../modules/rooms/roomNames.ts'
+import { portalRevision } from '../../../modules/rooms/portalSync.ts'
 import { pickRoom, roomsOfFaces } from '../../../modules/rooms/roomSelection.ts'
 import { clearRoomHover, hoveredRoom, hoverRoom, selectedRooms, selectRoom } from '../../../modules/rooms/roomStore.ts'
 import { currentRoom } from '../../../modules/rooms/roomUnderCrosshair.ts'
@@ -302,6 +303,7 @@ watch(
   [
     levelStore.map,
     levelRevision,
+    portalRevision,
     (): ReadonlySet<number> => {
       return selectionStore.polygons.value
     },

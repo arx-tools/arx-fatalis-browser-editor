@@ -4,6 +4,7 @@ import { DLF, FTS, LLF } from 'arx-convert'
 import type { ArxColor, ArxLLF, ArxPolygon } from 'arx-convert/types'
 import JSZip from 'jszip'
 import { createBlankLevelFiles, FLAT_PRESET } from '../../../../src/editor/modules/level/blankLevel.ts'
+import { syncGeneratedPortals } from '../../../../src/editor/modules/level/edit/generatedPortals.ts'
 import { SETTINGS_PATH, SOURCE_FOLDER } from '../../../../src/editor/modules/level/source/editorSettings.ts'
 import type { StoredPose } from '../../../../src/editor/modules/level/source/maps/mapPoses.ts'
 import {
@@ -373,6 +374,32 @@ void describe('buildExportFts', () => {
     assert.equal(exported.roomDistances[2 + size].distance, -1)
     // the measured path, not the stale 999 of the loaded file
     assert.equal(exported.roomDistances[1 + thirdRow].distance, 10)
+  })
+
+  void it('rebuilds the portal lists of the rooms from the portals', () => {
+    const map = flatMap()
+
+    map.fts.rooms.push({ portals: [], polygons: [] })
+    map.setFaceRooms(
+      map.polygons.map((polygon, index) => {
+        const side = polygon.vertices[0]?.x ?? 0
+        let room = 1
+
+        if (side < 600) {
+          room = 2
+        }
+
+        return { index, room }
+      }),
+    )
+    syncGeneratedPortals(map)
+
+    const exported = buildExportFts(map.fts, map.polygons)
+
+    assert.equal(exported.portals.length, 1)
+    // the game walks the portals from both of their rooms: the lists are rebuilt, not the ones of the loaded file
+    assert.deepEqual(exported.rooms[1].portals, [0])
+    assert.deepEqual(exported.rooms[2].portals, [0])
   })
 
   void it('drops a portal of a room that lost its polygons', () => {

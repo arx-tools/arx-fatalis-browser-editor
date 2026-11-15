@@ -4,6 +4,7 @@ import { Color } from 'three'
 import { createRoomOverlay, roomsNeedRepaint } from '../../../../../src/editor/components/widgets/shared/roomOverlay.ts'
 import { createBlankLevelFiles, FLAT_PRESET } from '../../../../../src/editor/modules/level/blankLevel.ts'
 import { ArxMap } from '../../../../../src/generator/ArxMap.ts'
+import { ROOM_COLORS } from '../../../../../src/generator/rooms.ts'
 import { Settings } from '../../../../../src/generator/Settings.ts'
 
 /**
@@ -95,5 +96,24 @@ void describe('createRoomOverlay with a new room', () => {
 
     assert.ok(overlay.coloring.colors.has(2))
     assert.equal(overlay.coloring.colors.size, 2)
+  })
+})
+
+void describe('createRoomOverlay with a moved room', () => {
+  void it('reads the rooms again when the highlight arrives after the rooms changed', () => {
+    // the replay of the stored steps writes the rooms without a repaint, and the selection that follows is the first
+    // highlight: the colouring the overlay was built with is stale by then, and the new room would read as no room
+    const map = mapOf()
+    const overlay = createRoomOverlay(map)
+
+    map.polygons[0].room = 2
+    overlay.setHighlight(new Set([2]))
+
+    const color = colorOf(map, 0)
+    const expected = new Color(ROOM_COLORS[1])
+
+    assert.ok(Math.abs(color.r - expected.r) < 0.000_001)
+    assert.ok(Math.abs(color.g - expected.g) < 0.000_001)
+    assert.ok(Math.abs(color.b - expected.b) < 0.000_001)
   })
 })

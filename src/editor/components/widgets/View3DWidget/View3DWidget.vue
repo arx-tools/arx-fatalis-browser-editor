@@ -20,6 +20,7 @@ import { addPreviewLights, attachWireframe, viewMeshesOf, type LevelWireframe } 
 import { attachPortalLines, type PortalOverlay } from '../shared/portalOverlay.ts'
 import { roomPaletteOf } from '../../../../generator/rooms.ts'
 import { roomRevision } from '../../../modules/rooms/roomRevision.ts'
+import { portalRevision } from '../../../modules/rooms/portalSync.ts'
 import { createRoomOverlay, roomsNeedRepaint, type RoomOverlay } from '../shared/roomOverlay.ts'
 import {
   FIELD_OF_VIEW,
@@ -145,9 +146,11 @@ let stopWatching: (() => void) | undefined
 let stopWatchingWireframe: (() => void) | undefined
 let stopWatchingMesh: (() => void) | undefined
 let stopWatchingPortals: (() => void) | undefined
+let stopWatchingPortalRevision: (() => void) | undefined
 let stopWatchingRooms: (() => void) | undefined
 let stopWatchingRoom: (() => void) | undefined
 let stopWatchingEdit: (() => void) | undefined
+let stopWatchingRoomRevision: (() => void) | undefined
 
 /**
  * The input of the view: the pick of the crosshair, the sweep of the selection and the double click.
@@ -521,6 +524,13 @@ onMounted(() => {
     loop.requestRender()
   })
 
+  // a replay of the stored steps writes the rooms without a level revision (only the room revision moves): the room map
+  // has to be painted again for it, or a map that came back from the storage stays in the colour of the empty rooms
+  stopWatchingRoomRevision = watch(roomRevision, () => {
+    repaintRooms()
+    loop.requestRender()
+  })
+
   // the mesh is a switch too: off, the level keeps the wireframe and the overlays only
   stopWatchingMesh = watch(isMeshVisible, () => {
     updateVisibility()
@@ -529,6 +539,19 @@ onMounted(() => {
 
   // the portal outline is a switch of every view at once: the same ref is read by the six fixed ones
   stopWatchingPortals = watch(isPortalsVisible, () => {
+    updateVisibility()
+    loop.requestRender()
+  })
+
+  // the portals of a flat level come from its rooms: a room edit rebuilds them, and the outline follows without a new
+  // level
+  stopWatchingPortalRevision = watch(portalRevision, () => {
+    const map = loadedMap
+
+    if (map !== undefined) {
+      portalLines?.setPortals(map.fts.portals, arxVector3toVector3(map.scenePosition))
+    }
+
     updateVisibility()
     loop.requestRender()
   })
@@ -569,12 +592,16 @@ onBeforeUnmount(() => {
   stopWatchingMesh = undefined
   stopWatchingPortals?.()
   stopWatchingPortals = undefined
+  stopWatchingPortalRevision?.()
+  stopWatchingPortalRevision = undefined
   stopWatchingRooms?.()
   stopWatchingRooms = undefined
   stopWatchingRoom?.()
   stopWatchingRoom = undefined
   stopWatchingEdit?.()
   stopWatchingEdit = undefined
+  stopWatchingRoomRevision?.()
+  stopWatchingRoomRevision = undefined
   stopWatchingSelection?.()
   stopWatchingSelection = undefined
 

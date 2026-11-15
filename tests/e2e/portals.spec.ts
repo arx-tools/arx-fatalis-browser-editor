@@ -1,6 +1,15 @@
 import { expect, test, type Page } from '@playwright/test'
+import { roomsLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
 import { ORIGINAL_LEVEL_PARAMETER } from '../../src/editor/modules/level/source/levelSource.ts'
-import { layoutWithTheKeys, seedLayout, waitForLevel } from './support/editor.ts'
+import {
+  clickCrosshair,
+  layoutWithTheKeys,
+  lockPointer,
+  seedLayout,
+  selectionCount,
+  statOf,
+  waitForLevel,
+} from './support/editor.ts'
 
 /**
  * The url of a level of the game's own files.
@@ -118,6 +127,64 @@ test('the portals are a view of the level, under the mesh', async ({ page }) => 
 
   await expect(portalsEye).toBeEnabled()
   await expect(portalsEye).toHaveAttribute('aria-label', 'Hide the portals')
+
+  expect(errors).toEqual([])
+})
+
+/**
+ * A new room of the flat level gets its portals without a button.
+ *
+ * @remarks
+ * The portals of a flat level are derived from the rooms: a room that is made of a face of the blank plane meets the
+ * old room on the four edges of the face, so four quads are built. The statistics, the warning list and the room list
+ * read the same map, and the outline of the 215 round follows the generation (the P key shows it). The camera looks
+ * down at the plane, so the pick under the crosshair finds a face.
+ */
+test('a new room of the blank flat plane gets its portals at once', async ({ page }) => {
+  test.setTimeout(120_000)
+
+  const errors: string[] = []
+
+  page.on('pageerror', (error) => {
+    errors.push(String(error))
+  })
+
+  // the rooms preset holds the statistics, the selection and the room inspector
+  await seedLayout(page, roomsLayout)
+  await page.goto('/?map=blank-flat&position=550,-180,550&rotation=35,180,0')
+  await waitForLevel(page)
+
+  expect(await statOf(page, 'Portals')).toBe(0)
+
+  const view = page.locator('[data-widget-kind="3d-view"] canvas').first()
+  const inspector = page.locator('[data-widget-kind="room-inspector"]')
+
+  await lockPointer(page, view)
+  await clickCrosshair(view)
+
+  await expect
+    .poll(async () => {
+      return await selectionCount(page)
+    })
+    .toBe(1)
+
+  // the camera holds the pointer: let it go, or the canvas eats the click of the button
+  await page.evaluate(() => {
+    globalThis.document.exitPointerLock()
+  })
+  await page.waitForTimeout(500)
+
+  await inspector.getByRole('button', { name: 'Put into a new room' }).click()
+
+  await expect
+    .poll(async () => {
+      return await statOf(page, 'Portals')
+    })
+    .toBe(4)
+
+  // the two rooms are in the list, and neither is without a portal any more
+  await expect(inspector.locator('li.room')).toHaveCount(2)
+  await expect(inspector.locator('.problems')).toHaveCount(0)
 
   expect(errors).toEqual([])
 })

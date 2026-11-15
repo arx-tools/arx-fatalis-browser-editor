@@ -145,7 +145,12 @@ export const coverage: readonly SpecCoverage[] = [
   },
   {
     spec: 'tests/e2e/portals.spec.ts',
-    covers: ['src/editor/components/widgets/shared/portalOverlay.ts'],
+    covers: [
+      'src/editor/components/widgets/shared/portalOverlay.ts',
+      'src/editor/modules/level/edit/generatedPortals.ts',
+      'src/editor/modules/rooms/portalSync.ts',
+      'src/generator/portals.ts',
+    ],
   },
   {
     spec: 'tests/e2e/rooms.spec.ts',

@@ -10,6 +10,7 @@ import { startEditModes } from './components/widgets/shared/editModes.ts'
 import { startLevelDisplay } from './components/widgets/shared/levelDisplay.ts'
 import { startHelpPopup } from './modules/help/helpPopup.ts'
 import { startLevelEditing } from './modules/level/edit/editing.ts'
+import { startPortalGeneration } from './modules/rooms/portalSync.ts'
 import { insertLevelFromUrl } from './modules/level/edit/insertLevel.ts'
 import { startSelection } from './modules/selection/selectionStore.ts'
 import { paintLevel, startLevelTextures } from './modules/level/edit/levelTextures.ts'
@@ -121,6 +122,7 @@ onMounted(async () => {
   startHelpPopup()
   startSelection()
   startLevelEditing()
+  startPortalGeneration()
   startMapHistoryPersistence()
   startLevelTextures()
   startTextureCatalog()

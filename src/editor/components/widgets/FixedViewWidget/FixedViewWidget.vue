@@ -6,6 +6,7 @@ import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { cameraStore } from '../camera/cameraStore.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { roomRevision } from '../../../modules/rooms/roomRevision.ts'
+import { portalRevision } from '../../../modules/rooms/portalSync.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { centreOfBounds, type CameraBounds } from '../shared/cameraBounds.ts'
 import { gamePositionToWorld } from '../camera/cameraPose.ts'
@@ -108,9 +109,11 @@ let stopWatchingCamera: (() => void) | undefined
 let stopWatchingWireframe: (() => void) | undefined
 let stopWatchingMesh: (() => void) | undefined
 let stopWatchingPortals: (() => void) | undefined
+let stopWatchingPortalRevision: (() => void) | undefined
 let stopWatchingRooms: (() => void) | undefined
 let stopWatchingRoom: (() => void) | undefined
 let stopWatchingEdit: (() => void) | undefined
+let stopWatchingRoomRevision: (() => void) | undefined
 let stopWatchingSelection: (() => void) | undefined
 
 /**
@@ -465,6 +468,8 @@ function hideMap(): void {
   stopWatchingSelection = undefined
   stopWatchingEdit?.()
   stopWatchingEdit = undefined
+  stopWatchingRoomRevision?.()
+  stopWatchingRoomRevision = undefined
   player = undefined
   bounds = undefined
   marker.value = { x: 0, y: 0, visible: false, clamped: false, degrees: 0, arrow: false }
@@ -566,6 +571,13 @@ stopWatchingEdit = watch(levelRevision, () => {
   requestRender()
 })
 
+// a replay of the stored steps writes the rooms without a level revision (only the room revision moves): the room map
+// has to be painted again for it, or a map that came back from the storage stays in the colour of the empty rooms
+stopWatchingRoomRevision = watch(roomRevision, () => {
+  repaintRooms()
+  requestRender()
+})
+
 // the mesh is a switch of every view as well: off, the map keeps the wireframe and the marker only
 stopWatchingMesh = watch(isMeshVisible, () => {
   setMeshVisible(isMeshVisible.value)
@@ -574,6 +586,19 @@ stopWatchingMesh = watch(isMeshVisible, () => {
 
 // the portal outline is a switch of every view at once
 stopWatchingPortals = watch(isPortalsVisible, () => {
+  setMeshVisible(isMeshVisible.value)
+  requestRender()
+})
+
+// the portals of a flat level come from its rooms: a room edit rebuilds them, and the outline follows without a new
+// level
+stopWatchingPortalRevision = watch(portalRevision, () => {
+  const map = levelStore.map.value
+
+  if (map !== undefined) {
+    portalLines?.setPortals(map.fts.portals, arxVector3toVector3(map.scenePosition))
+  }
+
   setMeshVisible(isMeshVisible.value)
   requestRender()
 })
@@ -615,6 +640,8 @@ onBeforeUnmount(() => {
   stopWatchingMesh = undefined
   stopWatchingPortals?.()
   stopWatchingPortals = undefined
+  stopWatchingPortalRevision?.()
+  stopWatchingPortalRevision = undefined
   stopWatchingRooms?.()
   stopWatchingRooms = undefined
   stopWatchingRoom?.()

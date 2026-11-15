@@ -1,5 +1,5 @@
 import { DLF, FTS, LLF } from 'arx-convert'
-import type { ArxDLF, ArxFTS, ArxLight, ArxLLF, ArxPolygon, ArxVector3 } from 'arx-convert/types'
+import type { ArxDLF, ArxFTS, ArxLight, ArxLLF, ArxPolygon, ArxPortal, ArxVector3 } from 'arx-convert/types'
 import { BufferAttribute, BufferGeometry, Mesh, Quaternion, Vector3 } from 'three'
 import { isQuad } from 'arx-convert/utils'
 import {
@@ -624,6 +624,32 @@ export class ArxMap {
 
       if (polygon !== undefined) {
         polygon.room = change.room
+      }
+    }
+  }
+
+  /**
+   * Replaces the portals of the level.
+   *
+   * @remarks
+   * A portal joins two rooms, and the game walks them from the lists of the rooms: the index of a portal is written into
+   * the list of **both** rooms, so the lists are rebuilt from the new portals here. The derived fields of a portal
+   * (`center`, `min`, `max`, `norm`) are read again by the game on load; the radius and the two rooms are the ones the
+   * file keeps, so a portal this map makes has to carry them.
+   *
+   * @param portals The portals the level should have.
+   */
+  setPortals(portals: readonly ArxPortal[]): void {
+    this.fts.portals = [...portals]
+    this.figures = { ...this.figures, portalCount: this.fts.portals.length }
+
+    for (const room of this.fts.rooms) {
+      room.portals = []
+    }
+
+    for (const [index, portal] of this.fts.portals.entries()) {
+      for (const roomId of new Set([portal.room1, portal.room2])) {
+        this.fts.rooms[roomId]?.portals.push(index)
       }
     }
   }

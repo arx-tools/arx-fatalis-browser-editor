@@ -2,6 +2,7 @@
 import { shallowRef, watch } from 'vue'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
+import { portalRevision } from '../../../modules/rooms/portalSync.ts'
 import WidgetHeading from '../../WidgetHeading.vue'
 import { mapStatisticsRows } from './mapStatistics.ts'
 
@@ -31,6 +32,9 @@ watch(
     },
     (): number => {
       return levelRevision.value
+    },
+    (): number => {
+      return portalRevision.value
     },
   ],
   () => {

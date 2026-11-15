@@ -26,6 +26,17 @@ export interface PortalOverlay {
    */
   readonly setVisible: (visible: boolean) => void
   /**
+   * Rebuilds the points of the lines from a new list of portals.
+   *
+   * @remarks
+   * The portals of a flat level are derived from its rooms, so an edit of the rooms changes them under a view that is
+   * already on the screen: the geometry keeps its buffers and takes the new points.
+   *
+   * @param next The portals to draw.
+   * @param nextOffset The scene position of the level, already mirrored.
+   */
+  readonly setPortals: (next: readonly ArxPortal[], nextOffset: Vector3) => void
+  /**
    * Frees the geometry and the material of the overlay.
    */
   readonly dispose: () => void
@@ -48,8 +59,6 @@ export interface PortalOverlay {
  */
 export function attachPortalLines(scene: Scene, portals: readonly ArxPortal[], offset: Vector3): PortalOverlay {
   const geometry = new BufferGeometry()
-  geometry.setAttribute('position', new BufferAttribute(portalLinePositions(portals, offset), 3))
-
   const material = new LineBasicMaterial({
     color: PORTAL_COLOR,
     transparent: true,
@@ -63,8 +72,23 @@ export function attachPortalLines(scene: Scene, portals: readonly ArxPortal[], o
 
   let visible = false
 
+  /**
+   * Writes the points of the newest portals into the geometry.
+   *
+   * @param next The portals to draw.
+   * @param nextOffset The scene position of the level, already mirrored.
+   */
+  function setPortals(next: readonly ArxPortal[], nextOffset: Vector3): void {
+    geometry.setAttribute('position', new BufferAttribute(portalLinePositions(next, nextOffset), 3))
+    // the points moved, so the sphere the view culls with is the one of the old points until it is read again
+    geometry.computeBoundingSphere()
+  }
+
+  setPortals(portals, offset)
+
   return {
     lines,
+    setPortals,
     setVisible: (next: boolean): void => {
       if (next === visible) {
         return

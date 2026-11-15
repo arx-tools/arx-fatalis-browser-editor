@@ -47,6 +47,20 @@ export const isRoomColorsVisible = persistedRef<boolean>({
 })
 
 /**
+ * Whether the outline of the portals of the level is drawn.
+ *
+ * @remarks
+ * It is a view preference like the room map: a `persistedRef` in the `localStorage`, so the editor comes back the way
+ * it was left. The outline shows where the game joins two rooms, which is the first read of a portal before the room
+ * and portal round makes them editable. Like the room map it sits under the mesh: it is not drawn while that is off.
+ */
+export const isPortalsVisible = persistedRef<boolean>({
+  key: 'portalsVisible',
+  defaultValue: false,
+  persistInLocalStorage: true,
+})
+
+/**
  * The switches of the View section of the key help, with the value each one starts from.
  *
  * @remarks
@@ -58,6 +72,7 @@ export const viewSwitches = {
   mesh: { ref: isMeshVisible, defaultValue: true },
   wireframe: { ref: isWireframeVisible, defaultValue: false },
   roomColors: { ref: isRoomColorsVisible, defaultValue: false },
+  portals: { ref: isPortalsVisible, defaultValue: false },
 } as const satisfies Record<string, { readonly ref: ShallowRef<boolean>; readonly defaultValue: boolean }>
 
 /**
@@ -110,6 +125,21 @@ export function toggleRoomColors(): void {
 }
 
 /**
+ * Turns the outline of the portals on or off.
+ *
+ * @remarks
+ * The outline sits over the mesh, like the room map: it is not drawn without it, so this does not turn it on either.
+ * The switch keeps its value, so turning the mesh back on brings the outline back the way it was left.
+ */
+export function togglePortals(): void {
+  if (!isMeshVisible.value) {
+    return
+  }
+
+  isPortalsVisible.value = !isPortalsVisible.value
+}
+
+/**
  * Starts the parts of the editor that belong to no widget.
  *
  * @remarks
@@ -122,4 +152,5 @@ export function startLevelDisplay(): void {
   onKeyboardToggle('toggleWireframe', isWireframeVisible)
   onKeyboardToggle('toggleMesh', isMeshVisible)
   onKeyboardAction('toggleRooms', toggleRoomColors)
+  onKeyboardAction('togglePortals', togglePortals)
 }

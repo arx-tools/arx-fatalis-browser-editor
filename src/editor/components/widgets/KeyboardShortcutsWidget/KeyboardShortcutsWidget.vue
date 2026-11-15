@@ -117,6 +117,7 @@ const switchNames: Record<HelpToggle, string> = {
   mesh: 'the mesh',
   wireframe: 'the wireframe',
   roomColors: 'the rooms',
+  portals: 'the portals',
   transform: 'the transform gizmo',
   rotate: 'the rotate gizmo',
   scale: 'the scale gizmo',
@@ -169,12 +170,12 @@ const sections = computed<readonly HelpSection[]>(() => {
         },
         run: resetViewSwitches,
       },
-      // the action is the name of the switch with a capital (2026-11-12, the owner): Wireframe, Mesh, Rooms, and a
-      // portals row of a later round reads Portals
+      // the action is the name of the switch with a capital (2026-11-12, the owner): Wireframe, Mesh, Rooms, Portals
       rows: [
         { keys: [{ kind: 'text', text: 'X' }], action: 'Wireframe', toggle: 'wireframe' },
         { keys: [{ kind: 'text', text: 'M' }], action: 'Mesh', toggle: 'mesh' },
         { keys: [{ kind: 'text', text: 'R' }], action: 'Rooms', toggle: 'roomColors', parent: 'mesh' },
+        { keys: [{ kind: 'text', text: 'P' }], action: 'Portals', toggle: 'portals', parent: 'mesh' },
       ],
     },
     {

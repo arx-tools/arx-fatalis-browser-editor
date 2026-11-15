@@ -1,0 +1,123 @@
+import { expect, test, type Page } from '@playwright/test'
+import { ORIGINAL_LEVEL_PARAMETER } from '../../src/editor/modules/level/source/levelSource.ts'
+import { layoutWithTheKeys, seedLayout, waitForLevel } from './support/editor.ts'
+
+/**
+ * The url of a level of the game's own files.
+ *
+ * @param level The number of the level.
+ *
+ * @returns The url of the editor with that level.
+ */
+function levelUrl(level: number): string {
+  return `/?${ORIGINAL_LEVEL_PARAMETER}=${String(level)}`
+}
+
+/**
+ * Reads the stored value of the portal switch.
+ *
+ * @param page The page to read.
+ *
+ * @returns The value of the switch, or `null` while it is the default one (the storage drops it).
+ */
+async function storedPortals(page: Page): Promise<string | null> {
+  return await page.evaluate(() => {
+    return localStorage.getItem('portalsVisible')
+  })
+}
+
+/**
+ * The portals are a view of the level, and the mesh carries them.
+ *
+ * @remarks
+ * The outline of the portals is not a widget: it is a layer of every view, so the test reads the switch of the layer
+ * through the key help (the eye of the row and the key of the action) and the storage the switch lives in. The geometry
+ * of the line is the unit test of `portalLinePositions`; here the level 12 is loaded for the portals it has, and the
+ * views draw the line without a page error.
+ */
+test('the portals are a view of the level, under the mesh', async ({ page }) => {
+  test.setTimeout(120_000)
+
+  const errors: string[] = []
+
+  page.on('pageerror', (error) => {
+    errors.push(String(error))
+  })
+
+  // the health of the level is the numbers of the statistics, so the dock holds them beside the keys
+  await seedLayout(page, layoutWithTheKeys())
+  await page.goto(levelUrl(12))
+  await waitForLevel(page)
+
+  const keys = page.locator('[data-widget-kind="keyboard-shortcuts"]')
+  // the title of the section is `View context`, and the rows of the selection also mention it: the header picks the one
+  const viewContext = keys.locator('section').filter({
+    has: page.locator('h3.section-title', { hasText: 'View context' }),
+  })
+  const portalsRow = viewContext.locator('dd', { hasText: 'Portals' })
+  const portalsEye = portalsRow.locator('button.visibility')
+  const meshRow = viewContext.locator('dd', { hasText: 'Mesh' })
+
+  // the row sits under the rooms, with the branch of a child, and it names its key (the fourth row of the section)
+  await expect(viewContext.locator('dd .action')).toHaveText(['Wireframe', 'Mesh', 'Rooms', 'Portals'])
+  await expect(portalsRow.locator('.branch')).toHaveCount(1)
+  await expect(viewContext.locator('dt').nth(3).locator('kbd')).toHaveText('P')
+
+  // the layer starts off, and the storage has no entry for the default
+  await expect(portalsEye).toHaveAttribute('aria-label', 'Show the portals')
+  await expect(portalsEye).toHaveAttribute('aria-pressed', 'false')
+  expect(await storedPortals(page)).toBeNull()
+
+  // `P` flips it, and the eye follows
+  await page.keyboard.press('p')
+
+  await expect(portalsEye).toHaveAttribute('aria-label', 'Hide the portals')
+  await expect(portalsEye).toHaveAttribute('aria-pressed', 'true')
+  await expect
+    .poll(async () => {
+      return await storedPortals(page)
+    })
+    .toBe('true')
+
+  // and flips back to the default, which the storage does not keep
+  await page.keyboard.press('p')
+
+  await expect(portalsEye).toHaveAttribute('aria-label', 'Show the portals')
+  await expect
+    .poll(async () => {
+      return await storedPortals(page)
+    })
+    .toBeNull()
+
+  // the eye is the same switch as the key
+  await portalsEye.click()
+
+  await expect(portalsEye).toHaveAttribute('aria-label', 'Hide the portals')
+  await expect
+    .poll(async () => {
+      return await storedPortals(page)
+    })
+    .toBe('true')
+
+  // the mesh goes off: the outline sits over it, so its row waits for the parent, and `P` does not get ahead of the view
+  await page.keyboard.press('m')
+
+  await expect(portalsEye).toBeDisabled()
+  await expect(meshRow.locator('button.visibility')).toBeEnabled()
+
+  await page.keyboard.press('p')
+
+  await expect
+    .poll(async () => {
+      return await storedPortals(page)
+    })
+    .toBe('true')
+
+  // the mesh comes back, and the outline comes back with the value the switch kept
+  await page.keyboard.press('m')
+
+  await expect(portalsEye).toBeEnabled()
+  await expect(portalsEye).toHaveAttribute('aria-label', 'Hide the portals')
+
+  expect(errors).toEqual([])
+})

@@ -7,10 +7,10 @@ import { editorUrl, waitForLayoutSettled } from './support/editor.ts'
  * @remarks
  * The lock of a widget is a box, and a preset spells it on two levels of the tree: the width on the horizontal split
  * the widget sits in and the height on the vertical one. These tests are the acceptance of the numbers (2026-11-01):
- * the viewer comes with the plan at 350 x 285, the jump at 350 x 80, the render performance readout at 350 x 210
- * (2026-11-08, the owner asked for it there) and the keys at 350 x 520 (2026-11-14, they were free before), the editor
- * with the plan at 350 x 350, the
- * jump at 200 x 50, the statistics at 350 x 200, the inspector at 350 x 180 and the undo and redo row at 350 x 60
+ * the viewer comes with the keys on the left at 350 wide and the whole height, the plan at 340 x 403, the jump at
+ * 340 x 70 and the render performance readout at 340 wide (2026-11-15, the owner rearranged the viewer: the keys were on
+ * the right before), the editor with the plan at 350 x 350, the jump at 200 x 50, the statistics at 350 x 200, the
+ * inspector at 350 x 180 and the undo and redo row at 350 x 60
  * (2026-11-09), and the painter (2026-11-04) with the polygon inspector at 360 x 185, the keys at 360 x 520 (430 until
  * 2026-11-14) and the uv mapper at 400 x 430. The rooms preset came with the round (2026-11-13): the statistics at 350 x 203 and the
  * top view at 350 x 260 (the room mapper went with its content into the room inspector, 2026-11-15). The widgets the owner did not
@@ -62,9 +62,11 @@ async function presetName(page: Page): Promise<string> {
   return (await page.locator('header button[aria-label="Presets"] .name').textContent()) ?? ''
 }
 
-test('the default layout is the viewer, with the plan and the jump of the owner locked', async ({ page }) => {
-  // the column of the viewer is 285 + 80 + 210 + 520 plus the gaps, and a lock is a **maximum**: a window shorter than
-  // that squeezes the whole column, so the test of the sizes uses one that holds them (2026-11-14, the keys got 520)
+test('the default layout is the viewer, with the keys on the left and the plan of the owner on the right', async ({
+  page,
+}) => {
+  // the right column is 403 + 70 plus the numbers, and a lock is a **maximum**: a window shorter than that squeezes
+  // the whole column, so the test of the sizes uses one that holds them (2026-11-15, the keys moved to the left)
   await page.setViewportSize({ width: 1631, height: 1200 })
   await page.goto(editorUrl())
 
@@ -78,39 +80,42 @@ test('the default layout is the viewer, with the plan and the jump of the owner 
     .toBe('Viewer')
   await waitForLayoutSettled(page)
 
+  const keys = await boxOf(page, 'keyboard-shortcuts')
+  const view = await boxOf(page, '3d-view')
   const plan = await boxOf(page, 'top-view')
   const jump = await boxOf(page, 'jump-to-location')
   const numbers = await boxOf(page, 'render-performance')
 
-  expect(plan.width).toBe(350)
-  expect(plan.height).toBe(285)
-  expect(jump.width).toBe(350)
-  expect(jump.height).toBe(80)
-  expect(numbers.width).toBe(350)
-  expect(await page.locator('[data-widget-kind="top-view"]').getAttribute('data-locked-width')).toBe('350')
-  expect(await page.locator('[data-widget-kind="jump-to-location"]').getAttribute('data-locked-height')).toBe('80')
+  // the keys are the left column, the walkable view the middle and the plan the right one
+  expect(keys.width).toBe(350)
+  expect(keys.left + keys.width + 4).toBe(view.left)
+  expect(view.left + view.width + 4).toBe(plan.left)
+  expect(view.width).toBeGreaterThan(340)
 
-  // the numbers are the one block of the column that follows the window (2026-11-14: they were locked to 210, and the
-  // column has no child left for the space a taller window leaves)
+  // the keys take the whole height of the dock, like the view: the owner asked for the full height (2026-11-15).
+  // Their width is a fixed size of the layout, not a lock box: a box needs both sides, and the height follows the dock
+  expect(keys.top).toBe(view.top)
+  expect(keys.height).toBe(view.height)
+  expect(await page.locator('[data-widget-kind="keyboard-shortcuts"]').getAttribute('data-locked-width')).toBeNull()
+  expect(await page.locator('[data-widget-kind="keyboard-shortcuts"]').getAttribute('data-locked-height')).toBeNull()
+
+  expect(plan.width).toBe(340)
+  expect(plan.height).toBe(403)
+  expect(jump.width).toBe(340)
+  expect(jump.height).toBe(70)
+  expect(numbers.width).toBe(340)
+  expect(await page.locator('[data-widget-kind="top-view"]').getAttribute('data-locked-width')).toBe('340')
+  expect(await page.locator('[data-widget-kind="top-view"]').getAttribute('data-locked-height')).toBe('403')
+  expect(await page.locator('[data-widget-kind="jump-to-location"]').getAttribute('data-locked-width')).toBe('340')
+  expect(await page.locator('[data-widget-kind="jump-to-location"]').getAttribute('data-locked-height')).toBe('70')
+
+  // the numbers are the one block of the column that follows the window
   expect(await page.locator('[data-widget-kind="render-performance"]').getAttribute('data-locked-height')).toBeNull()
   expect(numbers.height).toBeGreaterThan(210)
 
-  // the three follow each other, and the walkable view takes what the locked column does not
+  // the three follow each other
   expect(jump.top).toBe(plan.top + plan.height + 4)
   expect(numbers.top).toBe(jump.top + jump.height + 4)
-
-  const view = await boxOf(page, '3d-view')
-
-  expect(view.width).toBeGreaterThan(350)
-  expect(view.left + view.width + 4).toBe(plan.left)
-
-  // the keys close the column in a locked block: the owner measured 520 on 2026-11-14 (they were free before)
-  const keys = await boxOf(page, 'keyboard-shortcuts')
-
-  expect(keys.width).toBe(350)
-  expect(keys.height).toBe(520)
-  expect(await page.locator('[data-widget-kind="keyboard-shortcuts"]').getAttribute('data-locked-height')).toBe('520')
-  expect(keys.top).toBe(numbers.top + numbers.height + 4)
 })
 
 test('the editor preset comes with the four sizes the owner measured', async ({ page }) => {
@@ -292,8 +297,8 @@ test('every layout keeps its own history, and the steps of the menu take it back
   const menu = page.locator('header button[aria-label="Presets"]')
   const viewerRow = page.locator('.preset-row', { hasText: 'Viewer' })
   const editorRow = page.locator('.preset-row', { hasText: 'Editor' })
-  // the viewer has no free info widget since the keys are locked (2026-11-14): the walkable view is the one that a step
-  // of the layout can move
+  // the viewer has no free info widget: the keys take the left column and the right one is locked, so the walkable view
+  // is the one that a step of the layout can move (2026-11-15)
   const keys = page.locator('[data-widget-kind="3d-view"]')
   // the editor has no keys since 2026-11-09: its free widget for the step below is the selection inspector
   const selection = page.locator('[data-widget-kind="selection-inspector"]')
@@ -374,7 +379,7 @@ test('every layout keeps its own history, and the steps of the menu take it back
   await page.reload()
 
   await expect(page.locator('header button[aria-label="Presets"] .name')).toHaveText('Viewer')
-  await expect(page.locator('[data-widget-kind="keyboard-shortcuts"]')).toHaveAttribute('data-locked-height', /.+/u)
+  await expect(page.locator('[data-widget-kind="3d-view"]')).toHaveAttribute('data-locked-height', /.+/u)
 
   await openMenu()
   await expect(page.locator('.preset-row', { hasText: 'Viewer' }).locator('.step').first()).toBeEnabled()

@@ -155,15 +155,34 @@ void describe('the presets', () => {
 })
 
 void describe('the viewer preset', () => {
-  void it('locks the plan and the jump to the sizes the owner measured off the plate', () => {
-    assert.deepEqual(lockOfKind(viewerLayout, 'top-view'), { width: 350, height: 285 })
-    assert.deepEqual(lockOfKind(viewerLayout, 'jump-to-location'), { width: 350, height: 80 })
+  void it('puts the keys on the left, the walkable view in the middle and the plan in the right column', () => {
+    const root = viewerLayout as Extract<LayoutNode, { type: 'split' }>
+
+    assert.equal(root.orientation, 'horizontal')
+    assert.deepEqual(collectKinds(root), [
+      'keyboard-shortcuts',
+      '3d-view',
+      'top-view',
+      'jump-to-location',
+      'render-performance',
+    ])
+    assert.deepEqual(root.sizes, [
+      { kind: 'fixed', px: 350 },
+      { kind: 'auto', ratio: 1 },
+      { kind: 'fixed', px: 340 },
+    ])
   })
 
-  void it('closes the column with the keys in a locked 520 high block', () => {
-    // 2026-11-14, the owner: the keys were free, and a free block grew and shrank with the window
-    assert.deepEqual(lockOfKind(viewerLayout, 'keyboard-shortcuts'), { width: 350, height: 520 })
+  void it('locks the plan and the jump to the sizes the owner measured off the plate', () => {
+    assert.deepEqual(lockOfKind(viewerLayout, 'top-view'), { width: 340, height: 403 })
+    assert.deepEqual(lockOfKind(viewerLayout, 'jump-to-location'), { width: 340, height: 70 })
+  })
+
+  void it('leaves the keys and the numbers free along the height', () => {
+    // the keys take the whole left column, and the numbers the rest of the right one: a lock would stop them following
+    assert.equal(lockOfKind(viewerLayout, 'keyboard-shortcuts'), undefined)
     assert.equal(lockOfKind(viewerLayout, '3d-view'), undefined)
+    assert.equal(lockOfKind(viewerLayout, 'render-performance'), undefined)
   })
 })
 

@@ -50,6 +50,6 @@ test('a step of a layout takes the layout back when the tooltip of its button is
   await page.mouse.up()
   await page.waitForTimeout(900)
 
-  // the step took the layout back: the plan is on the size the preset locked it to
-  await expect(plan).toHaveAttribute('data-locked-height', '285')
+  // the step took the layout back: the plan is on the size the preset locked it to (2026-11-15: the plan is 403 high)
+  await expect(plan).toHaveAttribute('data-locked-height', '403')
 })

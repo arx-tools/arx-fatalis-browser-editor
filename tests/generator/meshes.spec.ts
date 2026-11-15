@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { ArxPolygonFlags, type ArxPolygon, type ArxVector3 } from 'arx-convert/types'
+import { ArxPolygonFlags, type ArxPolygon, type ArxPortal, type ArxVector3 } from 'arx-convert/types'
 import {
   type Color as ThreeColor,
   Mesh,
@@ -22,6 +22,7 @@ import {
   createWireframeMaterial,
   arxVector3toVector3,
   createLevelMaterial,
+  portalLinePositions,
   wireframeColorsOf,
 } from '../../src/generator/meshes.ts'
 import { Color } from '../../src/generator/Color.ts'
@@ -70,6 +71,36 @@ function polygon(isQuad: boolean, container = 1): ArxPolygon {
     area: 100,
     flags,
     room: 1,
+  }
+}
+
+/**
+ * A portal of the test, over the same four corners as {@link polygon}.
+ *
+ * @remarks
+ * A portal is a quad, and its corners are in the "Z" order of the game: `0-1` and `3-2` are the opposite edges of the
+ * perimeter, so a walk of the edges in the order of the array would draw the two diagonals.
+ *
+ * @returns The portal, with its corners at the height of the XZ plane.
+ */
+function portal(): ArxPortal {
+  return {
+    polygon: {
+      min: position(0, 0, 0),
+      max: position(10, 0, 10),
+      norm: position(0, 1, 0),
+      norm2: position(0, 1, 0),
+      center: position(5, 0, 5),
+      vertices: [
+        { position: position(0, 0, 0), rhw: 1 },
+        { position: position(10, 0, 0), rhw: 1 },
+        { position: position(0, 0, 10), rhw: 1 },
+        { position: position(10, 0, 10), rhw: 1 },
+      ],
+    },
+    room1: 1,
+    room2: 2,
+    usePortal: 0,
   }
 }
 
@@ -318,6 +349,28 @@ void describe('arxPolygonsToWireframeGeometry', () => {
     const geometry = arxPolygonsToWireframeGeometry([], new Vector3(0, 0, 0))
 
     assert.equal(geometry.getAttribute('position').count, 0)
+  })
+})
+
+void describe('portalLinePositions', () => {
+  void it('walks the perimeter of the quad, without the diagonals', () => {
+    const positions = [...portalLinePositions([portal()], new Vector3(0, 0, 0))].map((value) => {
+      return value + 0
+    })
+
+    // four edges, each with two points, in the "Z" order of the game: 0-1, 1-3, 3-2, 2-0
+    assert.deepEqual(positions, [0, 0, 0, -10, 0, 0, -10, 0, 0, -10, 0, 10, -10, 0, 10, 0, 0, 10, 0, 0, 10, 0, 0, 0])
+  })
+
+  void it('shifts the points by the scene position, like the mesh', () => {
+    const positions = portalLinePositions([portal()], new Vector3(10, 20, 30))
+
+    // the first corner is (0, 0, 0) in the game, which the mesh mirrors and shifts
+    assert.deepEqual([positions[0] + 0, positions[1] + 0, positions[2] + 0], [-10, -20, -30])
+  })
+
+  void it('gives no point for no portal', () => {
+    assert.equal(portalLinePositions([], new Vector3(0, 0, 0)).length, 0)
   })
 })
 

@@ -138,7 +138,7 @@ export const keyboardActions: readonly KeyboardAction[] = [
     id: 'togglePortals',
     label: 'Toggle the portals',
     group: 'overlay',
-    keys: [{ code: 'KeyK' }],
+    keys: [{ code: 'KeyP' }],
     modes: ['editor', 'pointerLocked'],
   },
   {

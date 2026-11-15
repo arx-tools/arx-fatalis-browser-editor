@@ -17,7 +17,8 @@ import {
   viewMeshesOf,
   type LevelWireframe,
 } from '../shared/levelScene.ts'
-import { isMeshVisible, isRoomColorsVisible, isWireframeVisible } from '../shared/levelDisplay.ts'
+import { isMeshVisible, isPortalsVisible, isRoomColorsVisible, isWireframeVisible } from '../shared/levelDisplay.ts'
+import { attachPortalLines, type PortalOverlay } from '../shared/portalOverlay.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import { hoverRoom, litRooms } from '../../../modules/rooms/roomStore.ts'
 import { pickRoom } from '../../../modules/rooms/roomSelection.ts'
@@ -86,6 +87,7 @@ const zoomLabel = computed(() => {
 let view: ViewScene<OrthographicCamera> | undefined
 let shown: Mesh[] = []
 let rooms: RoomOverlay | undefined
+let portalLines: PortalOverlay | undefined
 
 /**
  * The revision of the rooms the colours of the room map were written from.
@@ -105,6 +107,7 @@ let stopWatching: (() => void) | undefined
 let stopWatchingCamera: (() => void) | undefined
 let stopWatchingWireframe: (() => void) | undefined
 let stopWatchingMesh: (() => void) | undefined
+let stopWatchingPortals: (() => void) | undefined
 let stopWatchingRooms: (() => void) | undefined
 let stopWatchingRoom: (() => void) | undefined
 let stopWatchingEdit: (() => void) | undefined
@@ -340,6 +343,9 @@ function setMeshVisible(visible: boolean): void {
   if (rooms !== undefined) {
     rooms.mesh.visible = showRooms
   }
+
+  // the portal outline is drawn over the surfaces, so it goes with the mesh like the room map does
+  portalLines?.setVisible(visible && isPortalsVisible.value)
 }
 
 /**
@@ -410,6 +416,10 @@ function showMap(map: ArxMap): void {
   wireframe = attachWireframe(view.scene, map.wireframeGeometry)
   wireframe.setVisible(isWireframeVisible.value)
 
+  // the portal outline, in the space of the same meshes
+  portalLines = attachPortalLines(view.scene, map.fts.portals, arxVector3toVector3(map.scenePosition))
+  portalLines.setVisible(isMeshVisible.value && isPortalsVisible.value)
+
   // the fill of the selection, in the space of the same meshes
   selectionOverlay = createPolygonSelectionOverlay(view.scene, arxVector3toVector3(map.scenePosition))
   selectionOverlay.setHighlight(selectedPolygonsOf(map))
@@ -447,6 +457,8 @@ function hideMap(): void {
 
   wireframe?.dispose()
   wireframe = undefined
+  portalLines?.dispose()
+  portalLines = undefined
   selectionOverlay?.dispose()
   selectionOverlay = undefined
   stopWatchingSelection?.()
@@ -560,6 +572,12 @@ stopWatchingMesh = watch(isMeshVisible, () => {
   requestRender()
 })
 
+// the portal outline is a switch of every view at once
+stopWatchingPortals = watch(isPortalsVisible, () => {
+  setMeshVisible(isMeshVisible.value)
+  requestRender()
+})
+
 stopWatchingRooms = watch(isRoomColorsVisible, () => {
   setMeshVisible(isMeshVisible.value)
 
@@ -595,6 +613,8 @@ onBeforeUnmount(() => {
   stopWatchingWireframe = undefined
   stopWatchingMesh?.()
   stopWatchingMesh = undefined
+  stopWatchingPortals?.()
+  stopWatchingPortals = undefined
   stopWatchingRooms?.()
   stopWatchingRooms = undefined
   stopWatchingRoom?.()

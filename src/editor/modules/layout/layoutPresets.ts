@@ -140,34 +140,34 @@ export const editorLayout: LayoutNode = {
 }
 
 /**
- * The layout for looking at a level: the walkable view with a plan and the keys beside it.
+ * The layout for looking at a level: the keys on the left, the walkable view in the middle and the plan, the jump and
+ * the numbers of the renderer in the right column.
  *
  * @remarks
- * - the left 70% is the walkable view, the whole height of the dock: this layout is not for editing, it is
- * for walking around and reading the number under the crosshair
- * - the right column is locked to 350 wide (the plan and the jump), the plan to 285 high and the jump to 80, and the
- * keyboard shortcuts close the column in a locked **520** high block (2026-11-14, the owner; the keys were free before,
- * and a free block grew and shrank with the window): the plan sits above, under it the jump, then the keys
- * - the numbers of the renderer take what the locked blocks leave (2026-11-14: they were locked to 210, and a column
- * of four locks has no child for the space a taller window leaves)
+ * - the keys take the **left** column, locked to 350 wide and the whole height of the dock (2026-11-15, the owner): they
+ * are the reference of the reader, so they sit beside the view at every row, not under a column of widgets
+ * - the middle column is the walkable view, the whole height of the dock: this layout is not for editing, it is for
+ * walking around and reading the number under the crosshair
+ * - the right column is locked to 340 wide (the owner's measurement of the plate, 2026-11-15): the plan to 403 high, the
+ * jump to 70, and the numbers of the renderer take what the two locks leave
  *
  * The locks are the sizes the owner read off the badge of the plate (2026-11-01).
  */
 export const viewerLayout: LayoutNode = {
   type: 'split',
   orientation: 'horizontal',
-  sizes: [auto(1), fixed(350)],
+  sizes: [fixed(350), auto(1), fixed(340)],
   children: [
+    { type: 'widget', kind: WIDGET_KINDS.keyboardShortcuts },
     { type: 'widget', kind: WIDGET_KINDS.view3d },
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: [fixed(285), fixed(80), auto(1), fixed(520)],
+      sizes: [fixed(403), fixed(70), auto(1)],
       children: [
         { type: 'widget', kind: WIDGET_KINDS.topView },
         { type: 'widget', kind: WIDGET_KINDS.jumpToLocation },
         { type: 'widget', kind: WIDGET_KINDS.renderPerformance },
-        { type: 'widget', kind: WIDGET_KINDS.keyboardShortcuts },
       ],
     },
   ],
@@ -261,8 +261,8 @@ export const roomsLayout: LayoutNode = {
  * The layout the editor starts with.
  *
  * @remarks
- * It is the **`Viewer`** (2026-10-31, the owner's decision): the editor opens on the walkable view, with the
- * plan and the keys beside it. The `Editor` preset — the three small views, the camera row and the numbers —
+ * It is the **`Viewer`** (2026-10-31, the owner's decision): the editor opens on the walkable view, with the keys on
+ * the left and the plan beside it. The `Editor` preset — the three small views, the camera row and the numbers —
  * is one click away in the dropdown of the header.
  */
 export const defaultLayout: LayoutNode = viewerLayout

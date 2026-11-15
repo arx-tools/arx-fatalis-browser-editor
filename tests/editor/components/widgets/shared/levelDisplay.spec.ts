@@ -2,9 +2,11 @@ import assert from 'node:assert/strict'
 import { beforeEach, describe, it } from 'node:test'
 import {
   isMeshVisible,
+  isPortalsVisible,
   isRoomColorsVisible,
   isWireframeVisible,
   startLevelDisplay,
+  togglePortals,
   toggleRoomColors,
 } from '../../../../../src/editor/components/widgets/shared/levelDisplay.ts'
 import {
@@ -44,6 +46,7 @@ beforeEach(() => {
   clearPressedKeys()
   isWireframeVisible.value = false
   isRoomColorsVisible.value = false
+  isPortalsVisible.value = false
   isMeshVisible.value = true
 })
 
@@ -105,5 +108,34 @@ void describe('toggleRoomColors', () => {
 
     toggleRoomColors()
     assert.equal(isRoomColorsVisible.value, false)
+  })
+})
+
+void describe('togglePortals', () => {
+  void it('flips the switch with the P key', () => {
+    startLevelDisplay()
+
+    handleKeyDown(press('KeyP'))
+    assert.equal(isPortalsVisible.value, true)
+
+    clearPressedKeys()
+    handleKeyDown(press('KeyP'))
+    assert.equal(isPortalsVisible.value, false)
+  })
+
+  void it('is the switch the eye of the key help flips', () => {
+    togglePortals()
+    assert.equal(isPortalsVisible.value, true)
+
+    togglePortals()
+    assert.equal(isPortalsVisible.value, false)
+  })
+
+  void it('does nothing while the mesh is turned off', () => {
+    // the outline sits over the mesh: it is not drawn without it, so the switch does not get ahead of the view
+    isMeshVisible.value = false
+
+    togglePortals()
+    assert.equal(isPortalsVisible.value, false)
   })
 })

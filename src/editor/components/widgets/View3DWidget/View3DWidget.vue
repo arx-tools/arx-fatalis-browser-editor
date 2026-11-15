@@ -15,8 +15,9 @@ import { litRooms } from '../../../modules/rooms/roomStore.ts'
 import { currentRoom } from '../../../modules/rooms/roomUnderCrosshair.ts'
 import { cameraStore } from '../camera/cameraStore.ts'
 import { renderPerformanceStore } from '../shared/renderPerformance.ts'
-import { isMeshVisible, isRoomColorsVisible, isWireframeVisible } from '../shared/levelDisplay.ts'
+import { isMeshVisible, isPortalsVisible, isRoomColorsVisible, isWireframeVisible } from '../shared/levelDisplay.ts'
 import { addPreviewLights, attachWireframe, viewMeshesOf, type LevelWireframe } from '../shared/levelScene.ts'
+import { attachPortalLines, type PortalOverlay } from '../shared/portalOverlay.ts'
 import { roomPaletteOf } from '../../../../generator/rooms.ts'
 import { roomRevision } from '../../../modules/rooms/roomRevision.ts'
 import { createRoomOverlay, roomsNeedRepaint, type RoomOverlay } from '../shared/roomOverlay.ts'
@@ -123,6 +124,7 @@ let selectionGizmo: SelectionGizmo | undefined
 let shown: Mesh[] = []
 let wireframe: LevelWireframe | undefined
 let rooms: RoomOverlay | undefined
+let portalLines: PortalOverlay | undefined
 
 /**
  * The revision of the rooms the colours of the room map were written from.
@@ -142,6 +144,7 @@ let observer: ResizeObserver | undefined
 let stopWatching: (() => void) | undefined
 let stopWatchingWireframe: (() => void) | undefined
 let stopWatchingMesh: (() => void) | undefined
+let stopWatchingPortals: (() => void) | undefined
 let stopWatchingRooms: (() => void) | undefined
 let stopWatchingRoom: (() => void) | undefined
 let stopWatchingEdit: (() => void) | undefined
@@ -290,6 +293,10 @@ function updateVisibility(): void {
   // the line reads the flat colour of the texture of its face: on the room map and with the mesh off there is no
   // texture under it, so the plain grey stays
   wireframe?.setColored(visible && !isRoomColorsVisible.value)
+
+  // the outline of the portals sits under the same switch as the room map: it shows where the game joins two rooms,
+  // which is a read of the level, not a layer of its own
+  portalLines?.setVisible(visible && isPortalsVisible.value)
 }
 
 /**
@@ -373,6 +380,9 @@ function showMap(map: ArxMap): void {
   })
   wireframe.setVisible(isWireframeVisible.value)
 
+  // the portal outline has no geometry in the level: it is built from the list of the portals, over the same space
+  portalLines = attachPortalLines(view.scene, map.fts.portals, arxVector3toVector3(map.scenePosition))
+
   // the switches read the wireframe too (its lines follow the mesh), so they come after it is there: a fresh load
   // with the mesh on then starts in the inverted look, not in the grey of a hidden level
   updateVisibility()
@@ -449,6 +459,8 @@ function hideMap(): void {
 
   wireframe?.dispose()
   wireframe = undefined
+  portalLines?.dispose()
+  portalLines = undefined
   selection?.dispose()
   selection = undefined
   loadedMap = undefined
@@ -515,6 +527,12 @@ onMounted(() => {
     loop.requestRender()
   })
 
+  // the portal outline is a switch of every view at once: the same ref is read by the six fixed ones
+  stopWatchingPortals = watch(isPortalsVisible, () => {
+    updateVisibility()
+    loop.requestRender()
+  })
+
   stopWatchingRooms = watch(isRoomColorsVisible, () => {
     updateVisibility()
     // the fill gets its grey base with the map, so a switch of the map repaints the selection too
@@ -549,6 +567,8 @@ onBeforeUnmount(() => {
   stopWatchingWireframe = undefined
   stopWatchingMesh?.()
   stopWatchingMesh = undefined
+  stopWatchingPortals?.()
+  stopWatchingPortals = undefined
   stopWatchingRooms?.()
   stopWatchingRooms = undefined
   stopWatchingRoom?.()

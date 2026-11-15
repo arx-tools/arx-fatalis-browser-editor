@@ -66,10 +66,8 @@ export interface RoomOverlay {
    * room graph also changes when a portal does, and the colouring is read again with it.
    *
    * @param map The level to read.
-   * @param mapId The id of the level in the editor: the colours follow it, so every visit of the same level paints the
-   * same map (and not the seed of the level, which is a generator parameter and can differ between two visits).
    */
-  readonly repaint: (map: ArxMap, mapId: string) => void
+  readonly repaint: (map: ArxMap) => void
   /**
    * Picks the rooms the map keeps at full colour, or clears the highlight.
    *
@@ -184,11 +182,10 @@ export function roomsNeedRepaint(state: RoomRepaintState): boolean {
  * Builds the room map of a level.
  *
  * @param map The level to colour.
- * @param mapId The id of the level in the editor, which the colours are keyed with.
  *
  * @returns The overlay, ready to be put into a scene.
  */
-export function createRoomOverlay(map: ArxMap, mapId: string): RoomOverlay {
+export function createRoomOverlay(map: ArxMap): RoomOverlay {
   const { geometry } = map.solidMeshes[0]
   const material = new MeshLambertMaterial({ vertexColors: true })
   const mesh = new Mesh(geometry, material)
@@ -203,22 +200,21 @@ export function createRoomOverlay(map: ArxMap, mapId: string): RoomOverlay {
    * Colours the rooms of a level and writes the colours into the geometry.
    *
    * @param next The level to read.
-   * @param id The id of the level in the editor.
    */
-  function repaint(next: ArxMap, id: string): void {
+  function repaint(next: ArxMap): void {
     const rooms = roomIdsOf(
       next.polygons.map((polygon) => {
         return polygon.room
       }),
     )
 
-    coloring = roomColoringForLevel(next.fts.portals, rooms, id)
+    coloring = roomColoringForLevel(rooms)
     level = next
 
     writeRoomColors(next, coloring, highlighted)
   }
 
-  repaint(map, mapId)
+  repaint(map)
 
   return {
     mesh,

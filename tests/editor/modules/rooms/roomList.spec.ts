@@ -6,6 +6,7 @@ import type { RoomLink } from '../../../../src/generator/rooms.ts'
 import {
   faceCountLabelOf,
   filteredRoomRows,
+  NO_ROOM,
   roomRowsOf,
   roomSearchTextOf,
   type RoomRow,
@@ -48,7 +49,7 @@ function rowOf(room: number): RoomRow {
 void describe('roomRowsOf', () => {
   void it('lists the rooms of the level with their faces and their colour', () => {
     const level = levelOf([faceOf(2), faceOf(1), faceOf(2)], [{ room1: 1, room2: 2 }])
-    const rows = roomRowsOf(level, 'arx:2')
+    const rows = roomRowsOf(level)
 
     assert.deepEqual(
       rows.map((row) => {
@@ -64,8 +65,8 @@ void describe('roomRowsOf', () => {
 
   void it('gives the same rooms the same colours as the room map of the level', () => {
     const level = levelOf([faceOf(1), faceOf(2)], [{ room1: 1, room2: 2 }])
-    const first = roomRowsOf(level, 'arx:2')
-    const second = roomRowsOf(level, 'arx:2')
+    const first = roomRowsOf(level)
+    const second = roomRowsOf(level)
 
     assert.deepEqual(
       first.map((row) => {
@@ -77,8 +78,23 @@ void describe('roomRowsOf', () => {
     )
   })
 
+  void it('puts the faces without a room first, under no room', () => {
+    const level = levelOf([faceOf(-1), faceOf(-1), faceOf(1)])
+    const rows = roomRowsOf(level)
+
+    assert.deepEqual(
+      rows.map((row) => {
+        return { room: row.room, faceCount: row.faceCount }
+      }),
+      [
+        { room: NO_ROOM, faceCount: 2 },
+        { room: 1, faceCount: 1 },
+      ],
+    )
+  })
+
   void it('lists no room for a level without a face', () => {
-    assert.deepEqual(roomRowsOf(levelOf([]), 'arx:2'), [])
+    assert.deepEqual(roomRowsOf(levelOf([])), [])
   })
 })
 
@@ -93,6 +109,10 @@ void describe('faceCountLabelOf', () => {
 })
 
 void describe('roomSearchTextOf', () => {
+  void it('reads the row of the faces without a room as no room', () => {
+    assert.equal(roomSearchTextOf({ room: NO_ROOM, faceCount: 2, color: '#000000' }), 'no room')
+  })
+
   void it('reads the number of the room and its name', () => {
     assert.equal(roomSearchTextOf(rowOf(12)), 'room 12 Unnamed area')
   })

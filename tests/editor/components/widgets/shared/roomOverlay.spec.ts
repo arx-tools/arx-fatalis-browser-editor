@@ -46,7 +46,7 @@ function isNoBrighter(first: Color, second: Color): boolean {
 void describe('createRoomOverlay', () => {
   void it('dims every room by default, and brightens the highlighted ones', () => {
     const map = mapOf()
-    const overlay = createRoomOverlay(map, 'arx:1')
+    const overlay = createRoomOverlay(map)
 
     // the map starts dark: the first vertex is the dimmed colour of room 1
     const dimmed = colorOf(map, 0)
@@ -91,7 +91,7 @@ void describe('createRoomOverlay with a new room', () => {
 
     map.polygons[0].room = 2
 
-    const overlay = createRoomOverlay(map, 'arx:1')
+    const overlay = createRoomOverlay(map)
 
     assert.ok(overlay.coloring.colors.has(2))
     assert.equal(overlay.coloring.colors.size, 2)

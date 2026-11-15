@@ -6,7 +6,6 @@ import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { WIREFRAME_WITHOUT_MESH, arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
-import { currentMapId } from '../../../modules/level/source/maps.ts'
 import { WIDGET_KINDS } from '../../../modules/layout/widgetKinds.ts'
 import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
 import { getModifierOfKey } from '../../../modules/keyboard/functions.ts'
@@ -144,7 +143,6 @@ let stopWatching: (() => void) | undefined
 let stopWatchingWireframe: (() => void) | undefined
 let stopWatchingMesh: (() => void) | undefined
 let stopWatchingRooms: (() => void) | undefined
-let stopWatchingMapId: (() => void) | undefined
 let stopWatchingRoom: (() => void) | undefined
 let stopWatchingEdit: (() => void) | undefined
 
@@ -322,7 +320,7 @@ function repaintRooms(): void {
     })
   ) {
     paintedRoomRevision = roomRevision.value
-    rooms.repaint(map, currentMapId.value)
+    rooms.repaint(map)
   }
 }
 
@@ -362,7 +360,7 @@ function showMap(map: ArxMap): void {
   }
 
   // the room map shares the geometry of the level: it is one more mesh over the same buffers
-  rooms = createRoomOverlay(map, currentMapId.value)
+  rooms = createRoomOverlay(map)
   paintedRoomRevision = roomRevision.value
   applyRoomHighlight()
   view.scene.add(rooms.mesh)
@@ -526,19 +524,8 @@ onMounted(() => {
     loop.requestRender()
   })
 
-  // the colours are keyed with the id of the level, and the id of a zip arrives after the level: the map is coloured
-  // again when it lands, so two visits of the same level always show the same colours
   // the room inspector picks a room: the map dims the others, so the picked room reads at a glance
   stopWatchingRoom = watch(litRooms, applyRoomHighlight)
-
-  stopWatchingMapId = watch(currentMapId, () => {
-    if (rooms !== undefined && loadedMap !== undefined) {
-      paintedRoomRevision = roomRevision.value
-      rooms.repaint(loadedMap, currentMapId.value)
-    }
-
-    loop.requestRender()
-  })
 
   // the selection is shared with the statistics widget: a change draws the fill of the polygons
   stopWatchingSelection = watch(selectionStore.polygons, () => {
@@ -564,8 +551,6 @@ onBeforeUnmount(() => {
   stopWatchingMesh = undefined
   stopWatchingRooms?.()
   stopWatchingRooms = undefined
-  stopWatchingMapId?.()
-  stopWatchingMapId = undefined
   stopWatchingRoom?.()
   stopWatchingRoom = undefined
   stopWatchingEdit?.()

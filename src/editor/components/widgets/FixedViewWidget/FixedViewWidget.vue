@@ -7,7 +7,6 @@ import { cameraStore } from '../camera/cameraStore.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { roomRevision } from '../../../modules/rooms/roomRevision.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
-import { currentMapId } from '../../../modules/level/source/maps.ts'
 import { centreOfBounds, type CameraBounds } from '../shared/cameraBounds.ts'
 import { gamePositionToWorld } from '../camera/cameraPose.ts'
 import {
@@ -107,7 +106,6 @@ let stopWatchingCamera: (() => void) | undefined
 let stopWatchingWireframe: (() => void) | undefined
 let stopWatchingMesh: (() => void) | undefined
 let stopWatchingRooms: (() => void) | undefined
-let stopWatchingMapId: (() => void) | undefined
 let stopWatchingRoom: (() => void) | undefined
 let stopWatchingEdit: (() => void) | undefined
 let stopWatchingSelection: (() => void) | undefined
@@ -371,7 +369,7 @@ function repaintRooms(): void {
     })
   ) {
     paintedRoomRevision = roomRevision.value
-    rooms.repaint(map, currentMapId.value)
+    rooms.repaint(map)
   }
 }
 
@@ -397,7 +395,7 @@ function showMap(map: ArxMap): void {
   }
 
   // the room map shares the geometry of the level, so the small views show the same rooms
-  rooms = createRoomOverlay(map, currentMapId.value)
+  rooms = createRoomOverlay(map)
   paintedRoomRevision = roomRevision.value
 
   // the map paints the lit rooms only while it is on: the switch of the map applies the set when it comes on
@@ -588,17 +586,6 @@ stopWatchingRoom = watch(litRooms, (picked) => {
   requestRender()
 })
 
-// the colours are keyed with the id of the level, and the id of a zip arrives after the level
-stopWatchingMapId = watch(currentMapId, () => {
-  const map = levelStore.map.value
-
-  if (map !== undefined && rooms !== undefined) {
-    rooms.repaint(map, currentMapId.value)
-  }
-
-  requestRender()
-})
-
 onBeforeUnmount(() => {
   stopWatching?.()
   stopWatching = undefined
@@ -610,8 +597,6 @@ onBeforeUnmount(() => {
   stopWatchingMesh = undefined
   stopWatchingRooms?.()
   stopWatchingRooms = undefined
-  stopWatchingMapId?.()
-  stopWatchingMapId = undefined
   stopWatchingRoom?.()
   stopWatchingRoom = undefined
   stopWatchingSelection?.()

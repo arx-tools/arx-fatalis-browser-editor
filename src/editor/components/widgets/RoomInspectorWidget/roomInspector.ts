@@ -75,7 +75,7 @@ export function roomProblemsOf(map: ArxMap): RoomProblem[] {
     if (alone.length > 0) {
       problems.push({
         kind: 'warning',
-        text: `room ${alone.join(', ')} has no opening: the game draws it only while the player is in it.`,
+        text: `room ${alone.join(', ')} has no portals: the game draws it only while the player is in it.`,
       })
     }
   }

@@ -29,7 +29,7 @@ function levelOf(polygons: readonly ArxPolygon[], portals: readonly RoomLink[] =
 }
 
 void describe('roomProblemsOf', () => {
-  void it('says nothing about a level with two rooms and an opening', () => {
+  void it('says nothing about a level with two rooms and a portal', () => {
     const level = levelOf([faceOf(1), faceOf(2)], [{ room1: 1, room2: 2 }])
 
     assert.deepEqual(roomProblemsOf(level), [])

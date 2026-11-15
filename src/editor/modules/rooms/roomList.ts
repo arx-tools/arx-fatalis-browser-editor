@@ -18,6 +18,16 @@ import { nameOf } from './roomNames.ts'
 const UNKNOWN_COLOR = '#9a9a9a'
 
 /**
+ * The id the faces without a room stand under in the list.
+ *
+ * @remarks
+ * The game reads a negative room as a face no room holds, and the list gives those faces a row of their own at the top
+ * (2026-11-15, the owner: the faces outside every room could not be picked from the list): the row stands under this id,
+ * so the pick, the highlight and the moves read it as a room.
+ */
+export const NO_ROOM = -1
+
+/**
  * One row of a list of rooms.
  */
 export interface RoomRow extends RoomSummary {
@@ -31,29 +41,36 @@ export interface RoomRow extends RoomSummary {
  * Builds the rows of a list of rooms.
  *
  * @remarks
- * The colour is the one the room map paints the room with: the same colouring, keyed with the same id of the level, so
- * the list and the view can not disagree. The rows are the rooms a face of the level is in: a room without a face is not
- * a room of the level.
+ * The colour is the one the room map paints the room with: the same colouring, keyed with the room id, so the list and
+ * the view can not disagree. The rows are the rooms a face of the level is in: a room without a face is not a room of
+ * the level. The faces no room holds come first, under {@link NO_ROOM}, so the list can pick them like a room.
  *
  * @param map The level to read.
- * @param mapId The id of the level in the editor.
  *
- * @returns One row for every room the level uses, in the order of their ids.
+ * @returns One row for every room the level uses, in the order of their ids, the faces without a room first.
  */
-export function roomRowsOf(map: ArxMap, mapId: string): RoomRow[] {
+export function roomRowsOf(map: ArxMap): RoomRow[] {
   const rooms = roomIdsOf(
     map.polygons.map((polygon) => {
       return polygon.room
     }),
   )
-  const coloring = roomColoringForLevel(map.fts.portals, rooms, mapId)
-
-  return roomSummaryOf(map.polygons).map((summary) => {
+  const coloring = roomColoringForLevel(rooms)
+  const rows = roomSummaryOf(map.polygons).map((summary) => {
     return {
       ...summary,
       color: roomPaletteOf(summary.room, coloring) ?? UNKNOWN_COLOR,
     }
   })
+  const lost = map.polygons.filter((polygon) => {
+    return polygon.room < 0
+  }).length
+
+  if (lost > 0) {
+    rows.unshift({ room: NO_ROOM, faceCount: lost, color: UNKNOWN_COLOR })
+  }
+
+  return rows
 }
 
 /**
@@ -87,6 +104,10 @@ export function faceCountLabelOf(faceCount: number): string {
  * @returns The text of the row, e.g. `room 12 The yard`.
  */
 export function roomSearchTextOf(row: RoomRow): string {
+  if (row.room === NO_ROOM) {
+    return 'no room'
+  }
+
   return `room ${row.room.toString()} ${nameOf(row.room)}`
 }
 

@@ -1,5 +1,4 @@
 import type { ArxPolygon, ArxPortal } from 'arx-convert/types'
-import seedrandom from 'seedrandom'
 import { connectedAreaOf } from './polygons.ts'
 
 /**
@@ -24,16 +23,6 @@ export const ROOM_COLORS: readonly string[] = [
   '#ac6228',
   '#6b7937',
 ]
-
-/**
- * How many rooms one colouring can look at before it gives up and takes the next colour count.
- *
- * @remarks
- * The colouring is an exact search: it tries the fewest colours first, and a graph that needs more makes the smaller
- * counts fail. A level has tens of rooms, so the search is short; the budget only stops a pathological room graph from
- * freezing the page.
- */
-const SEARCH_BUDGET = 200_000
 
 /**
  * The two rooms a portal joins.
@@ -68,26 +57,12 @@ export interface RoomColoring {
 }
 
 /**
- * What a colouring may draw from.
- */
-export interface RoomColoringOptions {
-  /**
-   * The generator of the tie breaks, so the same seed gives the same colouring.
-   *
-   * @remarks
-   * It is the seeded generator of the level (`seedrandom`), not `Math.random`: a room graph has many valid
-   * colourings, and the same level should look the same on every open.
-   */
-  readonly random?: () => number
-}
-
-/**
  * Builds the graph of the rooms: two rooms are neighbours when a portal joins them.
  *
  * @remarks
- * The adjacency is what the colouring needs: two rooms that share a portal are seen through it at the same time, so
- * they must not share a colour. A portal that joins a room to itself says nothing about the colouring and is left
- * out, and so is a portal to a room the map does not have.
+ * The graph is what the room features read (the portals of a level as the rooms they join); the colours of the map are
+ * keyed with the room ids and do not need it (2026-11-15). A portal that joins a room to itself says nothing about the
+ * graph and is left out, and so is a portal to a room the level does not have.
  *
  * @param portals The portals of the level.
  * @param rooms The rooms to colour.
@@ -125,313 +100,38 @@ export function roomAdjacencyOf(portals: readonly RoomLink[], rooms: readonly nu
 }
 
 /**
- * Counts the bits of a number.
- *
- * @param value The number to count.
- *
- * @returns How many of its bits are set.
- */
-function bitCount(value: number): number {
-  let count = 0
-  let rest = value
-
-  while (rest !== 0) {
-    rest = rest & (rest - 1)
-    count = count + 1
-  }
-
-  return count
-}
-
-/**
- * Colours a graph with an exact number of colours.
+ * Colours the rooms of a level.
  *
  * @remarks
- * It is a DSATUR search: the room that is next takes the colour that is the most constrained (it has the most
- * coloured neighbours with different colours), and a dead end backtracks. The saturation is read from the colours of
- * the neighbours on every step instead of a running bit set, which keeps the undo simple: a colour is taken back by
- * removing it from its room, and the next step reads the truth again.
+ * The colour of a room is its **id** in the palette: the room `1` takes the first colour, the room `2` the second, and
+ * the palette starts again after its last one. The binding to the id is what keeps the map readable while the level is
+ * edited: a room that is deleted takes its colour with it, and the rooms after it keep theirs (2026-11-15, the owner:
+ * deleting a room shifted the colours of the others). The palette is shorter than a level's rooms, so the colours come
+ * back after it: two rooms far apart in the ids share one, which is the price of a colour that does not move.
+ *
+ * The room `0` is the outside of the game's rooms, and it takes the last colour of the palette, so the first room the
+ * author sees is the first colour.
  *
  * @param rooms The rooms to colour.
- * @param adjacency The neighbours of every room.
- * @param keys The tie break of every room.
- * @param colorCount How many colours it may use.
- *
- * @returns The colour of every room, or `undefined` when this count is not enough.
- */
-function colorGraph(
-  rooms: readonly number[],
-  adjacency: ReadonlyMap<number, ReadonlySet<number>>,
-  keys: ReadonlyMap<number, number>,
-  colorCount: number,
-): Map<number, number> | undefined {
-  const colors = new Map<number, number>()
-  let budget = SEARCH_BUDGET
-
-  /**
-   * The degree of a room, which breaks a tie of the saturation.
-   *
-   * @param room The room to read.
-   *
-   * @returns How many neighbours it has.
-   */
-  function degreeOf(room: number): number {
-    return adjacency.get(room)?.size ?? 0
-  }
-
-  /**
-   * The colours the neighbours of a room already take.
-   *
-   * @param room The room to read.
-   *
-   * @returns The colours, as a bit set.
-   */
-  function takenColorsOf(room: number): number {
-    let taken = 0
-
-    for (const neighbour of adjacency.get(room) ?? []) {
-      const color = colors.get(neighbour)
-
-      if (color !== undefined) {
-        taken = taken | (1 << color)
-      }
-    }
-
-    return taken
-  }
-
-  /**
-   * Picks the room the search colours next.
-   *
-   * @returns The room, or `undefined` when every room has a colour.
-   */
-  function nextRoom(): number | undefined {
-    let best: number | undefined
-    let bestSaturation = -1
-    let bestDegree = -1
-    let bestKey = Number.POSITIVE_INFINITY
-
-    for (const room of rooms) {
-      if (colors.has(room)) {
-        continue
-      }
-
-      const saturation = bitCount(takenColorsOf(room))
-      const degree = degreeOf(room)
-
-      if (
-        saturation > bestSaturation ||
-        (saturation === bestSaturation && degree > bestDegree) ||
-        (saturation === bestSaturation && degree === bestDegree && (keys.get(room) ?? 0) < bestKey)
-      ) {
-        best = room
-        bestSaturation = saturation
-        bestDegree = degree
-        bestKey = keys.get(room) ?? 0
-      }
-    }
-
-    return best
-  }
-
-  /**
-   * Colours the rest of the graph, or takes the last colour back.
-   *
-   * @returns Whether the whole graph got a colour.
-   */
-  function search(): boolean {
-    const room = nextRoom()
-
-    if (room === undefined) {
-      return true
-    }
-
-    if (budget <= 0) {
-      return false
-    }
-
-    budget = budget - 1
-
-    const taken = takenColorsOf(room)
-
-    for (let color = 0; color < colorCount; color++) {
-      if ((taken & (1 << color)) !== 0) {
-        continue
-      }
-
-      colors.set(room, color)
-
-      if (search()) {
-        return true
-      }
-
-      colors.delete(room)
-    }
-
-    return false
-  }
-
-  if (search()) {
-    return colors
-  }
-
-  return undefined
-}
-
-/**
- * The connected components of the room graph, the biggest first.
- *
- * @remarks
- * The rooms joined by portals are one component, and a room no portal joins is a component of its own. The components
- * are ordered with the biggest one first, so the colours of the level's main graph are the ones the palette starts
- * with, and the isolated rooms come after them; the order of two components of the same size is the order of their
- * lowest room, so the colouring is deterministic.
- *
- * @param rooms The rooms to walk.
- * @param adjacency The neighbours of every room.
- *
- * @returns The rooms of every component.
- */
-function componentsOf(rooms: readonly number[], adjacency: ReadonlyMap<number, ReadonlySet<number>>): number[][] {
-  const seen = new Set<number>()
-  const components: number[][] = []
-
-  for (const room of rooms) {
-    if (seen.has(room)) {
-      continue
-    }
-
-    const component: number[] = []
-    const queue = [room]
-    seen.add(room)
-
-    while (queue.length > 0) {
-      const current = queue.pop()
-
-      if (current === undefined) {
-        break
-      }
-
-      component.push(current)
-
-      for (const neighbour of adjacency.get(current) ?? []) {
-        if (!seen.has(neighbour)) {
-          seen.add(neighbour)
-          queue.push(neighbour)
-        }
-      }
-    }
-
-    components.push(component)
-  }
-
-  return components.toSorted((first, second) => {
-    if (first.length !== second.length) {
-      return second.length - first.length
-    }
-
-    return (first[0] ?? 0) - (second[0] ?? 0)
-  })
-}
-
-/**
- * Colours one connected component of the room graph.
- *
- * @remarks
- * The search asks for the fewest colours of the component first and adds one when the component can not be coloured
- * with that many; the colours it finds start at zero, and the caller moves them onto the range of the component in the
- * palette.
- *
- * @param component The rooms of the component.
- * @param adjacency The neighbours of every room.
- * @param keys The tie break of every room.
- *
- * @returns The colour of every room of the component, from zero.
- */
-function colorComponentOf(
-  component: readonly number[],
-  adjacency: ReadonlyMap<number, ReadonlySet<number>>,
-  keys: ReadonlyMap<number, number>,
-): Map<number, number> {
-  for (let colorCount = 1; colorCount <= component.length; colorCount++) {
-    const colors = colorGraph(component, adjacency, keys, colorCount)
-
-    if (colors !== undefined) {
-      return colors
-    }
-  }
-
-  // a graph can always be coloured with one colour per room, so this is the end of the ladder
-  const colors = new Map<number, number>()
-
-  for (const [index, room] of component.entries()) {
-    colors.set(room, index)
-  }
-
-  return colors
-}
-
-/**
- * Colours the rooms so that two rooms joined by a portal never share a colour.
- *
- * @remarks
- * The search asks for the **fewest** colours first and adds one when the graph can not be coloured with that many: a
- * level whose room graph is a tree takes two colours and looks calm, and a graph that needs five takes five. The
- * colour count is exact for the counts it accepts (a backtracking search, not a greedy pass), so a bigger count is
- * only used when the smaller one was proven impossible.
- *
- * The tie breaks come from {@link RoomColoringOptions.random}: the same seed colours the same level the same way.
- * When the graph needs more colours than {@link ROOM_COLORS} holds, the colour index of a room can be past the
- * palette, and the reader takes it modulo the palette length.
- *
- * @param portals The portals of the level.
- * @param rooms The rooms to colour.
- * @param options What the search may draw from.
  *
  * @returns The colour of every room, and how many colours the colouring uses.
  */
-export function roomColoringOf(
-  portals: readonly RoomLink[],
-  rooms: readonly number[],
-  options: RoomColoringOptions = {},
-): RoomColoring {
-  const ids = [...new Set(rooms)]
-    .filter((room) => {
-      return room >= 0
-    })
-    .toSorted((first, second) => {
-      return first - second
-    })
-  const random = options.random ?? Math.random
-  const adjacency = roomAdjacencyOf(portals, ids)
-
-  // one key per room, drawn once: the tie break of the search is then a part of the seed, not of the order the page
-  // happens to walk the rooms in
-  const keys = new Map<number, number>()
-
-  for (const room of ids) {
-    keys.set(room, random())
-  }
-
+export function roomColoringOf(rooms: readonly number[]): RoomColoring {
   const colors = new Map<number, number>()
-  let colorCount = 0
+  const palette = ROOM_COLORS.length
 
-  // the components are coloured one after the other, each on its own range of the palette: two rooms that share a
-  // portal keep their different colours, and the rooms the level does not join to anything (a blank plane, or the new
-  // room of the inspector) are still told apart (2026-11-15, the owner: every new room was the same colour)
-  for (const component of componentsOf(ids, adjacency)) {
-    const local = colorComponentOf(component, adjacency, keys)
-    let used = 0
-
-    for (const [room, color] of local) {
-      colors.set(room, color + colorCount)
-      used = Math.max(used, color + 1)
+  for (const room of rooms) {
+    if (room < 0) {
+      continue
     }
 
-    colorCount = colorCount + used
+    // the room 1 is the first colour, and the room 0 (the outside) the last one
+    const index = (((room - 1) % palette) + palette) % palette
+
+    colors.set(room, index)
   }
 
-  return { colors, colorCount }
+  return { colors, colorCount: new Set(colors.values()).size }
 }
 
 /**
@@ -555,24 +255,14 @@ export function roomSummaryOf(polygons: readonly ArxPolygon[]): RoomSummary[] {
 }
 
 /**
- * Colours the rooms of a level the way the editor shows them.
+ * Colours the rooms of a level: the colour of a room is its id in the palette.
  *
- * @remarks
- * The tie breaks come from the **id of the level**, not from its seed: the same level paints the same map on every
- * visit (a link, a reload, another tab), and a level keeps its colours when it is generated again with another seed.
+ * @param rooms The rooms the level has a face in.
  *
- * @param portals The links the level is built from.
- * @param rooms Which ids take a colour.
- * @param mapId The name the level is stored under (`arx:2`, `custom:0`, …).
- *
- * @returns The colour of every room in the level.
+ * @returns The colour of every room, tied to its id.
  */
-export function roomColoringForLevel(
-  portals: readonly RoomLink[],
-  rooms: readonly number[],
-  mapId: string,
-): RoomColoring {
-  return roomColoringOf(portals, rooms, { random: seedrandom(`${mapId}:rooms`) })
+export function roomColoringForLevel(rooms: readonly number[]): RoomColoring {
+  return roomColoringOf(rooms)
 }
 
 /**

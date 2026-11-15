@@ -2,6 +2,7 @@ import { watch } from 'vue'
 import type { ArxMap } from '../../../generator/ArxMap.ts'
 import { selectionStore, type SelectionMode } from '../selection/selectionStore.ts'
 import { levelStore } from '../level/edit/levelStore.ts'
+import { roomRevision } from './roomRevision.ts'
 import { selectRoom, selectRooms } from './roomStore.ts'
 
 /**
@@ -97,14 +98,19 @@ export function pickRoom(room: number | undefined, mode: SelectionMode = 'replac
  * no face clears the pick, and a selection that spans rooms lights all of them.
  *
  * The watch is on the **selection** and not on the level: a room the author picks is a face selection, and the level
- * arriving gives the faces their rooms, which the next selection reads.
+ * arriving gives the faces their rooms, which the next selection reads. A write of the rooms counts too: a move takes
+ * the selected faces into another room without touching the selection, and the lit rooms have to follow it (the faces
+ * that lose their room light the row of the faces without one, 2026-11-15).
  */
 export function startRoomSelection(): void {
   watch(
-    () => {
-      return selectionStore.polygons.value
-    },
-    (faces) => {
+    [
+      (): ReadonlySet<number> => {
+        return selectionStore.polygons.value
+      },
+      roomRevision,
+    ],
+    ([faces]): void => {
       const map = levelStore.map.value
 
       if (map === undefined) {

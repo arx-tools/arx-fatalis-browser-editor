@@ -105,7 +105,7 @@ test('the new room button makes a room of the selected faces, and the undo takes
   const faces = await waitForLevel(page)
 
   const roomInspector = page.locator('[data-widget-kind="room-inspector"]')
-  const newRoomButton = roomInspector.getByRole('button', { name: 'New room' })
+  const newRoomButton = roomInspector.getByRole('button', { name: 'Put into a new room' })
 
   // nothing is selected: the moves of the panel are off
   await expect(roomInspector.locator('.selection')).toContainText('No faces are selected')
@@ -155,7 +155,7 @@ test('the room inspector lists the rooms with the colour of the map, and the sea
   expect(await rows.count()).toBeGreaterThan(1)
 
   // the row of a room reads the number, the count of the faces, and the colour of the room map
-  const first = rows.first()
+  const first = rows.filter({ hasText: /room 1(?!\d)/u }).first()
 
   await expect(first).toContainText('room 1')
   await expect(first).toContainText(/faces?/u)
@@ -194,15 +194,14 @@ test('the room inspector lists the rooms with the colour of the map, and the sea
 })
 
 /**
- * The move-to mode moves the selected faces into the room picked in the list (TODO 162, 180).
+ * The move takes the selected faces into the room of the dropdown (TODO 162, 180).
  *
  * @remarks
- * The panel's `Move to...` button enters the mode: the three moves go, and the target line takes their place. A row click
- * picks the target in the mode (the selection stays the faces the move writes), the submit is off until the target is
- * there and stays off for the room of the selection already, and both buttons leave the mode. The move is the step of
- * the history the undo takes back.
+ * The three things the selection can become are one under the other (2026-11-15, the owner: the mode hid the other two):
+ * a new room, the room of the dropdown, or no room at all. The check of the move row is off until a room is picked and
+ * for the room of the selection already, and the move is the step of the history the undo takes back.
  */
-test('the move-to mode moves the selection into the room picked in the list', async ({ page }) => {
+test('the move takes the selection into the room of the dropdown', async ({ page }) => {
   test.setTimeout(120_000)
 
   await seedLayout(page, roomsLayout)
@@ -211,56 +210,83 @@ test('the move-to mode moves the selection into the room picked in the list', as
   await waitForLevel(page)
 
   const roomInspector = page.locator('[data-widget-kind="room-inspector"]')
-  const rows = roomInspector.locator('li.room')
-  const search = roomInspector.getByRole('searchbox', { name: 'Search rooms' })
-  const moveToButton = roomInspector.getByRole('button', { name: 'Move to...' })
-  const submit = roomInspector.getByRole('button', { name: 'Move selection to target' })
-  const cancel = roomInspector.getByRole('button', { name: 'Cancel', exact: true })
-  const targetField = roomInspector.locator('.target-field')
+  const moveSelect = roomInspector.getByRole('combobox', { name: 'Move to' })
+  const apply = roomInspector.getByRole('button', { name: 'Move the selection to the room' })
+
+  // nothing is selected: the three moves are off
+  await expect(apply).toBeDisabled()
 
   // the pick of the room selects its faces, which is what the move writes
-  await roomInspector.locator('li.room').first().click()
+  await roomInspector
+    .locator('li.room')
+    .filter({ hasText: /room 1(?!\d)/u })
+    .first()
+    .click()
   await expect(roomInspector.locator('.selection')).toContainText('in room 1')
 
-  // the mode: the three moves go, the target is empty, and the submit waits for a target
-  await moveToButton.click()
-
-  await expect(moveToButton).toHaveCount(0)
-  await expect(targetField).toHaveValue('-')
-  await expect(submit).toBeDisabled()
-
   // the room of the selection is no target: its move would write the same room back
-  await search.fill('room 1')
-  await rows.first().click()
+  await moveSelect.selectOption('1')
+  await expect(apply).toBeDisabled()
 
-  await expect(targetField).toHaveValue(/room 1/u)
-  await expect(submit).toBeDisabled()
-
-  // a row of another room: the submit takes the faces there, and leaves the mode
-  await search.fill('room 12')
-  await rows.first().click()
-
-  await expect(targetField).toHaveValue(/room 12/u)
-  await expect(submit).toBeEnabled()
-
-  await submit.click()
+  // a room of another one: the check takes the faces there
+  await moveSelect.selectOption('12')
+  await expect(apply).toBeEnabled()
+  await apply.click()
 
   await expect(roomInspector.locator('.selection')).toContainText('in room 12')
-  await expect(moveToButton).toBeVisible()
 
   // the undo puts the faces back into room 1
   await page.keyboard.press('ControlOrMeta+z')
   await expect(roomInspector.locator('.selection')).toContainText('in room 1')
+})
 
-  // the cancel leaves the mode without writing anything
-  await moveToButton.click()
+/**
+ * The faces no room holds have a row of their own at the top of the list (2026-11-15, the owner: they could not be
+ * picked from the list).
+ *
+ * @remarks
+ * The blank plane has every face in room 1: the first button of the moves takes them out of it, and the row of the
+ * faces without a room arrives with their count. The row is a pick like a room: a click selects the faces, another one
+ * clears them, and the undo of the step puts the room back.
+ */
+test('the no room row picks the faces without a room', async ({ page }) => {
+  test.setTimeout(120_000)
 
-  await expect(targetField).toHaveValue('-')
+  await seedLayout(page, roomsLayout)
+  await page.goto('/?map=blank-flat')
 
-  await cancel.click()
+  const faces = await waitForLevel(page)
 
-  await expect(targetField).toHaveCount(0)
-  await expect(moveToButton).toBeVisible()
+  const roomInspector = page.locator('[data-widget-kind="room-inspector"]')
+  const rows = roomInspector.locator('li.room')
+
+  const unset = roomInspector.getByRole('button', { name: 'Unset room data' })
+
+  await roomInspector.locator('li.room').first().click()
+
+  await expect(unset).toBeEnabled()
+
+  await unset.click()
+
+  await expect(roomInspector.locator('.selection')).toContainText(`${String(faces)} face(s) without a room`)
+
+  // the whole selection is out already: the button has nothing to take out
+  await expect(unset).toBeDisabled()
+
+  // the faces no room holds have a row of their own at the top, with the count of the faces
+  await expect(rows).toHaveCount(1)
+  await expect(rows.first()).toContainText('no room')
+  await expect(rows.first()).toContainText(String(faces))
+  await expect(rows.first()).toHaveClass(/is-selected/u)
+
+  // a click clears the pick, and another one picks the faces of the row
+  await rows.first().click()
+  await expect(roomInspector.locator('.selection')).toContainText('No faces are selected')
+  await rows.first().click()
+  await expect(roomInspector.locator('.selection')).toContainText(`${String(faces)} face(s) without a room`)
+
+  // the undo brings the room 1 back
+  await page.keyboard.press('ControlOrMeta+z')
   await expect(roomInspector.locator('.selection')).toContainText('in room 1')
 })
 

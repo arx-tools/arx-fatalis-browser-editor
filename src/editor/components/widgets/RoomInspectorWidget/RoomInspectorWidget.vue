@@ -1,10 +1,15 @@
 <script setup lang="ts">
-import { Eye, EyeOff, Search, X } from 'lucide-vue-next'
+import { Check, Eye, EyeOff, Search, X } from 'lucide-vue-next'
 import { computed, nextTick, shallowRef, useTemplateRef, watch } from 'vue'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
-import { currentMapId } from '../../../modules/level/source/maps.ts'
-import { faceCountLabelOf, filteredRoomRows, roomRowsOf, type RoomRow } from '../../../modules/rooms/roomList.ts'
+import {
+  faceCountLabelOf,
+  filteredRoomRows,
+  NO_ROOM,
+  roomRowsOf,
+  type RoomRow,
+} from '../../../modules/rooms/roomList.ts'
 import { createRoomWithSelection, moveSelectionToRoom } from '../../../modules/rooms/roomMapper.ts'
 import { nameOf, renameRoom, roomNameOf, UNNAMED_ROOM } from '../../../modules/rooms/roomNames.ts'
 import { pickRoom, roomsOfFaces } from '../../../modules/rooms/roomSelection.ts'
@@ -64,7 +69,7 @@ const problems = shallowRef<RoomProblem[]>([])
  *
  * @remarks
  * The selection is the input of the three moves of the panel: the label above the list says where it is, and the
- * buttons act on it. The rooms are read here, so the move-to row and the label read the same state.
+ * moves act on it. The rooms are read here, so the move row and the label read the same state.
  */
 const selectionRooms = shallowRef<ReadonlySet<number>>(new Set())
 
@@ -125,30 +130,23 @@ const selectionLabel = computed(() => {
 })
 
 /**
- * Whether the panel is in the mode where a click on a row picks the target of the move.
+ * The room the move writes, from the dropdown of the move row.
  *
  * @remarks
- * The three buttons of the panel are the moves of the selection; the move needs a room to go to, and the list is where
- * that room is picked. The mode is the panel's own: the row click picks the room (and not the faces, which are the
- * selection the move writes), and the row it picked is the one the readonly target field says.
+ * The three things the selection can become are one row under the list (2026-11-15, the owner: a mode hid the other
+ * two): a new room, the room of the dropdown, or no room at all. The dropdown is the target of the move, so the room
+ * can be picked without a mode and the other two moves stay one click away.
  */
-const movingTo = shallowRef(false)
+const moveTarget = shallowRef<number | undefined>(undefined)
 
 /**
- * The room the move writes, when the panel is in the move-to mode.
+ * What an option of the move dropdown says: the room and the name the author gave it.
+ *
+ * @param room The id of the room.
+ *
+ * @returns The text of the option.
  */
-const target = shallowRef<number | undefined>(undefined)
-
-/**
- * What the target field says: the room of the move, or `-` while none is picked.
- */
-const targetLabel = computed(() => {
-  const room = target.value
-
-  if (room === undefined) {
-    return '-'
-  }
-
+function moveLabelOf(room: number): string {
   const name = roomNameOf(room)
 
   if (name === undefined) {
@@ -156,47 +154,120 @@ const targetLabel = computed(() => {
   }
 
   return `room ${room} · ${name}`
-})
+}
 
 /**
- * Whether the selected faces are in the target room already.
+ * How the list writes a room: the room id, or `no room` for the faces no room holds.
+ *
+ * @param room The id of the room.
+ *
+ * @returns The label of its row.
+ */
+function roomLabelOf(room: number): string {
+  if (room === NO_ROOM) {
+    return 'no room'
+  }
+
+  return `room ${room}`
+}
+
+/**
+ * What the title of a row says: the name the author gave the room, or `no room`.
+ *
+ * @param room The id of the room.
+ *
+ * @returns The title of the row.
+ */
+function roomTitleOf(room: number): string {
+  if (room === NO_ROOM) {
+    return 'no room'
+  }
+
+  return nameOf(room)
+}
+
+/**
+ * The rooms the move dropdown offers: the rooms of the level, and not the faces without a room.
  *
  * @remarks
- * The move would be a step of the history that writes the same room on every face, so the submit stays off: a list to
- * pick the target from makes the room of the selection a click away, and an undo step of nothing is only noise.
+ * The row of the faces outside every room is a pick of the list, not a room to move into: taking a face out of its room
+ * is what the last button of the panel does.
+ */
+const moveTargets = computed(() => {
+  return rows.value.filter((row) => {
+    return row.room !== NO_ROOM
+  })
+})
+
+/**
+ * Whether the selected faces are in the room of the dropdown already.
+ *
+ * @remarks
+ * The move would be a step of the history that writes the same room on every face, so the check stays off: the dropdown
+ * makes the room of the selection a click away, and an undo step of nothing is only noise.
  */
 const isAlreadyThere = computed(() => {
-  return target.value !== undefined && selectionRooms.value.size === 1 && selectionRooms.value.has(target.value)
+  return moveTarget.value !== undefined && selectionRooms.value.size === 1 && selectionRooms.value.has(moveTarget.value)
 })
 
 /**
- * Whether the move has where to go: a target room, a selection, and not the room the faces are in already.
+ * Whether the move has where to go: a room in the dropdown, a selection, and not the room the faces are in already.
  */
-const canSubmitMove = computed(() => {
-  return target.value !== undefined && selected.value > 0 && !isAlreadyThere.value
+const canMove = computed(() => {
+  return moveTarget.value !== undefined && selected.value > 0 && !isAlreadyThere.value
 })
 
 /**
- * What the submit button explains about itself.
+ * Whether the selection has a room to be taken out of.
+ *
+ * @remarks
+ * A face without a room is already out: a selection of only such faces leaves the button off, because the step would
+ * write the room the faces have (none) back (2026-11-15, the owner: the whole selection in `no room` is a disabled
+ * button, not a step of nothing).
  */
-const submitTitle = computed(() => {
-  if (target.value === undefined) {
-    return 'Pick a room from the list first'
+const canUnset = computed(() => {
+  return selected.value > 0 && foundRooms.value.length > 0
+})
+
+/**
+ * What the button of the unset explains about itself.
+ */
+const unsetTitle = computed(() => {
+  if (selected.value === 0) {
+    return 'Select the faces to take out of their room first'
+  }
+
+  if (foundRooms.value.length === 0) {
+    return 'The selected faces have no room already'
+  }
+
+  return 'Take the selected faces out of their room'
+})
+
+/**
+ * What the check of the move row explains about itself.
+ */
+const moveTitle = computed(() => {
+  if (selected.value === 0) {
+    return 'Select the faces to move first'
+  }
+
+  if (moveTarget.value === undefined) {
+    return 'Pick a room from the dropdown first'
   }
 
   if (isAlreadyThere.value) {
     return 'The selected faces are in this room already'
   }
 
-  return `Move the selected faces into room ${String(target.value)}`
+  return `Move the selected faces into room ${String(moveTarget.value)}`
 })
 
 /**
  * Reads the rooms, the problems and the rooms of the selection again.
  *
  * @remarks
- * The level and its revision are the signal: a load replaces the rooms, an edit moves the faces between them. The id of
- * the map is watched as well, because the colours are keyed with it, and the id of a zip arrives after the level. The
+ * The level and its revision are the signal: a load replaces the rooms, an edit moves the faces between them. The
  * selection is watched too: the label and the moves follow it.
  */
 function rebuild(): void {
@@ -206,16 +277,16 @@ function rebuild(): void {
     rows.value = []
     problems.value = []
     selectionRooms.value = new Set()
-    target.value = undefined
+    moveTarget.value = undefined
 
     return
   }
 
-  rows.value = roomRowsOf(map, currentMapId.value)
+  rows.value = roomRowsOf(map)
   problems.value = roomProblemsOf(map)
   selectionRooms.value = roomsOfFaces(map, selectionStore.polygons.value)
 
-  const picked = target.value
+  const picked = moveTarget.value
 
   if (
     picked !== undefined &&
@@ -223,7 +294,7 @@ function rebuild(): void {
       return row.room !== picked
     })
   ) {
-    target.value = undefined
+    moveTarget.value = undefined
   }
 }
 
@@ -231,7 +302,6 @@ watch(
   [
     levelStore.map,
     levelRevision,
-    currentMapId,
     (): ReadonlySet<number> => {
       return selectionStore.polygons.value
     },
@@ -247,6 +317,17 @@ watch(levelStore.map, () => {
   selectRoom(undefined)
   clearRoomHover()
 })
+
+// another selection is another set of faces: the room of the dropdown was the target of the old one (2026-11-15, the
+// owner)
+watch(
+  () => {
+    return selectionStore.polygons.value
+  },
+  () => {
+    moveTarget.value = undefined
+  },
+)
 
 /**
  * Whether the pick is exactly this room.
@@ -336,8 +417,8 @@ function captureNameField(element: unknown): void {
  * @param room The id of the room.
  */
 async function startRename(room: number): Promise<void> {
-  // the rename is not a part of the move: the clicks of the double click pick the target, the name is edited after it
-  if (movingTo.value) {
+  // the faces no room holds have no name to write
+  if (room === NO_ROOM) {
     return
   }
 
@@ -390,19 +471,10 @@ function cancelRename(): void {
  * `Shift` adds the room to the selection and `Ctrl`/`Meta` takes it away, the modes of the walkable view: a room
  * clicked with `Shift` while another one is picked makes the selection span both, and the rows of both light up.
  *
- * In the move-to mode the click is the target of the move instead: the faces of the selection stay the ones the move
- * writes.
- *
  * @param room The room the row stands for.
  * @param event The click, whose modifiers decide what the row does with the selection.
  */
 function pick(room: number, event: MouseEvent): void {
-  if (movingTo.value) {
-    target.value = room
-
-    return
-  }
-
   const mode = selectionModeOf(event)
 
   if (mode === 'replace' && isPicked(room)) {
@@ -415,41 +487,27 @@ function pick(room: number, event: MouseEvent): void {
 }
 
 /**
- * Enters the mode where a click on a row picks the room the selection moves into.
- */
-function startMovingTo(): void {
-  movingTo.value = true
-  target.value = undefined
-}
-
-/**
- * Leaves the move-to mode without moving the faces.
- */
-function cancelMovingTo(): void {
-  movingTo.value = false
-  target.value = undefined
-}
-
-/**
- * Moves the selected faces into the target room, and leaves the move-to mode.
+ * Moves the selected faces into the room of the dropdown.
  */
 function moveToTarget(): void {
-  const room = target.value
+  const room = moveTarget.value
 
-  if (room === undefined) {
+  if (room === undefined || !canMove.value) {
     return
   }
 
   moveSelectionToRoom(room)
-
-  movingTo.value = false
-  target.value = undefined
+  moveTarget.value = undefined
 }
 
 /**
  * Takes the selected faces out of their room.
  */
 function removeRoom(): void {
+  if (!canUnset.value) {
+    return
+  }
+
   moveSelectionToRoom(-1)
 }
 
@@ -508,7 +566,6 @@ function newRoom(): void {
         :class="{
           'is-selected': selectedRooms.has(row.room),
           'is-hovered': row.room === currentRoom || row.room === hoveredRoom,
-          'is-target': row.room === target,
         }"
         @click="pick(row.room, $event)"
         @dblclick="startRename(row.room)"
@@ -516,8 +573,8 @@ function newRoom(): void {
         @mouseleave="hoverRoom(undefined)"
       >
         <span class="swatch" :style="{ backgroundColor: row.color }"></span>
-        <span class="name" :class="{ 'is-renaming': renaming === row.room }" :title="nameOf(row.room)">
-          room {{ row.room }}
+        <span class="name" :class="{ 'is-renaming': renaming === row.room }" :title="roomTitleOf(row.room)">
+          {{ roomLabelOf(row.room) }}
           <template v-if="renaming === row.room">
             ·
             <input
@@ -541,41 +598,44 @@ function newRoom(): void {
       </li>
     </ul>
     <p v-if="rows.length > 0 && shown.length === 0" class="empty">No room matches the search</p>
-    <div v-if="!movingTo" class="buttons">
-      <button
-        type="button"
-        :disabled="selected === 0"
-        title="Move the selected faces into another room"
-        @click="startMovingTo"
-      >
-        Move to...
-      </button>
-      <button
-        type="button"
-        :disabled="selected === 0"
-        title="Take the selected faces out of their room"
-        @click="removeRoom"
-      >
-        Remove room
-      </button>
-      <button type="button" :disabled="selected === 0" title="Make a new room of the selected faces" @click="newRoom">
-        New room
-      </button>
-    </div>
-    <div v-else class="move-to">
-      <label class="target">
-        <span>Target:</span>
-        <input class="target-field" type="text" readonly :value="targetLabel" />
-      </label>
-      <div class="buttons">
-        <button type="button" :disabled="!canSubmitMove" :title="submitTitle" @click="moveToTarget">
-          Move selection to target
+    <section class="manage">
+      <h3 class="title">Manage selection</h3>
+      <div class="moves">
+        <button
+          type="button"
+          class="move"
+          :disabled="selected === 0"
+          title="Make a new room of the selected faces"
+          @click="newRoom"
+        >
+          Put into a new room
         </button>
-        <button type="button" title="Leave the move without moving the faces" @click="cancelMovingTo">Cancel</button>
+        <span class="or">or</span>
+        <div class="move-row">
+          <label class="move-label" for="move-target">Move to</label>
+          <select id="move-target" v-model="moveTarget" class="move-select" :disabled="selected === 0">
+            <option :value="undefined">Pick a room</option>
+            <option v-for="row in moveTargets" :key="row.room" :value="row.room">{{ moveLabelOf(row.room) }}</option>
+          </select>
+          <button
+            type="button"
+            class="apply"
+            :disabled="!canMove"
+            :title="moveTitle"
+            aria-label="Move the selection to the room"
+            @click="moveToTarget"
+          >
+            <Check :size="14" />
+          </button>
+        </div>
+        <span class="or">or</span>
+        <button type="button" class="move" :disabled="!canUnset" :title="unsetTitle" @click="removeRoom">
+          Unset room data
+        </button>
       </div>
-    </div>
+    </section>
     <section v-if="problems.length > 0" class="problems">
-      <h3 class="title">Problems</h3>
+      <h3 class="title">Warnings</h3>
       <p v-for="problem in problems" :key="problem.text" class="problem" :class="`is-${problem.kind}`">
         {{ problem.text }}
       </p>
@@ -734,12 +794,6 @@ function newRoom(): void {
     color: $text;
     background: rgba($accent, 0.15);
   }
-
-  // the room the move writes: the one row the move speaks about
-  &.is-target {
-    color: $text;
-    box-shadow: inset 2px 0 0 $accent;
-  }
 }
 
 // the field of a row being renamed: it takes the room of the name, and the click on it stays in the field (the row is
@@ -802,18 +856,77 @@ function newRoom(): void {
   font-size: 12px;
 }
 
-// the three moves, in one row under the list, and the two buttons of the move-to mode: the list is the target, and the
-// buttons say what to do with it
-.buttons {
+// the three things the selection can become, one under the other: a new room, the room of the dropdown, or none. A
+// quiet `or` between them says it is one choice, and the dropdown keeps the other two one click away
+.moves {
   display: flex;
   flex: none;
+  flex-direction: column;
   gap: 4px;
+}
 
-  button {
+.move {
+  height: 22px;
+  color: $text;
+  font: inherit;
+  background: $surface-panel;
+  border: 1px solid $border;
+  border-radius: 4px;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: $surface-raised;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+// the word between the moves: the three are one choice, and a quiet line says so
+.or {
+  color: $text-subtle;
+  font-size: 11px;
+  text-align: center;
+}
+
+.move-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  .move-label {
+    color: $text-muted;
+    white-space: nowrap;
+  }
+
+  .move-select {
     flex: 1;
+    min-width: 0;
     height: 22px;
     color: $text;
     font: inherit;
+    background: $surface-panel;
+    border: 1px solid $border;
+    border-radius: 4px;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+  }
+
+  .apply {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 22px;
+    padding: 0;
+    color: $text;
     background: $surface-panel;
     border: 1px solid $border;
     border-radius: 4px;
@@ -830,35 +943,11 @@ function newRoom(): void {
   }
 }
 
-// the move-to mode: the label and the room of the move, and the two buttons under it
-.move-to {
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.target {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-
-  span {
-    color: $text-muted;
-    white-space: nowrap;
-  }
-
-  .target-field {
-    flex: 1;
-    min-width: 0;
-    height: 22px;
-    padding: 0 4px;
-    color: $text;
-    font: inherit;
-    background: $surface-panel;
-    border: 1px solid $border-dark;
-    border-radius: 4px;
-  }
+// the two sections under the list (the moves and the warnings) are cut off from it by the same quiet line
+.manage {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid $border-dark;
 }
 
 .problems {

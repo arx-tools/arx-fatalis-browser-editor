@@ -5,6 +5,7 @@ import type { ArxPolygon, ArxVector3 } from 'arx-convert/types'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { cameraStore } from '../camera/cameraStore.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
+import { roomRevision } from '../../../modules/rooms/roomRevision.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { currentMapId } from '../../../modules/level/source/maps.ts'
 import { centreOfBounds, type CameraBounds } from '../shared/cameraBounds.ts'
@@ -27,7 +28,7 @@ import {
   pickPolygonAt,
   type PolygonSelectionOverlay,
 } from '../View3DWidget/polygonSelection.ts'
-import { createRoomOverlay, type RoomOverlay } from '../shared/roomOverlay.ts'
+import { createRoomOverlay, roomsNeedRepaint, type RoomOverlay } from '../shared/roomOverlay.ts'
 import {
   FIELD_OF_VIEW,
   createViewScene,
@@ -86,6 +87,15 @@ const zoomLabel = computed(() => {
 let view: ViewScene<OrthographicCamera> | undefined
 let shown: Mesh[] = []
 let rooms: RoomOverlay | undefined
+
+/**
+ * The revision of the rooms the colours of the room map were written from.
+ *
+ * @remarks
+ * A move of the faces into another room does not change the geometry, so the revision of the rooms is what tells the
+ * view that the colours of the map are stale (2026-11-15).
+ */
+let paintedRoomRevision = roomRevision.value
 let wireframe: LevelWireframe | undefined
 let player: ArxVector3 | undefined
 let bounds: CameraBounds | undefined
@@ -339,7 +349,8 @@ function setMeshVisible(visible: boolean): void {
  *
  * @remarks
  * An edit refills the geometry of the level in place: the colour attribute of the room map is not refilled with it,
- * so the map is coloured again when its vertex count no longer matches the geometry.
+ * so the map is coloured again when its vertex count no longer matches the geometry — or when the rooms of the faces
+ * were written (a move into another room leaves the buffers as they were).
  */
 function repaintRooms(): void {
   const map = levelStore.map.value
@@ -351,7 +362,15 @@ function repaintRooms(): void {
   const vertexCount = map.solidMeshes[0].geometry.getAttribute('position').count
   const colorCount = rooms.mesh.geometry.getAttribute('color')?.count
 
-  if (colorCount !== vertexCount) {
+  if (
+    roomsNeedRepaint({
+      vertexCount,
+      colorCount,
+      paintedRevision: paintedRoomRevision,
+      revision: roomRevision.value,
+    })
+  ) {
+    paintedRoomRevision = roomRevision.value
     rooms.repaint(map, currentMapId.value)
   }
 }
@@ -379,6 +398,7 @@ function showMap(map: ArxMap): void {
 
   // the room map shares the geometry of the level, so the small views show the same rooms
   rooms = createRoomOverlay(map, currentMapId.value)
+  paintedRoomRevision = roomRevision.value
 
   // the map paints the lit rooms only while it is on: the switch of the map applies the set when it comes on
   if (isRoomColorsVisible.value) {

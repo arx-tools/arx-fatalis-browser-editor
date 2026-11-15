@@ -1,5 +1,6 @@
 import type { FaceRoom, FaceTexture } from '../../../generator/ArxMap.ts'
 import type { PolygonInsertion } from '../../../generator/arxMap/removal.ts'
+import { bumpRoomRevision } from '../rooms/roomRevision.ts'
 import type { HistoryCommand } from './history.ts'
 import {
   HISTORY_RECORD_VERSION,
@@ -56,9 +57,11 @@ function roomCommandOf(record: SetRoomRecord, level: MutableLevel): HistoryComma
     record,
     apply: (): void => {
       level.setFaceRooms(moved)
+      bumpRoomRevision()
     },
     revert: (): void => {
       level.setFaceRooms(before)
+      bumpRoomRevision()
     },
   }
 }

@@ -19,7 +19,8 @@ import { renderPerformanceStore } from '../shared/renderPerformance.ts'
 import { isMeshVisible, isRoomColorsVisible, isWireframeVisible } from '../shared/levelDisplay.ts'
 import { addPreviewLights, attachWireframe, viewMeshesOf, type LevelWireframe } from '../shared/levelScene.ts'
 import { roomPaletteOf } from '../../../../generator/rooms.ts'
-import { createRoomOverlay, type RoomOverlay } from '../shared/roomOverlay.ts'
+import { roomRevision } from '../../../modules/rooms/roomRevision.ts'
+import { createRoomOverlay, roomsNeedRepaint, type RoomOverlay } from '../shared/roomOverlay.ts'
 import {
   FIELD_OF_VIEW,
   createViewScene,
@@ -123,6 +124,15 @@ let selectionGizmo: SelectionGizmo | undefined
 let shown: Mesh[] = []
 let wireframe: LevelWireframe | undefined
 let rooms: RoomOverlay | undefined
+
+/**
+ * The revision of the rooms the colours of the room map were written from.
+ *
+ * @remarks
+ * A move of the faces into another room does not change the geometry, so the buffers can not tell that the colours are
+ * stale: the revision of the rooms does (2026-11-15, the owner: the corner moved into a new room stayed grey).
+ */
+let paintedRoomRevision = roomRevision.value
 let selection: PolygonSelectionOverlay | undefined
 
 let loadedMap: ArxMap | undefined
@@ -290,7 +300,8 @@ function updateVisibility(): void {
  * @remarks
  * An edit refills the geometry of the level in place: the colour attribute of the room map is not refilled with it,
  * so the map is coloured again when its vertex count no longer matches the geometry. A texture or a uv edit does not
- * change the vertex buffers, so the map is not read again for it.
+ * change the vertex buffers, so the map is not read again for it — but a move of the faces into another room does not
+ * change them either, and the colours of the rooms are stale after it: the revision of the rooms tells that.
  */
 function repaintRooms(): void {
   const map = loadedMap
@@ -302,7 +313,15 @@ function repaintRooms(): void {
   const vertexCount = map.solidMeshes[0].geometry.getAttribute('position').count
   const colorCount = rooms.mesh.geometry.getAttribute('color')?.count
 
-  if (colorCount !== vertexCount) {
+  if (
+    roomsNeedRepaint({
+      vertexCount,
+      colorCount,
+      paintedRevision: paintedRoomRevision,
+      revision: roomRevision.value,
+    })
+  ) {
+    paintedRoomRevision = roomRevision.value
     rooms.repaint(map, currentMapId.value)
   }
 }
@@ -344,6 +363,7 @@ function showMap(map: ArxMap): void {
 
   // the room map shares the geometry of the level: it is one more mesh over the same buffers
   rooms = createRoomOverlay(map, currentMapId.value)
+  paintedRoomRevision = roomRevision.value
   applyRoomHighlight()
   view.scene.add(rooms.mesh)
 
@@ -513,6 +533,7 @@ onMounted(() => {
 
   stopWatchingMapId = watch(currentMapId, () => {
     if (rooms !== undefined && loadedMap !== undefined) {
+      paintedRoomRevision = roomRevision.value
       rooms.repaint(loadedMap, currentMapId.value)
     }
 

@@ -143,6 +143,44 @@ function writeRoomColors(map: ArxMap, coloring: RoomColoring, highlight: Readonl
 }
 
 /**
+ * What the decision of a repaint of the room map reads.
+ */
+export interface RoomRepaintState {
+  /**
+   * How many vertices the geometry of the level has.
+   */
+  readonly vertexCount: number
+  /**
+   * How many colours the attribute of the map has, or `undefined` when it has none yet.
+   */
+  readonly colorCount: number | undefined
+  /**
+   * The revision of the rooms the colours were written from.
+   */
+  readonly paintedRevision: number
+  /**
+   * The revision of the rooms the level has now.
+   */
+  readonly revision: number
+}
+
+/**
+ * Whether the colours of the room map have to be written again.
+ *
+ * @remarks
+ * Two things make the colours stale: an edit that rebuilds the geometry (a delete, an insert: the vertex buffers change
+ * and the attribute has to follow), and a write of the rooms of the faces (a move into a room the map has not coloured
+ * yet: the vertex buffers stay the same, so only the revision of the rooms tells it, 2026-11-15).
+ *
+ * @param state The buffers of the geometry and the two revisions.
+ *
+ * @returns True when the map has to be painted again.
+ */
+export function roomsNeedRepaint(state: RoomRepaintState): boolean {
+  return state.colorCount !== state.vertexCount || state.paintedRevision !== state.revision
+}
+
+/**
  * Builds the room map of a level.
  *
  * @param map The level to colour.

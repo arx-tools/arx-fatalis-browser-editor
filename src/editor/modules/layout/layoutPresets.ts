@@ -248,10 +248,9 @@ export const roomsLayout: LayoutNode = {
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: [fixed(260), fixed(220), auto(1)],
+      sizes: [fixed(260), auto(1)],
       children: [
         { type: 'widget', kind: WIDGET_KINDS.topView },
-        { type: 'widget', kind: WIDGET_KINDS.roomMapper },
         { type: 'widget', kind: WIDGET_KINDS.roomInspector },
       ],
     },

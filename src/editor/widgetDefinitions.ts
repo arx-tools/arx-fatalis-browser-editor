@@ -1,6 +1,5 @@
 import type { Widget } from '@lumino/widgets'
 import RoomInspectorWidget from './components/widgets/RoomInspectorWidget/RoomInspectorWidget.vue'
-import RoomMapperWidget from './components/widgets/RoomMapperWidget/RoomMapperWidget.vue'
 import CameraControlsWidget from './components/widgets/CameraControlsWidget/CameraControlsWidget.vue'
 import FixedViewWidget from './components/widgets/FixedViewWidget/FixedViewWidget.vue'
 import KeyboardShortcutsWidget from './components/widgets/KeyboardShortcutsWidget/KeyboardShortcutsWidget.vue'
@@ -154,14 +153,6 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
     group: 'info',
     create: (label): Widget => {
       return new VueWidget(SelectionInspectorWidget, { label })
-    },
-  },
-  {
-    kind: WIDGET_KINDS.roomMapper,
-    label: 'Room Mapper',
-    group: 'controls',
-    create: (label): Widget => {
-      return new VueWidget(RoomMapperWidget, { label })
     },
   },
   {

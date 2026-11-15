@@ -65,7 +65,6 @@ export const WIDGET_KINDS = {
   /**
    * The faces of the selection into a room.
    */
-  roomMapper: 'room-mapper',
   /**
    * The textures a face can be painted with.
    */

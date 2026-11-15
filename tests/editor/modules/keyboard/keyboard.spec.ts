@@ -242,6 +242,25 @@ void describe('pickKeyboardAction', () => {
     assert.equal(action?.id, 'toggleMesh')
   })
 
+  void it('does not fire the scale toggle while a field is typed in', () => {
+    // a 3 could not be typed into the search of the rooms: the scale toggle had no modes, so it fired while typing
+    const { event } = createEvent('Digit3')
+    const bindings = createDefaultBindings(false)
+
+    assert.equal(pickKeyboardAction(event, keyboardActions, bindings, 'editor')?.id, 'toggleScale')
+    assert.equal(pickKeyboardAction(event, keyboardActions, bindings, 'typing'), undefined)
+  })
+
+  void it('leaves the undo and the redo of a field to the field', () => {
+    // Ctrl+Z in a text field is the undo of the text, not of the level
+    const undo = createEvent('KeyZ', { mods: ['ctrl'] })
+    const redo = createEvent('KeyY', { mods: ['ctrl'] })
+    const bindings = createDefaultBindings(false)
+
+    assert.equal(pickKeyboardAction(undo.event, keyboardActions, bindings, 'typing'), undefined)
+    assert.equal(pickKeyboardAction(redo.event, keyboardActions, bindings, 'typing'), undefined)
+  })
+
   void it('does not fire a toggle while typing', () => {
     const { event } = createEvent('KeyM')
     const action = pickKeyboardAction(event, keyboardActions, createDefaultBindings(false), 'typing')

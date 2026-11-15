@@ -90,6 +90,7 @@ export const keyboardActions: readonly KeyboardAction[] = [
     label: 'Toggle the scale gizmo',
     group: 'view',
     keys: [{ code: 'Digit3' }],
+    modes: ['editor', 'pointerLocked'],
   },
   {
     id: 'toggleMesh',

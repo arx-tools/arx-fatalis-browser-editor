@@ -1,4 +1,4 @@
-import { expect, test, type Locator } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 import { roomsLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
 import { ORIGINAL_LEVEL_PARAMETER } from '../../src/editor/modules/level/source/levelSource.ts'
 import { editorUrl, seedLayout, waitForLevel } from './support/editor.ts'
@@ -89,34 +89,36 @@ test('a room of the list selects its faces, and a second click clears both', asy
 })
 
 /**
- * The room mapper moves the faces of the selection into a room (TODO 162).
+ * The room inspector makes a room of the selection, and the undo takes the faces back (TODO 162, from the room mapper).
  *
  * @remarks
- * The blank plane has every face in room 1, so a pick of the room selects them, and the mapper can make a new room of
+ * The blank plane has every face in room 1, so a pick of the room selects them, and the panel can make a new room of
  * them: the level then has room 2 with the faces, and room 1 without them. The step is the history's, so the undo takes
- * the faces back.
+ * the faces back. The three buttons of the panel need a selection: without one they are off.
  */
-test('the mapper makes a room of the selected faces, and the undo takes them back', async ({ page }) => {
+test('the new room button makes a room of the selected faces, and the undo takes them back', async ({ page }) => {
   test.setTimeout(120_000)
 
-  // the mapper is one of the widgets of the preset: its selection count is its own, and the room list stays
   await seedLayout(page, roomsLayout)
   await page.goto('/?map=blank-flat')
 
   const faces = await waitForLevel(page)
 
   const roomInspector = page.locator('[data-widget-kind="room-inspector"]')
-  const mapper = page.locator('[data-widget-kind="room-mapper"]')
+  const newRoomButton = roomInspector.getByRole('button', { name: 'New room' })
 
-  await expect(mapper).toBeVisible()
+  // nothing is selected: the moves of the panel are off
+  await expect(roomInspector.locator('.selection')).toContainText('No faces are selected')
+  await expect(newRoomButton).toBeDisabled()
 
-  // the pick of the room selects its faces, which is what the mapper moves
+  // the pick of the room selects its faces, which is what the button moves
   await roomInspector.locator('li.room').first().click()
-  await expect(mapper.locator('.selection')).toContainText(`${String(faces)} face(s) in room 1`)
+  await expect(roomInspector.locator('.selection')).toContainText(`${String(faces)} face(s) in room 1`)
+  await expect(newRoomButton).toBeEnabled()
 
-  await mapper.locator('button', { hasText: 'New room' }).click()
+  await newRoomButton.click()
 
-  await expect(mapper.locator('.selection')).toContainText('in room 2')
+  await expect(roomInspector.locator('.selection')).toContainText('in room 2')
 
   // the list shows the rooms the level has a face in: room 1 is empty now, so the one row is the new room
   await expect(roomInspector.locator('li.room')).toHaveCount(1)
@@ -126,18 +128,19 @@ test('the mapper makes a room of the selected faces, and the undo takes them bac
   // the step is one of the history: the undo puts every face back into room 1
   await page.keyboard.press('ControlOrMeta+z')
 
-  await expect(mapper.locator('.selection')).toContainText('in room 1')
+  await expect(roomInspector.locator('.selection')).toContainText('in room 1')
 })
 
 /**
- * The target list of the mapper is a coloured list, and a search narrows it (TODO 180).
+ * The list of the room inspector is a coloured list, and a search narrows it (TODO 180, from the room mapper).
  *
  * @remarks
- * The rows are the rooms the room map paints, with the colour of the map and the count of their faces: the swatch of a
- * room is the same colour in the mapper and in the room inspector, because both read the colouring of the level. The
- * search reads the number and the name of a room, and the list says when nothing matches.
+ * The rows are the rooms the room map paints, with the colour of the map and the count of their faces. The search reads
+ * the number and the name of a room, the list says when nothing matches, and the clear button empties the field. A `3`
+ * typed into the field is a character, not the scale gizmo: the field is a field, and a hotkey must not eat its keys
+ * (2026-11-15, the owner could not type a 3 into the search).
  */
-test('the mapper lists the rooms with the colour of the map, and the search narrows them', async ({ page }) => {
+test('the room inspector lists the rooms with the colour of the map, and the search narrows them', async ({ page }) => {
   test.setTimeout(120_000)
 
   await seedLayout(page, roomsLayout)
@@ -146,36 +149,32 @@ test('the mapper lists the rooms with the colour of the map, and the search narr
   await waitForLevel(page)
 
   const roomInspector = page.locator('[data-widget-kind="room-inspector"]')
-  const mapper = page.locator('[data-widget-kind="room-mapper"]')
-  const rows = mapper.locator('li.room')
+  const rows = roomInspector.locator('li.room')
+  const search = roomInspector.getByRole('searchbox', { name: 'Search rooms' })
 
-  await expect(mapper).toBeVisible()
   expect(await rows.count()).toBeGreaterThan(1)
 
-  // the row of a room reads as the row of the inspector: the colour, the number and the count of the faces
+  // the row of a room reads the number, the count of the faces, and the colour of the room map
   const first = rows.first()
 
   await expect(first).toContainText('room 1')
   await expect(first).toContainText(/faces?/u)
 
-  async function swatchOf(row: Locator): Promise<string> {
-    return await row.locator('.swatch').evaluate((element) => {
-      return getComputedStyle(element).backgroundColor
-    })
-  }
+  const swatch = await first.locator('.swatch').evaluate((element) => {
+    return getComputedStyle(element).backgroundColor
+  })
 
-  expect(await swatchOf(first)).toBe(await swatchOf(roomInspector.locator('li.room').first()))
+  expect(swatch).toMatch(/^rgb/u)
 
-  // the row click is the target of the move, not the pick of the room: the selection is untouched
-  await first.click()
+  const all = await rows.count()
 
-  await expect(first).toHaveClass(/is-target/u)
-  await expect(mapper.locator('.selection')).toContainText('No faces are selected')
+  // a digit is typed into the search: the scale gizmo is a hotkey of the scene, not of a field
+  await search.click()
+  await search.press('3')
+
+  await expect(search).toHaveValue('3')
 
   // the search narrows the list to the rooms whose number it reads
-  const all = await rows.count()
-  const search = mapper.getByRole('searchbox', { name: 'Search rooms' })
-
   await search.fill('room 12')
 
   await expect(rows.first()).toContainText('room 12')
@@ -185,24 +184,25 @@ test('the mapper lists the rooms with the colour of the map, and the search narr
   await search.fill('no such room')
 
   await expect(rows).toHaveCount(0)
-  await expect(mapper.locator('.empty')).toContainText('No room matches the search')
+  await expect(roomInspector.locator('.empty')).toContainText('No room matches the search')
 
   // the clear button empties the field, and the list comes back
-  await mapper.getByRole('button', { name: 'Empty the search' }).click()
+  await roomInspector.getByRole('button', { name: 'Empty the search' }).click()
 
   await expect(search).toHaveValue('')
   expect(await rows.count()).toBe(all)
 })
 
 /**
- * The mapper moves the selected faces into the room picked in its list (TODO 162, 180).
+ * The move-to mode moves the selected faces into the room picked in the list (TODO 162, 180).
  *
  * @remarks
- * The list is the target of the move: a row click picks the room, the search finds the room to pick, and the move is the
- * step of the history the undo takes back. A target that is the room of the selection already leaves the move off, so a
- * click of the row next door writes nothing into the history.
+ * The panel's `Move to...` button enters the mode: the three moves go, and the target line takes their place. A row click
+ * picks the target in the mode (the selection stays the faces the move writes), the submit is off until the target is
+ * there and stays off for the room of the selection already, and both buttons leave the mode. The move is the step of
+ * the history the undo takes back.
  */
-test('the mapper moves the selection into the room picked in the list', async ({ page }) => {
+test('the move-to mode moves the selection into the room picked in the list', async ({ page }) => {
   test.setTimeout(120_000)
 
   await seedLayout(page, roomsLayout)
@@ -211,35 +211,57 @@ test('the mapper moves the selection into the room picked in the list', async ({
   await waitForLevel(page)
 
   const roomInspector = page.locator('[data-widget-kind="room-inspector"]')
-  const mapper = page.locator('[data-widget-kind="room-mapper"]')
-  const rows = mapper.locator('li.room')
-  const moveButton = mapper.getByRole('button', { name: 'Move', exact: true })
-  const search = mapper.getByRole('searchbox', { name: 'Search rooms' })
+  const rows = roomInspector.locator('li.room')
+  const search = roomInspector.getByRole('searchbox', { name: 'Search rooms' })
+  const moveToButton = roomInspector.getByRole('button', { name: 'Move to...' })
+  const submit = roomInspector.getByRole('button', { name: 'Move selection to target' })
+  const cancel = roomInspector.getByRole('button', { name: 'Cancel', exact: true })
+  const targetField = roomInspector.locator('.target-field')
 
-  // the pick of the room selects its faces, which is what the mapper moves
+  // the pick of the room selects its faces, which is what the move writes
   await roomInspector.locator('li.room').first().click()
-  await expect(mapper.locator('.selection')).toContainText('in room 1')
+  await expect(roomInspector.locator('.selection')).toContainText('in room 1')
+
+  // the mode: the three moves go, the target is empty, and the submit waits for a target
+  await moveToButton.click()
+
+  await expect(moveToButton).toHaveCount(0)
+  await expect(targetField).toHaveValue('-')
+  await expect(submit).toBeDisabled()
 
   // the room of the selection is no target: its move would write the same room back
   await search.fill('room 1')
-  await expect(rows.first()).toContainText('room 1')
   await rows.first().click()
 
-  await expect(rows.first()).toHaveClass(/is-target/u)
-  await expect(moveButton).toBeDisabled()
+  await expect(targetField).toHaveValue(/room 1/u)
+  await expect(submit).toBeDisabled()
 
-  // a row of another room: the move takes the faces there
+  // a row of another room: the submit takes the faces there, and leaves the mode
   await search.fill('room 12')
-  await expect(rows.first()).toContainText('room 12')
   await rows.first().click()
-  await expect(moveButton).toBeEnabled()
 
-  await moveButton.click()
-  await expect(mapper.locator('.selection')).toContainText('in room 12')
+  await expect(targetField).toHaveValue(/room 12/u)
+  await expect(submit).toBeEnabled()
+
+  await submit.click()
+
+  await expect(roomInspector.locator('.selection')).toContainText('in room 12')
+  await expect(moveToButton).toBeVisible()
 
   // the undo puts the faces back into room 1
   await page.keyboard.press('ControlOrMeta+z')
-  await expect(mapper.locator('.selection')).toContainText('in room 1')
+  await expect(roomInspector.locator('.selection')).toContainText('in room 1')
+
+  // the cancel leaves the mode without writing anything
+  await moveToButton.click()
+
+  await expect(targetField).toHaveValue('-')
+
+  await cancel.click()
+
+  await expect(targetField).toHaveCount(0)
+  await expect(moveToButton).toBeVisible()
+  await expect(roomInspector.locator('.selection')).toContainText('in room 1')
 })
 
 /**
@@ -589,7 +611,7 @@ test('shift alone lights the room under the pointer of a fixed view', async ({ p
  * The name is metadata: it is not a step of the history, it does not touch the selection, and the row of the room keeps
  * the number the engine uses. The field under the list belongs to the picked room, which is the one the click selected.
  */
-test('the name of a room is written under the list, and the row shows it', async ({ page }) => {
+test('the name of a room is written on its row, with a double click', async ({ page }) => {
   test.setTimeout(120_000)
 
   await seedLayout(page, roomsLayout)
@@ -601,23 +623,69 @@ test('the name of a room is written under the list, and the row shows it', async
   const row = roomInspector.locator('li.room').first()
 
   await expect(row).toContainText('room 1')
-  await expect(roomInspector.locator('.field')).toHaveCount(0)
 
-  // the pick makes the row the one the field names
-  await row.click()
+  // there is no field under the list: the name is edited where it reads
+  await expect(roomInspector.locator('.field')).toHaveCount(0)
+  await expect(roomInspector.locator('#room-name')).toHaveCount(0)
+
+  // a double click opens the field on the row: the row has no name, so the field is empty and the placeholder says what
+  // the room is (a click away must not name the room after the placeholder)
+  await row.dblclick()
 
   const field = roomInspector.locator('#room-name')
 
+  await expect(field).toBeVisible()
   await expect(field).toHaveAttribute('placeholder', 'Unnamed area')
+  await expect(field).toBeFocused()
+  await expect(field).toHaveValue('')
+
+  await field.blur()
+
+  await expect(field).toHaveCount(0)
+  await expect(row).not.toContainText('Unnamed area')
+
+  // the author types a name, and the Enter writes it on the row
+  await row.dblclick()
 
   await field.fill('The yard')
-  await field.blur()
+  await field.press('Enter')
+
+  await expect(row).toContainText('room 1 · The yard')
+  await expect(field).toHaveCount(0)
+
+  // the Escape closes the field and keeps the name it had
+  await row.dblclick()
+
+  await expect(field).toHaveValue('The yard')
+
+  await field.fill('The garden')
+  await field.press('Escape')
 
   await expect(row).toContainText('room 1 · The yard')
 
-  // an empty field takes the name away, and the list says the text of the nameless ones
-  await field.fill('')
-  await field.blur()
+  // a name longer than the row is cut with the ellipsis in the list, but the field of its rename is whole, focused and
+  // carries the whole name (2026-11-15, the owner: the field was cut with the row, and the ring of its focus with it)
+  const longName = 'A name that is far too long for this narrow row of the list'
 
-  await expect(row).not.toContainText('The yard')
+  await row.dblclick()
+  await field.fill(longName)
+  await field.press('Enter')
+
+  await expect(row).toContainText(`room 1 · ${longName}`)
+
+  await row.dblclick()
+
+  await expect(field).toBeVisible()
+  await expect(field).toBeFocused()
+  await expect(field).toHaveValue(longName)
+
+  await field.press('Escape')
+
+  // an empty field takes the name away, and the row says what it is: an area without a name
+  await row.dblclick()
+  await field.fill('')
+  await field.press('Enter')
+
+  await expect(row).not.toContainText(longName)
+  await expect(row.locator('.name')).toHaveAttribute('title', 'Unnamed area')
 })

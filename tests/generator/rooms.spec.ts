@@ -177,11 +177,23 @@ void describe('roomColoringOf', () => {
     assert.equal(coloring.colors.size, 5)
   })
 
-  void it('colours the rooms that have no portal too', () => {
+  void it('gives the rooms that have no portal a colour of their own', () => {
+    // a blank level has no portal at all, and every room of it is a component of its own: the palette is walked, so the
+    // new rooms are told apart (2026-11-15, the owner: every new room was the same colour)
     const coloring = roomColoringOf([], [1, 2, 3])
 
     assert.equal(coloring.colors.size, 3)
-    assert.equal(coloring.colorCount, 1)
+    assert.equal(new Set(coloring.colors.values()).size, 3)
+    assert.equal(coloring.colorCount, 3)
+  })
+
+  void it('keeps the colours of a portal graph apart from the rooms it does not join', () => {
+    // the pair is one component, the room 3 is another: each starts on its own range of the palette
+    const coloring = roomColoringOf([portalBetween(1, 2)], [1, 2, 3])
+
+    assert.notEqual(coloring.colors.get(1), coloring.colors.get(2))
+    assert.equal(new Set(coloring.colors.values()).size, 3)
+    assert.equal(coloring.colorCount, 3)
   })
 
   void it('gives the same rooms the same colours from the same seed', () => {

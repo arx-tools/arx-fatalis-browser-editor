@@ -279,6 +279,99 @@ function colorGraph(
 }
 
 /**
+ * The connected components of the room graph, the biggest first.
+ *
+ * @remarks
+ * The rooms joined by portals are one component, and a room no portal joins is a component of its own. The components
+ * are ordered with the biggest one first, so the colours of the level's main graph are the ones the palette starts
+ * with, and the isolated rooms come after them; the order of two components of the same size is the order of their
+ * lowest room, so the colouring is deterministic.
+ *
+ * @param rooms The rooms to walk.
+ * @param adjacency The neighbours of every room.
+ *
+ * @returns The rooms of every component.
+ */
+function componentsOf(rooms: readonly number[], adjacency: ReadonlyMap<number, ReadonlySet<number>>): number[][] {
+  const seen = new Set<number>()
+  const components: number[][] = []
+
+  for (const room of rooms) {
+    if (seen.has(room)) {
+      continue
+    }
+
+    const component: number[] = []
+    const queue = [room]
+    seen.add(room)
+
+    while (queue.length > 0) {
+      const current = queue.pop()
+
+      if (current === undefined) {
+        break
+      }
+
+      component.push(current)
+
+      for (const neighbour of adjacency.get(current) ?? []) {
+        if (!seen.has(neighbour)) {
+          seen.add(neighbour)
+          queue.push(neighbour)
+        }
+      }
+    }
+
+    components.push(component)
+  }
+
+  return components.toSorted((first, second) => {
+    if (first.length !== second.length) {
+      return second.length - first.length
+    }
+
+    return (first[0] ?? 0) - (second[0] ?? 0)
+  })
+}
+
+/**
+ * Colours one connected component of the room graph.
+ *
+ * @remarks
+ * The search asks for the fewest colours of the component first and adds one when the component can not be coloured
+ * with that many; the colours it finds start at zero, and the caller moves them onto the range of the component in the
+ * palette.
+ *
+ * @param component The rooms of the component.
+ * @param adjacency The neighbours of every room.
+ * @param keys The tie break of every room.
+ *
+ * @returns The colour of every room of the component, from zero.
+ */
+function colorComponentOf(
+  component: readonly number[],
+  adjacency: ReadonlyMap<number, ReadonlySet<number>>,
+  keys: ReadonlyMap<number, number>,
+): Map<number, number> {
+  for (let colorCount = 1; colorCount <= component.length; colorCount++) {
+    const colors = colorGraph(component, adjacency, keys, colorCount)
+
+    if (colors !== undefined) {
+      return colors
+    }
+  }
+
+  // a graph can always be coloured with one colour per room, so this is the end of the ladder
+  const colors = new Map<number, number>()
+
+  for (const [index, room] of component.entries()) {
+    colors.set(room, index)
+  }
+
+  return colors
+}
+
+/**
  * Colours the rooms so that two rooms joined by a portal never share a colour.
  *
  * @remarks
@@ -320,22 +413,25 @@ export function roomColoringOf(
     keys.set(room, random())
   }
 
-  for (let colorCount = 1; colorCount <= ids.length; colorCount++) {
-    const colors = colorGraph(ids, adjacency, keys, colorCount)
-
-    if (colors !== undefined) {
-      return { colors, colorCount }
-    }
-  }
-
-  // a graph can always be coloured with one colour per room, so this is the end of the ladder
   const colors = new Map<number, number>()
+  let colorCount = 0
 
-  for (const [index, room] of ids.entries()) {
-    colors.set(room, index)
+  // the components are coloured one after the other, each on its own range of the palette: two rooms that share a
+  // portal keep their different colours, and the rooms the level does not join to anything (a blank plane, or the new
+  // room of the inspector) are still told apart (2026-11-15, the owner: every new room was the same colour)
+  for (const component of componentsOf(ids, adjacency)) {
+    const local = colorComponentOf(component, adjacency, keys)
+    let used = 0
+
+    for (const [room, color] of local) {
+      colors.set(room, color + colorCount)
+      used = Math.max(used, color + 1)
+    }
+
+    colorCount = colorCount + used
   }
 
-  return { colors, colorCount: ids.length }
+  return { colors, colorCount }
 }
 
 /**

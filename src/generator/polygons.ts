@@ -20,6 +20,22 @@ export function isDoubleSided(polygon: Pick<ArxPolygon, 'flags'>): boolean {
 }
 
 /**
+ * Tells whether a face glows.
+ *
+ * @remarks
+ * The level marks the faces that give their own light with the `Glow` bit (a lamp, the flame of a torch, the glow of a
+ * window). The game draws such a face with a **white** vertex colour, so the light of the scene does not darken it and
+ * the `trans` of the face does not dim its texture: the face is the light.
+ *
+ * @param polygon The polygon to read.
+ *
+ * @returns True when the face gives its own light.
+ */
+export function isGlow(polygon: Pick<ArxPolygon, 'flags'>): boolean {
+  return (polygon.flags & ArxPolygonFlags.Glow) !== 0
+}
+
+/**
  * Tells whether a face is water.
  *
  * @remarks
@@ -99,14 +115,22 @@ export function blendModeOf(polygon: Pick<ArxPolygon, 'flags' | 'transval'>): Po
  * The game sets every vertex colour of a `Transparent` face to `gray(trans)` before it draws them, which is why a light
  * ray is dim and a torch flame is not: the values are the ones of `ComputePortalVertexBuffer`.
  *
+ * A **Glow** face is the exception: the render sets its vertex colour to white (`Scene.cpp`), because the face is the
+ * light and the scene must not dim it. The lamp of the minigame is one of these — its `transval` is `1.005`, which would
+ * be almost black as a `gray(trans)`, and the game still draws its full texture.
+ *
  * @param polygon The polygon to read.
  *
- * @returns The grey of the face, `1` for an opaque one.
+ * @returns The grey of the face, `1` for an opaque or a glowing one.
  */
 export function blendTransOf(polygon: Pick<ArxPolygon, 'flags' | 'transval'>): number {
   const mode = blendModeOf(polygon)
 
   if (mode === 'opaque') {
+    return 1
+  }
+
+  if (isGlow(polygon)) {
     return 1
   }
 

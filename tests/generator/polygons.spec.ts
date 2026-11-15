@@ -262,6 +262,14 @@ void describe('blendTransOf', () => {
     assert.equal(blendTransOf({ flags: 0, transval: 0.5 }), 1)
   })
 
+  void it('gives a glowing face the white of its own light', () => {
+    // the lamp of the minigame: Transparent + Glow, transval 1.005. The render of the game sets the vertex colour of a
+    // Glow face to white, so the texture is not dimmed to gray(0.005) — which would be an invisible additive sheet.
+    const flags = ArxPolygonFlags.Transparent + ArxPolygonFlags.Glow
+
+    assert.equal(blendTransOf({ flags, transval: 1.005 }), 1)
+  })
+
   void it('reads the brightness the game multiplies the texture with', () => {
     const transparent = ArxPolygonFlags.Transparent
 

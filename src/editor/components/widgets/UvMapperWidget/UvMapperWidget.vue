@@ -179,6 +179,18 @@ const entry = shallowRef<TextureEntry | undefined>(undefined)
 const textureName = shallowRef<string | undefined>(undefined)
 
 /**
+ * The name the caption of the widget shows: the file name of the texture when the editor has the file for it.
+ *
+ * @remarks
+ * A level may name a texture without the extension (`[glass]_windows2`), while the file is `[glass]_windows2.jpg`: the
+ * user needs to read the file it is, so the caption takes the name of the file the catalog found for the texture, and
+ * only falls back to the name of the container when the editor has no file for it.
+ */
+const captionName = computed(() => {
+  return entry.value?.name ?? textureName.value
+})
+
+/**
  * The zoom as the corner of the widget shows it.
  */
 const zoomLabel = computed(() => {
@@ -729,7 +741,7 @@ watch(
   <div class="UvMapperWidget">
     <div class="head">
       <h2 class="label">{{ props.label }}</h2>
-      <span class="name">{{ textureName ?? 'no face' }}</span>
+      <span class="name">{{ captionName ?? 'no face' }}</span>
       <span v-if="shown !== undefined && shown.indices.length > 1" class="faces">{{ shown.indices.length }} faces</span>
       <span class="zoom">{{ zoomLabel }}</span>
     </div>

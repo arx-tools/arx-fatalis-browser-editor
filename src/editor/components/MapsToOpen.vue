@@ -208,6 +208,10 @@ watch(currentMapId, (id) => {
     display: inline-flex;
     align-items: center;
     gap: 5px;
+    // a level the author named in a zip (`Custom: Arx Map Lalees Minigame V2 1 1`) may be much longer than the maps of
+    // the game, and the control sits in the middle of the header: the box keeps a width the brand can live with, and a
+    // longer name is cut on the ellipsis (the tooltip and the open list say it whole)
+    max-width: 160px;
     color: $text;
     border: 1px solid $border;
     border-radius: 4px;
@@ -234,9 +238,14 @@ watch(currentMapId, (id) => {
     }
 
     select {
+      flex: 1;
+      min-width: 0;
       padding: 2px 18px 2px 0;
+      overflow: hidden;
       color: $text;
       font: inherit;
+      text-overflow: ellipsis;
+      white-space: nowrap;
       background: transparent;
       border: 0;
       border-radius: 4px;

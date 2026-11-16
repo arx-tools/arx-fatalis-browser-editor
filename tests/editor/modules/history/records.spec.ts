@@ -10,6 +10,7 @@ import { commandOf } from '../../../../src/editor/modules/history/commands.ts'
 import {
   createBuildTunnelRecord,
   createDeleteFacesRecord,
+  createDeleteRoomsRecord,
   createSetTextureRecord,
   createSetUvRecord,
   createRotateFacesRecord,
@@ -885,6 +886,110 @@ void describe('commandOf a tunnel', () => {
       lighting: [],
       portals: [],
     })
+
+    assert.equal(commandOf(record, level), undefined)
+  })
+})
+
+/**
+ * A portal of the test between two rooms.
+ *
+ * @param room1 The room on one side.
+ * @param room2 The room on the other side.
+ *
+ * @returns The portal, with the parts the command reads.
+ */
+function portal(room1: number, room2: number): ArxPortal {
+  return { room1, room2 } as unknown as ArxPortal
+}
+
+void describe('createDeleteRoomsRecord', () => {
+  void it('writes the faces sorted with their rooms, and the portals unique', () => {
+    const record = createDeleteRoomsRecord(
+      [
+        { index: 2, room: 1 },
+        { index: 0, room: 3 },
+        { index: 0, room: 3 },
+      ],
+      [4, 2, 4],
+    )
+
+    assert.deepEqual(record, {
+      version: HISTORY_RECORD_VERSION,
+      kind: 'deleteRooms',
+      faces: [0, 2],
+      from: [3, 1],
+      portals: [2, 4],
+    })
+  })
+
+  void it('says how many rooms the step takes out', () => {
+    const record = createDeleteRoomsRecord(
+      [
+        { index: 0, room: 7 },
+        { index: 1, room: 7 },
+        { index: 2, room: 8 },
+      ],
+      [],
+    )
+
+    assert.equal(labelOf(record), 'Delete 2 room(s)')
+  })
+})
+
+void describe('commandOf a room delete', () => {
+  void it('takes the rooms out on apply, and puts them back with their portals on revert', () => {
+    const { level, polygons, portals } = fakeLevel(3)
+
+    polygons[0].room = 1
+    polygons[1].room = 2
+    polygons[2].room = 1
+    portals.push(portal(1, 2), portal(2, 3))
+
+    const command = commandOf(
+      createDeleteRoomsRecord(
+        [
+          { index: 0, room: 1 },
+          { index: 2, room: 1 },
+        ],
+        [0],
+      ),
+      level,
+    )
+
+    command?.apply()
+
+    // the faces stay, and only their room goes; the portal of the room goes with it
+    assert.deepEqual(
+      polygons.map((polygon) => {
+        return polygon.room
+      }),
+      [-1, 2, -1],
+    )
+    assert.deepEqual([portals[0]?.room1, portals[0]?.room2], [2, 3])
+
+    command?.revert()
+
+    assert.deepEqual(
+      polygons.map((polygon) => {
+        return polygon.room
+      }),
+      [1, 2, 1],
+    )
+    assert.deepEqual([portals[0]?.room1, portals[0]?.room2], [1, 2])
+    assert.deepEqual([portals[1]?.room1, portals[1]?.room2], [2, 3])
+  })
+
+  void it('gives no command when a portal of the record is not in the level', () => {
+    const { level } = fakeLevel(2)
+    const record = createDeleteRoomsRecord([{ index: 0, room: 1 }], [3])
+
+    assert.equal(commandOf(record, level), undefined)
+  })
+
+  void it('gives no command when a face of the record is not in the level', () => {
+    const { level } = fakeLevel(2)
+    const record = createDeleteRoomsRecord([{ index: 5, room: 1 }], [])
 
     assert.equal(commandOf(record, level), undefined)
   })

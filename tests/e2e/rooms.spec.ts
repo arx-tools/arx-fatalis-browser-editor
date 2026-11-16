@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { roomsLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
 import { ORIGINAL_LEVEL_PARAMETER } from '../../src/editor/modules/level/source/levelSource.ts'
-import { editorUrl, seedLayout, waitForLevel } from './support/editor.ts'
+import { editorUrl, seedLayout, statOf, waitForLevel } from './support/editor.ts'
 
 /**
  * The url of a level of the game's own files.
@@ -714,4 +714,103 @@ test('the name of a room is written on its row, with a double click', async ({ p
 
   await expect(row).not.toContainText(longName)
   await expect(row.locator('.name')).toHaveAttribute('title', 'Unnamed area')
+})
+
+/**
+ * The trash of a row takes the room out, and the faces stay.
+ *
+ * @remarks
+ * A room is the faces that name it: the step writes `-1` into them, so the level keeps every face and only loses the area.
+ * The row of the faces without a room arrives with the count of the faces the room held.
+ */
+test('the trash takes a room out, and the faces stay', async ({ page }) => {
+  test.setTimeout(120_000)
+  await seedLayout(page, roomsLayout)
+  await page.goto('/?map=blank-flat')
+
+  const faces = await waitForLevel(page)
+
+  const rows = page.locator('[data-widget-kind="room-inspector"] li.room')
+
+  await expect(rows).toHaveCount(1)
+
+  await expect
+    .poll(async () => {
+      return await statOf(page, 'Rooms')
+    })
+    .toBe(1)
+
+  await rows.first().locator('.trash').click()
+
+  await expect
+    .poll(async () => {
+      return await statOf(page, 'Rooms')
+    })
+    .toBe(0)
+
+  // the dummy row of the faces no room holds is the only one left, and it holds every face of the level
+  await expect(rows).toHaveCount(1)
+  await expect(rows.first()).toContainText('no room')
+  await expect(rows.first()).toContainText(`${String(faces)} faces`)
+  expect(await statOf(page, 'Total faces')).toBe(faces)
+})
+
+/**
+ * `Delete` takes the picked rooms out while the list of the rooms has the keyboard, and the undo puts them back with
+ * their portals.
+ *
+ * @remarks
+ * The portals name their rooms, so the rooms take them with them: a portal to a room that is not there is not a portal of
+ * the level. One step of the history does both halves, so one undo is the rooms again. The level of the test is level 12:
+ * it has forty one rooms and fifty four portals, so a delete of a few rooms has a portal to take with it.
+ */
+test('Delete takes the picked rooms out, and the undo puts them back with their portals', async ({ page }) => {
+  test.setTimeout(120_000)
+  await seedLayout(page, roomsLayout)
+  await page.goto(levelUrl(12))
+
+  const faces = await waitForLevel(page)
+
+  const roomsBefore = await statOf(page, 'Rooms')
+  const portalsBefore = await statOf(page, 'Portals')
+  const realRows = page.locator('[data-widget-kind="room-inspector"] li.room').filter({ hasNotText: 'no room' })
+
+  expect(roomsBefore).toBeGreaterThan(3)
+  expect(portalsBefore).toBeGreaterThan(0)
+
+  // three rooms of the list: the click picks the first, the two shifts add the others, so the selection spans three rooms
+  await realRows.nth(0).click()
+  await realRows.nth(1).click({ modifiers: ['Shift'] })
+  await realRows.nth(2).click({ modifiers: ['Shift'] })
+
+  await page.keyboard.press('Delete')
+
+  await expect
+    .poll(async () => {
+      return await statOf(page, 'Rooms')
+    })
+    .toBe((roomsBefore ?? 0) - 3)
+
+  await expect
+    .poll(async () => {
+      return await statOf(page, 'Portals')
+    })
+    .toBeLessThan(portalsBefore ?? 0)
+
+  // the faces of the three rooms stay in the level, without a room
+  expect(await statOf(page, 'Total faces')).toBe(faces)
+
+  await page.keyboard.press('ControlOrMeta+z')
+
+  await expect
+    .poll(async () => {
+      return await statOf(page, 'Rooms')
+    })
+    .toBe(roomsBefore)
+
+  await expect
+    .poll(async () => {
+      return await statOf(page, 'Portals')
+    })
+    .toBe(portalsBefore)
 })

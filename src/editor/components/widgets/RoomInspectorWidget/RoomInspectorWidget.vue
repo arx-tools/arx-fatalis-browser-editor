@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Check, Eye, EyeOff, Search, X } from 'lucide-vue-next'
+import { Check, Eye, EyeOff, Search, Trash2, X } from 'lucide-vue-next'
 import { computed, nextTick, shallowRef, useTemplateRef, watch } from 'vue'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
@@ -10,6 +10,7 @@ import {
   roomRowsOf,
   type RoomRow,
 } from '../../../modules/rooms/roomList.ts'
+import { deleteRooms } from '../../../modules/rooms/roomDeletion.ts'
 import { createRoomWithSelection, moveSelectionToRoom } from '../../../modules/rooms/roomMapper.ts'
 import { nameOf, renameRoom, roomNameOf, UNNAMED_ROOM } from '../../../modules/rooms/roomNames.ts'
 import { portalRevision } from '../../../modules/rooms/portalSync.ts'
@@ -87,6 +88,11 @@ const query = shallowRef('')
  * The search field, so the clear button can put the focus back on it.
  */
 const searchField = useTemplateRef<HTMLInputElement>('searchField')
+
+/**
+ * The list of the rooms, so a click in it can take the focus (the `Delete` of the inspector acts on the picked rows).
+ */
+const roomsList = useTemplateRef<HTMLUListElement>('roomList')
 
 /**
  * The rooms the search lets through.
@@ -519,6 +525,22 @@ function removeRoom(): void {
 function newRoom(): void {
   createRoomWithSelection()
 }
+
+/**
+ * Puts the focus into the list, so the next `Delete` belongs to the rooms.
+ */
+function focusList(): void {
+  roomsList.value?.focus()
+}
+
+/**
+ * Takes a room out of the level: its faces stay, and become faces without a room.
+ *
+ * @param room The room the row stands for.
+ */
+function removeRowRoom(room: number): void {
+  deleteRooms([room])
+}
 </script>
 
 <template>
@@ -560,7 +582,7 @@ function newRoom(): void {
         <X :size="12" />
       </button>
     </label>
-    <ul class="rooms">
+    <ul ref="roomList" class="rooms" tabindex="0" @pointerdown="focusList">
       <li
         v-for="row in shown"
         :key="row.room"
@@ -597,6 +619,16 @@ function newRoom(): void {
           <template v-else-if="roomNameOf(row.room) !== undefined"> · {{ nameOf(row.room) }}</template>
         </span>
         <span class="count">{{ faceCountLabelOf(row.faceCount) }}</span>
+        <button
+          v-if="row.room !== NO_ROOM"
+          class="trash"
+          type="button"
+          :aria-label="`Delete ${roomLabelOf(row.room)}`"
+          :title="`Delete ${roomLabelOf(row.room)}`"
+          @click.stop="removeRowRoom(row.room)"
+        >
+          <Trash2 :size="13" />
+        </button>
       </li>
     </ul>
     <p v-if="rows.length > 0 && shown.length === 0" class="empty">No room matches the search</p>
@@ -769,6 +801,12 @@ function newRoom(): void {
 
   // the rows are a list to click, not text to copy: a drag across them must not leave a selection behind
   user-select: none;
+
+  // the focus of the list is what the Delete of the inspector reads, and a mouse click does not need a ring for it
+  &:focus-visible {
+    outline: 1px solid $interactive;
+    outline-offset: 2px;
+  }
 }
 
 .room {
@@ -848,6 +886,29 @@ function newRoom(): void {
   color: $text-subtle;
   font-size: 12px;
   white-space: nowrap;
+}
+
+// the trash of a row: quiet until the row is under the pointer, then the colour of a delete
+.trash {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  color: $text-subtle;
+  background: none;
+  border: 0;
+  border-radius: 3px;
+  opacity: 0.6;
+  cursor: pointer;
+
+  &:hover {
+    color: $danger-bright;
+    background: $surface-panel;
+    opacity: 1;
+  }
 }
 
 // the search found no room: the list keeps its place, the line stands in it

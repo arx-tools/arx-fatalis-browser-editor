@@ -7,6 +7,7 @@ import {
   HISTORY_RECORD_VERSION,
   labelOf,
   type BuildTunnelRecord,
+  type DeleteRoomsRecord,
   type HistoryRecord,
   type MutableLevel,
   type RotateFacesRecord,
@@ -148,6 +149,62 @@ function roomCommandOf(record: SetRoomRecord, level: MutableLevel): HistoryComma
     },
     revert: (): void => {
       level.setFaceRooms(before)
+      bumpRoomRevision()
+    },
+  }
+}
+
+/**
+ * Builds the command of a room delete.
+ *
+ * @remarks
+ * The two halves are the two states of the level: the step writes `-1` into the faces of the rooms and takes the portals
+ * of the rooms out; the undo writes the rooms back and puts the portals back at the indices they were taken from. The
+ * portals are read from the live level, and the record only carries their indices: a record of another level (or of a
+ * level that lost them) gives no command.
+ *
+ * @param record The record of the step.
+ * @param level The level the step changes.
+ *
+ * @returns The command, or undefined when a face or a portal of the record is not in the level.
+ */
+function deleteRoomsCommandOf(record: DeleteRoomsRecord, level: MutableLevel): HistoryCommand | undefined {
+  const portalsBefore = [...level.portals]
+  const removedPortals = new Set(record.portals)
+
+  for (const index of record.portals) {
+    if (portalsBefore[index] === undefined) {
+      return undefined
+    }
+  }
+
+  const moved: FaceRoom[] = []
+  const before: FaceRoom[] = []
+
+  for (const [position, index] of record.faces.entries()) {
+    if (level.polygons[index] === undefined) {
+      return undefined
+    }
+
+    moved.push({ index, room: -1 })
+    before.push({ index, room: record.from[position] ?? -1 })
+  }
+
+  const portalsAfter = portalsBefore.filter((_portal, index) => {
+    return !removedPortals.has(index)
+  })
+
+  return {
+    label: labelOf(record),
+    record,
+    apply: (): void => {
+      level.setFaceRooms(moved)
+      level.setPortals(portalsAfter)
+      bumpRoomRevision()
+    },
+    revert: (): void => {
+      level.setFaceRooms(before)
+      level.setPortals(portalsBefore)
       bumpRoomRevision()
     },
   }
@@ -360,6 +417,10 @@ export function commandOf(record: HistoryRecord, level: MutableLevel): HistoryCo
 
   if (record.kind === 'setRoom') {
     return roomCommandOf(record, level)
+  }
+
+  if (record.kind === 'deleteRooms') {
+    return deleteRoomsCommandOf(record, level)
   }
 
   if (record.kind === 'setUv') {

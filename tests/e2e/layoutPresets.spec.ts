@@ -9,7 +9,8 @@ import { editorUrl, waitForLayoutSettled } from './support/editor.ts'
  * the widget sits in and the height on the vertical one. These tests are the acceptance of the numbers (2026-11-01):
  * the viewer comes with the keys on the left at 350 wide and the whole height, the plan at 340 x 403, the jump at
  * 340 x 70 and the render performance readout at 340 wide (2026-11-15, the owner rearranged the viewer: the keys were on
- * the right before), the editor with the plan at 350 x 350, the jump at 200 x 50, the statistics at 350 x 200, the
+ * the right before), the editor with the plan at 420 x 350, the group inspector under it, the jump at 200 x 50, the
+ * statistics at 350 x 200, the
  * inspector at 350 x 180 and the undo and redo row at 350 x 60
  * (2026-11-09), and the painter (2026-11-04) with the polygon inspector at 360 x 185 and the uv mapper at 400 x 430;
  * the keys left the painter (2026-11-16), and the selection inspector takes their place. The rooms preset came with the round (2026-11-13): the statistics at 350 x 203 and the
@@ -125,7 +126,7 @@ test('the editor preset comes with the four sizes the owner measured', async ({ 
   await page.locator('header button[aria-label="Presets"]').click()
   await page.locator('.preset-menu .preset-row', { hasText: 'Editor' }).click()
 
-  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(10)
+  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(9)
   await expect
     .poll(async () => {
       return await presetName(page)
@@ -134,14 +135,17 @@ test('the editor preset comes with the four sizes the owner measured', async ({ 
   await waitForLayoutSettled(page)
 
   const plan = await boxOf(page, 'top-view')
+  const groups = await boxOf(page, 'group-inspector')
   const jump = await boxOf(page, 'jump-to-location')
   const statistics = await boxOf(page, 'map-statistics')
   const inspector = await boxOf(page, 'polygon-inspector')
   const undo = await boxOf(page, 'undo-redo')
   const selection = await boxOf(page, 'selection-inspector')
 
-  expect(plan.width).toBe(350)
+  expect(plan.width).toBe(420)
   expect(plan.height).toBe(350)
+  expect(groups.width).toBe(420)
+  expect(groups.top).toBe(plan.top + plan.height + 4)
   expect(jump.width).toBe(200)
   expect(jump.height).toBe(50)
   expect(statistics.width).toBe(350)
@@ -172,12 +176,14 @@ test('the editor preset comes with the four sizes the owner measured', async ({ 
   await waitForLayoutSettled(page)
 
   const planAfter = await boxOf(page, 'top-view')
+  const groupsAfter = await boxOf(page, 'group-inspector')
   const statisticsAfter = await boxOf(page, 'map-statistics')
   const undoAfter = await boxOf(page, 'undo-redo')
   const selectionAfter = await boxOf(page, 'selection-inspector')
 
   expect(await presetName(page)).toBe('Editor')
   expect(planAfter.height).toBe(350)
+  expect(groupsAfter.height).toBeGreaterThan(groups.height)
   expect(statisticsAfter.height).toBe(200)
   expect(undoAfter.height).toBe(60)
   expect(selectionAfter.height).toBeGreaterThan(selection.height)

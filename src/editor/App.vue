@@ -11,8 +11,8 @@ import { startLevelDisplay } from './components/widgets/shared/levelDisplay.ts'
 import { startHelpPopup } from './modules/help/helpPopup.ts'
 import { startLevelEditing } from './modules/level/edit/editing.ts'
 import { startPortalGeneration } from './modules/rooms/portalSync.ts'
-import { insertLevelFromUrl } from './modules/level/edit/insertLevel.ts'
 import { startSelection } from './modules/selection/selectionStore.ts'
+import { startDeleteSelection } from './modules/selection/deleteSelection.ts'
 import { startLevelTextures } from './modules/level/edit/levelTextures.ts'
 import { prepareLoadedMap, startLighting } from './modules/level/edit/lighting.ts'
 import { MAP_PARAMETER, mapIdFromUrl, mapSlugOf, storedMapId } from './modules/level/source/maps/mapId.ts'
@@ -57,6 +57,7 @@ import {
   zipSettingsOf,
 } from './modules/level/source/maps.ts'
 import { migrateLegacyPose } from './modules/level/source/maps/mapPoses.ts'
+import { startFaceGroups } from './modules/groups/groupStore.ts'
 import { startRoomNames } from './modules/rooms/roomNames.ts'
 import { startRoomSelection } from './modules/rooms/roomSelection.ts'
 import { startCurrentRoom } from './modules/rooms/roomUnderCrosshair.ts'
@@ -123,6 +124,7 @@ onMounted(async () => {
   startHelpPopup()
   startSelection()
   startLevelEditing()
+  startDeleteSelection()
   startPortalGeneration()
   startMapHistoryPersistence()
   startLevelTextures()
@@ -131,6 +133,7 @@ onMounted(async () => {
   startRoomSelection()
   startCurrentRoom()
   startRoomNames()
+  startFaceGroups()
   startMapPersistence()
 
   // the pose the old build kept as one value goes under the map of the last visit, before the first map reads its own
@@ -273,12 +276,6 @@ onMounted(async () => {
         writeUrlValue(url, DATA_DIR_PARAMETER, undefined)
       }
     }
-
-    // a spike (2026-11-13, the owner's idea): the geometry of another level, inserted into the map of the url. It is not a
-    // part of the load, so a level the insert can not read leaves the map as it was
-    await insertLevelFromUrl().catch(() => {
-      // the map stays as it was
-    })
   }
 
   begin().catch(() => {

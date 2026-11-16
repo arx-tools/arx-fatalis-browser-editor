@@ -333,7 +333,8 @@ export function restoreMapHistory(id: string, map: ArxMap): void {
  * in this map.
  */
 export function startLevelEditing(): void {
-  onKeyboardAction('deleteSelectedPolygons', deleteSelectedPolygons)
+  // the `Delete` is bound by the selection context (`deleteSelection.ts`): it takes the picked rooms or groups when an
+  // inspector holds the keyboard, and the faces otherwise
   onKeyboardAction('undo', undoLastStep)
   onKeyboardAction('redo', redoLastStep)
 

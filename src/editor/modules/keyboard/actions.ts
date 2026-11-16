@@ -11,6 +11,7 @@ import type { KeyComboInput, KeyboardMode } from './functions.ts'
 export type KeyboardActionId =
   | 'clearSelection'
   | 'closeDialog'
+  | 'createFaceGroup'
   | 'deleteSelectedPolygons'
   | 'moveBackward'
   | 'moveForward'
@@ -38,7 +39,8 @@ export type KeyboardActionId =
 /**
  * The group an action belongs to in the help panel.
  */
-export type KeyboardGroup = 'camera' | 'developer' | 'history' | 'movement' | 'overlay' | 'selection' | 'view'
+export type KeyboardGroup =
+  'camera' | 'developer' | 'history' | 'miscellaneous' | 'movement' | 'overlay' | 'selection' | 'view'
 
 /**
  * One row of the action table: what it is called, where it lives and which combos fire it.
@@ -171,9 +173,16 @@ export const keyboardActions: readonly KeyboardAction[] = [
   },
   {
     id: 'deleteSelectedPolygons',
-    label: 'Delete the selected polygons',
+    label: 'Delete the selected polygons, rooms or groups',
     group: 'selection',
     keys: [{ code: 'Delete' }],
+    modes: ['editor', 'pointerLocked'],
+  },
+  {
+    id: 'createFaceGroup',
+    label: 'Group the selected faces',
+    group: 'miscellaneous',
+    keys: [{ key: 'g', mods: ['primary'] }],
     modes: ['editor', 'pointerLocked'],
   },
   {

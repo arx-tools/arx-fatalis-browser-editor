@@ -65,6 +65,30 @@ export function renameRoom(room: number, name: string): void {
 }
 
 /**
+ * Forgets the names of rooms that are not in the level any more.
+ *
+ * @remarks
+ * A deleted room has no name to keep: a room made later takes the id again, and an old name on it would be a name the
+ * author did not give to that room. A name is metadata, so this is not a step of the history either.
+ *
+ * @param rooms The rooms that went, `-1` and the ids of no room ignored.
+ */
+export function forgetRoomNames(rooms: Iterable<number>): void {
+  const next = new Map(roomNames.value)
+  let changed = false
+
+  for (const room of rooms) {
+    if (room >= 0 && next.delete(room)) {
+      changed = true
+    }
+  }
+
+  if (changed) {
+    roomNames.value = next
+  }
+}
+
+/**
  * The names as the manifest writes them, by the id of the room as a text.
  *
  * @returns The names, or `undefined` when the level has none (the archive says nothing about the rooms then).

@@ -198,16 +198,16 @@ test('a locked widget keeps its size, the others take the rest', async ({ page }
   await page.locator('header button[aria-label="Unlock the layout"]').click()
   await expect(page.locator('[data-widget-kind="map-statistics"] button[aria-label="Unlock the widget"]')).toBeVisible()
 
-  // the plan comes locked from the preset, the two elevations under it are free
+  // the plan comes locked from the preset, the group inspector under it is free
   const locked = await heightOf(page, 'top-view')
-  const frontBefore = await heightOf(page, 'front-view')
+  const frontBefore = await heightOf(page, 'group-inspector')
 
-  // a taller window: the locked plan keeps its height, the free view under it grows
+  // a taller window: the locked plan keeps its height, the free widget under it grows
   await page.setViewportSize({ width: 1280, height: 1100 })
   await waitForLayoutSettled(page)
 
   expect(await heightOf(page, 'top-view')).toBe(locked)
-  expect(await heightOf(page, 'front-view')).toBeGreaterThan(frontBefore)
+  expect(await heightOf(page, 'group-inspector')).toBeGreaterThan(frontBefore)
 })
 
 test('the lock is in the stored layout, so a reload keeps it', async ({ page }) => {
@@ -217,11 +217,11 @@ test('the lock is in the stored layout, so a reload keeps it', async ({ page }) 
 
   await page.locator('header button[aria-label="Unlock the layout"]').click()
 
-  // the elevation under the plan is free, so the lock is the one the button takes
-  await page.locator('[data-widget-kind="left-view"] button[aria-label="Lock the widget"]').click()
+  // the group inspector under the plan is free, so the lock is the one the button takes
+  await page.locator('[data-widget-kind="group-inspector"] button[aria-label="Lock the widget"]').click()
   await waitForLayoutSettled(page)
 
-  const locked = await heightOf(page, 'left-view')
+  const locked = await heightOf(page, 'group-inspector')
 
   // the stored history of the preset says the size is fixed: the layout is written to the storage after a debounce, so
   // the wait is for the value and not for a moment after the click
@@ -237,11 +237,14 @@ test('the lock is in the stored layout, so a reload keeps it', async ({ page }) 
 
   // the layout comes back at once, and the lock with it: the level of the url waits for the folder of the game (the
   // notice of the walkable view), which the lock has nothing to do with
-  await expect(page.locator('[data-widget-kind="left-view"]')).toBeVisible()
+  await expect(page.locator('[data-widget-kind="group-inspector"]')).toBeVisible()
 
   // the widget came back locked, and at its own size
-  await expect(page.locator('[data-widget-kind="left-view"]')).toHaveAttribute('data-locked-height', String(locked))
-  expect(await heightOf(page, 'left-view')).toBe(locked)
+  await expect(page.locator('[data-widget-kind="group-inspector"]')).toHaveAttribute(
+    'data-locked-height',
+    String(locked),
+  )
+  expect(await heightOf(page, 'group-inspector')).toBe(locked)
 })
 
 test('a locked widget shows its size on the plate, and an unlocked one shows none', async ({ page }) => {
@@ -254,7 +257,7 @@ test('a locked widget shows its size on the plate, and an unlocked one shows non
 
   // the preset locks five widgets, and every one of them carries the size the owner measured
   await expect(page.locator('.WidgetOverlay .size')).toHaveCount(5)
-  expect(await badgeOf(page, 'top-view')).toBe('350 × 350')
+  expect(await badgeOf(page, 'top-view')).toBe('420 × 350')
   expect(await badgeOf(page, 'jump-to-location')).toBe('200 × 50')
   expect(await badgeOf(page, 'map-statistics')).toBe('350 × 200')
   expect(await badgeOf(page, 'polygon-inspector')).toBe('350 × 180')
@@ -296,9 +299,9 @@ test('a smaller window squeezes the widgets, it does not cut them', async ({ pag
   }
 
   async function columnHeight(): Promise<number> {
-    // the three widgets of the left column, measured on the dock node so no selector can drift
+    // the two widgets of the left column, measured on the dock node so no selector can drift
     return await page.locator('.lm-DockPanel').evaluate((node) => {
-      const kinds = new Set(['top-view', 'left-view', 'front-view'])
+      const kinds = new Set(['top-view', 'group-inspector'])
       let total = 0
 
       for (const widget of node.querySelectorAll('.lm-DockPanel-widget')) {

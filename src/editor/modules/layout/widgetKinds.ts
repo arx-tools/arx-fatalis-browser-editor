@@ -67,6 +67,10 @@ export const WIDGET_KINDS = {
    */
   roomInspector: 'room-inspector',
   /**
+   * The groups of faces the author made, by the level they belong to.
+   */
+  groupInspector: 'group-inspector',
+  /**
    * The faces of the selection into a room.
    */
   /**

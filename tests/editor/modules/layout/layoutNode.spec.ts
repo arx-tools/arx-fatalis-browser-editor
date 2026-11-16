@@ -112,8 +112,7 @@ void describe('the editor preset', () => {
     assert.equal(root.orientation, 'horizontal')
     assert.deepEqual(collectKinds(root), [
       'top-view',
-      'left-view',
-      'front-view',
+      'group-inspector',
       'camera-controls',
       'jump-to-location',
       '3d-view',
@@ -125,7 +124,7 @@ void describe('the editor preset', () => {
   })
 
   void it('locks the widgets to the sizes the owner measured off the plate', () => {
-    assert.deepEqual(lockOfKind(editorLayout, 'top-view'), { width: 350, height: 350 })
+    assert.deepEqual(lockOfKind(editorLayout, 'top-view'), { width: 420, height: 350 })
     assert.deepEqual(lockOfKind(editorLayout, 'jump-to-location'), { width: 200, height: 50 })
     assert.deepEqual(lockOfKind(editorLayout, 'map-statistics'), { width: 350, height: 200 })
     assert.deepEqual(lockOfKind(editorLayout, 'polygon-inspector'), { width: 350, height: 180 })
@@ -133,11 +132,11 @@ void describe('the editor preset', () => {
   })
 
   void it('leaves the widgets the owner did not size free', () => {
-    const locks = ['camera-controls', '3d-view', 'left-view', 'front-view', 'selection-inspector'].map((kind) => {
+    const locks = ['camera-controls', '3d-view', 'group-inspector', 'selection-inspector'].map((kind) => {
       return lockOfKind(editorLayout, kind)
     })
 
-    assert.deepEqual(locks, [undefined, undefined, undefined, undefined, undefined])
+    assert.deepEqual(locks, [undefined, undefined, undefined, undefined])
   })
 })
 
@@ -201,9 +200,8 @@ void describe('collectKinds', () => {
     assert.deepEqual(collectKinds(editorLayout).toSorted(), [
       '3d-view',
       'camera-controls',
-      'front-view',
+      'group-inspector',
       'jump-to-location',
-      'left-view',
       'map-statistics',
       'polygon-inspector',
       'selection-inspector',

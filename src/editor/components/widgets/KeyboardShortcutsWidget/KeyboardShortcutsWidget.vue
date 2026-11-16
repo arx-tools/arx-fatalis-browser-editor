@@ -204,14 +204,17 @@ const sections = computed<readonly HelpSection[]>(() => {
         { keys: [{ kind: 'text', text: 'Shift' }, leftButton], action: 'Add to selection' },
         { keys: [removeKey, leftButton], action: 'Remove from selection' },
         { keys: [{ kind: 'text', text: 'C' }], action: 'Clear selection' },
-        { keys: [{ kind: 'text', text: 'Delete' }], action: 'Delete face(s)' },
+        { keys: [{ kind: 'text', text: 'Delete' }], action: 'Delete face(s), room(s) or group(s)' },
       ],
     },
     {
       // the last section: the keys that belong to none of the others (2026-11-14, the owner). The row of the popup is
       // here, so a layout without the widget still shows the list, and the dialog says how it opens
       title: 'Miscellaneous',
-      rows: [{ keys: [{ kind: 'text', text: 'H' }], action: 'Show keyboard shortcuts popup' }],
+      rows: [
+        { keys: [{ kind: 'text', text: 'H' }], action: 'Show keyboard shortcuts popup' },
+        { keys: [primaryKey, { kind: 'text', text: 'G' }], action: 'Group the selected faces' },
+      ],
     },
   ]
 })

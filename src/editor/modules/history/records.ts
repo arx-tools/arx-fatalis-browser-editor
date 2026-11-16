@@ -120,6 +120,37 @@ export type SetRoomRecord = {
 }
 
 /**
+ * The step that takes rooms out of the level.
+ *
+ * @remarks
+ * A room is the faces that name it, so the step writes `-1` into them: the faces stay in the level, and only their room
+ * goes. The portals of the room go with it (the game walks the rooms through them), and the record keeps their indices, so
+ * the undo puts the rooms and the portals back together.
+ */
+export type DeleteRoomsRecord = {
+  /**
+   * The version of the shape of this record, see {@link HISTORY_RECORD_VERSION}.
+   */
+  readonly version: number
+  /**
+   * What the step does, which names its payload.
+   */
+  readonly kind: 'deleteRooms'
+  /**
+   * The faces of the rooms, by their index in the level, sorted.
+   */
+  readonly faces: readonly number[]
+  /**
+   * The room every face had before the step, in the order of {@link DeleteRoomsRecord.faces}.
+   */
+  readonly from: readonly number[]
+  /**
+   * The portals of the rooms, by their index in the level, sorted.
+   */
+  readonly portals: readonly number[]
+}
+
+/**
  * The step that moves the corners of faces on their texture.
  *
  * @remarks
@@ -312,6 +343,7 @@ export type BuildTunnelRecord = {
 export type HistoryRecord =
   | BuildTunnelRecord
   | DeleteFacesRecord
+  | DeleteRoomsRecord
   | RotateFacesRecord
   | ScaleFacesRecord
   | SetRoomRecord
@@ -441,6 +473,46 @@ export function createDeleteFacesRecord(faces: Iterable<number>): DeleteFacesRec
   })
 
   return { version: HISTORY_RECORD_VERSION, kind: 'deleteFaces', faces: unique }
+}
+
+/**
+ * Builds the record of a room delete, the way a step writes it down.
+ *
+ * @remarks
+ * The faces are sorted by their index, and a face that comes twice is one (the same delete gives the same record
+ * whatever order the selection held the rooms in). The portals are sorted and unique the same way.
+ *
+ * @param changes The faces the step takes out of their room, with the room they had.
+ * @param portals The indices of the portals the step takes out with the rooms.
+ *
+ * @returns The record of the step.
+ */
+export function createDeleteRoomsRecord(changes: Iterable<FaceRoom>, portals: Iterable<number>): DeleteRoomsRecord {
+  const rooms = new Map<number, number>()
+
+  for (const change of changes) {
+    if (!rooms.has(change.index)) {
+      rooms.set(change.index, change.room)
+    }
+  }
+
+  const sorted = [...rooms].toSorted((one, other) => {
+    return one[0] - other[0]
+  })
+
+  return {
+    version: HISTORY_RECORD_VERSION,
+    kind: 'deleteRooms',
+    faces: sorted.map(([index]) => {
+      return index
+    }),
+    from: sorted.map(([, room]) => {
+      return room
+    }),
+    portals: [...new Set(portals)].toSorted((one, other) => {
+      return one - other
+    }),
+  }
 }
 
 /**
@@ -728,6 +800,10 @@ export function labelOf(record: HistoryRecord): string {
     }
 
     return `Move ${String(record.faces.length)} face(s) to room ${String(record.to)}`
+  }
+
+  if (record.kind === 'deleteRooms') {
+    return `Delete ${String(new Set(record.from).size)} room(s)`
   }
 
   if (record.kind === 'setUv') {

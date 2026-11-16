@@ -63,9 +63,9 @@ test('the gizmo moves the selected face, and the undo takes it back', async ({ p
     .toBe(true)
 
   // the green arrow of the gizmo, from the middle of the face up
-  await page.mouse.move(860, 230)
+  await page.mouse.move(890, 230)
   await page.mouse.down()
-  await page.mouse.move(860, 150, { steps: 8 })
+  await page.mouse.move(890, 150, { steps: 8 })
   await page.mouse.up()
 
   await expect(undo).toBeEnabled()
@@ -133,9 +133,9 @@ test('1 hides the transform gizmo, and the selection stays', async ({ page, brow
     .toBe('false')
 
   // the arrow that moved the face a moment ago is not there: the same press leaves the history alone
-  await page.mouse.move(860, 230)
+  await page.mouse.move(890, 230)
   await page.mouse.down()
-  await page.mouse.move(860, 150, { steps: 8 })
+  await page.mouse.move(890, 150, { steps: 8 })
   await page.mouse.up()
   await page.waitForTimeout(500)
 
@@ -161,9 +161,9 @@ test('1 hides the transform gizmo, and the selection stays', async ({ page, brow
   // the arrow of the face under the crosshair moves it again: the aim is the one of the click that made the selection
   await writePose(page, spawn)
 
-  await page.mouse.move(860, 230)
+  await page.mouse.move(890, 230)
   await page.mouse.down()
-  await page.mouse.move(860, 150, { steps: 8 })
+  await page.mouse.move(890, 150, { steps: 8 })
   await page.mouse.up()
 
   await expect(undo).toBeEnabled()

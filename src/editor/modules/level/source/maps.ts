@@ -197,6 +197,17 @@ export const DEFAULT_MAP_ID = 'blank:flat'
 export const currentMapId = ref<string>(DEFAULT_MAP_ID)
 
 /**
+ * How many levels the editor has put on the screen with their stored steps replayed.
+ *
+ * @remarks
+ * The store publishes a map before the steps of the level come back on it (`openMap` replays them after the change), and a
+ * sidecar of the level — the groups of the faces, whose values are polygon indices — only lines up with the map once the
+ * replay is done. This counter is the signal of that moment: a module that keeps such a sidecar reads the level then, not
+ * when the map lands.
+ */
+export const levelOpened = ref(0)
+
+/**
  * The source the editor started with.
  *
  * @remarks
@@ -750,6 +761,10 @@ export async function openMap(id: string): Promise<void> {
   await nextTick()
 
   moveCameraToPoseOfOpen(id)
+
+  // the level is whole: the map is on the screen and its steps are on it, so the sidecars of the level (the groups of the
+  // faces) can line up with it
+  levelOpened.value = levelOpened.value + 1
 }
 
 /**
@@ -771,6 +786,8 @@ export async function restorePersistedHistory(): Promise<void> {
   await nextTick()
   restoreMapHistory(currentMapId.value, map)
   await nextTick()
+
+  levelOpened.value = levelOpened.value + 1
 }
 
 /**

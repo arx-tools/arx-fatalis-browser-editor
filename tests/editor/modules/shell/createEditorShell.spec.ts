@@ -75,6 +75,14 @@ const definitions: readonly WidgetDefinition[] = [
     },
   },
   {
+    kind: 'group-inspector',
+    label: 'Group Inspector',
+    group: 'info',
+    create: (): LuminoWidget => {
+      return new Widget()
+    },
+  },
+  {
     kind: 'front-view',
     label: 'Front View',
     group: 'rendering',
@@ -306,9 +314,8 @@ void describe('the layout of the shell', () => {
     assert.deepEqual([...shell.placedKinds.value].toSorted(), [
       '3d-view',
       'camera-controls',
-      'front-view',
+      'group-inspector',
       'jump-to-location',
-      'left-view',
       'map-statistics',
       'polygon-inspector',
       'selection-inspector',

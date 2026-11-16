@@ -83,8 +83,10 @@ function fixed(px: number): ChildSize {
  * camera above it, and the numbers on the right.
  *
  * @remarks
- * The left column is locked to 350 wide, and its first view (the plan) to 350 high: the two elevations under it share
- * the rest. The middle column holds the thin row above the walkable view, with the jump of the row locked to 200 wide
+ * The left column is locked to 420 wide, and its first view (the plan) to 350 high: the group inspector takes the rest
+ * under it (2026-11-16, the owner: the left and front elevations made room for the groups, and the groups need 420 of
+ * width). The middle column holds the
+ * thin row above the walkable view, with the jump of the row locked to 200 wide
  * and the row to 50 high, so the camera form takes the rest of the row. The right column is locked to 350 wide: the
  * statistics to 200, the polygon inspector to 180 and the undo and redo row to 60 high, and the selection inspector
  * takes what is left (2026-11-09, the owner: the list of the selected textures has to fit beside the numbers).
@@ -96,16 +98,15 @@ function fixed(px: number): ChildSize {
 export const editorLayout: LayoutNode = {
   type: 'split',
   orientation: 'horizontal',
-  sizes: [fixed(350), auto(1), fixed(350)],
+  sizes: [fixed(420), auto(1), fixed(350)],
   children: [
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: [fixed(350), auto(0.5), auto(0.5)],
+      sizes: [fixed(350), auto(1)],
       children: [
         { type: 'widget', kind: WIDGET_KINDS.topView },
-        { type: 'widget', kind: WIDGET_KINDS.leftView },
-        { type: 'widget', kind: WIDGET_KINDS.frontView },
+        { type: 'widget', kind: WIDGET_KINDS.groupInspector },
       ],
     },
     {

@@ -1,4 +1,4 @@
-import { createHotkeyBindings, type KeyboardBindings } from './bindings.ts'
+import { createDefaultBindings, createHotkeyBindings, type KeyboardBindings } from './bindings.ts'
 import { keyboardActions, type KeyboardAction, type KeyboardActionId } from './actions.ts'
 import {
   isEditableTarget,
@@ -79,7 +79,9 @@ export function getKeyboardBindings(): KeyboardBindings {
     return existing
   }
 
-  const created = createHotkeyBindings(isMac).value
+  // the stored map may be of a build before an action: the defaults of this build fill the gaps, so a new key works
+  // without a visit to a settings panel that would write the whole map back
+  const created = { ...createDefaultBindings(isMac), ...createHotkeyBindings(isMac).value }
   bindings = created
 
   return created

@@ -1,4 +1,4 @@
-import type { ArxPolygon, ArxVector3 } from 'arx-convert/types'
+import type { ArxColor, ArxPolygon, ArxPortal, ArxVector3 } from 'arx-convert/types'
 import type { FaceRoom, FaceTexture } from '../../../generator/ArxMap.ts'
 import type { PolygonInsertion } from '../../../generator/arxMap/removal.ts'
 import type { FaceUv } from '../../../generator/arxMap/uvs.ts'
@@ -243,6 +243,61 @@ export interface ScaleFacesRecord {
 }
 
 /**
+ * The step that takes a wall patch out and builds a tunnel between the two holes it leaves.
+ *
+ * @remarks
+ * The holes are the rims of the two face groups of the patch, and the tunnel is the closed quad strip between them (see
+ * the tunnel builder of the generator). The step is **one** step of the history: the faces of the wall go out and the
+ * faces of the tunnel come in together, so the undo puts the wall back and takes the tunnel out in one move.
+ *
+ * The record carries the polygons of the tunnel, because they are not a part of the level before the step: a delete
+ * record is a list of indices, a tunnel is the geometry the step makes. The faces of the wall stay indices (a replay
+ * reads the same faces from the same level), and so do the container and the lighting block the new faces need.
+ */
+export interface BuildTunnelRecord {
+  /**
+   * The version of the shape of this record, see {@link HISTORY_RECORD_VERSION}.
+   */
+  readonly version: number
+  /**
+   * What the step does, which names its payload.
+   */
+  readonly kind: 'buildTunnel'
+  /**
+   * The faces of the wall the step takes out, by their index in the level, sorted.
+   */
+  readonly removed: readonly number[]
+  /**
+   * The faces of the tunnel, in the order they take at the end of the level.
+   */
+  readonly added: readonly ArxPolygon[]
+  /**
+   * The container the new faces draw with.
+   */
+  readonly texture: TextureReference
+  /**
+   * Whether the step added the container of {@link BuildTunnelRecord.texture} to the level.
+   */
+  readonly addedTexture: boolean
+  /**
+   * The block of lighting colours the new faces read, appended to the palette of the level.
+   *
+   * @remarks
+   * A face reads as many colours as it has corners (four for a quad), so the block has four entries per face in the
+   * palette the export reads. An empty block means the step did not touch the palette.
+   */
+  readonly lighting: readonly ArxColor[]
+  /**
+   * The portals that join the tunnel to the rooms of its two openings.
+   *
+   * @remarks
+   * Without them the game does not render the room of the tunnel (it draws the rooms it can reach through the portals),
+   * so the step makes them with the faces: the undo takes them out with the tunnel.
+   */
+  readonly portals: readonly ArxPortal[]
+}
+
+/**
  * A step the way a JSON can hold it.
  *
  * @remarks
@@ -255,6 +310,7 @@ export interface ScaleFacesRecord {
  * rest as they arrive.
  */
 export type HistoryRecord =
+  | BuildTunnelRecord
   | DeleteFacesRecord
   | RotateFacesRecord
   | ScaleFacesRecord
@@ -276,6 +332,16 @@ export interface MutableLevel {
    * Every polygon of the level, in the order of the mesh.
    */
   readonly polygons: readonly ArxPolygon[]
+  /**
+   * The portals of the level, as the FTS keeps them.
+   */
+  readonly portals: readonly ArxPortal[]
+  /**
+   * Replaces the portals of the level.
+   *
+   * @param portals The portals the level should have.
+   */
+  setPortals(portals: readonly ArxPortal[]): void
   /**
    * Takes polygons out, by identity.
    *
@@ -313,6 +379,18 @@ export interface MutableLevel {
    * @param id The id of the container.
    */
   removeTextureContainer(id: number): void
+  /**
+   * Adds a block of colours to the lighting palette of the level.
+   *
+   * @param colors The colours to append.
+   */
+  addLightingColors(colors: readonly ArxColor[]): void
+  /**
+   * Takes the last colours of the lighting palette out.
+   *
+   * @param count How many colours to take out.
+   */
+  removeLightingColors(count: number): void
   /**
    * Sets the uv of the corners of a face.
    *
@@ -482,6 +560,67 @@ export function createSetUvRecord(
 }
 
 /**
+ * What the builder of a tunnel says to the record.
+ */
+export interface BuildTunnelOptions {
+  /**
+   * The faces of the wall the step takes out.
+   */
+  readonly removed: Iterable<number>
+  /**
+   * The polygons of the tunnel, in the order they take at the end of the level.
+   */
+  readonly added: readonly ArxPolygon[]
+  /**
+   * The container the new faces draw with.
+   */
+  readonly texture: TextureReference
+  /**
+   * Whether the step adds the container to the level.
+   */
+  readonly addedTexture: boolean
+  /**
+   * The colours the new faces read, appended to the palette.
+   */
+  readonly lighting: readonly ArxColor[]
+  /**
+   * The portals that join the tunnel to the rooms of its openings.
+   */
+  readonly portals: readonly ArxPortal[]
+}
+
+/**
+ * Builds the record of a tunnel, the way a step writes it down.
+ *
+ * @remarks
+ * The faces of the wall are sorted and made unique, so the same selection gives the same record. The polygons of the
+ * tunnel are the ones the builder made; the block of colours is copied, so the record does not share the palette of the
+ * level.
+ *
+ * @param options The faces of the wall, the polygons of the tunnel and what they need.
+ *
+ * @returns The record of the step.
+ */
+export function createBuildTunnelRecord(options: BuildTunnelOptions): BuildTunnelRecord {
+  const unique = [...new Set(options.removed)].toSorted((one, other) => {
+    return one - other
+  })
+
+  return {
+    version: HISTORY_RECORD_VERSION,
+    kind: 'buildTunnel',
+    removed: unique,
+    added: [...options.added],
+    texture: options.texture,
+    addedTexture: options.addedTexture,
+    lighting: options.lighting.map((color) => {
+      return { r: color.r, g: color.g, b: color.b, a: color.a }
+    }),
+    portals: [...options.portals],
+  }
+}
+
+/**
  * Builds the record of a move, the way a step writes it down.
  *
  * @remarks
@@ -597,6 +736,10 @@ export function labelOf(record: HistoryRecord): string {
     }
 
     return `Move the uv of ${String(record.faces.length)} face(s)`
+  }
+
+  if (record.kind === 'buildTunnel') {
+    return `Build a tunnel of ${String(record.added.length)} face(s)`
   }
 
   if (record.kind === 'translateFaces') {

@@ -44,6 +44,11 @@ const query = ref('')
 const searchField = useTemplateRef<HTMLInputElement>('searchField')
 
 /**
+ * The scroller of the tiles, so a new page can start at its top.
+ */
+const list = useTemplateRef<HTMLDivElement>('list')
+
+/**
  * Selects the whole text of the search field when it takes the focus.
  *
  * @remarks
@@ -153,6 +158,20 @@ watch([query, material, group], () => {
   page.value = 1
 })
 
+// a new page starts at the top: the tiles are read from the first one, and the scroll of the page that was left would
+// hide them (the pages are the same height, so the browser keeps the position by itself)
+watch(
+  () => {
+    return shown.value.page
+  },
+  () => {
+    if (list.value !== null) {
+      list.value.scrollTop = 0
+    }
+  },
+  { flush: 'post' },
+)
+
 /**
  * The thumbnail of a texture, if it is read already.
  *
@@ -184,9 +203,20 @@ function titleOf(entry: TextureEntry): string {
 /**
  * Paints the selected faces with a texture.
  *
+ * @remarks
+ * The name of a tile is a text the user can select (the file name is worth copying), and the drag that selects it ends
+ * with a click on the tile: the click of a selection paints nothing, or the faces would take a texture the user did not
+ * ask for.
+ *
  * @param entry The texture of the tile that was clicked.
  */
 async function paint(entry: TextureEntry): Promise<void> {
+  const selection = globalThis.getSelection()
+
+  if (selected.value === 0 || (selection !== null && !selection.isCollapsed)) {
+    return
+  }
+
   await paintSelectedFaces(entry)
 }
 
@@ -284,20 +314,25 @@ async function onDrop(event: DragEvent): Promise<void> {
       </select>
     </div>
 
-    <div class="list">
-      <button
+    <div ref="list" class="list">
+      <!-- the tile is a div: a button of the browser does not let the pointer select the text of a name, and the name is
+           a file name the user copies (2026-11-16, the owner) -->
+      <div
         v-for="entry in shown.entries"
         :key="`${entry.source}:${entry.name}`"
         class="tile"
-        type="button"
+        role="button"
+        :tabindex="selected === 0 ? undefined : 0"
+        :aria-disabled="selected === 0 ? 'true' : undefined"
         :title="titleOf(entry)"
-        :disabled="selected === 0"
         @click="paint(entry)"
+        @keydown.enter.prevent="paint(entry)"
+        @keydown.space.prevent="paint(entry)"
       >
         <img v-if="thumbOf(entry) !== undefined" class="thumb" :src="thumbOf(entry)" alt="" />
         <span v-else class="thumb placeholder" aria-hidden="true"></span>
         <span class="name">{{ entry.name }}</span>
-      </button>
+      </div>
     </div>
 
     <div class="pager">
@@ -451,13 +486,19 @@ async function onDrop(event: DragEvent): Promise<void> {
   text-align: center;
   cursor: pointer;
 
-  &:hover:not(:disabled) {
+  &:hover:not([aria-disabled='true']) {
     border-color: $border-strong;
     background: $surface-panel;
   }
 
+  // a tile is a div, so the frame of the focus is drawn here (the browser draws one for a button by itself)
+  &:focus-visible {
+    border-color: $interactive;
+    outline: 1px solid $interactive;
+  }
+
   // a tile without a selection does nothing, but it is not dimmed: the textures read the same either way
-  &:disabled {
+  &[aria-disabled='true'] {
     cursor: default;
   }
 
@@ -481,7 +522,9 @@ async function onDrop(event: DragEvent): Promise<void> {
     width: 100%;
     overflow: hidden;
     color: $text-muted;
+    cursor: text;
     line-height: 1.15;
+    user-select: text;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     line-clamp: 2;

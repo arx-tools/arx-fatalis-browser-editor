@@ -1,5 +1,5 @@
 import { DLF, FTS, LLF } from 'arx-convert'
-import type { ArxDLF, ArxFTS, ArxLight, ArxLLF, ArxPolygon, ArxPortal, ArxVector3 } from 'arx-convert/types'
+import type { ArxColor, ArxDLF, ArxFTS, ArxLight, ArxLLF, ArxPolygon, ArxPortal, ArxVector3 } from 'arx-convert/types'
 import { BufferAttribute, BufferGeometry, Mesh, Quaternion, Vector3 } from 'three'
 import { isQuad } from 'arx-convert/utils'
 import {
@@ -552,6 +552,33 @@ export class ArxMap {
   }
 
   /**
+   * Adds colours to the lighting palette of the level.
+   *
+   * @remarks
+   * The palette is the flat list of the LLF: a face owns as many colours as it has corners, starting at the index its
+   * first corner names (`llfColorIdx`). A step that makes faces adds the colours they read, and the export copies them
+   * in the order of the polygons.
+   *
+   * @param colors The colours to append to the palette.
+   */
+  addLightingColors(colors: readonly ArxColor[]): void {
+    this.llf.colors.push(...colors)
+  }
+
+  /**
+   * Takes the last colours of the lighting palette out.
+   *
+   * @remarks
+   * It is the inverse of {@link ArxMap.addLightingColors}: a step that added a block of colours at the end of the
+   * palette takes it back when it is undone. The history is linear, so the block of the step is the last one.
+   *
+   * @param count How many colours to take out.
+   */
+  removeLightingColors(count: number): void {
+    this.llf.colors.splice(Math.max(0, this.llf.colors.length - count), count)
+  }
+
+  /**
    * Sets the texture container of faces, one by one.
    *
    * @remarks
@@ -629,6 +656,13 @@ export class ArxMap {
   }
 
   /**
+   * The portals of the level, as the FTS keeps them.
+   */
+  get portals(): readonly ArxPortal[] {
+    return this.fts.portals
+  }
+
+  /**
    * Replaces the portals of the level.
    *
    * @remarks
@@ -642,6 +676,18 @@ export class ArxMap {
   setPortals(portals: readonly ArxPortal[]): void {
     this.fts.portals = [...portals]
     this.figures = { ...this.figures, portalCount: this.fts.portals.length }
+
+    // a portal may name a room the level grew after the file was loaded (a new room of a step): the list of the rooms
+    // has to reach it, or the portal is in no list and the inspector says the room has none
+    let highest = 0
+
+    for (const portal of portals) {
+      highest = Math.max(highest, portal.room1, portal.room2)
+    }
+
+    while (this.fts.rooms.length <= highest) {
+      this.fts.rooms.push({ portals: [], polygons: [] })
+    }
 
     for (const room of this.fts.rooms) {
       room.portals = []

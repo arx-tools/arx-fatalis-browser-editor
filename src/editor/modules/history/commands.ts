@@ -1,3 +1,4 @@
+import type { ArxPolygon } from 'arx-convert/types'
 import type { FaceRoom, FaceTexture } from '../../../generator/ArxMap.ts'
 import type { PolygonInsertion } from '../../../generator/arxMap/removal.ts'
 import { bumpRoomRevision } from '../rooms/roomRevision.ts'
@@ -5,6 +6,7 @@ import type { HistoryCommand } from './history.ts'
 import {
   HISTORY_RECORD_VERSION,
   labelOf,
+  type BuildTunnelRecord,
   type HistoryRecord,
   type MutableLevel,
   type RotateFacesRecord,
@@ -24,6 +26,91 @@ import {
  * when they are no longer there (a step of another level, or of a level that was edited under it). A record of another
  * version, or of a kind this build does not know, gives no command either: the step is skipped rather than guessed at.
  */
+
+/**
+ * Puts polygons at the end of the level.
+ *
+ * @param level The level to add to.
+ * @param polygons The polygons to add, in order.
+ */
+function addPolygonsAtTheEndOf(level: MutableLevel, polygons: readonly ArxPolygon[]): void {
+  const insertions = Array.from(polygons, (polygon, position): PolygonInsertion => {
+    return { index: level.polygons.length + position, polygon }
+  })
+
+  level.insertPolygons(insertions)
+}
+
+/**
+ * Builds the command of a tunnel.
+ *
+ * @remarks
+ * The two halves are the two states of the level: the step takes the faces of the wall out and puts the faces of the
+ * tunnel at the end of the list (adding the texture container and the lighting block first, when the step added them);
+ * the undo takes the tunnel out, puts the wall back at its indices, and drops the container and the colours. The
+ * polygons of the tunnel are the ones of the record, so the redo puts the same objects back.
+ *
+ * @param record The record of the step.
+ * @param level The level the step changes.
+ *
+ * @returns The command, or undefined when a face of the wall is not in the level.
+ */
+function buildTunnelCommandOf(record: BuildTunnelRecord, level: MutableLevel): HistoryCommand | undefined {
+  const removed: ArxPolygon[] = []
+  const portalsBefore = [...level.portals]
+
+  for (const index of record.removed) {
+    const polygon = level.polygons[index]
+
+    if (polygon === undefined) {
+      return undefined
+    }
+
+    removed.push(polygon)
+  }
+
+  return {
+    label: labelOf(record),
+    record,
+    apply: (): void => {
+      if (record.addedTexture) {
+        level.addTextureContainer(record.texture.id, record.texture.name)
+      }
+
+      if (record.lighting.length > 0) {
+        level.addLightingColors(record.lighting)
+      }
+
+      level.removePolygons(removed)
+      addPolygonsAtTheEndOf(level, record.added)
+      level.setPortals([...portalsBefore, ...record.portals])
+    },
+    revert: (): void => {
+      level.removePolygons(record.added)
+
+      const insertions: PolygonInsertion[] = []
+
+      for (const [position, index] of record.removed.entries()) {
+        const polygon = removed[position]
+
+        if (polygon !== undefined) {
+          insertions.push({ index, polygon })
+        }
+      }
+
+      level.insertPolygons(insertions)
+      level.setPortals(portalsBefore)
+
+      if (record.lighting.length > 0) {
+        level.removeLightingColors(record.lighting.length)
+      }
+
+      if (record.addedTexture) {
+        level.removeTextureContainer(record.texture.id)
+      }
+    },
+  }
+}
 
 /**
  * Builds the command of a paint.
@@ -265,6 +352,10 @@ export function commandOf(record: HistoryRecord, level: MutableLevel): HistoryCo
   // kind, and that step is skipped rather than guessed at
   if (record.kind === 'setTexture') {
     return textureCommandOf(record, level)
+  }
+
+  if (record.kind === 'buildTunnel') {
+    return buildTunnelCommandOf(record, level)
   }
 
   if (record.kind === 'setRoom') {

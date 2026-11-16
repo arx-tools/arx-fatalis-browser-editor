@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
+import type { ArxPortal } from 'arx-convert/types'
 import { isQuad } from 'arx-convert/utils'
 import { getBVHExtremes } from 'three-mesh-bvh'
 import { BufferAttribute, Quaternion, Raycaster, Triangle, Vector3 } from 'three'
@@ -767,5 +768,58 @@ void describe('refreshWireframeColors', () => {
       [Math.fround(red), Math.fround(green), Math.fround(blue)],
     )
     assert.notDeepEqual([after.getX(0), after.getY(0), after.getZ(0)], [1, 1, 1])
+  })
+})
+
+/**
+ * A portal of the test, between two rooms.
+ *
+ * @param room1 One side of the portal.
+ * @param room2 The other side.
+ *
+ * @returns The portal, with four corners around a square.
+ */
+function portalOfTest(room1: number, room2: number): ArxPortal {
+  const corners = [
+    { x: 0, y: 0, z: 0 },
+    { x: 1, y: 0, z: 0 },
+    { x: 1, y: 1, z: 0 },
+    { x: 0, y: 1, z: 0 },
+  ]
+  const vertices = corners.map((position, index) => {
+    let rhw = 0
+
+    if (index === 0) {
+      rhw = 1
+    }
+
+    return { position, rhw }
+  }) as ArxPortal['polygon']['vertices']
+
+  return {
+    polygon: {
+      min: { x: 0, y: 0, z: 0 },
+      max: { x: 1, y: 1, z: 0 },
+      norm: { x: 0, y: 0, z: 1 },
+      norm2: { x: 2, y: 0, z: 0 },
+      vertices,
+      center: { x: 0.5, y: 0.5, z: 0 },
+    },
+    room1,
+    room2,
+    usePortal: 0,
+  }
+}
+
+void describe('setPortals', () => {
+  void it('grows the list of the rooms so a portal to a new room is in both lists', () => {
+    const map = flatMap()
+
+    map.setPortals([portalOfTest(1, 5)])
+
+    assert.equal(map.portals.length, 1)
+    assert.equal(map.fts.rooms.length, 6)
+    assert.deepEqual(map.fts.rooms[1]?.portals, [0])
+    assert.deepEqual(map.fts.rooms[5]?.portals, [0])
   })
 })

@@ -6,6 +6,7 @@ import { dropStoredHistory, readStoredHistory } from '../../history/mapHistorySt
 import { commandOf } from '../../history/commands.ts'
 import { createDeleteFacesRecord } from '../../history/records.ts'
 import { onKeyboardAction } from '../../keyboard/keyboard.ts'
+import { bumpPortalRevision } from '../../rooms/portalSync.ts'
 import { selectionStore } from '../../selection/selectionStore.ts'
 import { levelStore } from './levelStore.ts'
 
@@ -85,6 +86,11 @@ function withRevision(command: HistoryCommand): HistoryCommand {
     // a uv edit keeps the triangles, their order and their materials: the paint of the level is not stale
     if (step.record.kind !== 'setUv') {
       textureRevision.value = textureRevision.value + 1
+    }
+
+    // a tunnel brings its portals and takes them out with itself: the outline and the room warnings follow them
+    if (step.record.kind === 'buildTunnel') {
+      bumpPortalRevision()
     }
   }
 

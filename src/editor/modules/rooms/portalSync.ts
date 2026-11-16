@@ -14,6 +14,17 @@ import { roomRevision } from './roomRevision.ts'
  */
 export const portalRevision: ShallowRef<number> = shallowRef(0)
 
+/**
+ * Tells the views that the portals of the level changed.
+ *
+ * @remarks
+ * The generation calls it when it rebuilt the portals from the rooms; a step that makes or takes portals out with its
+ * faces calls it too, so the outline, the statistics and the warnings follow the change.
+ */
+export function bumpPortalRevision(): void {
+  portalRevision.value = portalRevision.value + 1
+}
+
 let started = false
 
 /**
@@ -31,7 +42,7 @@ export function updateGeneratedPortals(map: ArxMap): boolean {
   const changed = syncGeneratedPortals(map)
 
   if (changed) {
-    portalRevision.value = portalRevision.value + 1
+    bumpPortalRevision()
   }
 
   return changed

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { ArxPolygonFlags, type ArxPolygon, type ArxVector3 } from 'arx-convert/types'
+import { ArxPolygonFlags, type ArxColor, type ArxPolygon, type ArxPortal, type ArxVector3 } from 'arx-convert/types'
 import { Quaternion, Vector3 } from 'three'
 import { isQuad } from 'arx-convert/utils'
 import type { FaceRoom, FaceTexture } from '../../../../src/generator/ArxMap.ts'
@@ -8,6 +8,7 @@ import type { PolygonInsertion } from '../../../../src/generator/arxMap/removal.
 import type { FaceUv } from '../../../../src/generator/arxMap/uvs.ts'
 import { commandOf } from '../../../../src/editor/modules/history/commands.ts'
 import {
+  createBuildTunnelRecord,
   createDeleteFacesRecord,
   createSetTextureRecord,
   createSetUvRecord,
@@ -61,17 +62,27 @@ function fakeLevel(count: number): {
   level: MutableLevel
   polygons: ArxPolygon[]
   containers: Map<number, string>
+  lighting: ArxColor[]
+  portals: ArxPortal[]
 } {
   const polygons = Array.from({ length: count }, (_, index) => {
     return triangle(index)
   })
   const containers = new Map<number, string>([[1, '[stone]_wall1.bmp']])
+  const lighting: ArxColor[] = [{ r: 1, g: 2, b: 3, a: 1 }]
+  const portals: ArxPortal[] = []
 
   return {
     polygons,
     containers,
+    lighting,
+    portals,
     level: {
       polygons,
+      portals,
+      setPortals: (next: readonly ArxPortal[]): void => {
+        portals.splice(0, portals.length, ...next)
+      },
       removePolygons: (removed: readonly ArxPolygon[]): void => {
         const gone = new Set(removed)
         const kept = polygons.filter((polygon) => {
@@ -196,6 +207,12 @@ function fakeLevel(count: number): {
       },
       removeTextureContainer: (id: number): void => {
         containers.delete(id)
+      },
+      addLightingColors: (colors: readonly ArxColor[]): void => {
+        lighting.push(...colors)
+      },
+      removeLightingColors: (count: number): void => {
+        lighting.splice(Math.max(0, lighting.length - count), count)
       },
       setFaceUvs: (faceIndex: number, uvs: readonly FaceUv[]): void => {
         const polygon = polygons[faceIndex]
@@ -698,6 +715,176 @@ void describe('commandOf a scale', () => {
   void it('gives no command when the face is not in the level', () => {
     const { level } = fakeLevel(2)
     const record = createScaleFacesRecord([5], { x: 0, y: 0, z: 0 }, { x: 2, y: 2, z: 2 })
+
+    assert.equal(commandOf(record, level), undefined)
+  })
+})
+
+/**
+ * The portal of the test, between room 17 and the tunnel room 27.
+ *
+ * @returns The portal, with four corners around a square.
+ */
+function tunnelPortal(): ArxPortal {
+  const corners = [
+    { x: 0, y: 0, z: 0 },
+    { x: 1, y: 0, z: 0 },
+    { x: 1, y: 1, z: 0 },
+    { x: 0, y: 1, z: 0 },
+  ]
+  const vertices = corners.map((position, index) => {
+    let rhw = 0
+
+    if (index === 0) {
+      rhw = 1
+    }
+
+    return { position, rhw }
+  }) as ArxPortal['polygon']['vertices']
+
+  return {
+    polygon: {
+      min: { x: 0, y: 0, z: 0 },
+      max: { x: 1, y: 1, z: 0 },
+      norm: { x: 0, y: 0, z: 1 },
+      norm2: { x: 2, y: 0, z: 0 },
+      vertices,
+      center: { x: 0.5, y: 0.5, z: 0 },
+    },
+    room1: 17,
+    room2: 27,
+    usePortal: 0,
+  }
+}
+
+/**
+ * A quad of the tunnel of the test.
+ *
+ * @param index Which quad it is: its corners start at the index.
+ *
+ * @returns The face of the tunnel, in room 27.
+ */
+function tunnelQuad(index: number): ArxPolygon {
+  return {
+    ...triangle(index),
+    vertices: [
+      { x: index, y: 0, z: 0, u: 0, v: 0, llfColorIdx: 1 },
+      { x: index + 1, y: 0, z: 0, u: 1, v: 0, llfColorIdx: 2 },
+      { x: index + 1, y: 1, z: 0, u: 1, v: 1, llfColorIdx: 3 },
+      { x: index, y: 1, z: 0, u: 0, v: 1, llfColorIdx: 4 },
+    ],
+    flags: ArxPolygonFlags.Quad,
+    room: 27,
+  }
+}
+
+/**
+ * The tunnel of the test: two quads that a step adds after the wall it takes out.
+ *
+ * @returns The record, with the wall face 1 and the two quads.
+ */
+function tunnelRecord(): ReturnType<typeof createBuildTunnelRecord> {
+  return createBuildTunnelRecord({
+    removed: [1],
+    added: [tunnelQuad(10), tunnelQuad(20)],
+    texture: { id: 9, name: 'l5_snake_[marble]_wall04.jpg' },
+    addedTexture: true,
+    lighting: [
+      { r: 128, g: 128, b: 128, a: 1 },
+      { r: 128, g: 128, b: 128, a: 1 },
+      { r: 128, g: 128, b: 128, a: 1 },
+      { r: 128, g: 128, b: 128, a: 1 },
+    ],
+    portals: [tunnelPortal()],
+  })
+}
+
+void describe('createBuildTunnelRecord', () => {
+  void it('writes the removed faces, the added polygons, the texture and the lighting', () => {
+    const record = tunnelRecord()
+
+    assert.equal(record.version, HISTORY_RECORD_VERSION)
+    assert.equal(record.kind, 'buildTunnel')
+    assert.deepEqual(record.removed, [1])
+    assert.deepEqual(
+      record.added.map((polygon) => {
+        return polygon.room
+      }),
+      [27, 27],
+    )
+    assert.deepEqual(record.texture, { id: 9, name: 'l5_snake_[marble]_wall04.jpg' })
+    assert.equal(record.addedTexture, true)
+    assert.equal(record.lighting.length, 4)
+    assert.equal(record.portals.length, 1)
+  })
+
+  void it('sorts the faces of the wall, so the same selection is the same record', () => {
+    const record = createBuildTunnelRecord({
+      removed: [3, 1, 3],
+      added: [],
+      texture: { id: 9, name: 'a.png' },
+      addedTexture: false,
+      lighting: [],
+      portals: [],
+    })
+
+    assert.deepEqual(record.removed, [1, 3])
+  })
+
+  void it('says how many faces the tunnel has', () => {
+    assert.equal(labelOf(tunnelRecord()), 'Build a tunnel of 2 face(s)')
+  })
+})
+
+void describe('commandOf a tunnel', () => {
+  void it('takes the wall out, adds the tunnel, the container and the colours', () => {
+    const { level, polygons, containers, lighting, portals } = fakeLevel(3)
+    const command = commandOf(tunnelRecord(), level)
+
+    command?.apply()
+
+    assert.deepEqual(
+      polygons.map((polygon) => {
+        return polygon.area
+      }),
+      [0, 2, 10, 20],
+    )
+    assert.equal(polygons[2]?.room, 27)
+    assert.equal(containers.get(9), 'l5_snake_[marble]_wall04.jpg')
+    assert.equal(lighting.length, 5)
+    assert.deepEqual(lighting.at(-1), { r: 128, g: 128, b: 128, a: 1 })
+    assert.equal(portals.length, 1)
+    assert.deepEqual([portals[0]?.room1, portals[0]?.room2], [17, 27])
+  })
+
+  void it('puts the wall back and takes the tunnel, the container and the colours out', () => {
+    const { level, polygons, containers, lighting, portals } = fakeLevel(3)
+    const command = commandOf(tunnelRecord(), level)
+
+    command?.apply()
+    command?.revert()
+
+    assert.deepEqual(
+      polygons.map((polygon) => {
+        return polygon.area
+      }),
+      [0, 1, 2],
+    )
+    assert.equal(containers.has(9), false)
+    assert.equal(lighting.length, 1)
+    assert.equal(portals.length, 0)
+  })
+
+  void it('gives no command when the wall is not in the level', () => {
+    const { level } = fakeLevel(2)
+    const record = createBuildTunnelRecord({
+      removed: [5],
+      added: [],
+      texture: { id: 9, name: 'a.png' },
+      addedTexture: false,
+      lighting: [],
+      portals: [],
+    })
 
     assert.equal(commandOf(record, level), undefined)
   })

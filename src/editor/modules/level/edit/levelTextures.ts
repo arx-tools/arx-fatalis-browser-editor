@@ -324,6 +324,10 @@ export async function paintLevel(map: ArxMap, zipData?: ArrayBuffer): Promise<vo
   console.info(
     `Textures: ${String(painted)} of ${String(names.length)} painted, ${String(zipFiles.size)} from the zip, ${String(fromDataDir.length)} from the data dir.`,
   )
+
+  // the paint changed the colours under the views (and the base grey of a load): without the step the view keeps the
+  // frame it drew before the paint, the level unlit, until a mouse move asks for a render
+  bumpLevelRevision()
 }
 
 /**

@@ -15,7 +15,8 @@ import {
   type DataDirFile,
 } from '../modules/level/source/dataDir.ts'
 import { directoryPickerOf, permissionOf, pickDirectory } from '../modules/level/source/dataDirHandle.ts'
-import { paintLevel, repaintLevelTextures } from '../modules/level/edit/levelTextures.ts'
+import { prepareLoadedMap } from '../modules/level/edit/lighting.ts'
+import { repaintLevelTextures } from '../modules/level/edit/levelTextures.ts'
 import { persistedRef } from '../modules/persistedRef/persistedRef.ts'
 import { starterLevelSource } from '../modules/level/source/levelSource.ts'
 import { getUrlAdapter } from '../modules/persistedRef/url.ts'
@@ -293,7 +294,7 @@ async function afterDataDirChanged(): Promise<void> {
     }
 
     await levelStore.openLevel(source, async (map): Promise<void> => {
-      await paintLevel(map, zipData)
+      await prepareLoadedMap(map, zipData)
     })
 
     return

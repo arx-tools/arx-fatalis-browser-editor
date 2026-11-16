@@ -4,6 +4,7 @@ import CameraControlsWidget from './components/widgets/CameraControlsWidget/Came
 import FixedViewWidget from './components/widgets/FixedViewWidget/FixedViewWidget.vue'
 import KeyboardShortcutsWidget from './components/widgets/KeyboardShortcutsWidget/KeyboardShortcutsWidget.vue'
 import JumpToLocationWidget from './components/widgets/JumpToLocationWidget/JumpToLocationWidget.vue'
+import LightingControlsWidget from './components/widgets/LightingControlsWidget/LightingControlsWidget.vue'
 import PolygonInspectorWidget from './components/widgets/PolygonInspectorWidget/PolygonInspectorWidget.vue'
 import MapStatisticsWidget from './components/widgets/MapStatisticsWidget/MapStatisticsWidget.vue'
 import RenderPerformanceWidget from './components/widgets/RenderPerformanceWidget/RenderPerformanceWidget.vue'
@@ -101,6 +102,15 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
     group: 'controls',
     create: (): Widget => {
       return new VueWidget(JumpToLocationWidget)
+    },
+  },
+  {
+    kind: WIDGET_KINDS.lightingControls,
+    label: 'Lighting Controls',
+    contentSized: true,
+    group: 'controls',
+    create: (): Widget => {
+      return new VueWidget(LightingControlsWidget)
     },
   },
   {

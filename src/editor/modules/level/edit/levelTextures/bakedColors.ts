@@ -31,6 +31,7 @@ export function writeBakedColors(map: ArxMap): void {
 
   const { geometry } = mesh
   const positions = geometry.getAttribute('position')
+
   const colors = new Float32Array(positions.count * 3)
   const palette = map.llf.colors
   const table = new Float32Array(palette.length * 3)

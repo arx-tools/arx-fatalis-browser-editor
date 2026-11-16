@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { Color } from 'three'
-import { createRoomOverlay, roomsNeedRepaint } from '../../../../../src/editor/components/widgets/shared/roomOverlay.ts'
+import {
+  createRoomOverlay,
+  roomsNeedRepaint,
+  type RoomOverlay,
+} from '../../../../../src/editor/components/widgets/shared/roomOverlay.ts'
 import { createBlankLevelFiles, FLAT_PRESET } from '../../../../../src/editor/modules/level/blankLevel.ts'
 import { ArxMap } from '../../../../../src/generator/ArxMap.ts'
 import { ROOM_COLORS } from '../../../../../src/generator/rooms.ts'
@@ -21,13 +25,13 @@ function mapOf(): ArxMap {
 /**
  * Reads the colour of a vertex of the room map.
  *
- * @param map The level to read.
+ * @param overlay The room map to read.
  * @param vertex The index of the vertex.
  *
  * @returns The colour the map gives that vertex.
  */
-function colorOf(map: ArxMap, vertex: number): Color {
-  const attribute = map.solidMeshes[0].geometry.getAttribute('color')
+function colorOf(overlay: RoomOverlay, vertex: number): Color {
+  const attribute = overlay.mesh.geometry.getAttribute('color')
 
   return new Color(attribute.getX(vertex), attribute.getY(vertex), attribute.getZ(vertex))
 }
@@ -50,12 +54,12 @@ void describe('createRoomOverlay', () => {
     const overlay = createRoomOverlay(map)
 
     // the map starts dark: the first vertex is the dimmed colour of room 1
-    const dimmed = colorOf(map, 0)
+    const dimmed = colorOf(overlay, 0)
 
     // the room in the highlight keeps its full colour
     overlay.setHighlight(new Set([1]))
 
-    const full = colorOf(map, 0)
+    const full = colorOf(overlay, 0)
 
     assert.ok(isNoBrighter(dimmed, full))
     assert.ok(dimmed.r < full.r || dimmed.g < full.g || dimmed.b < full.b)
@@ -63,7 +67,7 @@ void describe('createRoomOverlay', () => {
     // an empty highlight dims the room again
     overlay.setHighlight(new Set())
 
-    const dimmedAgain = colorOf(map, 0)
+    const dimmedAgain = colorOf(overlay, 0)
 
     assert.deepEqual([dimmedAgain.r, dimmedAgain.g, dimmedAgain.b], [dimmed.r, dimmed.g, dimmed.b])
   })
@@ -109,7 +113,7 @@ void describe('createRoomOverlay with a moved room', () => {
     map.polygons[0].room = 2
     overlay.setHighlight(new Set([2]))
 
-    const color = colorOf(map, 0)
+    const color = colorOf(overlay, 0)
     const expected = new Color(ROOM_COLORS[1])
 
     assert.ok(Math.abs(color.r - expected.r) < 0.000_001)

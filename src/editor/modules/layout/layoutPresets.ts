@@ -4,7 +4,7 @@ import { WIDGET_KINDS } from './widgetKinds.ts'
 /**
  * The identifier of a preset of the dock layout.
  */
-export type PresetId = 'custom' | 'editor' | 'painter' | 'rooms' | 'viewer'
+export type PresetId = 'custom' | 'editor' | 'lighter' | 'painter' | 'rooms' | 'viewer'
 
 /**
  * One factory preset of the layout.
@@ -132,6 +132,61 @@ export const editorLayout: LayoutNode = {
       children: [
         { type: 'widget', kind: WIDGET_KINDS.mapStatistics },
         { type: 'widget', kind: WIDGET_KINDS.polygonInspector },
+        { type: 'widget', kind: WIDGET_KINDS.undoRedo },
+        { type: 'widget', kind: WIDGET_KINDS.selectionInspector },
+      ],
+    },
+  ],
+}
+
+/**
+ * The layout of the light work: the editor's, with the lighting controls in the place of the polygon inspector.
+ *
+ * @remarks
+ * The walkable view is the surface the light is judged on, so the layout keeps the editor's frame (the three fixed views
+ * on the left, the camera row and the view in the middle) and puts the **Lighting Controls** under the statistics, at
+ * the 120 px of the profile row (and the slider the flat light will bring): the profile of the bake is a click away
+ * from the view.
+ */
+export const lighterLayout: LayoutNode = {
+  type: 'split',
+  orientation: 'horizontal',
+  sizes: [fixed(350), auto(1), fixed(350)],
+  children: [
+    {
+      type: 'split',
+      orientation: 'vertical',
+      sizes: [fixed(350), auto(0.5), auto(0.5)],
+      children: [
+        { type: 'widget', kind: WIDGET_KINDS.topView },
+        { type: 'widget', kind: WIDGET_KINDS.leftView },
+        { type: 'widget', kind: WIDGET_KINDS.frontView },
+      ],
+    },
+    {
+      type: 'split',
+      orientation: 'vertical',
+      sizes: [fixed(THIN_ROW_HEIGHT), auto(1)],
+      children: [
+        {
+          type: 'split',
+          orientation: 'horizontal',
+          sizes: [auto(1), fixed(200)],
+          children: [
+            { type: 'widget', kind: WIDGET_KINDS.cameraControls },
+            { type: 'widget', kind: WIDGET_KINDS.jumpToLocation },
+          ],
+        },
+        { type: 'widget', kind: WIDGET_KINDS.view3d },
+      ],
+    },
+    {
+      type: 'split',
+      orientation: 'vertical',
+      sizes: [fixed(200), fixed(120), fixed(UNDO_ROW_HEIGHT), auto(1)],
+      children: [
+        { type: 'widget', kind: WIDGET_KINDS.mapStatistics },
+        { type: 'widget', kind: WIDGET_KINDS.lightingControls },
         { type: 'widget', kind: WIDGET_KINDS.undoRedo },
         { type: 'widget', kind: WIDGET_KINDS.selectionInspector },
       ],
@@ -292,6 +347,7 @@ export const factoryPresets: readonly FactoryPreset[] = [
   { id: 'editor', label: 'Editor', layout: editorLayout },
   { id: 'painter', label: 'Painter', layout: painterLayout },
   { id: 'rooms', label: 'Rooms', layout: roomsLayout },
+  { id: 'lighter', label: 'Lighter', layout: lighterLayout },
   { id: 'custom', label: 'Blank', layout: customLayout },
 ]
 

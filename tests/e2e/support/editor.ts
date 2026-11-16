@@ -291,6 +291,9 @@ export async function waitForLevel(page: Page, label = 'Total faces'): Promise<n
     throw new Error(`the level is not on: ${label} still shows the pending dots`)
   }
 
+  // the level is covered until its baked light is on the mesh: the tests of the view start when the cover is gone
+  await expect(page.locator('.LoadingOverlay')).toHaveCount(0, { timeout: 60_000 })
+
   return value
 }
 

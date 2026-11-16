@@ -47,6 +47,10 @@ export const WIDGET_KINDS = {
    */
   cameraControls: 'camera-controls',
   /**
+   * The profile of the light bake, and the button that bakes it again.
+   */
+  lightingControls: 'lighting-controls',
+  /**
    * The points the camera can jump to.
    */
   jumpToLocation: 'jump-to-location',

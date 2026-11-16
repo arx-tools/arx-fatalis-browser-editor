@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { FolderOpen } from 'lucide-vue-next'
 import { useTemplateRef } from 'vue'
-import { paintLevel } from '../modules/level/edit/levelTextures.ts'
+import { prepareLoadedMap } from '../modules/level/edit/lighting.ts'
 import { levelStore } from '../modules/level/edit/levelStore.ts'
 import {
   adoptHistoryOf,
@@ -59,7 +59,7 @@ async function loadZip(event: Event): Promise<void> {
   const source = createZipLevelSource(file.name, data)
 
   await levelStore.openLevel(source, async (map): Promise<void> => {
-    await paintLevel(map, source.data())
+    await prepareLoadedMap(map, source.data())
   })
 
   if (levelStore.status.value !== 'ready') {

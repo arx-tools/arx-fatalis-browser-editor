@@ -8,7 +8,7 @@ import type { StorageLike } from '../../persistedRef/storage.ts'
 import { getUrlAdapter, writeUrlValue } from '../../persistedRef/url.ts'
 import { FLAT_PRESET, MINIMAL_PRESET, type NewLevelPreset } from '../blankLevel.ts'
 import { restoreMapHistory, saveMapHistory } from '../edit/editing.ts'
-import { paintLevel } from '../edit/levelTextures.ts'
+import { prepareLoadedMap } from '../edit/lighting.ts'
 import { levelStore } from '../edit/levelStore.ts'
 import type { LevelManifest } from '../../../../generator/manifest.ts'
 import type { EditorSettings } from './editorSettings.ts'
@@ -708,7 +708,7 @@ export async function openMap(id: string): Promise<void> {
   }
 
   await levelStore.openLevel(source, async (map): Promise<void> => {
-    await paintLevel(map, zipData)
+    await prepareLoadedMap(map, zipData)
   })
 
   // the map of the link is not missing any more: the notice of the view has nothing to say

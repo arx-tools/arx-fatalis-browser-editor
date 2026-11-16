@@ -156,11 +156,12 @@ void describe('bakeLlfColors', () => {
     ])
   })
 
-  void it('leaves a semidynamic light out of the Arx mode and bakes it in the Realistic one', () => {
+  void it('leaves a semidynamic light out of both profiles', () => {
     const semidynamic = lightOf({ x: 0, y: -200, z: 0 }, { flags: ArxLightFlags.SemiDynamic })
     const arx = bakeFloor({}, 'Arx', semidynamic)
     const realistic = bakeFloor({ ambientFloor: 23 }, 'Realistic', semidynamic)
 
+    // a torch is lit by the game at runtime: the palette keeps it out, and the realistic profile does not double it
     assert.ok(
       arx.every((color) => {
         return color.r === 23
@@ -168,7 +169,7 @@ void describe('bakeLlfColors', () => {
     )
     assert.ok(
       realistic.every((color) => {
-        return color.r > 150
+        return color.r === 23
       }),
     )
   })

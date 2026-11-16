@@ -1,4 +1,4 @@
-import { BufferAttribute, Color, Mesh, MeshLambertMaterial } from 'three'
+import { BufferAttribute, BufferGeometry, Color, Mesh, MeshLambertMaterial } from 'three'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { ROOM_COLORS, roomColoringForLevel, roomIdsOf, type RoomColoring } from '../../../../generator/rooms.ts'
 
@@ -41,9 +41,10 @@ const DIMMED = 0.35
  *
  * @remarks
  * It is the first piece of the room editing feature: it **shows** the rooms of the level and changes nothing. The mesh
- * shares the geometry of the level, so the room colours are one more attribute on it and a second copy of the level is
- * not built; the material is flat (a colour per vertex, no texture), so the map reads as the rooms of the level and
- * not as its art.
+ * owns a **copy** of the positions of the level (the room colours are its own `color` attribute), so the palette of the
+ * level (the `color` of the level's geometry, painted by the bake) stays untouched and the textured level keeps its
+ * light; the material is flat (a colour per vertex, no texture), so the map reads as the rooms of the level and not as
+ * its art.
  */
 export interface RoomOverlay {
   /**
@@ -79,11 +80,10 @@ export interface RoomOverlay {
    */
   readonly setHighlight: (rooms: ReadonlySet<number>) => void
   /**
-   * Frees the material of the overlay.
+   * Frees the material and the geometry of the overlay.
    *
    * @remarks
-   * The geometry is the level's: it is not disposed here, and the colour attribute stays on it (another view can show
-   * the overlay at the same time, and the textured level does not read the attribute).
+   * The geometry is the overlay's own copy: the geometry of the level is not touched by it.
    */
   readonly dispose: () => void
 }
@@ -93,15 +93,21 @@ export interface RoomOverlay {
  *
  * @remarks
  * The geometry is a flat list of triangles, and every triangle has its polygon: the vertex takes the colour of the
- * room of that polygon. The attribute is written on the geometry of the level, so every view that shares the geometry
- * sees the same map.
+ * room of that polygon. The colours go into the `color` attribute of the **overlay's** geometry (a copy of the
+ * positions of the level), so the palette of the level (the `color` of the level's geometry) stays for the textured
+ * level.
  *
+ * @param geometry The geometry of the overlay, with the positions of the level.
  * @param map The level to read.
  * @param coloring The colour of every room.
  * @param highlight The rooms to keep at full colour; an empty set dims every room.
  */
-function writeRoomColors(map: ArxMap, coloring: RoomColoring, highlight: ReadonlySet<number>): void {
-  const { geometry } = map.solidMeshes[0]
+function writeRoomColors(
+  geometry: BufferGeometry,
+  map: ArxMap,
+  coloring: RoomColoring,
+  highlight: ReadonlySet<number>,
+): void {
   const positions = geometry.getAttribute('position')
   const colors = new Float32Array(positions.count * COLOR_ITEM_SIZE)
   const palette = ROOM_COLORS.map((color) => {
@@ -207,7 +213,10 @@ function coloringOfLevel(map: ArxMap): RoomColoring {
  * @returns The overlay, ready to be put into a scene.
  */
 export function createRoomOverlay(map: ArxMap): RoomOverlay {
-  const { geometry } = map.solidMeshes[0]
+  // the geometry of the overlay is its own: it copies the positions of the level, and the room colours are its `color`
+  // attribute. The level's geometry keeps its own `color` (the palette of the baked light), which the textured level
+  // draws with, so the room map never writes over the light
+  const geometry = new BufferGeometry()
   const material = new MeshLambertMaterial({ vertexColors: true })
   const mesh = new Mesh(geometry, material)
 
@@ -226,7 +235,19 @@ export function createRoomOverlay(map: ArxMap): RoomOverlay {
     level = next
     coloring = coloringOfLevel(next)
 
-    writeRoomColors(next, coloring, highlighted)
+    // the positions follow the level: an edit rebuilds its geometry, and the overlay copies the new buffers
+    const { geometry: levelGeometry } = next.solidMeshes[0]
+    const { index } = levelGeometry
+
+    geometry.setAttribute('position', levelGeometry.getAttribute('position').clone())
+
+    if (index === null) {
+      geometry.setIndex(null)
+    } else {
+      geometry.setIndex(index.clone())
+    }
+
+    writeRoomColors(geometry, next, coloring, highlighted)
   }
 
   repaint(map)
@@ -245,10 +266,11 @@ export function createRoomOverlay(map: ArxMap): RoomOverlay {
       // vertices of the new rooms would fall back to the grey of the faces without a room (2026-11-15)
       coloring = coloringOfLevel(level)
 
-      writeRoomColors(level, coloring, highlighted)
+      writeRoomColors(geometry, level, coloring, highlighted)
     },
     dispose: (): void => {
       material.dispose()
+      geometry.dispose()
     },
   }
 }

@@ -99,31 +99,33 @@ async function startDrag(event: PointerEvent, kind: string): Promise<void> {
   <div class="WidgetPicker" :class="{ 'is-dragging': isDragging }" role="menu" aria-label="Add a widget">
     <div v-for="group in groups" :key="group.group" class="group">
       <span class="heading">{{ group.label }}</span>
-      <div
-        v-for="row in group.rows"
-        :key="row.kind"
-        class="row"
-        :class="{ 'is-placed': row.isPlaced }"
-        role="menuitem"
-        :data-picker-kind="row.kind"
-        @pointerdown="startDrag($event, row.kind)"
-        @pointerenter="spotlight(row.isPlaced ? row.kind : null)"
-        @pointerleave="spotlight(null)"
-      >
-        <Check v-if="row.isPlaced" class="mark" :size="13" aria-hidden="true" />
-        <GripVertical v-else class="grip" :size="13" aria-hidden="true" />
-        <span class="name">{{ row.label }}</span>
-        <button
-          v-if="row.isPlaced"
-          class="trash"
-          type="button"
-          v-tooltip="`Remove the ${row.label} widget`"
-          :aria-label="`Remove the ${row.label} widget`"
-          @pointerdown.stop
-          @click="remove(row.kind)"
+      <div class="rows">
+        <div
+          v-for="row in group.rows"
+          :key="row.kind"
+          class="row"
+          :class="{ 'is-placed': row.isPlaced }"
+          role="menuitem"
+          :data-picker-kind="row.kind"
+          @pointerdown="startDrag($event, row.kind)"
+          @pointerenter="spotlight(row.isPlaced ? row.kind : null)"
+          @pointerleave="spotlight(null)"
         >
-          <Trash2 :size="13" />
-        </button>
+          <Check v-if="row.isPlaced" class="mark" :size="13" aria-hidden="true" />
+          <GripVertical v-else class="grip" :size="13" aria-hidden="true" />
+          <span class="name">{{ row.label }}</span>
+          <button
+            v-if="row.isPlaced"
+            class="trash"
+            type="button"
+            v-tooltip="`Remove the ${row.label} widget`"
+            :aria-label="`Remove the ${row.label} widget`"
+            @pointerdown.stop
+            @click="remove(row.kind)"
+          >
+            <Trash2 :size="13" />
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -141,7 +143,11 @@ async function startDrag(event: PointerEvent, kind: string): Promise<void> {
   top: 4px;
   left: 0;
   transform: translateX(-50%);
-  min-width: 170px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 4px;
+  width: 470px;
+  max-width: calc(100vw - 16px);
   padding: 4px;
   background: $surface-float;
   border: 1px solid $border;
@@ -164,17 +170,26 @@ async function startDrag(event: PointerEvent, kind: string): Promise<void> {
     color: $text-subtle;
   }
 
-  .group + .group .heading {
-    padding-top: 10px;
-    border-top: 1px solid $border-dark;
-    margin-top: 4px;
+  // the categories are the three columns of the popup: rendering, controls and info, each one a list of its own
+  .group + .group {
+    border-left: 1px solid $border-dark;
+    padding-left: 4px;
+  }
+
+  // the rows of a category are one column: the categories sit side by side, so the list of the widgets is as tall as
+  // the longest category and not as tall as all of them
+  .rows {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
   }
 
   .row {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 6px 8px;
+    gap: 6px;
+    min-width: 0;
+    padding: 6px;
     border-radius: 4px;
     cursor: grab;
     touch-action: none;
@@ -204,7 +219,10 @@ async function startDrag(event: PointerEvent, kind: string): Promise<void> {
 
     .name {
       flex: 1;
-      white-space: nowrap;
+      min-width: 0;
+      line-height: 1.15;
+      overflow-wrap: anywhere;
+      white-space: normal;
     }
 
     .trash {

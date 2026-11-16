@@ -22,9 +22,10 @@ export interface LightingOptions {
    * The profile of the bake.
    *
    * @remarks
-   * `Arx` is the game-like look (the static lights only, an ambient floor of 23), `Realistic` follows the Fred profile
-   * (every light, including the semidynamic torches, and an occlusion test when shadows are on), and the other modes
-   * are for checking the level.
+   * `Arx` is the game-like look (the static lights only, a factor of 0.85 and an ambient floor of 23), `Realistic`
+   * follows the Fred profile (the static lights, a factor of 1, its own ambient floor and an occlusion test when
+   * shadows are on). The semidynamic lights, the torches among them, stay out of both: the game lights them up at
+   * runtime. The other modes are for checking the level.
    */
   readonly mode: LightingCalculatorMode
   /**
@@ -229,22 +230,18 @@ function bakeTextureRainbow(fts: ArxFTS, llf: ArxLLF): ArxColor[] {
  * The lights a profile bakes.
  *
  * @remarks
- * The `Arx` profile bakes only the static lights, which is what the game's own palette was made of; a torch is a
- * semidynamic light and the game lights it up at runtime. The `Realistic` profile bakes every light, the torches
- * included.
+ * Both profiles bake only the static lights, which is what the game's own palette was made of: a torch is a semidynamic
+ * light, and the game lights it up at runtime (2026-11-16, the owner's decision: the realistic profile does not put
+ * them into the palette either, then the game does not double them). The profiles differ in the factor (the game's 0.85
+ * against the true 1) and in the options of the realistic one (the ambient floor, the shadows).
  *
  * @param llf The lighting of the level.
- * @param mode The profile of the bake.
  *
  * @returns The lights, with their position in the scene's frame.
  */
-function collectLights(llf: ArxLLF, mode: LightingCalculatorMode): Array<{ light: ArxLight; position: Vector3 }> {
+function collectLights(llf: ArxLLF): Array<{ light: ArxLight; position: Vector3 }> {
   return llf.lights
     .filter((light) => {
-      if (mode === 'Realistic') {
-        return true
-      }
-
       return (light.flags & ArxLightFlags.SemiDynamic) === 0
     })
     .map((light) => {
@@ -422,8 +419,9 @@ function bakeCornerOf(options: CornerBake): ArxColor {
  * The frame is the editor's: the FTS vertices are absolute and the LLF lights are scene relative, so the light is
  * `scenePosition + lightPosition` in the game's frame, and the bake mirrors both the way the mesh is mirrored.
  *
- * The `Arx` profile is the game-like one (the static lights, the ambient floor of the game, no shadows); the `Realistic`
- * one takes every light and tests the way of the light when shadows are on. The other modes are for checking.
+ * The `Arx` profile is the game-like one (the static lights, the factor of the game, the ambient floor of the game);
+ * the `Realistic` one keeps the semidynamic lights out too, like the game's own palette, and with the true factor and
+ * the occlusion test of its shadows it is the brighter, more physical one. The other modes are for checking.
  *
  * @param fts The scene of the level.
  * @param llf The lighting of the level: the lights and the palette.
@@ -431,7 +429,41 @@ function bakeCornerOf(options: CornerBake): ArxColor {
  *
  * @returns The colours of the palette, one for every entry of the lighting.
  */
-export function bakeLlfColors(fts: ArxFTS, llf: ArxLLF, options: LightingOptions): ArxColor[] {
+/**
+ * How many corners a chunk of the asynchronous bake computes before it lets the page paint.
+ *
+ * @remarks
+ * The bake of a big level is about half a second of work; a chunk of five thousand corners is a few tens of milliseconds
+ * of it, so the spinner of the editor moves between the chunks.
+ */
+const CHUNK_CORNERS = 5000
+
+/**
+ * Lets the page paint before the next chunk of the bake.
+ *
+ * @returns A promise that resolves on the next turn of the event loop.
+ */
+async function letThePagePaint(): Promise<void> {
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, 0)
+  })
+}
+
+/**
+ * The steps of the bake, one corner at a time.
+ *
+ * @remarks
+ * The synchronous bake consumes it in one go, and the asynchronous one lets the page paint between chunks of it: the
+ * two compute the same palette. A corner is one `yield`; the flat (`MaxBrightness`, `CompleteDarkness`) and the
+ * rainbow modes return the palette before the first step.
+ *
+ * @param fts The scene of the level.
+ * @param llf The lighting of the level.
+ * @param options The profile of the bake and what it reads.
+ *
+ * @returns The steps, and at the end the colours of the palette.
+ */
+function* bakeLlfColorsSteps(fts: ArxFTS, llf: ArxLLF, options: LightingOptions): Generator<void, ArxColor[], void> {
   if (options.mode === 'MaxBrightness') {
     return llf.colors.map(() => {
       return { r: 255, g: 255, b: 255, a: 255 }
@@ -449,7 +481,7 @@ export function bakeLlfColors(fts: ArxFTS, llf: ArxLLF, options: LightingOptions
   }
 
   const scenePosition = fts.header.mScenePosition
-  const lights = collectLights(llf, options.mode)
+  const lights = collectLights(llf)
   const ambient = ambientOf(options.mode, options.ambientFloor ?? 0)
   const shadows = options.shadows ?? true
   let blockers: Mesh[] = []
@@ -480,27 +512,84 @@ export function bakeLlfColors(fts: ArxFTS, llf: ArxLLF, options: LightingOptions
       const vertex = polygon.vertices[index]
       const colorIndex = vertex.llfColorIdx
 
-      if (colorIndex === undefined) {
-        continue
+      if (colorIndex !== undefined) {
+        const normal = normalOfCorner(polygon, index)
+
+        cornerPosition.set(-vertex.x + scenePosition.x, -vertex.y + scenePosition.y, vertex.z - scenePosition.z)
+        cornerNormal.set(-normal.x, -normal.y, normal.z).normalize()
+        colors[colorIndex] = bakeCornerOf({
+          position: cornerPosition,
+          normal: cornerNormal,
+          doubleSided,
+          lights,
+          blockers,
+          raycaster,
+          factor,
+          ambient,
+          toLight,
+        })
       }
 
-      const normal = normalOfCorner(polygon, index)
-
-      cornerPosition.set(-vertex.x + scenePosition.x, -vertex.y + scenePosition.y, vertex.z - scenePosition.z)
-      cornerNormal.set(-normal.x, -normal.y, normal.z).normalize()
-      colors[colorIndex] = bakeCornerOf({
-        position: cornerPosition,
-        normal: cornerNormal,
-        doubleSided,
-        lights,
-        blockers,
-        raycaster,
-        factor,
-        ambient,
-        toLight,
-      })
+      yield
     }
   }
 
   return colors
+}
+
+/**
+ * Bakes the palette of the level from its lights.
+ *
+ * @remarks
+ * The synchronous bake: the tests and any caller that has no page to paint use it. The editor uses
+ * {@link bakeLlfColorsInChunks}, so its spinner moves while the palette is computed.
+ *
+ * @param fts The scene of the level.
+ * @param llf The lighting of the level, with the lights and the palette.
+ * @param options The profile of the bake and what it reads.
+ *
+ * @returns The colours of the palette, one for every entry of the lighting.
+ */
+export function bakeLlfColors(fts: ArxFTS, llf: ArxLLF, options: LightingOptions): ArxColor[] {
+  const steps = bakeLlfColorsSteps(fts, llf, options)
+  let step = steps.next()
+
+  while (!step.done) {
+    step = steps.next()
+  }
+
+  return step.value
+}
+
+/**
+ * Bakes the palette of the level from its lights, in chunks.
+ *
+ * @remarks
+ * The same palette as {@link bakeLlfColors}, but the page paints between the chunks: the bake of a big level is about
+ * half a second, and the editor shows a spinner while it runs. A chunk is {@link CHUNK_CORNERS} corners, then a turn of
+ * the event loop.
+ *
+ * @param fts The scene of the level.
+ * @param llf The lighting of the level, with the lights and the palette.
+ * @param options The profile of the bake and what it reads.
+ *
+ * @returns The colours of the palette, when every chunk is done.
+ */
+export async function bakeLlfColorsInChunks(fts: ArxFTS, llf: ArxLLF, options: LightingOptions): Promise<ArxColor[]> {
+  const steps = bakeLlfColorsSteps(fts, llf, options)
+  let step = steps.next()
+  let budget = CHUNK_CORNERS
+
+  while (!step.done) {
+    budget = budget - 1
+
+    if (budget <= 0) {
+      budget = CHUNK_CORNERS
+      await letThePagePaint()
+    }
+
+    step = steps.next()
+  }
+
+  return step.value
 }

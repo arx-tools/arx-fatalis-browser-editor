@@ -84,6 +84,8 @@ onBeforeUnmount(() => {
   display: grid;
   place-items: center;
 
+  // the cover dims the level of before: the new one is built and baked in memory, and it replaces the old when it is
+  // ready (2026-11-16, the owner: the old level stays, the new arrives with its light)
   .cover {
     position: absolute;
     inset: 0;

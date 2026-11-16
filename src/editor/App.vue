@@ -13,7 +13,8 @@ import { startLevelEditing } from './modules/level/edit/editing.ts'
 import { startPortalGeneration } from './modules/rooms/portalSync.ts'
 import { insertLevelFromUrl } from './modules/level/edit/insertLevel.ts'
 import { startSelection } from './modules/selection/selectionStore.ts'
-import { paintLevel, startLevelTextures } from './modules/level/edit/levelTextures.ts'
+import { startLevelTextures } from './modules/level/edit/levelTextures.ts'
+import { prepareLoadedMap, startLighting } from './modules/level/edit/lighting.ts'
 import { MAP_PARAMETER, mapIdFromUrl, mapSlugOf, storedMapId } from './modules/level/source/maps/mapId.ts'
 import { levelStore } from './modules/level/edit/levelStore.ts'
 import { startTextureCatalog } from './modules/textures/textureCatalog.ts'
@@ -125,6 +126,7 @@ onMounted(async () => {
   startPortalGeneration()
   startMapHistoryPersistence()
   startLevelTextures()
+  startLighting()
   startTextureCatalog()
   startRoomSelection()
   startCurrentRoom()
@@ -170,7 +172,7 @@ onMounted(async () => {
         // load is an error the walkable view shows (a silent blank level would hide the mistake of the url)
         await levelStore
           .openLevel(source, async (map): Promise<void> => {
-            await paintLevel(map, source.data())
+            await prepareLoadedMap(map, source.data())
           })
           .catch(() => {
             // the store keeps the error of the load, the walkable view shows it
@@ -193,7 +195,7 @@ onMounted(async () => {
         // that has no such level is an error the walkable view shows
         await levelStore
           .openLevel(source, async (map): Promise<void> => {
-            await paintLevel(map)
+            await prepareLoadedMap(map)
           })
           .catch(() => {
             // the store keeps the error of the load, the walkable view shows it
@@ -203,7 +205,7 @@ onMounted(async () => {
         // editor has no texture of the game at hand), so the floor is the jorge pattern and not the bare grey of a mesh
         await levelStore
           .openLevel(source, async (map): Promise<void> => {
-            await paintLevel(map)
+            await prepareLoadedMap(map)
           })
           .catch(() => {
             // the store keeps the error of the load, the walkable view shows it

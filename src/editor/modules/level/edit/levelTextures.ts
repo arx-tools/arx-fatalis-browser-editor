@@ -492,6 +492,23 @@ export function startLevelTextures(): void {
 }
 
 /**
+ * Paints the baked colours of the level on the screen again, without reading the textures.
+ *
+ * @remarks
+ * A profile change only changes the palette: the textures and the materials of the painted level are the ones on the
+ * screen, and reading the data directory again would cost more than the bake. The paint writes the colours of the
+ * geometry, and the views are asked for a frame.
+ */
+export function repaintLevelColors(): void {
+  if (current === undefined) {
+    return
+  }
+
+  paintLevelTextures(current.map, current.textures, current.missing)
+  bumpLevelRevision()
+}
+
+/**
  * Paints the level on the screen again, with the data directory the user just picked.
  *
  * @remarks

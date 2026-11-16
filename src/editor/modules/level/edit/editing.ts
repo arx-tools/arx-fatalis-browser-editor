@@ -8,6 +8,7 @@ import { createDeleteFacesRecord } from '../../history/records.ts'
 import { onKeyboardAction } from '../../keyboard/keyboard.ts'
 import { bumpPortalRevision } from '../../rooms/portalSync.ts'
 import { selectionStore } from '../../selection/selectionStore.ts'
+import { bumpLightingCacheVersion } from './lightingCache.ts'
 import { levelStore } from './levelStore.ts'
 
 /**
@@ -82,6 +83,7 @@ function withRevision(command: HistoryCommand): HistoryCommand {
    */
   function bump(step: HistoryCommand): void {
     bumpLevelRevision()
+    bumpLightingCacheVersion()
 
     // a uv edit keeps the triangles, their order and their materials: the paint of the level is not stale
     if (step.record.kind !== 'setUv') {
@@ -161,6 +163,7 @@ export function undoLastStep(): void {
   const step = history.undoStack.value.at(-1)
 
   history.undo()
+  bumpLightingCacheVersion()
 
   if (step?.record.kind === 'deleteFaces') {
     selectionStore.clear()
@@ -174,6 +177,7 @@ export function redoLastStep(): void {
   const step = history.redoStack.value.at(-1)
 
   history.redo()
+  bumpLightingCacheVersion()
 
   if (step?.record.kind === 'deleteFaces') {
     selectionStore.clear()

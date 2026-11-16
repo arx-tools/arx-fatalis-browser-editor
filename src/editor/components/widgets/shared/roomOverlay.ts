@@ -1,5 +1,5 @@
 import { BufferAttribute, BufferGeometry, Color, Mesh, MeshLambertMaterial } from 'three'
-import type { ArxMap } from '../../../../generator/ArxMap.ts'
+import type { ReadonlyArxMap } from '../../../types/readonly.ts'
 import { ROOM_COLORS, roomColoringForLevel, roomIdsOf, type RoomColoring } from '../../../../generator/rooms.ts'
 
 /**
@@ -68,7 +68,7 @@ export interface RoomOverlay {
    *
    * @param map The level to read.
    */
-  readonly repaint: (map: ArxMap) => void
+  readonly repaint: (map: ReadonlyArxMap) => void
   /**
    * Picks the rooms the map keeps at full colour, or clears the highlight.
    *
@@ -104,7 +104,7 @@ export interface RoomOverlay {
  */
 function writeRoomColors(
   geometry: BufferGeometry,
-  map: ArxMap,
+  map: ReadonlyArxMap,
   coloring: RoomColoring,
   highlight: ReadonlySet<number>,
 ): void {
@@ -195,7 +195,7 @@ export function roomsNeedRepaint(state: RoomRepaintState): boolean {
  *
  * @returns The colour of every room the level has a face in.
  */
-function coloringOfLevel(map: ArxMap): RoomColoring {
+function coloringOfLevel(map: ReadonlyArxMap): RoomColoring {
   return roomColoringForLevel(
     roomIdsOf(
       map.polygons.map((polygon) => {
@@ -212,7 +212,7 @@ function coloringOfLevel(map: ArxMap): RoomColoring {
  *
  * @returns The overlay, ready to be put into a scene.
  */
-export function createRoomOverlay(map: ArxMap): RoomOverlay {
+export function createRoomOverlay(map: ReadonlyArxMap): RoomOverlay {
   // the geometry of the overlay is its own: it copies the positions of the level, and the room colours are its `color`
   // attribute. The level's geometry keeps its own `color` (the palette of the baked light), which the textured level
   // draws with, so the room map never writes over the light
@@ -231,7 +231,7 @@ export function createRoomOverlay(map: ArxMap): RoomOverlay {
    *
    * @param next The level to read.
    */
-  function repaint(next: ArxMap): void {
+  function repaint(next: ReadonlyArxMap): void {
     level = next
     coloring = coloringOfLevel(next)
 

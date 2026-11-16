@@ -144,9 +144,9 @@ async function startDrag(event: PointerEvent, kind: string): Promise<void> {
   left: 0;
   transform: translateX(-50%);
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(3, auto);
   gap: 0 4px;
-  width: 470px;
+  width: max-content;
   max-width: calc(100vw - 16px);
   padding: 4px;
   background: $surface-float;
@@ -221,8 +221,8 @@ async function startDrag(event: PointerEvent, kind: string): Promise<void> {
       flex: 1;
       min-width: 0;
       line-height: 1.15;
-      overflow-wrap: anywhere;
-      white-space: normal;
+      overflow-wrap: normal;
+      white-space: nowrap;
     }
 
     .trash {

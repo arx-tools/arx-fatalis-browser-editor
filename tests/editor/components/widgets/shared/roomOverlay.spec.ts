@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { Color } from 'three'
+import { BufferAttribute, Color } from 'three'
 import {
   createRoomOverlay,
   roomsNeedRepaint,
@@ -86,6 +86,24 @@ void describe('roomsNeedRepaint', () => {
 
   void it('keeps the colours of a texture or a uv edit', () => {
     assert.equal(roomsNeedRepaint({ vertexCount: 9, colorCount: 9, paintedRevision: 4, revision: 4 }), false)
+  })
+})
+
+void describe('createRoomOverlay and the palette of the level', () => {
+  void it('leaves the color attribute of the level geometry alone', () => {
+    const map = mapOf()
+    const { geometry } = map.solidMeshes[0]
+    const palette = new Float32Array(geometry.getAttribute('position').count * 3)
+
+    palette.fill(0.25)
+    geometry.setAttribute('color', new BufferAttribute(palette, 3))
+
+    const overlay = createRoomOverlay(map)
+
+    // the room map writes its own geometry: the palette (the light of the level) keeps the values the bake wrote
+    assert.equal(geometry.getAttribute('color').array[0], 0.25)
+    assert.notEqual(overlay.mesh.geometry, geometry)
+    assert.notEqual(overlay.mesh.geometry.getAttribute('color').array[0], 0.25)
   })
 })
 

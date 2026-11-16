@@ -13,7 +13,7 @@ import { connectedAreaOf } from './polygons.ts'
  * They are a step darker than the pure hues (about twelve percent, 2026-11-10, the owner): the first red, green and
  * blue glowed on the map, and the surfaces of a room read better a little deeper.
  */
-export const ROOM_COLORS: readonly string[] = [
+export const ROOM_COLORS: readonly string[] = Object.freeze([
   '#bf4646',
   '#439243',
   '#4662bf',
@@ -22,7 +22,7 @@ export const ROOM_COLORS: readonly string[] = [
   '#379f9f',
   '#ac6228',
   '#6b7937',
-]
+])
 
 /**
  * The two rooms a portal joins.

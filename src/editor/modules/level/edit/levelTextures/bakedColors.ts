@@ -20,6 +20,9 @@ import { blendModeOf, isWater } from '../../../../../generator/polygons.ts'
  * editor carries that colour already), so the corner is white there and the material's colour does the dimming. The
  * water is drawn by a pass of the game of its own, so it is white too.
  *
+ * The `color` attribute of the level's geometry is the light of the level, and the bake owns it: a mode that draws
+ * something else (the room map) keeps a geometry of its own (see `roomOverlay.ts`) instead of writing this one.
+ *
  * @param map The level whose mesh gets the colours.
  */
 export function writeBakedColors(map: ArxMap): void {

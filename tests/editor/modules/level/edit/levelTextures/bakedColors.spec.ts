@@ -4,6 +4,7 @@ import { ArxPolygonFlags, type ArxColor, type ArxPolygon } from 'arx-convert/typ
 import { Color, SRGBColorSpace } from 'three'
 import { createBlankLevelFiles, FLAT_PRESET } from '../../../../../../src/editor/modules/level/blankLevel.ts'
 import { writeBakedColors } from '../../../../../../src/editor/modules/level/edit/levelTextures/bakedColors.ts'
+import { setFlatLight } from '../../../../../../src/editor/modules/level/edit/lightingFlat.ts'
 import { ArxMap } from '../../../../../../src/generator/ArxMap.ts'
 import { Settings } from '../../../../../../src/generator/Settings.ts'
 
@@ -105,6 +106,27 @@ void describe('writeBakedColors', () => {
     const quad = [...expected, ...linearOf(palette[2]), ...linearOf(palette[1]), ...linearOf(palette[3])]
 
     assert.deepEqual(firstColorsOf(map, 6), quad)
+  })
+
+  void it('lights every corner with the flat light, the levels without a palette included', () => {
+    const map = flatMap()
+
+    setFlatLight(map, 0.5)
+    writeBakedColors(map)
+
+    const values = firstColorsOf(map, 6)
+    const [red, green, blue] = values
+
+    // the blank level has no palette: the flat light is one grey over the whole level, not a palette entry
+    assert.deepEqual([green, blue], [red, red])
+    assert.ok((red ?? 0) > 0.1)
+    assert.ok(
+      values.every((value) => {
+        return value === red
+      }),
+    )
+
+    setFlatLight(map, undefined)
   })
 
   void it('leaves a blended face white, so the material keeps its own dimming', () => {

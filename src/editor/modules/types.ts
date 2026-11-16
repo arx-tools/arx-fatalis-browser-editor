@@ -34,7 +34,8 @@ export function toDisplayLightingMode(mode: LightingCalculatorMode): DisplayLigh
     }
 
     case 'Arx':
-    case 'Realistic': {
+    case 'Realistic':
+    case 'Flat': {
       return 'dynamic'
     }
   }

@@ -117,6 +117,24 @@ void describe('bakeLlfColors', () => {
     ])
   })
 
+  void it('fills every corner with the grey of the flat light', () => {
+    const colors = bakeFloor({ flatLuminosity: 0.5 }, 'Flat')
+
+    assert.ok(
+      colors.every((color) => {
+        return color.r === 128 && color.g === 128 && color.b === 128 && color.a === 255
+      }),
+    )
+  })
+
+  void it('draws the flat light from dark to the brightest', () => {
+    const dark = bakeFloor({ flatLuminosity: 0 }, 'Flat')
+    const bright = bakeFloor({ flatLuminosity: 1 }, 'Flat')
+
+    assert.equal(dark[0]?.r, 0)
+    assert.equal(bright[0]?.r, 255)
+  })
+
   void it('takes a hue from the texture container in the TextureRainbow mode', () => {
     const colors = bakeFloor({}, 'TextureRainbow')
 

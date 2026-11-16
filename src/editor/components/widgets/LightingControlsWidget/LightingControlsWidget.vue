@@ -2,6 +2,7 @@
 import { LoaderCircle } from 'lucide-vue-next'
 import { computed } from 'vue'
 import {
+  flatLuminosity,
   isBakingLighting,
   LIGHTING_PROFILES,
   lightingProfile,
@@ -24,6 +25,25 @@ const profile = computed<LightingProfile>({
     lightingProfile.value = value
   },
 })
+
+/**
+ * The light of the flat profile, bound to the slider.
+ */
+const luminosity = computed<number>({
+  get: (): number => {
+    return flatLuminosity.value
+  },
+  set: (value: number): void => {
+    flatLuminosity.value = value
+  },
+})
+
+/**
+ * Whether the slider of the flat light belongs to the widget: only the flat profile draws one grey.
+ */
+const isFlat = computed<boolean>(() => {
+  return lightingProfile.value === 'Flat'
+})
 </script>
 
 <template>
@@ -44,39 +64,61 @@ const profile = computed<LightingProfile>({
         />
       </div>
     </FieldLabel>
+
+    <FieldLabel v-if="isFlat" class="field flat-field" label="Luminosity" for="flat-luminosity">
+      <div class="row">
+        <input
+          id="flat-luminosity"
+          v-model.number="luminosity"
+          class="slider"
+          type="range"
+          min="0"
+          max="1"
+          step="0.1"
+          aria-label="Flat luminosity"
+        />
+        <span class="value">{{ luminosity.toFixed(1) }}</span>
+      </div>
+    </FieldLabel>
   </div>
 </template>
 
 <style scoped lang="scss">
 @use '../../../palette' as *;
 
-// The lighting of the level: the profile of the bake. The widget is content-sized: it wants the height of its row, and
-// the dock gives it that much when there is room. The widget has no heading of its own: the dock says its name. The
-// caption of the field sits above the select, like the fields of the camera form and the jump: a word beside the
-// control would take the width its value needs.
+// The lighting of the level: the profile of the bake, and the slider of the flat light. The widget is content-sized: it
+// wants the height of its rows, and the dock gives it that much when there is room. The widget has no heading of its
+// own: the dock says its name. The caption of a field sits above the control, like the fields of the camera form and
+// the jump: a word beside the control would take the width its value needs.
 .LightingControlsWidget {
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   height: 100%;
   padding: 4px;
   overflow: auto;
   font-size: 13px;
 
-  // centred both ways, like the jump: the `margin` with `auto` centres the caption and the select when there is free
-  // space, and falls back to the top left when the widget is too small for them
   .field {
-    margin: auto;
+    margin: 0;
   }
 
   .row {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: 6px;
   }
 
-  // the throbber of the bake: it keeps its place beside the select, and only shows itself while the palette is computed
+  // the throbber of the bake: it is out of the layout (absolute, beside the select), so the hidden one does not
+  // shift the dropdown off the middle of the widget; only the bake shows it
   .spin {
-    flex: none;
+    position: absolute;
+    top: 50%;
+    right: -20px;
     color: $interactive;
+    transform: translateY(-50%);
     visibility: hidden;
 
     &.is-baking {
@@ -89,6 +131,20 @@ const profile = computed<LightingProfile>({
     to {
       transform: rotate(360deg);
     }
+  }
+
+  .slider {
+    width: 140px;
+    margin: 0;
+    accent-color: $interactive;
+    cursor: pointer;
+  }
+
+  .value {
+    min-width: 24px;
+    color: $text-muted;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
   }
 
   select {

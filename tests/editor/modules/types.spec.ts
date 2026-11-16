@@ -22,4 +22,8 @@ void describe('toDisplayLightingMode', () => {
   void it('shows the texture hues for TextureRainbow', () => {
     assert.equal(toDisplayLightingMode('TextureRainbow'), 'rainbow')
   })
+
+  void it('shows the palette for the flat light', () => {
+    assert.equal(toDisplayLightingMode('Flat'), 'dynamic')
+  })
 })

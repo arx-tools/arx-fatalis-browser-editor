@@ -22,7 +22,7 @@ test('the Lighter preset brings the lighting controls, and the profile stays in 
 
   const select = controls.locator('select')
 
-  await expect(select).toHaveValue('Arx')
+  await expect(select).toHaveValue('Flat')
 
   await select.selectOption('Realistic')
 
@@ -63,4 +63,49 @@ test('the picker lists the widgets in three columns', async ({ page }) => {
   expect(positions.length).toBe(3)
   expect(positions[0]).toBeLessThan(positions[1] ?? 0)
   expect(positions[1]).toBeLessThan(positions[2] ?? 0)
+})
+
+/**
+ * The flat profile: the slider under the dropdown, and the value it keeps.
+ *
+ * @remarks
+ * The slider is only there for the flat light (0 is dark, 1 is the brightest, in steps of 0.1), and its value is a fact
+ * of the browser like the profile: the next visit starts with the same grey.
+ */
+test('the flat profile brings a luminosity slider, and the value stays', async ({ page }) => {
+  await page.goto(editorUrl())
+
+  await page.locator('header button[aria-label="Presets"]').click()
+  await page.locator('.preset-menu .preset-row', { hasText: 'Lighter' }).click()
+  await waitForLayoutSettled(page)
+
+  const controls = page.locator('[data-widget-kind="lighting-controls"]')
+
+  await controls.locator('select').selectOption('Flat')
+
+  const slider = controls.locator('input[type="range"]')
+
+  await expect(slider).toBeVisible()
+  await expect(slider).toHaveValue('0.7')
+
+  await slider.evaluate((element) => {
+    if (element instanceof HTMLInputElement) {
+      element.value = '0.3'
+      element.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+  })
+
+  await expect
+    .poll(async () => {
+      return await page.evaluate(() => {
+        return localStorage.getItem('flatLuminosity')
+      })
+    })
+    .toBe('0.3')
+
+  await page.reload()
+  await waitForLayoutSettled(page)
+
+  await expect(page.locator('[data-widget-kind="lighting-controls"] select')).toHaveValue('Flat')
+  await expect(page.locator('[data-widget-kind="lighting-controls"] input[type="range"]')).toHaveValue('0.3')
 })

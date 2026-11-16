@@ -3,6 +3,7 @@ import { isQuad } from 'arx-convert/utils'
 import { BufferAttribute, Color, SRGBColorSpace } from 'three'
 import type { ArxMap } from '../../../../../generator/ArxMap.ts'
 import { blendModeOf, isWater } from '../../../../../generator/polygons.ts'
+import { flatLightOf } from '../lightingFlat.ts'
 
 /**
  * Writes the baked light of the level into the `color` attribute of the solid mesh.
@@ -23,6 +24,9 @@ import { blendModeOf, isWater } from '../../../../../generator/polygons.ts'
  * The `color` attribute of the level's geometry is the light of the level, and the bake owns it: a mode that draws
  * something else (the room map) keeps a geometry of its own (see `roomOverlay.ts`) instead of writing this one.
  *
+ * The **flat** profile is not read from the palette: its one grey goes on every corner, the levels without a palette
+ * (a blank one) included, so its slider moves the whole level and not only the faces the palette reaches.
+ *
  * @param map The level whose mesh gets the colours.
  */
 export function writeBakedColors(map: ArxMap): void {
@@ -34,6 +38,22 @@ export function writeBakedColors(map: ArxMap): void {
 
   const { geometry } = mesh
   const positions = geometry.getAttribute('position')
+  const flat = flatLightOf(map)
+
+  if (flat !== undefined) {
+    const grey = new Color().setRGB(flat, flat, flat, SRGBColorSpace)
+    const lights = new Float32Array(positions.count * 3)
+
+    for (let index = 0; index < lights.length; index = index + 3) {
+      lights[index] = grey.r
+      lights[index + 1] = grey.g
+      lights[index + 2] = grey.b
+    }
+
+    geometry.setAttribute('color', new BufferAttribute(lights, 3))
+
+    return
+  }
 
   const colors = new Float32Array(positions.count * 3)
   const palette = map.llf.colors

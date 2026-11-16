@@ -8,7 +8,8 @@
  * - this is the level generator's type: a consumer which shows the result may keep its own display
  * type and map this to it
  */
-export type LightingCalculatorMode = 'MaxBrightness' | 'CompleteDarkness' | 'Arx' | 'Realistic' | 'TextureRainbow'
+export type LightingCalculatorMode =
+  'MaxBrightness' | 'CompleteDarkness' | 'Arx' | 'Realistic' | 'TextureRainbow' | 'Flat'
 
 /**
  * The values of {@link LightingCalculatorMode}, in the order a select should show them.
@@ -17,6 +18,7 @@ export const lightingCalculatorModes: readonly LightingCalculatorMode[] = [
   'Arx',
   'Realistic',
   'TextureRainbow',
+  'Flat',
   'MaxBrightness',
   'CompleteDarkness',
 ]

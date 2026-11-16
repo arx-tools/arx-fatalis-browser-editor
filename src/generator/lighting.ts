@@ -29,6 +29,14 @@ export type LightingOptions = {
    */
   readonly mode: LightingCalculatorMode
   /**
+   * The light of the `Flat` profile, from 0 (dark) to 1 (the brightest), in steps of 0.1 on the widget.
+   *
+   * @remarks
+   * The flat light is one grey for every corner: the slider of the widget sets it, and 0 and 1 are the old darkness and
+   * maximum brightness.
+   */
+  readonly flatLuminosity?: number
+  /**
    * The meshes that block the light of a vertex, for the `Realistic` profile.
    *
    * @remarks
@@ -478,6 +486,15 @@ function* bakeLlfColorsSteps(fts: ArxFTS, llf: ArxLLF, options: LightingOptions)
 
   if (options.mode === 'TextureRainbow') {
     return bakeTextureRainbow(fts, llf)
+  }
+
+  if (options.mode === 'Flat') {
+    const level = MathUtils.clamp(options.flatLuminosity ?? 1, 0, 1)
+    const value = Math.round(level * 255)
+
+    return llf.colors.map(() => {
+      return { r: value, g: value, b: value, a: 255 }
+    })
   }
 
   const scenePosition = fts.header.mScenePosition

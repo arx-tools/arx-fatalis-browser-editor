@@ -3,11 +3,12 @@ import { describe, it } from 'node:test'
 import { isLightingCalculatorMode, lightingCalculatorModes } from '../../src/generator/types.ts'
 
 void describe('lightingCalculatorModes', () => {
-  void it('lists the five modes in the order the select shows them', () => {
+  void it('lists the six modes in the order the select shows them', () => {
     assert.deepEqual(lightingCalculatorModes, [
       'Arx',
       'Realistic',
       'TextureRainbow',
+      'Flat',
       'MaxBrightness',
       'CompleteDarkness',
     ])
@@ -19,6 +20,7 @@ void describe('isLightingCalculatorMode', () => {
     assert.equal(isLightingCalculatorMode('Arx'), true)
     assert.equal(isLightingCalculatorMode('Realistic'), true)
     assert.equal(isLightingCalculatorMode('TextureRainbow'), true)
+    assert.equal(isLightingCalculatorMode('Flat'), true)
     assert.equal(isLightingCalculatorMode('MaxBrightness'), true)
     assert.equal(isLightingCalculatorMode('CompleteDarkness'), true)
   })

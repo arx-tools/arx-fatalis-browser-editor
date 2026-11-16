@@ -125,6 +125,8 @@ async function startDrag(event: PointerEvent, kind: string): Promise<void> {
           >
             <Trash2 :size="13" />
           </button>
+          <!-- the place of the trash stays in a free row too, so the names of a column line up -->
+          <span v-else class="trash-slot" aria-hidden="true" />
         </div>
       </div>
     </div>
@@ -223,6 +225,13 @@ async function startDrag(event: PointerEvent, kind: string): Promise<void> {
       line-height: 1.15;
       overflow-wrap: normal;
       white-space: nowrap;
+    }
+
+    .trash-slot {
+      display: inline-flex;
+      flex: none;
+      width: 20px;
+      height: 20px;
     }
 
     .trash {

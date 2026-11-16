@@ -84,3 +84,74 @@ test('the face under the crosshair is the one a gesture takes', async ({ page, b
     })
     .toBeGreaterThan(1)
 })
+
+/**
+ * The selection inspector opens its rows into the ids of the faces and the textures.
+ *
+ * @remarks
+ * The two rows at the top are accordions (2026-11-16, the owner): the whole row toggles, the arrow at its end turns, and
+ * both can be open at once. The textures start open (the widget used to show them), the ids of the faces start closed.
+ * The ids are the raw indices of the level, the ids the delete and the selection use, so the test reads a number.
+ *
+ * The walkable view selects with a pointer lock, so the test runs in chromium, the way the other selection tests do.
+ */
+test('the selection inspector opens the face ids and the textures', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'the pointer lock of the walkable view needs chromium here')
+  test.setTimeout(120_000)
+
+  await seedLayout(page, layoutWithSelectionInspector())
+  await page.goto(editorUrl())
+
+  const view = page.locator('[data-widget-kind="3d-view"] canvas').first()
+
+  await expect(view).toBeVisible()
+  await waitForLevel(page)
+
+  const spawn = await readPose(page)
+
+  await lockPointer(page, view)
+  await writePose(page, spawn)
+  await clickCrosshair(view)
+
+  await expect
+    .poll(async () => {
+      return await selectionCount(page)
+    })
+    .toBe(1)
+
+  // the camera holds the pointer: let it go, or the click of a row never reaches the widget
+  await page.evaluate(() => {
+    globalThis.document.exitPointerLock()
+  })
+  await page.waitForTimeout(500)
+
+  const widget = page.locator('[data-widget-kind="selection-inspector"]')
+  const facesRow = widget.locator('dt', { hasText: 'Selected faces' })
+  const texturesRow = widget.locator('dt', { hasText: 'Textures' })
+
+  // the textures open by default, the ids wait for a click
+  await expect(facesRow).toHaveAttribute('aria-expanded', 'false')
+  await expect(texturesRow).toHaveAttribute('aria-expanded', 'true')
+
+  // the whole row opens: the triangle is on the value side, and the click goes through it. The value cell is the
+  // sibling of the label, so the click on the number (and the triangle) is the one the reader makes.
+  const texturesValue = texturesRow.locator('xpath=following-sibling::dd[1]')
+
+  await texturesValue.click()
+  await expect(texturesRow).toHaveAttribute('aria-expanded', 'false')
+  await expect(widget.locator('.groups .group')).toHaveCount(0)
+
+  await facesRow.click()
+  await expect(facesRow).toHaveAttribute('aria-expanded', 'true')
+
+  const faceIds = widget.locator('.faces li')
+
+  await expect(faceIds).toHaveCount(1)
+  await expect(faceIds.first()).toHaveText(/^\d+$/u)
+
+  // both can be open at the same time: the textures come back under the ids, and the ids stay
+  await texturesValue.click()
+  await expect(texturesRow).toHaveAttribute('aria-expanded', 'true')
+  await expect(widget.locator('.groups .group').first()).toBeVisible()
+  await expect(faceIds).toHaveCount(1)
+})

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { shallowRef, watch } from 'vue'
+import { ChevronDown } from 'lucide-vue-next'
+import { computed, reactive, shallowRef, watch } from 'vue'
 import { formatCount } from '../../../modules/format.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
@@ -66,6 +67,61 @@ function summaryOfLevel(): SelectionSummary {
 const summary = shallowRef(summaryOfLevel())
 
 /**
+ * The rows that are open, by their label.
+ *
+ * @remarks
+ * The two rows are accordions: the count opens the rows of the selected faces, the textures row opens the materials of
+ * those faces. Both can be open at the same time. The textures start open (the widget used to show them), while the
+ * face rows start closed: a room selection can hold thousands of indices, and the list is opt-in for the author.
+ */
+const openRows = reactive(new Set<string>(['Textures']))
+
+/**
+ * The faces of the selection, by their index in the level, in ascending order.
+ *
+ * @remarks
+ * The widget shows the raw indices (the ids the delete, the export and the selection use), not a grouped number: the
+ * author compares them with the index of a face. An index the level no longer has is left out, the way the summary
+ * counts it.
+ */
+const selectedFaces = computed<number[]>(() => {
+  const map = levelStore.map.value
+  const polygons = map?.polygons
+
+  return [...selectionStore.polygons.value]
+    .filter((index) => {
+      return polygons === undefined || polygons[index] !== undefined
+    })
+    .toSorted((first, second) => {
+      return first - second
+    })
+})
+
+/**
+ * Tells whether a row is open.
+ *
+ * @param label The caption of the row, like `Selected faces`.
+ *
+ * @returns True when its content is shown.
+ */
+function isRowOpen(label: string): boolean {
+  return openRows.has(label)
+}
+
+/**
+ * Opens or closes a row.
+ *
+ * @param label The caption of the row to open or close.
+ */
+function toggleRow(label: string): void {
+  if (openRows.has(label)) {
+    openRows.delete(label)
+  } else {
+    openRows.add(label)
+  }
+}
+
+/**
  * Reads the pictures of the textures of the selection.
  *
  * @remarks
@@ -125,28 +181,49 @@ function thumbOf(name: string): string | undefined {
   <div class="SelectionInspectorWidget">
     <WidgetHeading :label="props.label" />
 
-    <dl>
-      <template v-for="row in summary.rows" :key="row.label">
-        <dt>{{ row.label }}</dt>
-        <dd>{{ row.value }}</dd>
-      </template>
-    </dl>
+    <div class="rows">
+      <dl>
+        <template v-for="row in summary.rows" :key="row.label">
+          <dt
+            :class="{ 'is-open': isRowOpen(row.label) }"
+            role="button"
+            tabindex="0"
+            :aria-expanded="isRowOpen(row.label)"
+            @click="toggleRow(row.label)"
+            @keydown.enter.prevent="toggleRow(row.label)"
+            @keydown.space.prevent="toggleRow(row.label)"
+          >
+            {{ row.label }}
+          </dt>
+          <dd :class="{ 'is-open': isRowOpen(row.label) }" @click="toggleRow(row.label)">
+            <span class="value">{{ row.value }}</span>
+            <ChevronDown class="chevron" :class="{ 'is-open': isRowOpen(row.label) }" aria-hidden="true" />
+          </dd>
 
-    <div class="groups">
-      <section v-for="group in summary.groups" :key="group.source" class="group">
-        <h3>
-          <span class="source">{{ group.label }}</span>
-          <span class="count">{{ formatCount(group.faces) }} {{ group.faces === 1 ? 'face' : 'faces' }}</span>
-        </h3>
-        <ul class="textures">
-          <li v-for="texture in group.textures" :key="texture.name" :title="texture.name">
-            <img v-if="thumbOf(texture.name) !== undefined" class="thumb" :src="thumbOf(texture.name)" alt="" />
-            <span v-else class="thumb placeholder" aria-hidden="true"></span>
-            <span class="name">{{ texture.name }}</span>
-            <span class="count">{{ formatCount(texture.count) }}</span>
-          </li>
-        </ul>
-      </section>
+          <div v-if="isRowOpen(row.label)" class="row-content">
+            <ul v-if="row.label === 'Selected faces'" class="faces">
+              <li v-for="face in selectedFaces" :key="face">{{ face }}</li>
+            </ul>
+
+            <div v-else class="groups">
+              <section v-for="group in summary.groups" :key="group.source" class="group">
+                <h3>
+                  <span class="source">{{ group.label }}</span>
+                  <span class="count">{{ formatCount(group.faces) }} {{ group.faces === 1 ? 'face' : 'faces' }}</span>
+                </h3>
+                <ul class="textures">
+                  <li v-for="texture in group.textures" :key="texture.name" :title="texture.name">
+                    <img v-if="thumbOf(texture.name) !== undefined" class="thumb" :src="thumbOf(texture.name)" alt="" />
+                    <span v-else class="thumb placeholder" aria-hidden="true"></span>
+                    <span class="name">{{ texture.name }}</span>
+                    <span class="count">{{ formatCount(texture.count) }}</span>
+                  </li>
+                </ul>
+              </section>
+            </div>
+          </div>
+        </template>
+      </dl>
 
       <p v-if="summary.count === 0" class="empty">Nothing is selected.</p>
     </div>
@@ -157,9 +234,10 @@ function thumbOf(name: string): string | undefined {
 @use '../../../palette' as *;
 @use '../shared/infoRows' as *;
 
-// The selection, read as an inspector: the count under the title, then the textures of the faces grouped by where they
-// come from. The widget fills the space it is given and scrolls: a selection may hold forty textures, and the columns of
-// the dock must not grow for them.
+// The selection, read as an inspector: the count of the faces and the textures under the title, both as accordions.
+// The count opens the ids of the selected faces, the textures row opens the materials they draw with. The widget fills
+// the space it is given and scrolls: a selection may hold thousands of faces or forty textures, and the columns of the
+// dock must not grow for them.
 .SelectionInspectorWidget {
   display: flex;
   flex-direction: column;
@@ -170,11 +248,71 @@ function thumbOf(name: string): string | undefined {
   @include info-list;
 }
 
-// the groups under the rows: the part that scrolls when the selection is a big one
-.groups {
+// the rows and their content: the part that scrolls when the selection is a big one
+.rows {
   flex: 1;
-  padding: 2px 6px 0;
+  min-height: 0;
   overflow-y: auto;
+}
+
+dl {
+  margin: 0;
+}
+
+dt,
+dd {
+  cursor: pointer;
+  user-select: none;
+
+  &:hover {
+    background: rgba($text-strong, 0.06);
+  }
+}
+
+dd {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+// the small arrow of a row: down while the content is closed, up while it is open
+.chevron {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  color: $text-subtle;
+  transition: transform 120ms ease;
+
+  &.is-open {
+    transform: rotate(180deg);
+  }
+}
+
+// the content of an open row: it spans the two columns of the grid, under its row
+.row-content {
+  grid-column: 1 / -1;
+  padding: 2px 6px 6px;
+}
+
+.faces {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  color: $text;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  list-style: none;
+
+  li {
+    padding: 1px 0;
+  }
+}
+
+.groups {
+  padding-top: 2px;
 }
 
 .group {

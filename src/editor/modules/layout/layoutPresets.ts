@@ -179,14 +179,14 @@ export const viewerLayout: LayoutNode = {
  *
  * @remarks
  * The owner arranged this one in the editor (2026-11-04): the column of the work is the **right** one — the texture list
- * with the uv mapper above it — and the left column has the two inspectors and the keys. The numbers are the sizes he
- * read off the plates of the edit mode: the polygon inspector 360 x 185, the keys 360 x **520** (the width of the left
- * column, and the height the owner gave them on 2026-11-14; they were 430) and the uv mapper 400 x 430 (the width of the
- * right column). The **undo and redo** row under the uv
- * mapper is his later request (2026-11-06): a locked 60 px strip, so the two steps of the history are a click away from
- * the texture work. The painters do not need the six fixed
- * views, and the middle column is the **walkable view alone**: the camera form is not in this layout (the pose of the
- * view is on its HUD), so no widget of the middle is locked and it takes what the two columns leave.
+ * with the uv mapper above it — and the left column has the two inspectors. The numbers are the sizes he read off the
+ * plates of the edit mode: the polygon inspector 360 x 185 and the uv mapper 400 x 430 (the width of the right column).
+ * The **keys left the preset** (2026-11-16, the owner): the selection inspector takes the full height under the polygon
+ * inspector, which is the list the painter works from. The **undo and redo** row under the uv mapper is his later request
+ * (2026-11-06): a locked 60 px strip, so the two steps of the history are a click away from the texture work. The
+ * painters do not need the six fixed views, and the middle column is the **walkable view alone**: the camera form is not
+ * in this layout (the pose of the view is on its HUD), so no widget of the middle is locked and it takes what the two
+ * columns leave.
  */
 export const painterLayout: LayoutNode = {
   type: 'split',
@@ -196,11 +196,10 @@ export const painterLayout: LayoutNode = {
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: [fixed(185), auto(1), fixed(520)],
+      sizes: [fixed(185), auto(1)],
       children: [
         { type: 'widget', kind: WIDGET_KINDS.polygonInspector },
         { type: 'widget', kind: WIDGET_KINDS.selectionInspector },
-        { type: 'widget', kind: WIDGET_KINDS.keyboardShortcuts },
       ],
     },
     { type: 'widget', kind: WIDGET_KINDS.view3d },

@@ -11,8 +11,8 @@ import { editorUrl, waitForLayoutSettled } from './support/editor.ts'
  * 340 x 70 and the render performance readout at 340 wide (2026-11-15, the owner rearranged the viewer: the keys were on
  * the right before), the editor with the plan at 350 x 350, the jump at 200 x 50, the statistics at 350 x 200, the
  * inspector at 350 x 180 and the undo and redo row at 350 x 60
- * (2026-11-09), and the painter (2026-11-04) with the polygon inspector at 360 x 185, the keys at 360 x 520 (430 until
- * 2026-11-14) and the uv mapper at 400 x 430. The rooms preset came with the round (2026-11-13): the statistics at 350 x 203 and the
+ * (2026-11-09), and the painter (2026-11-04) with the polygon inspector at 360 x 185 and the uv mapper at 400 x 430;
+ * the keys left the painter (2026-11-16), and the selection inspector takes their place. The rooms preset came with the round (2026-11-13): the statistics at 350 x 203 and the
  * top view at 350 x 260 (the room mapper went with its content into the room inspector, 2026-11-15). The widgets the owner did not
  * size stay free, and the header has to keep the name of the preset after the locks are applied — a layout that comes
  * back differently from the preset would show up as `Blank` — the name now says which layout is active, and a tweak
@@ -238,7 +238,7 @@ test('the painter preset comes with the sizes the owner measured', async ({ page
   await page.locator('header button[aria-label="Presets"]').click()
   await page.locator('.preset-menu .preset-row', { hasText: 'Painter' }).click()
 
-  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(7)
+  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(6)
   await expect
     .poll(async () => {
       return await presetName(page)
@@ -247,20 +247,16 @@ test('the painter preset comes with the sizes the owner measured', async ({ page
   await waitForLayoutSettled(page)
 
   const inspector = await boxOf(page, 'polygon-inspector')
-  const keys = await boxOf(page, 'keyboard-shortcuts')
   const mapper = await boxOf(page, 'uv-mapper')
   const undo = await boxOf(page, 'undo-redo')
 
-  // the three boxes of the arrangement: the two inspectors and the keys on the left, the uv mapper on the right
+  // the two boxes of the arrangement: the two inspectors on the left, the uv mapper on the right
   expect(inspector.width).toBe(360)
   expect(inspector.height).toBe(185)
-  expect(keys.width).toBe(360)
-  expect(keys.height).toBe(520)
   expect(mapper.width).toBe(400)
   expect(mapper.height).toBe(430)
 
   expect(await page.locator('[data-widget-kind="polygon-inspector"]').getAttribute('data-locked-height')).toBe('185')
-  expect(await page.locator('[data-widget-kind="keyboard-shortcuts"]').getAttribute('data-locked-height')).toBe('520')
   expect(await page.locator('[data-widget-kind="uv-mapper"]').getAttribute('data-locked-width')).toBe('400')
 
   // the row of the undo and the redo: a locked 60 pixel strip under the uv mapper (2026-11-06, the owner's request)
@@ -276,7 +272,10 @@ test('the painter preset comes with the sizes the owner measured', async ({ page
   const textures = await boxOf(page, 'textures')
 
   expect(selection.top).toBe(inspector.top + inspector.height + 4)
-  expect(keys.top).toBe(selection.top + selection.height + 4)
+  expect(selection.left).toBe(inspector.left)
+  expect(selection.width).toBe(inspector.width)
+  // the selection inspector takes the height the keys had (2026-11-16): the left column has no third row any more
+  expect(selection.height).toBeGreaterThan(520)
   expect(undo.top).toBe(mapper.top + mapper.height + 4)
   expect(textures.top).toBe(undo.top + undo.height + 4)
 

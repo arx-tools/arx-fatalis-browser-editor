@@ -187,9 +187,11 @@ void describe('the viewer preset', () => {
 })
 
 void describe('the painter preset', () => {
-  void it('locks the keys at 520 high under the two inspectors', () => {
-    // 2026-11-14, the owner: the keys were 430, and the selection inspector above them keeps what is left
-    assert.deepEqual(lockOfKind(painterLayout, 'keyboard-shortcuts'), { width: 360, height: 520 })
+  void it('gives the place of the keys to the selection inspector', () => {
+    // 2026-11-16, the owner: the keys left the preset, and the selection inspector takes the full height under the
+    // polygon inspector
+    assert.equal(collectKinds(painterLayout).includes('keyboard-shortcuts'), false)
+    assert.deepEqual(lockOfKind(painterLayout, 'polygon-inspector'), { width: 360, height: 185 })
     assert.equal(lockOfKind(painterLayout, 'selection-inspector'), undefined)
   })
 })

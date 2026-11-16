@@ -116,7 +116,7 @@ test('a widget dropped beside a locked one keeps the split the drop made', async
   await page.locator('header button[aria-label="Presets"]').click()
   await page.locator('.preset-menu .preset-row', { hasText: 'Painter' }).click()
 
-  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(7)
+  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(6)
   await waitForLayoutSettled(page)
 
   // the uv mapper is alone in its column, so it takes the whole height (and its lock follows, after the pass). The
@@ -157,7 +157,7 @@ test('a lock survives a reload when the widget is alone in its column', async ({
   await page.locator('header button[aria-label="Presets"]').click()
   await page.locator('.preset-menu .preset-row', { hasText: 'Painter' }).click()
 
-  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(7)
+  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(6)
   await page.waitForTimeout(900)
 
   // the column of the uv mapper collapses when the texture list and the row of the history go: its height has no split
@@ -176,7 +176,7 @@ test('a lock survives a reload when the widget is alone in its column', async ({
   )
 
   await page.reload()
-  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(5)
+  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(4)
   await waitForLayoutSettled(page)
 
   // the lock came back with the box: the mapper keeps its width, and it does not grow over the walkable view

@@ -14,6 +14,7 @@ import {
   loadMissingTexture,
   zipImageNames,
 } from './levelTextures/load.ts'
+import { writeBakedColors } from './levelTextures/bakedColors.ts'
 import { buildMaterial, paintedNamesOf, paintKeyOf, paintKeyOfPolygon } from './levelTextures/paint.ts'
 import { applyTemporaryUvsOf } from './levelTextures/temporaryUvs.ts'
 import {
@@ -141,6 +142,10 @@ export function paintLevelTextures(map: ArxMap, textures: ReadonlyMap<string, Te
   // a face the level gives no texture has no uv either: without one the placeholder would sample a single texel of it, so
   // its corners are laid on the square of its plane (the polygons keep their own uvs, see `temporaryUvs.ts`)
   applyTemporaryUvsOf(map, polygons, mesh.geometry)
+
+  // the light of the level is baked: the material is unlit and takes the palette from the geometry, so the editor shows
+  // what the export writes
+  writeBakedColors(map)
 
   // the keys the paint needs, in the order they first appear: the materials are built for these, and a repaint (an
   // edit) keeps them — the same keys, the same materials, no shader of thirty textures built again for a delete

@@ -5,7 +5,7 @@ import {
   BufferGeometry,
   Color as ThreeColor,
   LineBasicMaterial,
-  MeshLambertMaterial,
+  MeshBasicMaterial,
   ShaderMaterial,
   Vector2,
   Vector3,
@@ -13,18 +13,7 @@ import {
   type Side,
 } from 'three'
 import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh'
-import { Color } from './Color.ts'
 import { isDoubleSided, polygonPerimeter } from './polygons.ts'
-
-/**
- * The colour of the flat material of the first round.
- *
- * @remarks
- * The mesh has no textures and the level has no baked lighting yet, so a plain, slightly warm grey
- * shows the shape of the level without pretending to be the game's look. The value comes from the
- * shared {@link Color} class, the same one the lighting round will read the palette with.
- */
-const MESH_COLOR = Color.fromCSS('#b8b2a8')
 
 /**
  * Mirrors one game position into the three.js space.
@@ -266,15 +255,16 @@ export interface LevelMaterialOptions {
  * Builds the material of the level mesh.
  *
  * @remarks
- * The first round has no textures, so the whole level shares one flat material. The texture round
- * replaces this with one material per texture container.
+ * The material is **unlit**: the light of the level is baked into the palette of the LLF, and the `color` attribute of
+ * the geometry carries it (the paint writes it), so the mesh has to show that colour and not the light of the scene.
+ * Without a palette the attribute is white, which is the flat look of a level that has no lighting yet.
  *
  * @param options How the material draws; the two sides of a face are the default (`FrontSide`).
  *
  * @returns The material the mesh of the level is drawn with.
  */
-export function createLevelMaterial(options: LevelMaterialOptions = {}): MeshLambertMaterial {
-  const material = new MeshLambertMaterial({ color: MESH_COLOR.getHex() })
+export function createLevelMaterial(options: LevelMaterialOptions = {}): MeshBasicMaterial {
+  const material = new MeshBasicMaterial({ color: 0xff_ff_ff, vertexColors: true })
 
   if (options.side !== undefined) {
     material.side = options.side

@@ -4,6 +4,7 @@ import { ArxPolygonFlags, type ArxPolygon, type ArxPortal, type ArxVector3 } fro
 import {
   type Color as ThreeColor,
   Mesh,
+  MeshBasicMaterial,
   MeshLambertMaterial,
   NormalBlending,
   PerspectiveCamera,
@@ -25,7 +26,6 @@ import {
   portalLinePositions,
   wireframeColorsOf,
 } from '../../src/generator/meshes.ts'
-import { Color } from '../../src/generator/Color.ts'
 
 /**
  * A position of the test.
@@ -201,11 +201,12 @@ void describe('arxPolygonsToGeometry', () => {
 })
 
 void describe('createLevelMaterial', () => {
-  void it('is a flat lambert material in the preview grey', () => {
+  void it('is an unlit material that takes the baked light of the geometry', () => {
     const material = createLevelMaterial()
 
-    assert.equal(material.color.getHex(), Color.fromCSS('#b8b2a8').getHex())
-    assert.equal(material.vertexColors, false)
+    assert.ok(material instanceof MeshBasicMaterial)
+    assert.equal(material.color.getHex(), 0xff_ff_ff)
+    assert.equal(material.vertexColors, true)
   })
 
   void it('gives a new material every time, so a mesh can own its own', () => {

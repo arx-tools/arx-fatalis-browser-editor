@@ -4,7 +4,7 @@ import {
   CustomBlending,
   DoubleSide,
   FrontSide,
-  MeshLambertMaterial,
+  MeshBasicMaterial,
   OneFactor,
   OneMinusSrcColorFactor,
   SRGBColorSpace,
@@ -188,7 +188,7 @@ function transColorOf(trans: number): Color {
  * @param material The material to set up.
  * @param key The key it draws.
  */
-function applyBlend(material: MeshLambertMaterial, key: PaintKey): void {
+function applyBlend(material: MeshBasicMaterial, key: PaintKey): void {
   material.color.copy(transColorOf(key.trans))
 
   if (key.blend === 'opaque') {
@@ -256,7 +256,7 @@ export function paintedNamesOf(keys: readonly PaintKey[], textures: ReadonlyMap<
  *
  * @returns The material of the key.
  */
-function noTextureMaterialOf(key: PaintKey, missing: Texture | undefined): MeshLambertMaterial {
+function noTextureMaterialOf(key: PaintKey, missing: Texture | undefined): MeshBasicMaterial {
   if (missing === undefined) {
     const material = createLevelMaterial({ side: sideOf(key.doubleSided) })
 
@@ -265,11 +265,12 @@ function noTextureMaterialOf(key: PaintKey, missing: Texture | undefined): MeshL
     return material
   }
 
-  const material = new MeshLambertMaterial({
+  const material = new MeshBasicMaterial({
     map: missing,
     side: sideOf(key.doubleSided),
     opacity: NO_TEXTURE_OPACITY,
     transparent: true,
+    vertexColors: true,
   })
 
   applyBlend(material, key)
@@ -300,12 +301,13 @@ function noTextureMaterialOf(key: PaintKey, missing: Texture | undefined): MeshL
  *
  * @returns The lit, translucent sheet of the water.
  */
-function waterMaterialOf(key: PaintKey, texture: Texture): MeshLambertMaterial {
-  return new MeshLambertMaterial({
+function waterMaterialOf(key: PaintKey, texture: Texture): MeshBasicMaterial {
+  return new MeshBasicMaterial({
     map: texture,
     side: sideOf(key.doubleSided),
     transparent: true,
     opacity: WATER_OPACITY,
+    vertexColors: true,
   })
 }
 
@@ -330,7 +332,7 @@ export function buildMaterial(
   key: PaintKey,
   textures: ReadonlyMap<string, Texture>,
   missing: Texture | undefined,
-): MeshLambertMaterial {
+): MeshBasicMaterial {
   if (key.name === undefined) {
     return noTextureMaterialOf(key, missing)
   }
@@ -349,7 +351,7 @@ export function buildMaterial(
     return waterMaterialOf(key, texture)
   }
 
-  const material = new MeshLambertMaterial({ map: texture, side: sideOf(key.doubleSided) })
+  const material = new MeshBasicMaterial({ map: texture, side: sideOf(key.doubleSided), vertexColors: true })
 
   // the game cuts the holes of a texture with the alpha it has (`BackgroundRenderOpaque`:
   // `setAlphaCutout(texture->hasAlpha())`), so a wall whose texture has a black background shows what stands behind

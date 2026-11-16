@@ -142,7 +142,7 @@ void describe('the picker of the browser', () => {
 /**
  * A request of the fake IndexedDB: the result of it, and the listeners the store adds.
  */
-interface FakeRequest {
+type FakeRequest = {
   readonly result: unknown
   addEventListener(type: string, listener: () => void): void
 }

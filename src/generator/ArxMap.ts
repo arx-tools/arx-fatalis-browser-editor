@@ -103,7 +103,7 @@ function normalsOf(polygon: ArxPolygon): ArxVector3[] {
  * the FTS, the lights from the LLF. The editor shows them as they are; nothing here is computed by the
  * renderer.
  */
-export interface MapStatistics {
+export type MapStatistics = {
   /**
    * Every face the mesh draws: a triangle or a quad.
    */
@@ -133,7 +133,7 @@ export interface MapStatistics {
 /**
  * The texture container a face takes.
  */
-export interface FaceTexture {
+export type FaceTexture = {
   /**
    * The index of the face in {@link ArxMap.polygons}.
    */
@@ -147,7 +147,7 @@ export interface FaceTexture {
 /**
  * The room of a face.
  */
-export interface FaceRoom {
+export type FaceRoom = {
   /**
    * The index of the face in {@link ArxMap.polygons}.
    */

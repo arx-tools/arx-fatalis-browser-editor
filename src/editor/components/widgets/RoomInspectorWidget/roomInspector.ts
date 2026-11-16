@@ -10,7 +10,7 @@ export type ProblemKind = 'info' | 'warning'
 /**
  * One line of the problems of the level.
  */
-export interface RoomProblem {
+export type RoomProblem = {
   /**
    * Whether the line reports something the author should fix, or only explains the level.
    */

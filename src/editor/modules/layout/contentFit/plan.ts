@@ -125,7 +125,7 @@ function lockedSpan(sizes: ReadonlyArray<ChildSize | undefined>, span: number): 
 /**
  * What the walk of the tree carries from the root down.
  */
-interface PlanContext {
+type PlanContext = {
   /**
    * The map the sizes are written into.
    */

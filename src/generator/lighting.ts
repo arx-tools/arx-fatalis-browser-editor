@@ -17,7 +17,7 @@ import type { LightingCalculatorMode } from './types.ts'
 /**
  * How the palette of the level is baked from its lights.
  */
-export interface LightingOptions {
+export type LightingOptions = {
   /**
    * The profile of the bake.
    *
@@ -284,7 +284,7 @@ function isOccluded(raycaster: Raycaster, blockers: Mesh[], from: Vector3, direc
 /**
  * What the bake of one corner reads.
  */
-interface CornerBake {
+type CornerBake = {
   /**
    * The position of the corner in the frame of the scene.
    */

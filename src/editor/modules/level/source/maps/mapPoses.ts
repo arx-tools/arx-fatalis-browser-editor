@@ -113,7 +113,7 @@ function parseTriplet(raw: string | undefined): TripleOf<number> | undefined {
 /**
  * Where the camera stands and looks on a map, in the shape the url and the storage carry it.
  */
-export interface StoredPose {
+export type StoredPose = {
   /**
    * The eye of the camera, in the game's coordinates.
    */
@@ -132,7 +132,7 @@ export type StoredPoses = Readonly<Record<string, StoredPose>>
 /**
  * What the pose key of a custom map needs from the zip it came from.
  */
-export interface CustomMapIdentity {
+export type CustomMapIdentity = {
   /**
    * The name of the zip, with its extension.
    */
@@ -278,7 +278,7 @@ export function writeMapPoses(poses: StoredPoses, storage?: StorageLike): void {
 /**
  * What the pose of a map that is opening depends on.
  */
-export interface PoseForOpenQuery {
+export type PoseForOpenQuery = {
   /**
    * The value of the map that is opening.
    */

@@ -34,7 +34,7 @@ export function arxVector3toVector3(vector: ArxVector3): Vector3 {
 /**
  * A slice of a buffer, counted in vertices.
  */
-export interface VertexRun {
+export type VertexRun = {
   /**
    * Where the slice starts, in vertices.
    */
@@ -48,7 +48,7 @@ export interface VertexRun {
 /**
  * A slice of a buffer, with the buffer it comes from.
  */
-export interface VertexSegment extends VertexRun {
+export type VertexSegment = VertexRun & {
   /**
    * The buffer to read.
    */
@@ -204,7 +204,7 @@ const MAX_LEAF_SIZE = 40
 /**
  * How the tree of the picking is built.
  */
-export interface RaycastOptions {
+export type RaycastOptions = {
   /**
    * Whether the tree leaves the index of the geometry to its caller.
    *
@@ -244,7 +244,7 @@ export function accelerateRaycast(mesh: Mesh, options: RaycastOptions = {}): voi
 /**
  * How the flat material of the level draws.
  */
-export interface LevelMaterialOptions {
+export type LevelMaterialOptions = {
   /**
    * The side the material draws, `FrontSide` by default.
    */
@@ -297,7 +297,7 @@ export const WIREFRAME_WITHOUT_MESH = 0x99_99_99
 /**
  * How the material of a wireframe draws.
  */
-export interface WireframeMaterialOptions {
+export type WireframeMaterialOptions = {
   /**
    * The colour of the plain grey line, `#777` by default.
    */

@@ -35,7 +35,7 @@ const GROUP_ORDER: readonly SelectionTextureSource[] = ['arx-materials', 'arx-it
 /**
  * One texture of the selection, with how many faces draw with it.
  */
-export interface SelectedTexture {
+export type SelectedTexture = {
   /**
    * The name the level calls the texture.
    */
@@ -49,7 +49,7 @@ export interface SelectedTexture {
 /**
  * The textures of the selection that come from one source.
  */
-export interface SelectionTextureGroup {
+export type SelectionTextureGroup = {
   /**
    * Where the textures come from.
    */
@@ -71,7 +71,7 @@ export interface SelectionTextureGroup {
 /**
  * The numbers the selection inspector shows.
  */
-export interface SelectionSummary {
+export type SelectionSummary = {
   /**
    * How many faces are selected.
    */
@@ -93,7 +93,7 @@ export interface SelectionSummary {
 /**
  * A face of the level, as the selection inspector reads it.
  */
-export interface SelectionInput {
+export type SelectionInput = {
   /**
    * The selected faces, by their index in the level.
    */

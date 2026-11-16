@@ -34,7 +34,7 @@ import {
 /**
  * The state of a border drag.
  */
-interface DragState {
+type DragState = {
   /**
    * The locked widgets the border resizes, by kind.
    */
@@ -68,7 +68,7 @@ interface DragState {
 /**
  * What the drag watcher needs from the dock.
  */
-export interface BorderDragContext {
+export type BorderDragContext = {
   /**
    * Reads the live layout tree of the dock.
    *
@@ -95,7 +95,7 @@ export interface BorderDragContext {
 /**
  * The handle of a running watcher.
  */
-export interface BorderDragWatcher {
+export type BorderDragWatcher = {
   /**
    * Tells whether a border is being dragged right now.
    *

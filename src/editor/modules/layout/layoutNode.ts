@@ -47,7 +47,7 @@ export type LayoutNode = LayoutNodeEmpty | LayoutNodeSplit | LayoutNodeWidget
  * The node is only ever the **root** of a layout: a split drops it the way it drops an unknown kind, so no walk of the
  * tree has to deal with an empty child.
  */
-export interface LayoutNodeEmpty {
+export type LayoutNodeEmpty = {
   /**
    * The discriminated type of the node.
    */
@@ -93,7 +93,7 @@ export function flexSizes(...ratios: number[]): ChildSize[] {
 /**
  * A split area: its children follow each other along the orientation, and `sizes` gives their shares.
  */
-export interface LayoutNodeSplit {
+export type LayoutNodeSplit = {
   /**
    * The discriminated type of the node.
    */
@@ -115,7 +115,7 @@ export interface LayoutNodeSplit {
 /**
  * A widget: its kind is the leaf of the tree.
  */
-export interface LayoutNodeWidget {
+export type LayoutNodeWidget = {
   /**
    * The discriminated type of the node.
    */
@@ -147,7 +147,7 @@ export interface LayoutNodeWidget {
  * reads it back from there: the size of a widget is a `fixed` size in the tree, so nothing else has to remember that
  * it was locked.
  */
-export interface LockBox {
+export type LockBox = {
   /**
    * The width the widget keeps.
    */

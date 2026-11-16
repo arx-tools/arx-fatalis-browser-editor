@@ -30,7 +30,7 @@ export const MAX_ZOOM = 20
 /**
  * What a fixed view needs to know.
  */
-export interface FixedViewOptions {
+export type FixedViewOptions = {
   /**
    * The direction the view looks from.
    */

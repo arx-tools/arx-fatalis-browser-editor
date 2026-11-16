@@ -12,7 +12,7 @@ import { shallowRef, type ShallowRef } from 'vue'
  * moves the indices around leaves it stale — it is read as a hint, and a widget has to drop an index the level
  * no longer has.
  */
-export interface CrosshairStore {
+export type CrosshairStore = {
   /**
    * The polygon under the crosshair, or `undefined` when the ray hits nothing.
    */

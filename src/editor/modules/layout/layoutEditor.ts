@@ -7,7 +7,7 @@ import { widgetKind } from './widgetDefinition.ts'
 /**
  * What the overlay of a widget shows and does.
  */
-export interface WidgetOverlayOptions {
+export type WidgetOverlayOptions = {
   /**
    * The name of the widget, shown on the plate.
    */
@@ -39,7 +39,7 @@ export type MountWidgetOverlay = (host: HTMLElement, options: WidgetOverlayOptio
 /**
  * The overlay of one widget: the element and the function that tears it down.
  */
-interface Overlay {
+type Overlay = {
   /**
    * The element the overlay is mounted into.
    */

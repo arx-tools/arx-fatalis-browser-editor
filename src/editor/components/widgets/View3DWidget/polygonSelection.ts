@@ -78,7 +78,7 @@ const MIDDLE = new Vector2(0, 0)
 /**
  * What a pick of the polygons reads.
  */
-interface PickRequest {
+type PickRequest = {
   /**
    * The camera of the view.
    */
@@ -271,7 +271,7 @@ const BACKDROP_OPACITY = 0.92
  * because the level shows it from both, and its mark would vanish exactly when the author walks around it (2026-11-14,
  * the owner; the 14549th face of level 12 is one, the banner of the cutscene room).
  */
-export interface PolygonSelectionOverlay {
+export type PolygonSelectionOverlay = {
   /**
    * Shows the polygon under the crosshair, or hides the outline.
    *
@@ -685,7 +685,7 @@ export function createPolygonSelectionOverlay(scene: Scene, offset: Vector3): Po
 /**
  * What a running drag has to decide on: the faces under the ray, and the state of the gesture.
  */
-export interface DragSweep {
+export type DragSweep = {
   /**
    * The faces under the ray, nearest first.
    */

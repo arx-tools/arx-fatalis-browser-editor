@@ -48,7 +48,7 @@ import { levelStore } from './levelStore.ts'
 /**
  * What the paint put on a map, so it can be put back.
  */
-interface PaintedLevel {
+type PaintedLevel = {
   /**
    * The mesh the paint touched.
    */
@@ -88,7 +88,7 @@ let lastZipData: ArrayBuffer | undefined
 /**
  * The level of the last paint and the textures it was painted with.
  */
-interface PaintedTextures {
+type PaintedTextures = {
   /**
    * The map of the level.
    */

@@ -41,7 +41,7 @@ import {
 /**
  * What the gesture reads and writes.
  */
-export interface UvMapperDragContext {
+export type UvMapperDragContext = {
   /**
    * The square itself: the pointer is measured from its top left corner.
    */
@@ -99,7 +99,7 @@ export interface UvMapperDragContext {
 /**
  * The handlers of the pointer of the square.
  */
-export interface UvMapperDrag {
+export type UvMapperDrag = {
   /**
    * Takes a corner for the drag.
    *

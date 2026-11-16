@@ -17,7 +17,7 @@ import {
  * draw call. `ArxMap.textureRuns` holds them, and the paint builds the groups from this list instead of walking
  * the triangles of the index.
  */
-export interface TextureRun {
+export type TextureRun = {
   /**
    * The first index of the run in the index of the solid mesh.
    */

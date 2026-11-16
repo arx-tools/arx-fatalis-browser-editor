@@ -10,7 +10,7 @@ import { fitCameraToCanvas } from './levelScene.ts'
  * part of it: each widget adds what it wants (both use `addPreviewLights` today), so a later lighting round
  * can change the walkable view without touching the small ones (TODO 92).
  */
-export interface ViewScene<TCamera extends Camera = Camera> {
+export type ViewScene<TCamera extends Camera = Camera> = {
   /**
    * The renderer of the canvas of the widget.
    */

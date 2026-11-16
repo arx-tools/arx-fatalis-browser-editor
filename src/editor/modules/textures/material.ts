@@ -90,7 +90,7 @@ function bracketedPiecesOf(name: string): string[] {
 /**
  * The aliases of a material: the pieces of a texture name that make it one.
  */
-export interface MaterialAliases {
+export type MaterialAliases = {
   /**
    * The material the aliases give.
    */

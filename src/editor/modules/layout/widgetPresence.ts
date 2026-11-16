@@ -9,7 +9,7 @@ import { shallowRef, type ShallowRef } from 'vue'
  * there. It is needed because a widget changes what another widget shows — the HUD of the walkable view
  * goes away while the camera form is on the dock (TODO 82).
  */
-export interface WidgetPresence {
+export type WidgetPresence = {
   /**
    * The kinds that are on the dock right now.
    *

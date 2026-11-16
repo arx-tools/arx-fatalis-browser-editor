@@ -39,7 +39,7 @@ const ROTATION_SNAP_DEGREES = 15
 /**
  * The axis and the angle of a turn.
  */
-export interface TurnAxisAngle {
+export type TurnAxisAngle = {
   /**
    * The unit axis of the turn.
    */
@@ -87,7 +87,7 @@ export function turnAxisAngleOf(turn: Quaternion): TurnAxisAngle {
 /**
  * What the gizmo reads from the widget.
  */
-export interface SelectionGizmoOptions {
+export type SelectionGizmoOptions = {
   /**
    * The scene the gizmo and its proxy go into.
    */
@@ -109,7 +109,7 @@ export interface SelectionGizmoOptions {
 /**
  * The move gizmo of the selection.
  */
-export interface SelectionGizmo {
+export type SelectionGizmo = {
   /**
    * Turns the pointer of the gizmo on or off.
    *

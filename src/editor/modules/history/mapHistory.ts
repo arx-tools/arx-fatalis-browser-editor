@@ -9,7 +9,7 @@ import type { HistoryRecord } from './records.ts'
  * again. A reload may only keep the **position** of that line, so the steps and the number of the applied ones are
  * written together: the ones after the position are the redo of the author.
  */
-export interface HistorySnapshot {
+export type HistorySnapshot = {
   /**
    * The steps of the map, oldest first, the ones taken back included.
    */

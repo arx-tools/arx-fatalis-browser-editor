@@ -40,7 +40,7 @@ const CONNECT_CANDIDATES = 24
 /**
  * What the selection gesture reads from the view.
  */
-export interface SelectionDragContext {
+export type SelectionDragContext = {
   /**
    * The scene of the view, when it is built: the pick ray comes from its camera.
    *
@@ -84,7 +84,7 @@ export interface SelectionDragContext {
 /**
  * The handlers the widget binds.
  */
-export interface SelectionDrag {
+export type SelectionDrag = {
   /**
    * Starts a gesture of the locked view: the faces under the crosshair from here on are selected.
    *

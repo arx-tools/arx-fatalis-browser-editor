@@ -16,7 +16,7 @@ export const MANIFEST_NAME = 'manifest.json'
  * A manifest of another build may name the author in one string, and that one is read as a name (see
  * {@link manifestOf}).
  */
-export interface ManifestAuthor {
+export type ManifestAuthor = {
   /**
    * The name of the author, as they write it.
    */
@@ -31,7 +31,7 @@ export interface ManifestAuthor {
  * manifests put the same address in a `url` key, and that one is read as the homepage of the project (see
  * {@link manifestOf}).
  */
-export interface ManifestProject {
+export type ManifestProject = {
   /**
    * The address of the page the level is published on.
    */
@@ -46,7 +46,7 @@ export interface ManifestProject {
  * this says which build of which program wrote the files. The version, the commit and the build date are of the build,
  * so a file whose numbers look wrong can be traced back to the program that made it.
  */
-export interface ManifestEditor {
+export type ManifestEditor = {
   /**
    * The name of the program, from its `package.json`.
    */
@@ -84,7 +84,7 @@ export interface ManifestEditor {
  *
  * Every key is optional: a manifest of another build may hold some of them, and the loader reads the level without it.
  */
-export interface LevelManifest {
+export type LevelManifest = {
   /**
    * The seed the level was made with.
    *

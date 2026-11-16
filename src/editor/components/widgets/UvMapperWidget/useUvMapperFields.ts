@@ -19,7 +19,7 @@ import { movedCorner, numberOfText, sameUvs, uvsOfFace, type ShownFace, type UvP
 /**
  * What the fields edit and how they redraw.
  */
-export interface UvMapperFieldsContext {
+export type UvMapperFieldsContext = {
   /**
    * The uv of the corners of the face, as the model holds them.
    */
@@ -45,7 +45,7 @@ export interface UvMapperFieldsContext {
 /**
  * The text of the fields and the handlers of the input.
  */
-export interface UvMapperFields {
+export type UvMapperFields = {
   /**
    * The text of the `u` field, as the user types it.
    */

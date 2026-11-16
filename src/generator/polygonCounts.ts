@@ -1,7 +1,7 @@
 /**
  * How many faces the mesh draws, and how they are split into triangles of the geometry.
  */
-export interface FaceCounts {
+export type FaceCounts = {
   /**
    * The faces the mesh was built from: a triangle or a quad, not a triangle of the geometry.
    */

@@ -24,7 +24,7 @@ const ORIGIN: ArxVector3 = { x: 0, y: 0, z: 0 }
  * the portal at, so the rest of the portal record (the radius, the runtime flag) is left out, and the
  * tests can build one without a whole scene.
  */
-export interface DistancePortal {
+export type DistancePortal = {
   /**
    * The room on the side the normal faces.
    */
@@ -44,7 +44,7 @@ export interface DistancePortal {
 /**
  * An edge of the distance graph, with the node it leads to and its cost.
  */
-interface GraphEdge {
+type GraphEdge = {
   readonly to: number
   readonly cost: number
 }

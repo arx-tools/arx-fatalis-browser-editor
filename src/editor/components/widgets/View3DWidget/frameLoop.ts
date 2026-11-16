@@ -21,7 +21,7 @@ import { isPickDue } from './pickInterval.ts'
 /**
  * What the loop reads from the view.
  */
-export interface FrameLoopContext {
+export type FrameLoopContext = {
   /**
    * The scene of the view, when it is built.
    *
@@ -53,7 +53,7 @@ export interface FrameLoopContext {
 /**
  * The handle of a running frame loop.
  */
-export interface FrameLoop {
+export type FrameLoop = {
   /**
    * Whether a frame is waiting for the browser right now.
    */

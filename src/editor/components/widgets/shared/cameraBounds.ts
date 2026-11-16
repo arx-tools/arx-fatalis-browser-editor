@@ -8,7 +8,7 @@ import type { ArxVector3 } from 'arx-convert/types'
  * `gameBoundsOf`). The archived editor aligned to the anchor graph instead; the anchors are not ported yet,
  * and the level is the next best answer to "show me the whole thing".
  */
-export interface CameraBounds {
+export type CameraBounds = {
   /**
    * The corner with the smallest coordinates.
    */

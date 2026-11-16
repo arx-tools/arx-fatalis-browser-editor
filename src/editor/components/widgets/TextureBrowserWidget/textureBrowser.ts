@@ -14,7 +14,7 @@ export const TEXTURES_PER_PAGE = 100
 /**
  * What a page of the texture list shows.
  */
-export interface TexturePage {
+export type TexturePage = {
   /**
    * The textures of the page, in the order of the list.
    */

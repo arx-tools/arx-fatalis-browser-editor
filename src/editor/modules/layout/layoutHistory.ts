@@ -17,7 +17,7 @@ import { collectKinds, layoutEquals, parseLayoutNode, type LayoutNode } from './
 /**
  * The states of one layout and the place the user is in them.
  */
-export interface LayoutHistory {
+export type LayoutHistory = {
   /**
    * The states, the first one being the tree of the factory preset.
    */

@@ -64,7 +64,7 @@ const WHEEL_STEP = 0.0015
 /**
  * A point of the texture, in the 0..1 space of the uv.
  */
-export interface UvPoint {
+export type UvPoint = {
   /**
    * The column of the texture, from the left.
    */
@@ -78,7 +78,7 @@ export interface UvPoint {
 /**
  * A point of the widget, in pixels from the top left of its square.
  */
-export interface StagePoint {
+export type StagePoint = {
   /**
    * The column, in pixels.
    */
@@ -121,7 +121,7 @@ export function centreOfUvs(corners: readonly UvPoint[]): UvPoint {
 /**
  * What the mapper draws: the square of the widget, the zoom and the place the view is centred on.
  */
-export interface UvView {
+export type UvView = {
   /**
    * The side of the square, in pixels.
    */
@@ -145,7 +145,7 @@ export interface UvView {
  * The face a uv mapper widget edits: the faces of the selection that share their texture and their uv, and the one set
  * of corners they draw with.
  */
-export interface ShownFace {
+export type ShownFace = {
   /**
    * The level the faces belong to.
    */
@@ -939,7 +939,7 @@ export type UvSelection =
 /**
  * The selection, as the widget reads it.
  */
-export interface UvSelectionInput {
+export type UvSelectionInput = {
   /**
    * The selected faces, by their index in the level.
    */

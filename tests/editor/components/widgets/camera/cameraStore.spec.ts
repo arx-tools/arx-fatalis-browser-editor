@@ -18,7 +18,7 @@ const pose: CameraPose = {
 /**
  * A view that only records what it was asked to show.
  */
-interface RecordingDriver extends CameraDriver {
+type RecordingDriver = CameraDriver & {
   readonly poses: CameraPose[]
 }
 

@@ -5,7 +5,7 @@ import type { BufferGeometry } from 'three'
 /**
  * The place of a corner of a face on its texture, in the 0..1 space of the uv.
  */
-export interface FaceUv {
+export type FaceUv = {
   /**
    * The column of the texture, from the left.
    */
@@ -19,7 +19,7 @@ export interface FaceUv {
 /**
  * The parts of a level the uv a face is written into.
  */
-export interface FaceUvsTarget {
+export type FaceUvsTarget = {
   /**
    * The geometry of the solid mesh, when the level has one.
    */

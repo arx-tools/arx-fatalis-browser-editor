@@ -5,7 +5,7 @@ import { copyVertexSegments, keptRuns, type VertexSegment } from '../meshes.ts'
 /**
  * A polygon that goes back into the level, at the index it was taken from.
  */
-export interface PolygonInsertion {
+export type PolygonInsertion = {
   /**
    * Where the polygon belongs in the polygon list of the level.
    */
@@ -19,7 +19,7 @@ export interface PolygonInsertion {
 /**
  * A slice of a geometry: the part a new one takes over from it.
  */
-export interface GeometrySlice {
+export type GeometrySlice = {
   /**
    * The geometry to read.
    */

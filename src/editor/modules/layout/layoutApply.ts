@@ -23,7 +23,7 @@ import { createWidget, widgetKind, type WidgetDefinition } from './widgetDefinit
 /**
  * What the applied layout needs from the shell.
  */
-export interface LayoutApplyContext {
+export type LayoutApplyContext = {
   /**
    * The dock of the shell.
    */
@@ -63,7 +63,7 @@ export interface LayoutApplyContext {
 /**
  * The managed layout of a shell.
  */
-export interface LayoutApply {
+export type LayoutApply = {
   /**
    * Creates the widgets of a tree, decorates them and rebuilds the dock from them.
    *

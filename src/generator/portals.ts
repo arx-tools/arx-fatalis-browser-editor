@@ -24,7 +24,7 @@ const EPSILON = 0.01
 /**
  * One shared edge of two polygons of a level, as the boundary of two rooms.
  */
-interface BoundaryEdge {
+type BoundaryEdge = {
   /**
    * The two polygons that share the edge, by their index in the level.
    */
@@ -39,7 +39,7 @@ interface BoundaryEdge {
 /**
  * A piece of the boundary of two rooms on one line, before the collinear pieces are merged.
  */
-interface BoundarySegment {
+type BoundarySegment = {
   readonly roomLow: number
   readonly roomHigh: number
   readonly start: ArxVector3
@@ -52,7 +52,7 @@ interface BoundarySegment {
 /**
  * A run of collinear boundary edges between the same two rooms.
  */
-interface BoundaryRun {
+type BoundaryRun = {
   readonly roomLow: number
   readonly roomHigh: number
   start: ArxVector3
@@ -66,7 +66,7 @@ interface BoundaryRun {
 /**
  * The options of {@link generatePortalsOf}.
  */
-export interface PortalGenerationOptions {
+export type PortalGenerationOptions = {
   /**
    * The height of the quad above the edge, in game units.
    *

@@ -17,7 +17,7 @@ import type { StorageLike } from '../../../../src/editor/modules/persistedRef/st
 /**
  * A storage of the test: the three calls the module uses, over a map.
  */
-interface FakeStorage extends StorageLike {
+type FakeStorage = StorageLike & {
   /**
    * The values it holds.
    */

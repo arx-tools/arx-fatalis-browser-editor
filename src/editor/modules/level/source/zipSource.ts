@@ -26,7 +26,7 @@ type LevelExtension = (typeof LEVEL_EXTENSIONS)[number]
 /**
  * A level read out of a zip.
  */
-export interface ZipLevel {
+export type ZipLevel = {
   /**
    * What the level is called: the name of the manifest, or the name of the zip.
    */
@@ -361,7 +361,7 @@ export async function readLevelFromZip(data: ArrayBuffer, label: string): Promis
  *
  * @returns The source, which needs no network.
  */
-export interface ZipLevelSource extends LevelSource {
+export type ZipLevelSource = LevelSource & {
   /**
    * The bytes of the zip, once it is loaded.
    *

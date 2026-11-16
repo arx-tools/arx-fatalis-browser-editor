@@ -27,7 +27,7 @@ import { persistedRef } from '../persistedRef/persistedRef.ts'
 /**
  * The handle of a running shell: the dock itself plus the operations the header and the picker need.
  */
-export interface EditorShell {
+export type EditorShell = {
   /**
    * The element the dock is attached to: the drop area of a drag.
    */
@@ -120,7 +120,7 @@ export interface EditorShell {
 /**
  * One row of the preset dropdown of the header.
  */
-export interface PresetOption {
+export type PresetOption = {
   /**
    * The identifier the dropdown selects it by.
    */

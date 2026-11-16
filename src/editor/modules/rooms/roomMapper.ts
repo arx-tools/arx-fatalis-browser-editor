@@ -17,7 +17,7 @@ export const MAX_ROOM_ID = 254
 /**
  * A room a face can be moved into.
  */
-export interface RoomTarget {
+export type RoomTarget = {
   /**
    * The id of the room.
    */

@@ -66,7 +66,7 @@ const WATER_OPACITY = 0.62
  * The brightness (`trans`) is part of the key because the game modulates the texture of a blended face with it: a light
  * ray of a dimmer value is the same texture in another key, and so another material.
  */
-export interface PaintKey {
+export type PaintKey = {
   /**
    * The name of the texture, or `undefined` when the level has no container for it (or no texture for that container).
    */

@@ -9,7 +9,7 @@ export type PresetId = 'custom' | 'editor' | 'lighter' | 'painter' | 'rooms' | '
 /**
  * One factory preset of the layout.
  */
-export interface FactoryPreset {
+export type FactoryPreset = {
   /**
    * The identifier the header selects it by.
    */

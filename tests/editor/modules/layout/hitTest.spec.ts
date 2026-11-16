@@ -11,7 +11,7 @@ const { DROP_DISTANCE, EDGE_HOTSPOT_LENGTH, ROOT_ZONE_SHARE, edgeHotspotAt, hitT
 /**
  * The position and the size a test rectangle is built from.
  */
-interface Box {
+type Box = {
   /**
    * The left edge.
    */

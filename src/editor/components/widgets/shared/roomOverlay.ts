@@ -46,7 +46,7 @@ const DIMMED = 0.35
  * light; the material is flat (a colour per vertex, no texture), so the map reads as the rooms of the level and not as
  * its art.
  */
-export interface RoomOverlay {
+export type RoomOverlay = {
   /**
    * The mesh to put into the scene of a view.
    *
@@ -153,7 +153,7 @@ function writeRoomColors(
 /**
  * What the decision of a repaint of the room map reads.
  */
-export interface RoomRepaintState {
+export type RoomRepaintState = {
   /**
    * How many vertices the geometry of the level has.
    */

@@ -11,7 +11,7 @@ import { cameraAngle, cameraPosition } from './cameraState.ts'
  * registers a driver: a dock layout can throw the 3D widget away, and the camera controls widget has to
  * survive it (it shows the last pose and its fields go read only).
  */
-export interface CameraDriver {
+export type CameraDriver = {
   /**
    * Moves the camera of the view.
    *
@@ -31,7 +31,7 @@ export interface CameraDriver {
 /**
  * The state of the camera the widgets share.
  */
-export interface CameraStore {
+export type CameraStore = {
   /**
    * Where the camera stands and looks, in the game's coordinates.
    *

@@ -5,7 +5,7 @@ import { formatCount } from '../../../modules/format.ts'
 /**
  * One row of the polygon inspector.
  */
-export interface InspectorRow {
+export type InspectorRow = {
   /**
    * The name shown on the left.
    */
@@ -19,7 +19,7 @@ export interface InspectorRow {
 /**
  * The polygon the inspector describes: the face under the crosshair.
  */
-export interface InspectedPolygon {
+export type InspectedPolygon = {
   /**
    * The index of the polygon in the level, the one the selection holds too.
    */

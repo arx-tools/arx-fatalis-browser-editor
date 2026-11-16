@@ -12,7 +12,7 @@ export type TextureSource = 'arx' | 'custom'
 /**
  * A texture the editor can paint faces with.
  */
-export interface TextureEntry {
+export type TextureEntry = {
   /**
    * Where the texture comes from.
    */

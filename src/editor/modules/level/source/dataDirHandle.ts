@@ -33,7 +33,7 @@ type DirectoryPicker = (options?: { readonly id?: string }) => Promise<FileSyste
 /**
  * The permission part of a handle, which the types of the DOM do not carry yet.
  */
-interface PermissionHandle {
+type PermissionHandle = {
   /**
    * Reads the permission the browser holds without asking the user.
    */
@@ -59,7 +59,7 @@ const HANDLE_KEY = 'data-dir'
 /**
  * The store of the folder the user picked, so the browser remembers it for the next visit.
  */
-export interface DataDirHandleStore {
+export type DataDirHandleStore = {
   /**
    * Reads the folder the browser remembered.
    *

@@ -39,7 +39,7 @@ const MINIMUM_DISTANCE = 400
  * ratio of the canvas. The alignment is a frustum fit: a corner of the level is inside the frame when
  * its distance from the view axis is smaller than its depth times the tangent of the half angle.
  */
-export interface CameraFrustum {
+export type CameraFrustum = {
   /**
    * The tangent of the half horizontal angle (`tan(fov / 2) * aspect`).
    */
@@ -71,7 +71,7 @@ export function frustumOf(fieldOfView: number, aspect: number): CameraFrustum {
  * The vectors are in the game's coordinate system. The classic heuristic (a distance from the centre)
  * cuts a wide level off at the near side, so the distance is computed from the corners instead.
  */
-interface View {
+type View = {
   /**
    * The direction the camera looks along, in the game's coordinates.
    */
@@ -174,7 +174,7 @@ export function alignPose(mode: CameraViewMode, bounds: CameraBounds, frustum: C
 /**
  * The size of the frame that shows the whole box from a direction, in the units of the level.
  */
-export interface FrameSize {
+export type FrameSize = {
   /**
    * The width of the frame, on the screen's horizontal axis.
    */

@@ -24,7 +24,7 @@ export const SETTINGS_PATH = `${EDITOR_FOLDER}settings.json`
 /**
  * What the editor knows of a level, beside the level itself.
  */
-export interface EditorSettings {
+export type EditorSettings = {
   /**
    * The pose of the camera when the archive was written.
    *
@@ -46,7 +46,7 @@ export interface EditorSettings {
 /**
  * The state of the editor as the settings file holds it.
  */
-export interface EditorSettingsJson {
+export type EditorSettingsJson = {
   /**
    * The pose of the camera, in the shape the storage of the browser keeps it.
    */

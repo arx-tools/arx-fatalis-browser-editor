@@ -34,7 +34,7 @@ type HelpToggle = ViewSwitch | EditModeSwitch
 /**
  * One row of the key help: the keys of an action, what they do, and the switch behind it.
  */
-interface HelpRow {
+type HelpRow = {
   /**
    * The keys to press, in the order of the gesture: the cells are joined with a plus sign.
    */
@@ -72,7 +72,7 @@ interface HelpRow {
 /**
  * One section of the key help.
  */
-interface HelpSection {
+type HelpSection = {
   /**
    * The name of the section, shown above its rows.
    */
@@ -90,7 +90,7 @@ interface HelpSection {
 /**
  * The reset button of a section: what it is called, when it can be pressed, and what it does.
  */
-interface HelpReset {
+type HelpReset = {
   /**
    * The tooltip and the screen reader name of the button.
    */

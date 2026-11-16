@@ -5,7 +5,7 @@ import type { CameraViewMode } from './cameraAlign.ts'
 /**
  * A pixel of the canvas of a fixed view, and the size of that canvas.
  */
-export interface CanvasPoint {
+export type CanvasPoint = {
   /**
    * The distance of the pixel from the left edge of the canvas.
    */
@@ -27,7 +27,7 @@ export interface CanvasPoint {
 /**
  * The offset of the pointer since a drag started, in CSS pixels.
  */
-export interface PixelOffset {
+export type PixelOffset = {
   /**
    * How far the pointer moved to the right.
    */

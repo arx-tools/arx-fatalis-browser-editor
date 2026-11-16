@@ -21,7 +21,7 @@ export const MIN_WIDGET_WIDTH = 80
 /**
  * The box a node of the layout occupies.
  */
-export interface LayoutSpace {
+export type LayoutSpace = {
   /**
    * The width of the box.
    */
@@ -42,7 +42,7 @@ export interface LayoutSpace {
  * floors first — a lock is the will of the user, a row of text can scroll — and only after that does everything
  * shrink.
  */
-export interface AxisFit {
+export type AxisFit = {
   /**
    * The size the content wants.
    */
@@ -60,7 +60,7 @@ export interface AxisFit {
 /**
  * The limits of one widget, per axis.
  */
-export interface WidgetFit {
+export type WidgetFit = {
   /**
    * The limits along the width.
    */
@@ -80,7 +80,7 @@ export interface WidgetFit {
  * other children — a css `max` on the node itself can not do that, because lumino keeps the slot at the size the
  * shares gave it and the leftover shows as a hole.
  */
-export interface ChildFit {
+export type ChildFit = {
   /**
    * The size the shares want before the limits are applied.
    */

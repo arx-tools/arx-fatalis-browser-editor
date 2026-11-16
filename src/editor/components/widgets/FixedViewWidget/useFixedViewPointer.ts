@@ -21,7 +21,7 @@ const WHEEL_STEP = 0.0015
 /**
  * A point of the canvas of a fixed view, and the size of the canvas.
  */
-export interface FixedViewPixel {
+export type FixedViewPixel = {
   /**
    * The distance from the left edge, in CSS pixels.
    */
@@ -43,7 +43,7 @@ export interface FixedViewPixel {
 /**
  * What the pointer of a fixed view reads.
  */
-export interface FixedViewPointerContext {
+export type FixedViewPointerContext = {
   /**
    * The scene of the view, when it is built: the plane of the walkable camera comes from it.
    *
@@ -102,7 +102,7 @@ export interface FixedViewPointerContext {
 /**
  * The handlers of the pointer of a fixed view.
  */
-export interface FixedViewPointer {
+export type FixedViewPointer = {
   /**
    * Starts the pointer on the view: a press jumps, and a drag follows the pointer.
    *

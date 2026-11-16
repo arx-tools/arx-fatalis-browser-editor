@@ -48,7 +48,7 @@ const MAX_MAPS = 8
 /**
  * The stored steps of one map.
  */
-export interface StoredHistory {
+export type StoredHistory = {
   /**
    * The fingerprint of the level file the steps were made on.
    *

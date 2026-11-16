@@ -14,7 +14,7 @@ const PORTAL_COLOR = 0x00_ff_ff
 /**
  * The outline of the portals of a level, over the mesh of a view.
  */
-export interface PortalOverlay {
+export type PortalOverlay = {
   /**
    * The lines to put into the scene of a view.
    */

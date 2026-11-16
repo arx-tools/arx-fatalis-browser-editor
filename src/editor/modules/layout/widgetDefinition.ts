@@ -18,7 +18,7 @@ export type WidgetGroup = 'controls' | 'info' | 'rendering'
 /**
  * One category of the picker.
  */
-export interface WidgetGroupDescription {
+export type WidgetGroupDescription = {
   /**
    * The identifier of the category.
    */
@@ -41,7 +41,7 @@ export const widgetGroups: readonly WidgetGroupDescription[] = [
 /**
  * Everything the shell needs to know about one widget kind.
  */
-export interface WidgetDefinition {
+export type WidgetDefinition = {
   /**
    * A stable identifier, also used as the `data-picker-kind` attribute of the picker rows.
    */

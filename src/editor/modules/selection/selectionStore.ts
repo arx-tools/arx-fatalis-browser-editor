@@ -14,7 +14,7 @@ export type SelectionMode = 'add' | 'remove' | 'replace'
 /**
  * The modifiers of a mouse event, as far as the selection cares about them.
  */
-export interface SelectionModifiers {
+export type SelectionModifiers = {
   /**
    * Whether `Shift` is held down: the click adds to the selection.
    */
@@ -56,7 +56,7 @@ export function selectionModeOf(event: SelectionModifiers): SelectionMode {
  * triangles: a quad is one polygon with two triangles, so it counts once here, and a later gesture can mix
  * quads and triangles without the caller knowing which is which.
  */
-export interface SelectionStore {
+export type SelectionStore = {
   /**
    * The selected polygons, as a read only set.
    */

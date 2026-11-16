@@ -34,7 +34,7 @@ export const BLANK_LEVEL_TILE_SIZE = 100
  *
  * The name is what a picker shows, and the shape is only the floor: the rest of a new level is the same in both.
  */
-export interface NewLevelPreset {
+export type NewLevelPreset = {
   /**
    * What the picker shows: `Minimal`, `Flat`.
    */

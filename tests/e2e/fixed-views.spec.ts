@@ -78,7 +78,7 @@ const fixedViewsLayout: LayoutNode = {
 /**
  * A point of the page.
  */
-interface Point {
+type Point = {
   /**
    * The distance from the left edge.
    */

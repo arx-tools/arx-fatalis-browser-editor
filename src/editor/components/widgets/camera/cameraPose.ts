@@ -4,7 +4,7 @@ import { Euler, MathUtils, Vector3, type Camera, type PerspectiveCamera } from '
 /**
  * The game's camera pitch, in degrees.
  */
-export interface GameAngle {
+export type GameAngle = {
   /**
    * The pitch: `-90` looks up, `90` looks down.
    */
@@ -22,7 +22,7 @@ export interface GameAngle {
  * This is the form the url, the camera controls widget and the fixed views all speak: both halves are in
  * the game's terms, so the conversion to the three.js space only happens at the camera itself.
  */
-export interface CameraPose {
+export type CameraPose = {
   /**
    * The eye of the camera.
    */

@@ -42,7 +42,7 @@ export const TUNNEL_LIGHT = 128
  * It is the part of a level the plan needs, so a test can make one from a few polygons: the faces, the palette of the
  * lighting, and the containers of the textures.
  */
-export interface TunnelLevel {
+export type TunnelLevel = {
   /**
    * Every polygon of the level, in the order of the mesh.
    */
@@ -66,7 +66,7 @@ export interface TunnelLevel {
 /**
  * What a tunnel step is made of.
  */
-export interface TunnelPlan {
+export type TunnelPlan = {
   /**
    * The faces of the wall the step takes out, sorted.
    */

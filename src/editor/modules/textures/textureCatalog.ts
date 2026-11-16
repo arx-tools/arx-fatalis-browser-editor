@@ -44,7 +44,7 @@ export function stemOf(name: string): string {
 /**
  * What the paint of a level found, so the list knows where every texture came from.
  */
-export interface LevelTextureSources {
+export type LevelTextureSources = {
   /**
    * The level these textures belong to: another map means the custom group starts again.
    */

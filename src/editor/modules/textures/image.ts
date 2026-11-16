@@ -75,7 +75,7 @@ function isBmpFile(bytes: ArrayBuffer): boolean {
 /**
  * The pixels of an image, with its size.
  */
-interface PixelImage {
+type PixelImage = {
   /**
    * The pixels, RGBA, four bytes each.
    */

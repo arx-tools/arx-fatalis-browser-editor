@@ -3,7 +3,7 @@ import { widgetGroups, type WidgetDefinition, type WidgetGroup } from './widgetD
 /**
  * One row of the widget picker.
  */
-export interface PickerRow {
+export type PickerRow = {
   /**
    * The identifier of the widget kind the row offers.
    */
@@ -21,7 +21,7 @@ export interface PickerRow {
 /**
  * One category of the picker: the heading and the rows below it.
  */
-export interface PickerGroup {
+export type PickerGroup = {
   /**
    * The identifier of the category.
    */

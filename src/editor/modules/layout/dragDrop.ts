@@ -12,7 +12,7 @@ const DRAG_THRESHOLD = 4
 /**
  * The input of a widget drag.
  */
-export interface DragOptions {
+export type DragOptions = {
   /**
    * The widget name shown on the ghost.
    */
@@ -50,7 +50,7 @@ export interface DragOptions {
 /**
  * The widgets the hit test can drop next to, with their rectangles.
  */
-interface DropAreas {
+type DropAreas = {
   /**
    * The rectangle of the dock host.
    */

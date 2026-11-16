@@ -200,7 +200,7 @@ export function previewMaterial(): MeshLambertMaterial {
  * The geometry belongs to the map and is shared by every view, the `LineSegments` wrapper and its
  * material are the view's own: a wrapper can only stand in one scene, so every widget creates one.
  */
-export interface LevelWireframe {
+export type LevelWireframe = {
   /**
    * Shows or hides the wireframe; a call with the state it already has does nothing.
    *
@@ -222,7 +222,7 @@ export interface LevelWireframe {
 /**
  * How the wireframe of a view draws, when it can choose.
  */
-export interface WireframeOptions {
+export type WireframeOptions = {
   /**
    * Whether the view can draw the lines in the colour of the faces.
    *

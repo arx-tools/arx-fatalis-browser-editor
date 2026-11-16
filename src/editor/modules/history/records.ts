@@ -17,7 +17,7 @@ export const HISTORY_RECORD_VERSION = 1
 /**
  * The step that takes faces out of the level.
  */
-export interface DeleteFacesRecord {
+export type DeleteFacesRecord = {
   /**
    * The version of the shape of this record, see {@link HISTORY_RECORD_VERSION}.
    */
@@ -40,7 +40,7 @@ export interface DeleteFacesRecord {
 /**
  * The texture a face draws with after a step of {@link SetTextureRecord}.
  */
-export interface TextureReference {
+export type TextureReference = {
   /**
    * The id of the container in the level.
    */
@@ -58,7 +58,7 @@ export interface TextureReference {
 /**
  * The step that paints faces with a texture.
  */
-export interface SetTextureRecord {
+export type SetTextureRecord = {
   /**
    * The version of the shape of this record, see {@link HISTORY_RECORD_VERSION}.
    */
@@ -96,7 +96,7 @@ export interface SetTextureRecord {
  * The room of a face is an id of the FTS, and the step carries the ids the faces had, so the undo puts every face back
  * where it was. A face that belongs to no room takes `-1`, which is what the file says about it.
  */
-export interface SetRoomRecord {
+export type SetRoomRecord = {
   /**
    * The version of the shape of this record, see {@link HISTORY_RECORD_VERSION}.
    */
@@ -127,7 +127,7 @@ export interface SetRoomRecord {
  * step is a list of faces and one set of corners: the corners of every face are the ones of the record, before and
  * after. A step of one face is the same shape with one index.
  */
-export interface SetUvRecord {
+export type SetUvRecord = {
   /**
    * The version of the shape of this record, see {@link HISTORY_RECORD_VERSION}.
    */
@@ -158,7 +158,7 @@ export interface SetUvRecord {
  * their own mirrored buffers. The drag writes the model while it runs; the step goes on the stack when the pointer is
  * let go, with the whole offset of the drag (the command applies it once, and the undo takes it back).
  */
-export interface TranslateFacesRecord {
+export type TranslateFacesRecord = {
   /**
    * The version of the shape of this record, see {@link HISTORY_RECORD_VERSION}.
    */
@@ -185,7 +185,7 @@ export interface TranslateFacesRecord {
  * undo applies the same axis with the opposite angle. A turn of more than half a circle is stored as the shorter way
  * around (a quaternion has no memory of the other one), which is what a dragged ring gives anyway.
  */
-export interface RotateFacesRecord {
+export type RotateFacesRecord = {
   /**
    * The version of the shape of this record, see {@link HISTORY_RECORD_VERSION}.
    */
@@ -219,7 +219,7 @@ export interface RotateFacesRecord {
  * The factors of the scale are stored with the point it scales around: the step applies them, and the undo applies their
  * inverse (a factor is never zero, see `MIN_SCALE_FACTOR` of `ArxMap`), so the record needs no second state.
  */
-export interface ScaleFacesRecord {
+export type ScaleFacesRecord = {
   /**
    * The version of the shape of this record, see {@link HISTORY_RECORD_VERSION}.
    */
@@ -254,7 +254,7 @@ export interface ScaleFacesRecord {
  * record is a list of indices, a tunnel is the geometry the step makes. The faces of the wall stay indices (a replay
  * reads the same faces from the same level), and so do the container and the lighting block the new faces need.
  */
-export interface BuildTunnelRecord {
+export type BuildTunnelRecord = {
   /**
    * The version of the shape of this record, see {@link HISTORY_RECORD_VERSION}.
    */
@@ -327,7 +327,7 @@ export type HistoryRecord =
  * the commands (and their tests) away from the whole `ArxMap` — a fake with three polygons is enough to prove that a
  * step goes out and comes back.
  */
-export interface MutableLevel {
+export type MutableLevel = {
   /**
    * Every polygon of the level, in the order of the mesh.
    */
@@ -446,7 +446,7 @@ export function createDeleteFacesRecord(faces: Iterable<number>): DeleteFacesRec
 /**
  * The face and the container it has before a paint, the way a step writes it down.
  */
-export interface FaceTextureChange {
+export type FaceTextureChange = {
   /**
    * The index of the face in the level.
    */
@@ -562,7 +562,7 @@ export function createSetUvRecord(
 /**
  * What the builder of a tunnel says to the record.
  */
-export interface BuildTunnelOptions {
+export type BuildTunnelOptions = {
   /**
    * The faces of the wall the step takes out.
    */

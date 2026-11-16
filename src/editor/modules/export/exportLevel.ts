@@ -240,7 +240,7 @@ export function buildExportLlf(llf: ArxLLF, polygons: readonly ArxPolygon[]): Ar
 /**
  * The values the export dialog lets the user change before the archive is written.
  */
-export interface ExportOptions {
+export type ExportOptions = {
   /**
    * The index the level gets: the paths inside the archive, and the header of the description.
    *
@@ -481,7 +481,7 @@ function editorBuildOf(): EditorBuild {
 /**
  * What the manifest of an archive is built from.
  */
-export interface ExportManifestParts {
+export type ExportManifestParts = {
   /**
    * The seed the level of the dialog has, as the text the user typed.
    */

@@ -27,7 +27,7 @@ export type CameraFields = Record<CameraFieldName, string>
  * not fit in it. The name lives in the `aria-label` and the `title` of the fields instead, so a screen
  * reader still reads "Position x".
  */
-export interface CameraFieldGroup {
+export type CameraFieldGroup = {
   /**
    * The name of the group, used in the `aria-label` of its fields.
    */

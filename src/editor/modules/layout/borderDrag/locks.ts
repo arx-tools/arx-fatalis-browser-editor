@@ -36,7 +36,7 @@ export type BorderDragEdge = 'own' | 'cross'
 /**
  * What a pressed border does to one locked widget.
  */
-export interface BorderDragTarget {
+export type BorderDragTarget = {
   /**
    * Which of the two axes of the widget the border resizes.
    */
@@ -50,7 +50,7 @@ export interface BorderDragTarget {
 /**
  * A child of a split as the live drag sees it: the widget, its size before the drag, and whether it is locked.
  */
-export interface HeldChild {
+export type HeldChild = {
   /**
    * The live widget.
    */
@@ -74,7 +74,7 @@ export interface HeldChild {
  * back when the pointer goes up. The correction keeps the locked children at their size and gives the rest of the space
  * to the free ones, frame by frame, so nothing jumps at the end.
  */
-export interface HeldSplit {
+export type HeldSplit = {
   /**
    * The axis the split distributes.
    */
@@ -100,7 +100,7 @@ export interface HeldSplit {
  * The boxes are read from the DOM once, at the press: the geometry of the dock changes under the drag, and the
  * classification has to answer the question the user asked when the border was grabbed.
  */
-export interface DragBoard {
+export type DragBoard = {
   /**
    * The live tree of the dock.
    */

@@ -69,7 +69,7 @@ function nextFrame(now: number): void {
 /**
  * What the test counts of the loop's work.
  */
-interface Counts {
+type Counts = {
   draws: number
   picks: number
   drags: number

@@ -27,7 +27,7 @@ const CAMERA_SPEED = 600
 /**
  * What the camera controls need from the widget.
  */
-export interface CameraControlsOptions {
+export type CameraControlsOptions = {
   /**
    * The element the pointer lock is requested on (the canvas of the view).
    */

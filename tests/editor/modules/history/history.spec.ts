@@ -6,7 +6,7 @@ import { createDeleteFacesRecord } from '../../../../src/editor/modules/history/
 /**
  * A step of the test that marks what happened, so the order and the halves can be checked.
  */
-interface Step {
+type Step = {
   readonly command: HistoryCommand
   /**
    * What the step did, in order: `apply` and `revert`.

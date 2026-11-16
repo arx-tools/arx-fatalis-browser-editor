@@ -18,7 +18,7 @@ import './style.scss'
  * @remarks
  * The package types its options as `any`, so the one field the editor touches is named here.
  */
-interface TooltipThemeOptions {
+type TooltipThemeOptions = {
   themes: Record<string, { triggers: string[] }>
 }
 

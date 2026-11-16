@@ -12,7 +12,7 @@
 /**
  * A file of the fake folder: the bytes of it, as text.
  */
-export interface FakeFile {
+export type FakeFile = {
   /**
    * The bytes of the file.
    */
@@ -22,7 +22,7 @@ export interface FakeFile {
 /**
  * A folder of the fake folder: its entries by their names.
  */
-export interface FakeFolder {
+export type FakeFolder = {
   /**
    * The entries of the folder.
    */

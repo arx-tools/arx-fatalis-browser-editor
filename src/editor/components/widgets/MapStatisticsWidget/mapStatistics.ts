@@ -4,7 +4,7 @@ import { formatCount } from '../../../modules/format.ts'
 /**
  * One row of the statistics widget.
  */
-export interface StatisticsRow {
+export type StatisticsRow = {
   /**
    * The name shown on the left.
    */

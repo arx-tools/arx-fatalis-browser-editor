@@ -24,7 +24,7 @@ test.setTimeout(120_000)
 /**
  * The box of a widget on the dock, in whole pixels.
  */
-interface Box {
+type Box = {
   readonly left: number
   readonly top: number
   readonly width: number
@@ -104,7 +104,7 @@ async function openWithALockedJump(page: Page): Promise<Box> {
 /**
  * Where a border of the dock is, and where the drag takes it.
  */
-interface Pull {
+type Pull = {
   /**
    * The horizontal position of the border.
    */

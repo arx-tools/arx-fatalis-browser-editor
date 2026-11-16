@@ -52,7 +52,7 @@ export type MapGroup = 'blank' | 'arx' | 'custom'
 /**
  * One map the editor can open.
  */
-export interface MapEntry {
+export type MapEntry = {
   /**
    * The value of the list, like `blank:minimal` or `arx:8`.
    */
@@ -136,7 +136,7 @@ export function mapEntryOf(id: string, groups: readonly MapGroupEntry[]): MapEnt
 /**
  * One group of the list.
  */
-export interface MapGroupEntry {
+export type MapGroupEntry = {
   /**
    * Where the maps of the group come from.
    */
@@ -526,7 +526,7 @@ export function missingDataDirMapOf(
 /**
  * The map of a link that the editor could not open, because the data dir of the game is not set.
  */
-export interface MissingMap {
+export type MissingMap = {
   /**
    * The label of the level, like `Level 11`.
    */

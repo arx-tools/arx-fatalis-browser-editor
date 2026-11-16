@@ -44,7 +44,7 @@ export function groupOf(entry: TextureEntry): TextureGroup {
 /**
  * What the texture list shows: the part of the entries a filter of the widget lets through.
  */
-export interface TextureFilter {
+export type TextureFilter = {
   /**
    * What the user typed into the search field.
    */

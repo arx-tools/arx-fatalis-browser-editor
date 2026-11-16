@@ -56,7 +56,7 @@ const GAME_TURN = new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), Math.P
  * - The negative axes keep their place but their black dots are repainted white and faint, otherwise
  * they vanish in the dark.
  */
-export interface OrientationGizmo {
+export type OrientationGizmo = {
   /**
    * Draws the triad, which follows the camera.
    */

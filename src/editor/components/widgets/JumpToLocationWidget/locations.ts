@@ -54,7 +54,7 @@ export type JumpTarget =
  * It is the two commands and nothing else, so the jump logic is tested with a stand-in and the widget
  * does not have to know the store.
  */
-export interface JumpCamera {
+export type JumpCamera = {
   /**
    * Puts the camera to the spawn of the level.
    */

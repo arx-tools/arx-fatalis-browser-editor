@@ -52,7 +52,7 @@ const PREVIEW_INSET = 3
  *
  * It is the pure form of `getBoundingClientRect`, so the hit test can run without a browser.
  */
-export interface ClientRect {
+export type ClientRect = {
   /**
    * The left edge.
    */
@@ -82,7 +82,7 @@ export interface ClientRect {
 /**
  * A widget with its rectangle: the pure form of the widget list of the dock.
  */
-export interface WidgetRect {
+export type WidgetRect = {
   /**
    * The widget the rectangle belongs to.
    */
@@ -96,7 +96,7 @@ export interface WidgetRect {
 /**
  * The input of the drop zone hit test.
  */
-export interface HitTestInput {
+export type HitTestInput = {
   /**
    * The rectangle of the dock host: the drop area.
    */
@@ -128,7 +128,7 @@ export interface HitTestInput {
 /**
  * Where a dragged widget would land, and relative to which widget.
  */
-export interface DropTarget {
+export type DropTarget = {
   /**
    * The lumino insertion mode: the dragged widget takes the given half of the reference widget, or the
    * given edge of the whole dock when {@link DropTarget.ref} is `null`.
@@ -144,7 +144,7 @@ export interface DropTarget {
 /**
  * A box in the coordinate system of the dock host.
  */
-export interface PreviewBox {
+export type PreviewBox = {
   /**
    * The left offset from the dock host.
    */

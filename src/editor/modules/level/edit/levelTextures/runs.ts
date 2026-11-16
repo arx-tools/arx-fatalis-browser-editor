@@ -23,7 +23,7 @@ import { paintKeyOf, paintKeyOfPolygon, type PaintKey } from './paint.ts'
 /**
  * One run of the faces of the level that draw with the same material.
  */
-export interface FaceRun {
+export type FaceRun = {
   /**
    * The first vertex of the run in the geometry.
    */
@@ -107,7 +107,7 @@ export function faceRunsOf(polygons: readonly ArxPolygon[], keyOf: (polygon: Arx
 /**
  * One run of the faces of a level that share a texture, with the material it draws with.
  */
-export interface DrawnRun {
+export type DrawnRun = {
   /**
    * The first index of the run in the index buffer of the geometry.
    */

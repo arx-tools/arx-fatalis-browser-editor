@@ -46,7 +46,7 @@ export const DATA_DIR_PARAMETER = 'dataDir'
 /**
  * One file of a data directory the user picked.
  */
-export interface DataDirFile {
+export type DataDirFile = {
   /**
    * The path of the file inside the data directory, like `graph/obj3d/textures/wall.jpg`.
    */

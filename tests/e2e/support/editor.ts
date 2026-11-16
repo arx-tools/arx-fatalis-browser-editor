@@ -348,7 +348,7 @@ export async function lockPointer(page: Page, view: Locator): Promise<void> {
 /**
  * What a gesture of the walkable view does.
  */
-export interface SelectionGesture {
+export type SelectionGesture = {
   /**
    * Adds to the selection instead of starting a new one.
    */

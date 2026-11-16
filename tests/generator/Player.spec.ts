@@ -6,7 +6,7 @@ import { Player } from '../../src/generator/Player.ts'
 /**
  * The spawn of the test level.
  */
-interface Spawn {
+type Spawn = {
   /**
    * The `posEdit` of the level.
    */

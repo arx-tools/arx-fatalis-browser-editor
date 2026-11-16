@@ -6,7 +6,7 @@ import { loadLevel, loadStarterLevel, type LevelSource } from '../source/levelSo
 /**
  * The configuration of {@link createLevelStore}.
  */
-export interface LevelStoreOptions {
+export type LevelStoreOptions = {
   /**
    * The step that produces the map.
    *
@@ -29,7 +29,7 @@ export interface LevelStoreOptions {
  * - the map is a `shallowRef` of the `ArxMap` class: its own fields are not reactive, the editors of
  * the view read them directly
  */
-export interface LevelStore {
+export type LevelStore = {
   /**
    * Where the loading is.
    */

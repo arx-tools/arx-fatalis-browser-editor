@@ -21,7 +21,7 @@ import type { WidgetDefinition, WidgetGroup } from './modules/layout/widgetDefin
 /**
  * One fixed direction of the level and the widget that shows it.
  */
-interface FixedViewDefinition {
+type FixedViewDefinition = {
   /**
    * The kind of the widget, also its key in the saved layout.
    */

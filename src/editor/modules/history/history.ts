@@ -23,7 +23,7 @@ export const HISTORY_DEPTH = 100
  * editor calls {@link History.run} — never the map directly. A change that is not a command can not be undone, and
  * it would make the steps after it wrong.
  */
-export interface HistoryCommand {
+export type HistoryCommand = {
   /**
    * What the step is called, for the notes and a later panel: `Delete 3 face(s)`.
    */
@@ -53,7 +53,7 @@ export interface HistoryCommand {
 /**
  * The undo and redo stacks of the editor.
  */
-export interface History {
+export type History = {
   /**
    * The steps that can be taken back, the newest last.
    */

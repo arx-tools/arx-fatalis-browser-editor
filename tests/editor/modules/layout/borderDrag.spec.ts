@@ -92,7 +92,7 @@ function widgetDefinitionOf(kind: string): WidgetDefinition {
 /**
  * The box a stub reports: the drag rect and the edges the browser adds to it.
  */
-interface StubRect extends DragRect {
+type StubRect = DragRect & {
   /**
    * The distance of the right edge from the left edge of the viewport.
    */
@@ -239,7 +239,7 @@ function makeBoard(locked: readonly string[] = []): DragBoard {
 /**
  * One border of the layout and what it does to the locked jump.
  */
-interface BorderCase {
+type BorderCase = {
   /**
    * What the owner numbered the border.
    */
@@ -631,7 +631,7 @@ void describe('watchBorderDrag', () => {
   /**
    * The dock of the watcher: plain elements, so no layout engine is needed.
    */
-  interface TestDock {
+  type TestDock = {
     /**
      * The element the dock is attached to.
      */

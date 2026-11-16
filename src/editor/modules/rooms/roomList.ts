@@ -30,7 +30,7 @@ export const NO_ROOM = -1
 /**
  * One row of a list of rooms.
  */
-export interface RoomRow extends RoomSummary {
+export type RoomRow = RoomSummary & {
   /**
    * The colour the room map paints the room with.
    */

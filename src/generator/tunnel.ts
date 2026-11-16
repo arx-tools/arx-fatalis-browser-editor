@@ -24,7 +24,7 @@ export type TunnelRim = readonly ArxVector3[]
 /**
  * How a tunnel is built between two rims.
  */
-export interface TunnelOptions {
+export type TunnelOptions = {
   /**
    * The rim of the hole the tunnel starts at.
    */
@@ -345,7 +345,7 @@ function pairingCostOf(
 /**
  * A pair of rims with the same number of points, read together.
  */
-interface RingPair {
+type RingPair = {
   /**
    * The points of the first rim, in the order the tunnel walks them.
    */
@@ -464,7 +464,7 @@ function centerOf(points: readonly Vector3[]): Vector3 {
 /**
  * A corner of a quad of the tunnel, with its place on the texture.
  */
-interface TunnelCorner {
+type TunnelCorner = {
   /**
    * The position of the corner.
    */
@@ -577,7 +577,7 @@ export function tunnelPolygonsOf(options: TunnelOptions): ArxPolygon[] {
  * case is out of its best plane by about 32 units). The corners are the bounding rectangle of the rim projected on that
  * plane, in the order of the perimeter, so a portal built from them has the plane's normal.
  */
-export interface RimQuad {
+export type RimQuad = {
   /**
    * The four corners of the rectangle, around its perimeter.
    */

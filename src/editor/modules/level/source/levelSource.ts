@@ -14,7 +14,7 @@ import { createZipUrlLevelSource } from './zipSource.ts'
  * Every source of a level (the original files of the game, a zip from the browser, a blank level made here) gives
  * these three, in the same packed form the game stores them in, so what comes after is the same for all of them.
  */
-export interface LevelFiles {
+export type LevelFiles = {
   /**
    * The description of the level: the player, the interactive objects, the fog, the zones and the paths.
    */
@@ -32,7 +32,7 @@ export interface LevelFiles {
 /**
  * Where a level comes from.
  */
-export interface LevelSource {
+export type LevelSource = {
   /**
    * What the source is, for a later picker and the error messages: `Level 11`, `Blank level`, a zip name.
    */
@@ -271,7 +271,7 @@ export async function fetchDataDirLevelFiles(
 /**
  * Where a level of the game comes from, and which one it is.
  */
-export interface OriginalLevelSource extends LevelSource {
+export type OriginalLevelSource = LevelSource & {
   /**
    * The number of the level, from 0.
    */

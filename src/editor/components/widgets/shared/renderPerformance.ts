@@ -23,7 +23,7 @@ const PENDING_VALUE = '…'
 /**
  * One row of the performance readout.
  */
-export interface RenderPerformanceRow {
+export type RenderPerformanceRow = {
   /**
    * The name shown on the left.
    */
@@ -37,7 +37,7 @@ export interface RenderPerformanceRow {
 /**
  * The counters of the last frame a renderer drew.
  */
-export interface RenderCounters {
+export type RenderCounters = {
   /**
    * The draw calls of the last frame.
    */
@@ -59,7 +59,7 @@ export interface RenderCounters {
  * Only these three are needed, so the module does not depend on the whole `WebGLRenderer` of three (and a test can
  * hand it a plain object). The walkable view passes its real renderer.
  */
-export interface RendererReadout {
+export type RendererReadout = {
   /**
    * The counters of the renderer: `render.calls` and `render.triangles` belong to the last frame, `render.frame` is
    * the number of the frames it drew since it was made.
@@ -85,7 +85,7 @@ export interface RendererReadout {
  * the way it registers the camera driver: the two widgets can not reach each other through a component tree (see
  * `cameraStore`).
  */
-export interface RenderPerformanceStore {
+export type RenderPerformanceStore = {
   /**
    * The renderer of the walkable view, or `undefined` while there is none.
    */
@@ -125,7 +125,7 @@ export const renderPerformanceStore: RenderPerformanceStore = createRenderPerfor
 /**
  * The rate of the frames the browser presents.
  */
-export interface FrameRate {
+export type FrameRate = {
   /**
    * The frames per second.
    */
@@ -170,7 +170,7 @@ export function frameRateOf(timestamps: readonly number[]): FrameRate {
 /**
  * One sample of the frame counter of a renderer.
  */
-export interface DrawSample {
+export type DrawSample = {
   /**
    * The frame counter of the renderer at the sample.
    */
@@ -208,7 +208,7 @@ export function drawnPerSecondOf(previous: DrawSample, next: DrawSample): number
 /**
  * What the widget shows about one moment.
  */
-export interface RenderPerformanceSample {
+export type RenderPerformanceSample = {
   /**
    * The frames per second the browser presents.
    */

@@ -30,7 +30,7 @@ async function heightOf(page: Page, kind: string): Promise<number> {
 /**
  * The box of a widget on the dock, in whole pixels.
  */
-interface Box {
+type Box = {
   readonly left: number
   readonly top: number
   readonly width: number

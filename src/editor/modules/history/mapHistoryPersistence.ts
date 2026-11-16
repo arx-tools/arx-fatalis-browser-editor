@@ -19,7 +19,7 @@ const DEBOUNCE_MS = 150
 /**
  * The write that is waiting for its moment.
  */
-interface PendingWrite {
+type PendingWrite = {
   /**
    * The value of the map in the list.
    */

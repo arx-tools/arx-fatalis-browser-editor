@@ -13,7 +13,7 @@ import { createRandomSeed, setSeed } from './random.ts'
  * and a second shape would be code without a second user. The class is the seam, and it is one place to add
  * a field.
  */
-export interface SettingsOptions {
+export type SettingsOptions = {
   /**
    * The seed of the level. When it is missing, a fresh one is made.
    */

@@ -28,7 +28,7 @@ const MARKER_INSET = 10
 /**
  * Where the camera marker of a fixed view goes on the canvas.
  */
-export interface MarkerPlacement {
+export type MarkerPlacement = {
   /**
    * The left position in CSS pixels.
    */
@@ -46,7 +46,7 @@ export interface MarkerPlacement {
 /**
  * What a fixed view needs to place the marker of the camera.
  */
-export interface MarkerInput {
+export type MarkerInput = {
   /**
    * The direction of the view: the plan views show the heading, the side ones the attitude of the camera.
    */
@@ -80,7 +80,7 @@ export interface MarkerInput {
 /**
  * Everything the marker on the canvas of a fixed view needs.
  */
-export interface MarkerState extends MarkerPlacement {
+export type MarkerState = MarkerPlacement & {
   /**
    * Tells whether there is a marker to draw at all.
    *

@@ -31,7 +31,7 @@ export const ROOM_COLORS: readonly string[] = Object.freeze([
  * It is the part of a portal the room graph reads: the quad, the radius and the runtime flag say nothing about which
  * rooms are seen through each other. An {@link ArxPortal} has these two fields, so the level's portals fit as they are.
  */
-export interface RoomLink {
+export type RoomLink = {
   /**
    * The room on the side the normal faces.
    */
@@ -45,7 +45,7 @@ export interface RoomLink {
 /**
  * A colouring of the rooms of a level.
  */
-export interface RoomColoring {
+export type RoomColoring = {
   /**
    * The colour of every room, as the index of {@link ROOM_COLORS}.
    */
@@ -158,7 +158,7 @@ export function roomIdsOf(rooms: readonly number[]): number[] {
 /**
  * One room of the level, as the room inspector lists it.
  */
-export interface RoomSummary {
+export type RoomSummary = {
   /**
    * The id the level uses for the room.
    */

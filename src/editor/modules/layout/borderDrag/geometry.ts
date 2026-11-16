@@ -25,7 +25,7 @@ export type BorderAxis = 'width' | 'height'
 /**
  * A box of the dock, in the coordinates of the viewport.
  */
-export interface DragRect {
+export type DragRect = {
   /**
    * The distance of the left edge from the left edge of the viewport.
    */

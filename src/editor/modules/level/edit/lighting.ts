@@ -92,7 +92,7 @@ let bakeGeneration = 0
 /**
  * One baked palette of a level, with the version of the level it was baked from.
  */
-interface CachedPalette {
+type CachedPalette = {
   /**
    * The cache version of the level at the bake.
    */

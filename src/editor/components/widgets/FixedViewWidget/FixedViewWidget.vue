@@ -18,7 +18,13 @@ import {
   viewMeshesOf,
   type LevelWireframe,
 } from '../shared/levelScene.ts'
-import { isMeshVisible, isPortalsVisible, isRoomColorsVisible, isWireframeVisible } from '../shared/levelDisplay.ts'
+import {
+  isLightsVisible,
+  isMeshVisible,
+  isPortalsVisible,
+  isRoomColorsVisible,
+  isWireframeVisible,
+} from '../shared/levelDisplay.ts'
 import { attachPortalLines, type PortalOverlay } from '../shared/portalOverlay.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import { hoverRoom, litRooms } from '../../../modules/rooms/roomStore.ts'
@@ -56,6 +62,7 @@ const props = defineProps<{
 
 const host = useTemplateRef<HTMLElement>('host')
 const canvas = useTemplateRef<HTMLCanvasElement>('canvas')
+const lightsCanvas = useTemplateRef<HTMLCanvasElement>('lights')
 
 /**
  * Where the camera marker sits on the canvas, in CSS pixels, and whether it is in front of the camera.
@@ -115,6 +122,76 @@ let stopWatchingRoom: (() => void) | undefined
 let stopWatchingEdit: (() => void) | undefined
 let stopWatchingRoomRevision: (() => void) | undefined
 let stopWatchingSelection: (() => void) | undefined
+let stopWatchingLights: (() => void) | undefined
+
+/**
+ * The places of the lights of the level, in the space of the meshes.
+ *
+ * @remarks
+ * The fixed views do not draw a sparkle of the walkable view: the owner asked for a fixed, 3 by 3 pixel yellow dot per
+ * light here (2026-11-17), so the dots are a 2D overlay over the canvas, and not a sprite of the scene.
+ */
+let lightPositions: Vector3[] = []
+
+/**
+ * The colour of a light dot of a fixed view: always the same yellow, as the owner asked.
+ */
+const LIGHT_DOT_COLOR = '#ffd54a'
+
+/**
+ * Draws the dots of the lights over the canvas, or clears them while the switch is off.
+ *
+ * @param target The view whose camera projects the lights.
+ */
+function drawLights(target: ViewScene<OrthographicCamera>): void {
+  const overlay = lightsCanvas.value
+
+  if (overlay === null) {
+    return
+  }
+
+  const stage = target.renderer.domElement
+  const width = stage.clientWidth
+  const height = stage.clientHeight
+
+  if (overlay.width !== width || overlay.height !== height) {
+    overlay.width = width
+    overlay.height = height
+  }
+
+  const context = overlay.getContext('2d')
+
+  if (context === null) {
+    return
+  }
+
+  context.clearRect(0, 0, overlay.width, overlay.height)
+
+  if (!isLightsVisible.value) {
+    return
+  }
+
+  const halfWidth = width / 2
+  const halfHeight = height / 2
+  context.fillStyle = LIGHT_DOT_COLOR
+
+  for (const position of lightPositions) {
+    const point = position.clone().project(target.camera)
+
+    if (Math.abs(point.z) > 1) {
+      continue
+    }
+
+    const x = Math.round((point.x + 1) * halfWidth)
+    const y = Math.round((1 - point.y) * halfHeight)
+
+    if (x < 0 || y < 0 || x >= width || y >= height) {
+      continue
+    }
+
+    context.fillRect(x - 1, y - 1, 3, 3)
+  }
+}
 
 /**
  * The fill of the selection, over the level of the map.
@@ -140,7 +217,13 @@ function requestRender(): void {
 
   frame = requestAnimationFrame(() => {
     frame = 0
-    view?.renderer.render(view.scene, view.camera)
+
+    if (view !== undefined) {
+      const target = view
+
+      target.renderer.render(target.scene, target.camera)
+      drawLights(target)
+    }
   })
 }
 
@@ -423,6 +506,11 @@ function showMap(map: ArxMap): void {
   portalLines = attachPortalLines(view.scene, map.fts.portals, arxVector3toVector3(map.scenePosition))
   portalLines.setVisible(isMeshVisible.value && isPortalsVisible.value)
 
+  // the lights of the LLF: the fixed views draw a fixed yellow dot for each, in the overlay above the canvas
+  lightPositions = map.lights.map((light) => {
+    return arxVector3toVector3(light.position)
+  })
+
   // the fill of the selection, in the space of the same meshes
   selectionOverlay = createPolygonSelectionOverlay(view.scene, arxVector3toVector3(map.scenePosition))
   selectionOverlay.setHighlight(selectedPolygonsOf(map))
@@ -466,6 +554,9 @@ function hideMap(): void {
   selectionOverlay = undefined
   stopWatchingSelection?.()
   stopWatchingSelection = undefined
+  stopWatchingLights?.()
+  stopWatchingLights = undefined
+  lightPositions = []
   stopWatchingEdit?.()
   stopWatchingEdit = undefined
   stopWatchingRoomRevision?.()
@@ -585,6 +676,10 @@ stopWatchingMesh = watch(isMeshVisible, () => {
 })
 
 // the portal outline is a switch of every view at once
+stopWatchingLights = watch(isLightsVisible, () => {
+  requestRender()
+})
+
 stopWatchingPortals = watch(isPortalsVisible, () => {
   setMeshVisible(isMeshVisible.value)
   requestRender()
@@ -648,6 +743,8 @@ onBeforeUnmount(() => {
   stopWatchingRoom = undefined
   stopWatchingSelection?.()
   stopWatchingSelection = undefined
+  stopWatchingLights?.()
+  stopWatchingLights = undefined
 
   if (host.value !== null) {
     host.value.removeEventListener('wheel', pointer.onWheel)
@@ -687,6 +784,7 @@ onBeforeUnmount(() => {
 <template>
   <div ref="host" class="FixedViewWidget">
     <canvas ref="canvas" class="stage"></canvas>
+    <canvas ref="lights" class="lights" aria-hidden="true"></canvas>
     <svg
       v-if="marker.visible"
       class="camera-mark"
@@ -719,6 +817,15 @@ onBeforeUnmount(() => {
   background: $surface-widget;
 
   // the crosshair says the click goes somewhere: both the framed and the zoomed view move the camera
+  // the dots of the lights: a 2D overlay over the scene, so a dot is 3 by 3 pixels at every zoom of the view
+  .lights {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
   .stage {
     display: block;
     width: 100%;

@@ -27,9 +27,11 @@ import {
  * The alpha cut of the material of a face: the texels of the texture below it are not drawn.
  *
  * @remarks
- * The game cuts the holes of a texture with `alphaTest` (a fence, a banner) — see `ALPHA_CUTOUT` in the old file.
+ * The game cuts the holes of a texture with `alphaTest` (a fence, a banner) — see `ALPHA_CUTOUT` in the old file. The
+ * same cut applies to the models of the entities (`PopOneTriangleList` in `AnimationRender.cpp`), so a handle on the
+ * black background of its texture shows the door behind it, not the black of the atlas.
  */
-const ALPHA_CUTOUT = 0.5
+export const ALPHA_CUTOUT = 0.5
 
 /**
  * How much of the placeholder a face without a texture shows.

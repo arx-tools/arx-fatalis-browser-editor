@@ -118,6 +118,7 @@ const switchNames: Record<HelpToggle, string> = {
   wireframe: 'the wireframe',
   roomColors: 'the rooms',
   portals: 'the portals',
+  lights: 'the lights',
   transform: 'the transform gizmo',
   rotate: 'the rotate gizmo',
   scale: 'the scale gizmo',
@@ -176,6 +177,7 @@ const sections = computed<readonly HelpSection[]>(() => {
         { keys: [{ kind: 'text', text: 'M' }], action: 'Mesh', toggle: 'mesh' },
         { keys: [{ kind: 'text', text: 'R' }], action: 'Rooms', toggle: 'roomColors', parent: 'mesh' },
         { keys: [{ kind: 'text', text: 'P' }], action: 'Portals', toggle: 'portals', parent: 'mesh' },
+        { keys: [{ kind: 'text', text: 'L' }], action: 'Lights', toggle: 'lights' },
       ],
     },
     {

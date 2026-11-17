@@ -61,6 +61,21 @@ export const isPortalsVisible = persistedRef<boolean>({
 })
 
 /**
+ * Whether the light sources of the level are drawn as markers.
+ *
+ * @remarks
+ * The lights are the `map.lights` of the LLF: the walkable view draws them as sparkles that keep the colour of the light
+ * and take their size from its `fallStart`, and the fixed views as fixed yellow dots. It is a view preference like the
+ * others, in the `localStorage`, so the editor comes back the way it was left. The default is off: the markers are a
+ * debug aid, not the look of the level.
+ */
+export const isLightsVisible = persistedRef<boolean>({
+  key: 'lightsVisible',
+  defaultValue: false,
+  persistInLocalStorage: true,
+})
+
+/**
  * The switches of the View section of the key help, with the value each one starts from.
  *
  * @remarks
@@ -73,6 +88,7 @@ export const viewSwitches = {
   wireframe: { ref: isWireframeVisible, defaultValue: false },
   roomColors: { ref: isRoomColorsVisible, defaultValue: false },
   portals: { ref: isPortalsVisible, defaultValue: false },
+  lights: { ref: isLightsVisible, defaultValue: false },
 } as const satisfies Record<string, { readonly ref: ShallowRef<boolean>; readonly defaultValue: boolean }>
 
 /**
@@ -140,6 +156,17 @@ export function togglePortals(): void {
 }
 
 /**
+ * Turns the light markers on or off.
+ *
+ * @remarks
+ * The markers do not sit over the mesh like the room map or the portals: a light source is a point of the level, so the
+ * switch works while the mesh is off too.
+ */
+export function toggleLights(): void {
+  isLightsVisible.value = !isLightsVisible.value
+}
+
+/**
  * Starts the parts of the editor that belong to no widget.
  *
  * @remarks
@@ -153,4 +180,5 @@ export function startLevelDisplay(): void {
   onKeyboardToggle('toggleMesh', isMeshVisible)
   onKeyboardAction('toggleRooms', toggleRoomColors)
   onKeyboardAction('togglePortals', togglePortals)
+  onKeyboardToggle('toggleLights', isLightsVisible)
 }

@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict'
 import { beforeEach, describe, it } from 'node:test'
 import {
+  isLightsVisible,
   isMeshVisible,
   isPortalsVisible,
   isRoomColorsVisible,
   isWireframeVisible,
   startLevelDisplay,
+  toggleLights,
   togglePortals,
   toggleRoomColors,
 } from '../../../../../src/editor/components/widgets/shared/levelDisplay.ts'
@@ -47,6 +49,7 @@ beforeEach(() => {
   isWireframeVisible.value = false
   isRoomColorsVisible.value = false
   isPortalsVisible.value = false
+  isLightsVisible.value = false
   isMeshVisible.value = true
 })
 
@@ -58,6 +61,36 @@ void describe('isWireframeVisible', () => {
   void it('is a preference, not a link value', () => {
     // it has a key like every persisted ref, but no url and no storage: a switch of the view
     assert.equal(isWireframeVisible.key, 'wireframeVisible')
+  })
+})
+
+void describe('isLightsVisible', () => {
+  void it('starts hidden', () => {
+    assert.equal(isLightsVisible.value, false)
+  })
+
+  void it('is a preference with a key of its own', () => {
+    assert.equal(isLightsVisible.key, 'lightsVisible')
+  })
+})
+
+void describe('toggleLights', () => {
+  void it('flips the switch with the L key', () => {
+    startLevelDisplay()
+
+    handleKeyDown(press('KeyL'))
+    assert.equal(isLightsVisible.value, true)
+
+    clearPressedKeys()
+    handleKeyDown(press('KeyL'))
+    assert.equal(isLightsVisible.value, false)
+  })
+
+  void it('works while the mesh is turned off: a light is a point of the level, not a surface', () => {
+    isMeshVisible.value = false
+
+    toggleLights()
+    assert.equal(isLightsVisible.value, true)
   })
 })
 

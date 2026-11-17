@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
-import { PerspectiveCamera, type Mesh } from 'three'
+import { PerspectiveCamera, type Group, type Mesh, type Texture } from 'three'
 import Crosshair from '../../Crosshair.vue'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { WIREFRAME_WITHOUT_MESH, arxVector3toVector3 } from '../../../../generator/meshes.ts'
@@ -15,8 +15,16 @@ import { litRooms } from '../../../modules/rooms/roomStore.ts'
 import { currentRoom } from '../../../modules/rooms/roomUnderCrosshair.ts'
 import { cameraStore } from '../camera/cameraStore.ts'
 import { renderPerformanceStore } from '../shared/renderPerformance.ts'
-import { isMeshVisible, isPortalsVisible, isRoomColorsVisible, isWireframeVisible } from '../shared/levelDisplay.ts'
+import {
+  isLightsVisible,
+  isMeshVisible,
+  isPortalsVisible,
+  isRoomColorsVisible,
+  isWireframeVisible,
+} from '../shared/levelDisplay.ts'
 import { addPreviewLights, attachWireframe, viewMeshesOf, type LevelWireframe } from '../shared/levelScene.ts'
+import { disposeSpikeEntityModel, loadSpikeEntityModel } from '../../../modules/level/entities/entitySpike.ts'
+import { createLightMarkers, createLightSparkleTexture, disposeLightMarkers } from '../shared/lightMarkers.ts'
 import { attachPortalLines, type PortalOverlay } from '../shared/portalOverlay.ts'
 import { roomPaletteOf } from '../../../../generator/rooms.ts'
 import { roomRevision } from '../../../modules/rooms/roomRevision.ts'
@@ -125,6 +133,9 @@ let selectionGizmo: SelectionGizmo | undefined
 let shown: Mesh[] = []
 let wireframe: LevelWireframe | undefined
 let rooms: RoomOverlay | undefined
+let lightMarkers: Group | undefined
+let lightTexture: Texture | undefined
+let spikeEntity: Group | undefined
 let portalLines: PortalOverlay | undefined
 
 /**
@@ -146,6 +157,7 @@ let stopWatching: (() => void) | undefined
 let stopWatchingWireframe: (() => void) | undefined
 let stopWatchingMesh: (() => void) | undefined
 let stopWatchingPortals: (() => void) | undefined
+let stopWatchingLights: (() => void) | undefined
 let stopWatchingPortalRevision: (() => void) | undefined
 let stopWatchingRooms: (() => void) | undefined
 let stopWatchingRoom: (() => void) | undefined
@@ -386,11 +398,33 @@ function showMap(map: ArxMap): void {
   // the portal outline has no geometry in the level: it is built from the list of the portals, over the same space
   portalLines = attachPortalLines(view.scene, map.fts.portals, arxVector3toVector3(map.scenePosition))
 
+  // the lights of the LLF: a sparkle for each, at the place of the light, with the colour and the fallStart of it
+  lightTexture = createLightSparkleTexture()
+  lightMarkers = createLightMarkers(map.lights, lightTexture)
+  lightMarkers.visible = isLightsVisible.value
+  view.scene.add(lightMarkers)
+
   // the switches read the wireframe too (its lines follow the mesh), so they come after it is there: a fresh load
   // with the mesh on then starts in the inverted look, not in the grey of a hidden level
   updateVisibility()
 
   loadedMap = map
+
+  // TODO 235: the spike of the entity models, one door of level 0, until the entities are a real overlay
+  loadSpikeEntityModel(map)
+    .then((group) => {
+      if (group === undefined || loadedMap !== map || view === undefined) {
+        return
+      }
+
+      spikeEntity = group
+      view.scene.add(group)
+      loop.requestRender()
+    })
+    .catch((error: unknown) => {
+      console.warn('[entity-spike] the door of level 0 could not be loaded.', error)
+    })
+
   loop.resetPick()
   selection = createPolygonSelectionOverlay(view.scene, arxVector3toVector3(map.scenePosition))
   dragSelection.updateHighlight()
@@ -458,6 +492,21 @@ function hideMap(): void {
     view?.scene.remove(rooms.mesh)
     rooms.dispose()
     rooms = undefined
+  }
+
+  if (lightMarkers !== undefined) {
+    view?.scene.remove(lightMarkers)
+    disposeLightMarkers(lightMarkers)
+    lightMarkers = undefined
+  }
+
+  lightTexture?.dispose()
+  lightTexture = undefined
+
+  if (spikeEntity !== undefined) {
+    view?.scene.remove(spikeEntity)
+    disposeSpikeEntityModel(spikeEntity)
+    spikeEntity = undefined
   }
 
   wireframe?.dispose()
@@ -537,6 +586,15 @@ onMounted(() => {
     loop.requestRender()
   })
 
+  // the light markers are a switch too: the sparkles stay in the scene, and the switch takes them off the frame
+  stopWatchingLights = watch(isLightsVisible, (visible) => {
+    if (lightMarkers !== undefined) {
+      lightMarkers.visible = visible
+    }
+
+    loop.requestRender()
+  })
+
   // the portal outline is a switch of every view at once: the same ref is read by the six fixed ones
   stopWatchingPortals = watch(isPortalsVisible, () => {
     updateVisibility()
@@ -592,6 +650,8 @@ onBeforeUnmount(() => {
   stopWatchingMesh = undefined
   stopWatchingPortals?.()
   stopWatchingPortals = undefined
+  stopWatchingLights?.()
+  stopWatchingLights = undefined
   stopWatchingPortalRevision?.()
   stopWatchingPortalRevision = undefined
   stopWatchingRooms?.()

@@ -594,6 +594,27 @@ function localDataRoute(): Plugin {
         }
 
         void (async (): Promise<void> => {
+          // a file that carries its own extension (a model like an FTL) is served as it is: the walk below is for the
+          // textures, whose name may miss the extension or carry another one
+          for (const prefix of DATA_PREFIXES) {
+            const exact = await fileInDataDir(root, `${prefix}${requested}`)
+
+            if (exact === undefined) {
+              continue
+            }
+
+            try {
+              const bytes = await readFile(exact)
+
+              response.setHeader('Content-Type', contentTypeOf(exact))
+              response.end(bytes)
+
+              return
+            } catch {
+              // the next shape
+            }
+          }
+
           // the folder is matched against the stem of the name, with the extensions the game may have
           const folder = dirname(requested)
           const stem = stemOf(basename(requested))

@@ -824,6 +824,30 @@ test('the trash takes a room out, and the faces stay', async ({ page }) => {
 })
 
 /**
+ * The pencil of a row opens the name, without a double click.
+ */
+test('the pencil of a room opens its name', async ({ page }) => {
+  test.setTimeout(120_000)
+  await seedLayout(page, roomsLayout)
+  await page.goto('/?map=blank-flat')
+  await waitForLevel(page)
+
+  const row = page.locator('[data-widget-kind="room-inspector"] li.room').first()
+
+  await row.locator('.edit').click()
+
+  const field = row.locator('.rename')
+
+  await expect(field).toBeVisible()
+  await expect(field).toBeFocused()
+
+  await field.fill('Hall')
+  await field.press('Enter')
+
+  await expect(row).toContainText('Hall')
+})
+
+/**
  * `Delete` takes the picked rooms out while the list of the rooms has the keyboard, and the undo puts them back with
  * their portals.
  *

@@ -150,7 +150,7 @@ test('the editor preset carries the group inspector under the plan', async ({ pa
     return { top: box.top, width: box.width }
   })
 
-  expect(groups.width).toBe(420)
+  expect(groups.width).toBe(360)
   expect(groups.top).toBeGreaterThan(plan)
   await expect(groupInspector(page).locator('.selection')).toHaveText('No faces are selected')
 })
@@ -286,6 +286,34 @@ test('the name of a group stays in the browser', async ({ page }) => {
   await afterField.press('Enter')
 
   await expect(after).toContainText('group 1')
+})
+
+/**
+ * The pencil of a row opens the name, without a double click.
+ */
+test('the pencil of a group opens its name', async ({ page }) => {
+  await seedLayout(page, groupsLayout())
+  await page.goto('/?map=blank-flat')
+  await waitForLevel(page)
+  await waitForLayoutSettled(page)
+
+  await pickFirstRoom(page)
+  await groupTheSelection(page)
+
+  const row = groupInspector(page).locator('li.group').first()
+
+  await row.locator('.edit').click()
+
+  const field = row.locator('.rename')
+
+  await expect(field).toBeVisible()
+  await expect(field).toBeFocused()
+  await expect(field).toHaveValue('group 1')
+
+  await field.fill('Floor')
+  await field.press('Enter')
+
+  await expect(row).toContainText('Floor')
 })
 
 /**

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Plus, Trash2 } from 'lucide-vue-next'
+import { Pencil, Plus, Trash2 } from 'lucide-vue-next'
 import { computed, nextTick, shallowRef, useTemplateRef } from 'vue'
 import {
   createFaceGroupFromSelection,
@@ -243,6 +243,16 @@ function removeGroup(section: FaceGroupSection, row: FaceGroupRow): void {
           <span v-else class="name" :title="row.label">{{ row.label }}</span>
           <span class="count">{{ faceCountLabelOf(row.faceCount) }}</span>
           <button
+            class="edit"
+            type="button"
+            :aria-label="`Rename ${row.label}`"
+            :title="`Rename ${row.label}`"
+            @click.stop="startRename(section, row)"
+            @dblclick.stop
+          >
+            <Pencil :size="13" />
+          </button>
+          <button
             class="trash"
             type="button"
             :aria-label="`Delete ${row.label}`"
@@ -399,6 +409,29 @@ function removeGroup(section: FaceGroupSection, row: FaceGroupRow): void {
   color: $text-subtle;
   font-size: 12px;
   white-space: nowrap;
+}
+
+// the pencil of a row: a rename without the double click, quiet until the row is under the pointer
+.edit {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  color: $text-subtle;
+  background: none;
+  border: 0;
+  border-radius: 3px;
+  opacity: 0.6;
+  cursor: pointer;
+
+  &:hover {
+    color: $text;
+    background: $surface-panel;
+    opacity: 1;
+  }
 }
 
 // the trash of a row: quiet until the row is under the pointer, then the colour of a delete

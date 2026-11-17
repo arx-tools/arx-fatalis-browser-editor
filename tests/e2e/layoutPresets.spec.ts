@@ -9,11 +9,11 @@ import { editorUrl, waitForLayoutSettled } from './support/editor.ts'
  * the widget sits in and the height on the vertical one. These tests are the acceptance of the numbers (2026-11-01):
  * the viewer comes with the keys on the left at 350 wide and the whole height, the plan at 340 x 403, the jump at
  * 340 x 70 and the render performance readout at 340 wide (2026-11-15, the owner rearranged the viewer: the keys were on
- * the right before), the editor with the plan at 420 x 350, the group inspector under it, the jump at 200 x 50, the
+ * the right before), the editor with the plan at 360 x 260, the group inspector under it, the jump at 200 x 50, the
  * statistics at 350 x 200, the
  * inspector at 350 x 180 and the undo and redo row at 350 x 60
  * (2026-11-09), and the painter (2026-11-04) with the polygon inspector at 360 x 185 and the uv mapper at 400 x 430;
- * the keys left the painter (2026-11-16), and the selection inspector takes their place. The rooms preset came with the round (2026-11-13): the statistics at 350 x 203 and the
+ * the keys left the painter (2026-11-16), and the selection inspector takes their place. The rooms preset came with the round (2026-11-13): the statistics at 360 x 200 and the
  * top view at 350 x 260 (the room mapper went with its content into the room inspector, 2026-11-15). The widgets the owner did not
  * size stay free, and the header has to keep the name of the preset after the locks are applied — a layout that comes
  * back differently from the preset would show up as `Blank` — the name now says which layout is active, and a tweak
@@ -142,9 +142,9 @@ test('the editor preset comes with the four sizes the owner measured', async ({ 
   const undo = await boxOf(page, 'undo-redo')
   const selection = await boxOf(page, 'selection-inspector')
 
-  expect(plan.width).toBe(420)
-  expect(plan.height).toBe(350)
-  expect(groups.width).toBe(420)
+  expect(plan.width).toBe(360)
+  expect(plan.height).toBe(260)
+  expect(groups.width).toBe(360)
   expect(groups.top).toBe(plan.top + plan.height + 4)
   expect(jump.width).toBe(200)
   expect(jump.height).toBe(50)
@@ -182,7 +182,7 @@ test('the editor preset comes with the four sizes the owner measured', async ({ 
   const selectionAfter = await boxOf(page, 'selection-inspector')
 
   expect(await presetName(page)).toBe('Editor')
-  expect(planAfter.height).toBe(350)
+  expect(planAfter.height).toBe(260)
   expect(groupsAfter.height).toBeGreaterThan(groups.height)
   expect(statisticsAfter.height).toBe(200)
   expect(undoAfter.height).toBe(60)
@@ -217,14 +217,14 @@ test('the rooms preset comes with the sizes the owner measured', async ({ page }
   const inspector = await boxOf(page, 'room-inspector')
   const view = await boxOf(page, '3d-view')
 
-  expect(statistics.width).toBe(350)
-  expect(statistics.height).toBe(203)
+  expect(statistics.width).toBe(360)
+  expect(statistics.height).toBe(200)
   expect(top.width).toBe(350)
   expect(top.height).toBe(260)
   expect(undo.width).toBe(350)
   expect(undo.height).toBe(60)
 
-  expect(await page.locator('[data-widget-kind="map-statistics"]').getAttribute('data-locked-height')).toBe('203')
+  expect(await page.locator('[data-widget-kind="map-statistics"]').getAttribute('data-locked-height')).toBe('200')
   expect(await page.locator('[data-widget-kind="top-view"]').getAttribute('data-locked-height')).toBe('260')
   expect(await page.locator('[data-widget-kind="undo-redo"]').getAttribute('data-locked-height')).toBe('60')
   expect(await page.locator('[data-widget-kind="room-inspector"]').getAttribute('data-locked-height')).toBeNull()

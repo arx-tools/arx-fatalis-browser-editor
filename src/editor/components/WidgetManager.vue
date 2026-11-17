@@ -194,7 +194,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="root" class="WidgetManager">
-    <span class="label">Widgets</span>
+    <span class="label">Layout</span>
     <button
       class="lock"
       type="button"

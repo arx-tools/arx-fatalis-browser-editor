@@ -184,6 +184,25 @@ export class LayoutEditor {
   }
 
   /**
+   * Mounts the overlays again, so a plate reads the locks that were written on its widget after the mount.
+   *
+   * @remarks
+   * A preset builds its widgets, decorates them, and only then writes the locks of the tree on their nodes: the plates
+   * mounted in between would say "free" for every one of them (the preset switched in the edit mode). The labels and the
+   * size badges are read when an overlay mounts, so the overlay of each widget is put back once the locks are there.
+   */
+  refreshOverlays(): void {
+    if (!this.unlocked) {
+      return
+    }
+
+    for (const widget of this.widgets) {
+      this.detachOverlay(widget)
+      this.attachOverlay(widget)
+    }
+  }
+
+  /**
    * Unmounts every overlay, so a hot reload does not leave live Vue apps behind.
    */
   dispose(): void {

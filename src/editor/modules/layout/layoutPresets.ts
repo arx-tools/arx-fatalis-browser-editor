@@ -83,9 +83,9 @@ function fixed(px: number): ChildSize {
  * camera above it, and the numbers on the right.
  *
  * @remarks
- * The left column is locked to 420 wide, and its first view (the plan) to 350 high: the group inspector takes the rest
- * under it (2026-11-16, the owner: the left and front elevations made room for the groups, and the groups need 420 of
- * width). The middle column holds the
+ * The left column is locked to 360 wide, and its first view (the plan) to 260 high: the group inspector takes the rest
+ * under it (2026-11-16, the owner: the left and front elevations made room for the groups; the plan is 360 x 260 since
+ * 2026-11-17). The middle column holds the
  * thin row above the walkable view, with the jump of the row locked to 200 wide
  * and the row to 50 high, so the camera form takes the rest of the row. The right column is locked to 350 wide: the
  * statistics to 200, the polygon inspector to 180 and the undo and redo row to 60 high, and the selection inspector
@@ -98,12 +98,12 @@ function fixed(px: number): ChildSize {
 export const editorLayout: LayoutNode = {
   type: 'split',
   orientation: 'horizontal',
-  sizes: [fixed(420), auto(1), fixed(350)],
+  sizes: [fixed(360), auto(1), fixed(350)],
   children: [
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: [fixed(350), auto(1)],
+      sizes: [fixed(260), auto(1)],
       children: [
         { type: 'widget', kind: WIDGET_KINDS.topView },
         { type: 'widget', kind: WIDGET_KINDS.groupInspector },
@@ -276,7 +276,7 @@ export const painterLayout: LayoutNode = {
  * The layout of the room work: the statistics, the walkable view and the rooms.
  *
  * @remarks
- * The owner measured the layout of the round (2026-11-13): the statistics at **350 x 203** and the selection inspector
+ * The owner measured the layout of the round (2026-11-13): the statistics at **360 x 200** and the selection inspector
  * under it on the left, the walkable view in the middle, and the top view at **350 x 260** on the right. The undo and
  * redo row takes its **60** there (2026-11-17, the owner: the steps of the work under the plan), and the room inspector
  * takes what the two locks leave. The walkable view's own readout carries the camera (the camera controls widget is not
@@ -289,12 +289,12 @@ export const painterLayout: LayoutNode = {
 export const roomsLayout: LayoutNode = {
   type: 'split',
   orientation: 'horizontal',
-  sizes: [fixed(350), auto(1), fixed(350)],
+  sizes: [fixed(360), auto(1), fixed(350)],
   children: [
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: [fixed(203), auto(1)],
+      sizes: [fixed(200), auto(1)],
       children: [
         { type: 'widget', kind: WIDGET_KINDS.mapStatistics },
         { type: 'widget', kind: WIDGET_KINDS.selectionInspector },

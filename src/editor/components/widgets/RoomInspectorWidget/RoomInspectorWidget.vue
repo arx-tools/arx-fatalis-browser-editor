@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Check, Eye, EyeOff, Search, Trash2, X } from 'lucide-vue-next'
+import { Check, Eye, EyeOff, Pencil, Search, Trash2, X } from 'lucide-vue-next'
 import { computed, nextTick, shallowRef, useTemplateRef, watch } from 'vue'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
@@ -621,6 +621,17 @@ function removeRowRoom(room: number): void {
         <span class="count">{{ faceCountLabelOf(row.faceCount) }}</span>
         <button
           v-if="row.room !== NO_ROOM"
+          class="edit"
+          type="button"
+          :aria-label="`Rename ${roomLabelOf(row.room)}`"
+          :title="`Rename ${roomLabelOf(row.room)}`"
+          @click.stop="startRename(row.room)"
+          @dblclick.stop
+        >
+          <Pencil :size="13" />
+        </button>
+        <button
+          v-if="row.room !== NO_ROOM"
           class="trash"
           type="button"
           :aria-label="`Delete ${roomLabelOf(row.room)}`"
@@ -886,6 +897,29 @@ function removeRowRoom(room: number): void {
   color: $text-subtle;
   font-size: 12px;
   white-space: nowrap;
+}
+
+// the pencil of a row: a rename without the double click, quiet until the row is under the pointer
+.edit {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  color: $text-subtle;
+  background: none;
+  border: 0;
+  border-radius: 3px;
+  opacity: 0.6;
+  cursor: pointer;
+
+  &:hover {
+    color: $text;
+    background: $surface-panel;
+    opacity: 1;
+  }
 }
 
 // the trash of a row: quiet until the row is under the pointer, then the colour of a delete

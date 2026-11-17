@@ -55,6 +55,10 @@ export type LayoutApplyContext = {
    */
   readonly isDragActive: () => boolean
   /**
+   * Mounts the overlays of the edit mode again, so their labels read the locks a preset has just written.
+   */
+  readonly refreshOverlays: () => void
+  /**
    * Hands the live tree of the dock to the shell (the persisted layout, the preset name).
    */
   readonly syncLayout: () => void
@@ -97,7 +101,7 @@ export type LayoutApply = {
  * @returns The operations the shell binds.
  */
 export function createLayoutApply(context: LayoutApplyContext): LayoutApply {
-  const { dock, host, definitions, decorate, undecorate, isDragActive, syncLayout } = context
+  const { dock, host, definitions, decorate, undecorate, isDragActive, refreshOverlays, syncLayout } = context
 
   /**
    * The tree the last pass of the sizes applied, or `null` before the first one.
@@ -472,6 +476,10 @@ export function createLayoutApply(context: LayoutApplyContext): LayoutApply {
     }
 
     applyLocks(node)
+
+    // the plates were mounted before the locks were written: the one of a preset switched in the edit mode would say
+    // "free" for every widget without this
+    refreshOverlays()
 
     // the echo of this rebuild is not a change of the user either: without this the locks of the tree would be
     // overwritten by the sizes of the preset before the first pass of the sizes has applied them

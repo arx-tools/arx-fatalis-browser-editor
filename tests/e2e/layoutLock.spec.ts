@@ -257,7 +257,7 @@ test('a locked widget shows its size on the plate, and an unlocked one shows non
 
   // the preset locks five widgets, and every one of them carries the size the owner measured
   await expect(page.locator('.WidgetOverlay .size')).toHaveCount(5)
-  expect(await badgeOf(page, 'top-view')).toBe('420 × 350')
+  expect(await badgeOf(page, 'top-view')).toBe('360 × 260')
   expect(await badgeOf(page, 'jump-to-location')).toBe('200 × 50')
   expect(await badgeOf(page, 'map-statistics')).toBe('350 × 200')
   expect(await badgeOf(page, 'polygon-inspector')).toBe('350 × 180')
@@ -281,6 +281,33 @@ test('a locked widget shows its size on the plate, and an unlocked one shows non
 
   expect(await badgeOf(page, 'selection-inspector')).toBe(`${String(width)} × ${String(height)}`)
   await expect(page.locator('.WidgetOverlay .size')).toHaveCount(5)
+})
+
+test('a preset switched in the edit mode comes with the locks on the plates', async ({ page }) => {
+  await page.setViewportSize({ width: 1631, height: 850 })
+  // the editor preset has the statistics the wait for the level reads; the switch below is the point of the test
+  await seedLayout(page, editorLayout)
+  await page.goto(editorUrl())
+  await waitForLevel(page)
+
+  await page.locator('header button[aria-label="Unlock the layout"]').click()
+
+  // the preset is chosen while the edit mode is on: its widgets are built now, and their plates are mounted before the
+  // locks of the tree are written on them
+  await page.locator('header button[aria-label="Presets"]').click()
+  await page.locator('.preset-menu .preset-row', { hasText: 'Rooms' }).click()
+
+  await expect
+    .poll(async () => {
+      return await page.locator('[data-widget-kind="top-view"] .WidgetOverlay').count()
+    })
+    .toBe(1)
+
+  // the three locks of the rooms preset are on the plates: the plan, the statistics and the steps
+  await expect(page.locator('.WidgetOverlay .size')).toHaveCount(3)
+  expect(await badgeOf(page, 'top-view')).toBe('350 × 260')
+  expect(await badgeOf(page, 'map-statistics')).toBe('360 × 200')
+  expect(await badgeOf(page, 'undo-redo')).toBe('350 × 60')
 })
 
 test('a smaller window squeezes the widgets, it does not cut them', async ({ page }) => {
@@ -325,8 +352,9 @@ test('a smaller window squeezes the widgets, it does not cut them', async ({ pag
   expect(await heightOf(page, 'top-view')).toBe(locked)
   expect(await columnHeight()).toBeLessThanOrEqual(await dockHeight())
 
-  // and when even the floors of the neighbours do not fit, the lock shrinks too instead of pushing the column out
-  await page.setViewportSize({ width: 1280, height: 400 })
+  // and when even the floors of the neighbours do not fit, the lock shrinks too instead of pushing the column out: with
+  // the 260 high plan the 400 high window still fits, so the window goes lower than the plan
+  await page.setViewportSize({ width: 1280, height: 300 })
   await page.waitForTimeout(700)
 
   expect(await heightOf(page, 'top-view')).toBeLessThan(locked)

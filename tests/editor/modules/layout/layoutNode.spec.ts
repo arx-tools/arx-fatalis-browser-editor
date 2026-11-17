@@ -124,7 +124,7 @@ void describe('the editor preset', () => {
   })
 
   void it('locks the widgets to the sizes the owner measured off the plate', () => {
-    assert.deepEqual(lockOfKind(editorLayout, 'top-view'), { width: 420, height: 350 })
+    assert.deepEqual(lockOfKind(editorLayout, 'top-view'), { width: 360, height: 260 })
     assert.deepEqual(lockOfKind(editorLayout, 'jump-to-location'), { width: 200, height: 50 })
     assert.deepEqual(lockOfKind(editorLayout, 'map-statistics'), { width: 350, height: 200 })
     assert.deepEqual(lockOfKind(editorLayout, 'polygon-inspector'), { width: 350, height: 180 })

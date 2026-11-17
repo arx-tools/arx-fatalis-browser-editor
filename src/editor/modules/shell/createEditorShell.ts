@@ -346,6 +346,9 @@ export function createEditorShell(
     isDragActive: () => {
       return borderDrag.watcher?.isActive() === true
     },
+    refreshOverlays: () => {
+      editor.refreshOverlays()
+    },
     syncLayout,
   })
 

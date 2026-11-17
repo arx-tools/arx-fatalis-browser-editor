@@ -52,6 +52,9 @@ function addPolygonsAtTheEndOf(level: MutableLevel, polygons: readonly ArxPolygo
  * the undo takes the tunnel out, puts the wall back at its indices, and drops the container and the colours. The
  * polygons of the tunnel are the ones of the record, so the redo puts the same objects back.
  *
+ * **Parked with the tunnel POC (2026-11-17):** the editor has no UI for it any more; the CSG-based tunnel digging will
+ * replace it or reuse it.
+ *
  * @param record The record of the step.
  * @param level The level the step changes.
  *

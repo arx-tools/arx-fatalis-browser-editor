@@ -868,6 +868,9 @@ export type BuildTunnelOptions = {
  * tunnel are the ones the builder made; the block of colours is copied, so the record does not share the palette of the
  * level.
  *
+ * **Parked with the tunnel POC (2026-11-17):** the editor has no UI for it any more; the CSG-based tunnel digging will
+ * replace it or reuse it.
+ *
  * @param options The faces of the wall, the polygons of the tunnel and what they need.
  *
  * @returns The record of the step.

@@ -1,3 +1,12 @@
+/**
+ * The tunnel of the POC (2026-11-16): the wall of an opening, taken out and joined by a sweep of quads.
+ *
+ * @remarks
+ * **Parked (2026-11-17, the owner):** this is a proof of concept, and the editor has no button for it any more (the
+ * Selection Inspector lost the Build tunnel button). The CSG-based tunnel digging will replace it; until then it stays
+ * here for the parts it may reuse (the boundary loop, the fitted quad, the plan, the history step). Remove it or take
+ * what it needs when that work starts.
+ */
 import type { ArxColor, ArxPolygon, ArxPortal, ArxVector3 } from 'arx-convert/types'
 import { isQuad } from 'arx-convert/utils'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'

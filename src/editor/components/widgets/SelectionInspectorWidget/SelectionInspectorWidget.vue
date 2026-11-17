@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { ChevronDown } from 'lucide-vue-next'
-import { computed, reactive, ref, shallowRef, watch } from 'vue'
+import { computed, reactive, shallowRef, watch } from 'vue'
 import { formatCount } from '../../../modules/format.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
-import { buildTunnelOfSelection } from '../../../modules/level/edit/tunnel.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import {
   entryOfName,
@@ -76,27 +75,6 @@ const summary = shallowRef(summaryOfLevel())
  * face rows start closed: a room selection can hold thousands of indices, and the list is opt-in for the author.
  */
 const openRows = reactive(new Set<string>(['Textures']))
-
-/**
- * What the tunnel button says when the selection is not a wall of two holes.
- */
-const tunnelMessage = ref('')
-
-/**
- * Builds the tunnel of the selected wall, or says what the selection needs.
- *
- * @remarks
- * The button is the first half of the suggestion of the tunnel: the author selects the wall of the opening (the two
- * groups of faces of the hole), presses the button, and the step does the work. A selection that is not a pair of holes
- * gets one line about what to select instead of a half-built tunnel.
- */
-function buildTunnel(): void {
-  tunnelMessage.value = ''
-
-  if (!buildTunnelOfSelection()) {
-    tunnelMessage.value = 'Select the wall of an opening: two groups of faces, each one around a hole.'
-  }
-}
 
 /**
  * The faces of the selection, by their index in the level, in ascending order.
@@ -176,7 +154,6 @@ watch(
   ],
   async () => {
     summary.value = summaryOfLevel()
-    tunnelMessage.value = ''
     await loadSelectionThumbnails()
   },
   { immediate: true },
@@ -249,19 +226,6 @@ function thumbOf(name: string): string | undefined {
       </dl>
 
       <p v-if="summary.count === 0" class="empty">Nothing is selected.</p>
-    </div>
-
-    <div class="actions">
-      <button
-        type="button"
-        class="build-tunnel"
-        :disabled="summary.count === 0"
-        title="Take out the selected wall and connect the two holes it leaves."
-        @click="buildTunnel"
-      >
-        Build tunnel
-      </button>
-      <p v-if="tunnelMessage !== ''" class="hint">{{ tunnelMessage }}</p>
     </div>
   </div>
 </template>
@@ -422,36 +386,5 @@ dd {
   margin: 10px 0 0;
   color: $text-dim;
   font-size: 11px;
-}
-// the action of the widget: the tunnel button stays under the rows, so a long selection does not push it away
-.actions {
-  flex: 0 0 auto;
-  padding: 4px 6px 0;
-
-  .build-tunnel {
-    padding: 3px 8px;
-    border: 1px solid $border-dark;
-    border-radius: 4px;
-    background: $surface-panel;
-    color: $text;
-    font: inherit;
-    cursor: pointer;
-
-    &:hover:not(:disabled) {
-      border-color: $border;
-      color: $text-strong;
-    }
-
-    &:disabled {
-      cursor: default;
-      opacity: 0.4;
-    }
-  }
-
-  .hint {
-    margin: 4px 0 0;
-    color: $text-muted;
-    font-size: 11px;
-  }
 }
 </style>

@@ -1,3 +1,10 @@
+/**
+ * The geometry of the POC tunnel (2026-11-16): the rims of two holes, joined by a sweep of quads.
+ *
+ * @remarks
+ * **Parked (2026-11-17, the owner):** the editor has no UI for it any more; the CSG-based tunnel digging will replace it
+ * or reuse the boundary loops and the quad fitting. See `modules/level/edit/tunnel.ts` for the parked editor side.
+ */
 import { ArxPolygonFlags, type ArxPolygon, type ArxVector3 } from 'arx-convert/types'
 import { isQuad } from 'arx-convert/utils'
 import { MathUtils, Vector3 } from 'three'

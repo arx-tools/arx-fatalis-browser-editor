@@ -1,6 +1,15 @@
 import type { ArxPolygon } from 'arx-convert/types'
 import { computed, shallowRef, watch, type ComputedRef, type ShallowRef } from 'vue'
 import type { ArxMap } from '../../../generator/ArxMap.ts'
+import { onMetadataStep, runMetadataStep, type HistoryCommand } from '../history/history.ts'
+import {
+  createCreateFaceGroupRecord,
+  createDeleteFaceGroupsRecord,
+  createRenameFaceGroupRecord,
+  labelOf,
+  type FaceGroupReference,
+  type HistoryRecord,
+} from '../history/records.ts'
 import { onKeyboardAction } from '../keyboard/keyboard.ts'
 import { levelRevision } from '../level/edit/editing.ts'
 import { levelStore } from '../level/edit/levelStore.ts'
@@ -12,7 +21,13 @@ import {
   mapGroups as mapEntries,
 } from '../level/source/maps.ts'
 import { selectionStore } from '../selection/selectionStore.ts'
-import { readStoredGroups, writeStoredGroups, type StoredGroups, type StoredMapGroups } from './groupStorage.ts'
+import {
+  readStoredGroups,
+  writeStoredGroups,
+  type StoredFaceGroup,
+  type StoredGroups,
+  type StoredMapGroups,
+} from './groupStorage.ts'
 
 /**
  * A group of faces of the current level.
@@ -266,6 +281,43 @@ function indexMapOf(map: ArxMap): Map<ArxPolygon, number> {
 }
 
 /**
+ * The groups of the open level, with the faces resolved to the indices of the level.
+ *
+ * @remarks
+ * The export writes this into the archive, and the save of the level uses the same shape: the faces of a group are
+ * polygons in memory and indices on the disk.
+ *
+ * @returns The groups, in the order they were made; an empty list when no level is open.
+ */
+export function faceGroupsJsonOf(): readonly StoredFaceGroup[] {
+  if (activeMap === undefined) {
+    return []
+  }
+
+  const indexOf = indexMapOf(activeMap)
+
+  return activeFaceGroups.value.map((group) => {
+    const faces: number[] = []
+
+    for (const member of group.members) {
+      const index = indexOf.get(member)
+
+      if (index !== undefined) {
+        faces.push(index)
+      }
+    }
+
+    return {
+      id: group.id,
+      name: group.name,
+      faces: faces.toSorted((one, other) => {
+        return one - other
+      }),
+    }
+  })
+}
+
+/**
  * The indices of the faces of a group of the open level.
  *
  * @param groupId The group whose faces the selection wants.
@@ -350,6 +402,157 @@ function saveOpenLevel(): void {
 }
 
 /**
+ * Puts groups into the open level, and writes the level down.
+ *
+ * @remarks
+ * The step of a group calls this on its two halves: a group that is there already is not added twice (a redo of a create,
+ * or a revert that meets the group it would bring back).
+ *
+ * @param groups The groups to add.
+ */
+function addGroups(groups: readonly FaceGroup[]): void {
+  const existing = new Set(
+    activeFaceGroups.value.map((group) => {
+      return group.id
+    }),
+  )
+  const missing = groups.filter((group) => {
+    return !existing.has(group.id)
+  })
+
+  if (missing.length === 0) {
+    return
+  }
+
+  activeFaceGroups.value = [...activeFaceGroups.value, ...missing]
+  saveOpenLevel()
+}
+
+/**
+ * Puts groups into the open level from their stored shape, resolving the faces against the level.
+ *
+ * @remarks
+ * The record of a metadata step keeps the faces as the indices of its moment; the step resolves them when it runs, which
+ * is the map the step belongs to (the undo takes the steps after it back first, so the indices are the ones of its
+ * moment).
+ *
+ * @param references The groups, with the indices of their faces.
+ */
+function addGroupsFromReference(references: readonly FaceGroupReference[]): void {
+  const map = levelStore.map.value
+
+  if (map === undefined) {
+    return
+  }
+
+  const groups: FaceGroup[] = []
+
+  for (const reference of references) {
+    const members = new Set<ArxPolygon>()
+
+    for (const index of reference.faces) {
+      const polygon = map.polygons[index]
+
+      if (polygon !== undefined) {
+        members.add(polygon)
+      }
+    }
+
+    groups.push({ id: reference.id, name: reference.name, members })
+  }
+
+  addGroups(groups)
+}
+
+/**
+ * Takes groups out of the open level, and writes the level down.
+ *
+ * @param ids The groups to take out, by the id of the group.
+ */
+function removeGroups(ids: ReadonlySet<number>): void {
+  activeFaceGroups.value = activeFaceGroups.value.filter((group) => {
+    return !ids.has(group.id)
+  })
+  saveOpenLevel()
+}
+
+/**
+ * Names a group of the open level, and writes the level down.
+ *
+ * @param groupId The group to name.
+ * @param name The name the author typed, trimmed.
+ */
+function setGroupName(groupId: number, name: string): void {
+  activeFaceGroups.value = activeFaceGroups.value.map((group) => {
+    if (group.id !== groupId) {
+      return group
+    }
+
+    return { ...group, name }
+  })
+  saveOpenLevel()
+}
+
+/**
+ * Builds the step of a stored group record: a new group, a rename or a delete.
+ *
+ * @param record The stored record.
+ *
+ * @returns The step, or `undefined` when the record is not a group step.
+ */
+export function faceGroupCommandOf(record: HistoryRecord): HistoryCommand | undefined {
+  if (record.kind === 'createFaceGroup') {
+    return {
+      label: labelOf(record),
+      record,
+      metadata: true,
+      apply: (): void => {
+        addGroupsFromReference([record.group])
+      },
+      revert: (): void => {
+        removeGroups(new Set([record.group.id]))
+      },
+    }
+  }
+
+  if (record.kind === 'renameFaceGroup') {
+    return {
+      label: labelOf(record),
+      record,
+      metadata: true,
+      apply: (): void => {
+        setGroupName(record.groupId, record.to)
+      },
+      revert: (): void => {
+        setGroupName(record.groupId, record.from)
+      },
+    }
+  }
+
+  if (record.kind === 'deleteFaceGroups') {
+    return {
+      label: labelOf(record),
+      record,
+      metadata: true,
+      apply: (): void => {
+        removeGroups(
+          new Set(
+            record.groups.map((group) => {
+              return group.id
+            }),
+          ),
+        )
+      },
+      revert: (): void => {
+        addGroupsFromReference(record.groups)
+      },
+    }
+  }
+
+  return undefined
+}
+
+/**
  * Makes a group of the faces that are selected now.
  *
  * @remarks
@@ -383,10 +586,15 @@ export function createFaceGroupFromSelection(): number | undefined {
   const id = nextGroupId
   nextGroupId = nextGroupId + 1
 
-  const group: FaceGroup = { id, name: '', members }
+  const faces = [...selectionStore.polygons.value].toSorted((one, other) => {
+    return one - other
+  })
+  const record = createCreateFaceGroupRecord({ id, name: '', faces })
+  const command = faceGroupCommandOf(record)
 
-  activeFaceGroups.value = [...activeFaceGroups.value, group]
-  saveOpenLevel()
+  if (command !== undefined) {
+    runMetadataStep(command)
+  }
 
   return id
 }
@@ -402,14 +610,20 @@ export function renameFaceGroup(mapId: string, groupId: number, name: string): v
   const trimmed = name.trim()
 
   if (mapId === activeMapId && isLoaded) {
-    activeFaceGroups.value = activeFaceGroups.value.map((group) => {
-      if (group.id !== groupId) {
-        return group
-      }
-
-      return { ...group, name: trimmed }
+    const group = activeFaceGroups.value.find((candidate) => {
+      return candidate.id === groupId
     })
-    saveOpenLevel()
+
+    if (group === undefined || group.name === trimmed) {
+      return
+    }
+
+    const record = createRenameFaceGroupRecord(groupId, group.name, trimmed)
+    const command = faceGroupCommandOf(record)
+
+    if (command !== undefined) {
+      runMetadataStep(command)
+    }
 
     return
   }
@@ -435,8 +649,9 @@ export function renameFaceGroup(mapId: string, groupId: number, name: string): v
  * Takes groups out of a level.
  *
  * @remarks
- * Only the groups go: the faces they held stay in the level (and in the other groups they are in), and a group that is
- * deleted is not a step of the history. The groups of a level that is not open are dropped from the storage alone.
+ * Only the groups go: the faces they held stay in the level (and in the other groups they are in). The step is metadata,
+ * so the undo brings the same groups back (the faces are the ones the level holds again), and the groups of a level that
+ * is not open are dropped from the storage alone.
  *
  * @param mapId The level the groups live on.
  * @param groupIds The groups to take out.
@@ -449,10 +664,23 @@ export function deleteFaceGroups(mapId: string, groupIds: readonly number[]): vo
   }
 
   if (mapId === activeMapId && isLoaded) {
-    activeFaceGroups.value = activeFaceGroups.value.filter((group) => {
-      return !ids.has(group.id)
+    const removed = activeFaceGroups.value.filter((group) => {
+      return ids.has(group.id)
     })
-    saveOpenLevel()
+
+    if (removed.length === 0) {
+      return
+    }
+
+    const references: FaceGroupReference[] = removed.map((group) => {
+      return { id: group.id, name: group.name, faces: faceIndicesOfGroup(group.id) }
+    })
+    const record = createDeleteFaceGroupsRecord(references)
+    const command = faceGroupCommandOf(record)
+
+    if (command !== undefined) {
+      runMetadataStep(command)
+    }
 
     return
   }
@@ -480,7 +708,9 @@ function loadGroupsOf(id: string, map: ArxMap): void {
   activeMapId = id
   activeMap = map
 
-  const entry = storedGroups.value[id]
+  // the storage is the source of the level that opens (a zip seeds it before the level is whole); the ref is the cache
+  // of the levels of the session, and this level joins it for the sections of the others
+  const entry = readStoredGroups()[id]
 
   if (entry === undefined) {
     activeFaceGroups.value = []
@@ -490,6 +720,7 @@ function loadGroupsOf(id: string, map: ArxMap): void {
     return
   }
 
+  storedGroups.value = { ...storedGroups.value, [id]: entry }
   nextGroupId = entry.nextId
 
   const groups: FaceGroup[] = entry.groups.map((group) => {
@@ -519,6 +750,7 @@ function loadGroupsOf(id: string, map: ArxMap): void {
  * a group write the storage, so a reload and a visit to another level find the same groups.
  */
 export function startFaceGroups(): void {
+  onMetadataStep(faceGroupCommandOf)
   storedGroups.value = readStoredGroups()
   refreshPresentPolygons()
 

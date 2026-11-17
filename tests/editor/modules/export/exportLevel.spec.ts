@@ -5,6 +5,7 @@ import type { ArxColor, ArxLLF, ArxPolygon } from 'arx-convert/types'
 import JSZip from 'jszip'
 import { createBlankLevelFiles, FLAT_PRESET } from '../../../../src/editor/modules/level/blankLevel.ts'
 import { syncGeneratedPortals } from '../../../../src/editor/modules/level/edit/generatedPortals.ts'
+import { EDITOR_GROUPS_PATH, EDITOR_ROOMS_PATH } from '../../../../src/editor/modules/editorFiles.ts'
 import { SETTINGS_PATH, SOURCE_FOLDER } from '../../../../src/editor/modules/level/source/editorSettings.ts'
 import type { StoredPose } from '../../../../src/editor/modules/level/source/maps/mapPoses.ts'
 import {
@@ -493,6 +494,8 @@ void describe('exportLevelZip', () => {
         levelFilePath(level, 'fts'),
         levelFilePath(level, 'llf'),
         SETTINGS_PATH,
+        EDITOR_ROOMS_PATH,
+        EDITOR_GROUPS_PATH,
         'manifest.json',
       ].toSorted(),
     )
@@ -559,6 +562,8 @@ void describe('exportLevelZip', () => {
       levelFilePath(13, 'dlf'),
       levelFilePath(13, 'llf'),
       SETTINGS_PATH,
+      EDITOR_ROOMS_PATH,
+      EDITOR_GROUPS_PATH,
       sourcePath('fts'),
       sourcePath('dlf'),
       sourcePath('llf'),
@@ -593,6 +598,19 @@ void describe('exportLevelZip', () => {
     assert.equal(settings.history, undefined)
   })
 
+  void it('writes the names of the rooms and the groups into the editor folder', async () => {
+    const { data } = await exportLevelZip(flatMap(), undefined, {
+      roomNames: { '1': 'The yard' },
+      groups: [{ id: 1, name: 'the floor', faces: [0, 1] }],
+    })
+    const archive = await JSZip.loadAsync(data)
+    const rooms = JSON.parse((await archive.file(EDITOR_ROOMS_PATH)?.async('string')) ?? '{}') as unknown
+    const groups = JSON.parse((await archive.file(EDITOR_GROUPS_PATH)?.async('string')) ?? '{}') as unknown
+
+    assert.deepEqual(rooms, { version: 1, roomNames: { '1': 'The yard' } })
+    assert.deepEqual(groups, { version: 1, groups: [{ id: 1, name: 'the floor', faces: [0, 1] }] })
+  })
+
   void it('writes the level under the index and the seed of the dialog', async () => {
     const map = flatMap()
     const { data } = await exportLevelZip(map, undefined, {
@@ -606,7 +624,7 @@ void describe('exportLevelZip', () => {
     // the manifest says what the level is made with, and the three files are under the index of the dialog
     const manifest = JSON.parse(raw) as Record<string, unknown>
 
-    assert.deepEqual(manifest.files, [...filesOf(13), SETTINGS_PATH])
+    assert.deepEqual(manifest.files, [...filesOf(13), SETTINGS_PATH, EDITOR_ROOMS_PATH, EDITOR_GROUPS_PATH])
     assert.equal(manifest.seed, 590_085_197)
 
     // one signing key, the editor's: two of them would say the same thing twice

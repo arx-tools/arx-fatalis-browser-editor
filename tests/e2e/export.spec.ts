@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test } from '@playwright/test'
 import JSZip from 'jszip'
-import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
+import { editorLayout, roomsLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
 import {
   E2E_LEVEL,
   editorUrl,
@@ -184,4 +184,99 @@ test('a level of a zip opens on the camera pose the export wrote', async ({ page
     .toEqual(['120.00', '-60.00', '430.00', '45.00'])
 
   await expect(page.getByRole('combobox', { name: /The maps the editor can open/u })).toHaveValue('custom:0')
+})
+
+/**
+ * The names of the rooms and the groups of the faces travel in the archive, and come back with it.
+ *
+ * @remarks
+ * Both are the editor's metadata: they go into `editor/rooms.json` and `editor/groups.json`, and a zip that carries them
+ * opens with the names and the groups on the level. The test makes the two on the flat level, exports it, reads the two
+ * files out of the bytes, and opens the archive again.
+ */
+test('the names of the rooms and the groups travel in the zip, and come back with it', async ({ page }) => {
+  await page.setViewportSize({ width: 1631, height: 850 })
+
+  // the room inspector of the rooms preset, and the group inspector through the picker
+  await seedLayout(page, roomsLayout)
+  await page.goto('/?map=blank-flat')
+  await waitForLevel(page)
+
+  await page.locator('button[aria-label="Add a widget"]').click()
+
+  const picker = page.locator('.WidgetPicker [data-picker-kind="group-inspector"]')
+  const pickerBox = await picker.boundingBox()
+  const view = page.locator('[data-widget-kind="3d-view"]').first()
+  const viewBox = await view.boundingBox()
+
+  if (pickerBox === null || viewBox === null) {
+    throw new Error('the picker or the view has no box')
+  }
+
+  const pickerHalfWidth = pickerBox.width / 2
+  const pickerHalfHeight = pickerBox.height / 2
+  const viewHalfWidth = viewBox.width / 2
+  const viewHalfHeight = viewBox.height / 2
+  const pickerX = pickerBox.x + pickerHalfWidth
+  const pickerY = pickerBox.y + pickerHalfHeight
+  const viewX = viewBox.x + viewHalfWidth
+  const viewY = viewBox.y + viewHalfHeight
+
+  await page.mouse.move(pickerX, pickerY)
+  await page.mouse.down()
+  await page.mouse.move(pickerX + 20, pickerY, { steps: 5 })
+  await page.mouse.move(viewX, viewY, { steps: 15 })
+  await page.mouse.up()
+
+  const roomRow = page.locator('[data-widget-kind="room-inspector"] li.room').first()
+
+  await roomRow.click()
+  await page.keyboard.press('ControlOrMeta+g')
+
+  // a name for the room and a name for the group
+  await roomRow.dblclick()
+
+  const roomField = roomRow.locator('.rename')
+
+  await roomField.fill('Hall')
+  await roomField.press('Enter')
+
+  const groupRow = page.locator('[data-widget-kind="group-inspector"] li.group').first()
+
+  await groupRow.dblclick()
+
+  const groupField = groupRow.locator('.rename')
+
+  await groupField.fill('Floor')
+  await groupField.press('Enter')
+
+  // the export, and the two files of the metadata in the archive
+  await page.locator('header button[aria-label="Export the level as a zip"]').click()
+
+  const dialog = page.locator('[role="dialog"][aria-label="Export Map"]')
+
+  await expect(dialog).toBeVisible()
+
+  const [download] = await Promise.all([page.waitForEvent('download'), dialog.locator('.export').click()])
+  const data = await readFile((await download.path()) ?? '')
+  const archive = await JSZip.loadAsync(data)
+  const rooms = JSON.parse((await archive.file('editor/rooms.json')?.async('string')) ?? '{}') as {
+    readonly roomNames?: Readonly<Record<string, string>>
+  }
+  const groups = JSON.parse((await archive.file('editor/groups.json')?.async('string')) ?? '{}') as {
+    readonly groups?: ReadonlyArray<{ readonly name: string }>
+  }
+
+  expect(rooms.roomNames?.['1']).toBe('Hall')
+  expect(groups.groups?.[0]?.name).toBe('Floor')
+
+  // the dialog goes: the header takes the click of the zip
+  await dialog.locator('.close').click()
+
+  // opening the archive again finds the two
+  await openZip(page, 'mod.zip', data)
+  await waitForLevel(page)
+
+  await expect(page.locator('[data-widget-kind="room-inspector"] li.room').first()).toContainText('Hall')
+  await expect(page.locator('[data-widget-kind="group-inspector"] li.group').first()).toContainText('Floor')
 })

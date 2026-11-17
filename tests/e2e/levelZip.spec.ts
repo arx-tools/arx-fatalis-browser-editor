@@ -170,7 +170,7 @@ test('the export of a level that came from a zip keeps the keys of that zip', as
 
   // and the files are the ones of this archive, not the machine paths the base wrote: the level, and the state of the
   // editor beside it, every path relative the way a zip path is
-  expect(manifest.files).toHaveLength(4)
+  expect(manifest.files).toHaveLength(6)
 
   for (const file of manifest.files ?? []) {
     expect(file.startsWith('/')).toBe(false)

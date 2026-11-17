@@ -7,6 +7,7 @@ import type { FaceRoom, FaceTexture } from '../../../../src/generator/ArxMap.ts'
 import type { PolygonInsertion } from '../../../../src/generator/arxMap/removal.ts'
 import type { FaceUv } from '../../../../src/generator/arxMap/uvs.ts'
 import { commandOf } from '../../../../src/editor/modules/history/commands.ts'
+import { roomNameOf, setRoomNamesOf } from '../../../../src/editor/modules/rooms/roomNames.ts'
 import {
   createBuildTunnelRecord,
   createDeleteFacesRecord,
@@ -920,6 +921,7 @@ void describe('createDeleteRoomsRecord', () => {
       faces: [0, 2],
       from: [3, 1],
       portals: [2, 4],
+      names: [],
     })
   })
 
@@ -978,6 +980,31 @@ void describe('commandOf a room delete', () => {
     )
     assert.deepEqual([portals[0]?.room1, portals[0]?.room2], [1, 2])
     assert.deepEqual([portals[1]?.room1, portals[1]?.room2], [2, 3])
+  })
+
+  void it('forgets the names of the rooms, and brings them back on revert', () => {
+    const { level } = fakeLevel(2)
+
+    setRoomNamesOf(
+      'arx:8',
+      new Map([
+        [1, 'The yard'],
+        [2, 'The hall'],
+      ]),
+    )
+
+    const command = commandOf(
+      createDeleteRoomsRecord([{ index: 0, room: 1 }], [], [{ room: 1, name: 'The yard' }]),
+      level,
+    )
+
+    command?.apply()
+    assert.equal(roomNameOf(1), undefined)
+    assert.equal(roomNameOf(2), 'The hall')
+
+    command?.revert()
+    assert.equal(roomNameOf(1), 'The yard')
+    assert.equal(roomNameOf(2), 'The hall')
   })
 
   void it('gives no command when a portal of the record is not in the level', () => {

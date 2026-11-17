@@ -148,6 +148,139 @@ export type DeleteRoomsRecord = {
    * The portals of the rooms, by their index in the level, sorted.
    */
   readonly portals: readonly number[]
+  /**
+   * The names the rooms had before the step.
+   *
+   * @remarks
+   * A name is metadata, but the undo of a room delete has to bring it back with the room: the record carries the names
+   * the step forgets, and the command writes them again on the way back.
+   */
+  readonly names: readonly NamedRoom[]
+}
+
+/**
+ * A room and the name the author gave it.
+ */
+export type NamedRoom = {
+  /**
+   * The id of the room.
+   */
+  readonly room: number
+  /**
+   * The name of the room.
+   */
+  readonly name: string
+}
+
+/**
+ * A group of faces, the way a metadata step writes it down.
+ *
+ * @remarks
+ * The faces are the indices of the level the step was made on. The records of the metadata steps are not replayed on the
+ * level (their store is written down on its own), so the indices are here for the note of the step and a reader, not for
+ * a replay.
+ */
+export type FaceGroupReference = {
+  /**
+   * The id of the group inside its level.
+   */
+  readonly id: number
+  /**
+   * The name the author gave the group; an empty text means the default of the id.
+   */
+  readonly name: string
+  /**
+   * The indices of the faces of the group.
+   */
+  readonly faces: readonly number[]
+}
+
+/**
+ * The step that renames a room.
+ */
+export type SetRoomNameRecord = {
+  /**
+   * The version of the shape of this record, see {@link HISTORY_RECORD_VERSION}.
+   */
+  readonly version: number
+  /**
+   * What the step does, which names its payload.
+   */
+  readonly kind: 'setRoomName'
+  /**
+   * The id of the room.
+   */
+  readonly room: number
+  /**
+   * The name the room had before the step.
+   */
+  readonly from: string
+  /**
+   * The name the room takes.
+   */
+  readonly to: string
+}
+
+/**
+ * The step that makes a group of faces.
+ */
+export type CreateFaceGroupRecord = {
+  /**
+   * The version of the shape of this record, see {@link HISTORY_RECORD_VERSION}.
+   */
+  readonly version: number
+  /**
+   * What the step does, which names its payload.
+   */
+  readonly kind: 'createFaceGroup'
+  /**
+   * The group the step makes.
+   */
+  readonly group: FaceGroupReference
+}
+
+/**
+ * The step that renames a group.
+ */
+export type RenameFaceGroupRecord = {
+  /**
+   * The version of the shape of this record, see {@link HISTORY_RECORD_VERSION}.
+   */
+  readonly version: number
+  /**
+   * What the step does, which names its payload.
+   */
+  readonly kind: 'renameFaceGroup'
+  /**
+   * The id of the group inside its level.
+   */
+  readonly groupId: number
+  /**
+   * The name the group had before the step.
+   */
+  readonly from: string
+  /**
+   * The name the group takes.
+   */
+  readonly to: string
+}
+
+/**
+ * The step that takes groups out of a level.
+ */
+export type DeleteFaceGroupsRecord = {
+  /**
+   * The version of the shape of this record, see {@link HISTORY_RECORD_VERSION}.
+   */
+  readonly version: number
+  /**
+   * What the step does, which names its payload.
+   */
+  readonly kind: 'deleteFaceGroups'
+  /**
+   * The groups the step takes out.
+   */
+  readonly groups: readonly FaceGroupReference[]
 }
 
 /**
@@ -342,10 +475,14 @@ export type BuildTunnelRecord = {
  */
 export type HistoryRecord =
   | BuildTunnelRecord
+  | CreateFaceGroupRecord
+  | DeleteFaceGroupsRecord
   | DeleteFacesRecord
   | DeleteRoomsRecord
+  | RenameFaceGroupRecord
   | RotateFacesRecord
   | ScaleFacesRecord
+  | SetRoomNameRecord
   | SetRoomRecord
   | SetTextureRecord
   | SetUvRecord
@@ -484,10 +621,15 @@ export function createDeleteFacesRecord(faces: Iterable<number>): DeleteFacesRec
  *
  * @param changes The faces the step takes out of their room, with the room they had.
  * @param portals The indices of the portals the step takes out with the rooms.
+ * @param names The rooms that had a name, with the name they had.
  *
  * @returns The record of the step.
  */
-export function createDeleteRoomsRecord(changes: Iterable<FaceRoom>, portals: Iterable<number>): DeleteRoomsRecord {
+export function createDeleteRoomsRecord(
+  changes: Iterable<FaceRoom>,
+  portals: Iterable<number>,
+  names: Iterable<NamedRoom> = [],
+): DeleteRoomsRecord {
   const rooms = new Map<number, number>()
 
   for (const change of changes) {
@@ -511,6 +653,63 @@ export function createDeleteRoomsRecord(changes: Iterable<FaceRoom>, portals: It
     }),
     portals: [...new Set(portals)].toSorted((one, other) => {
       return one - other
+    }),
+    names: [...names].toSorted((one, other) => {
+      return one.room - other.room
+    }),
+  }
+}
+
+/**
+ * Builds the record of a room rename, the way a metadata step writes it down.
+ *
+ * @param room The id of the room.
+ * @param from The name the room had.
+ * @param to The name the room takes.
+ *
+ * @returns The record of the step.
+ */
+export function createSetRoomNameRecord(room: number, from: string, to: string): SetRoomNameRecord {
+  return { version: HISTORY_RECORD_VERSION, kind: 'setRoomName', room, from, to }
+}
+
+/**
+ * Builds the record of a new group, the way a metadata step writes it down.
+ *
+ * @param group The group the step makes, with the faces it held at the moment of the step.
+ *
+ * @returns The record of the step.
+ */
+export function createCreateFaceGroupRecord(group: FaceGroupReference): CreateFaceGroupRecord {
+  return { version: HISTORY_RECORD_VERSION, kind: 'createFaceGroup', group }
+}
+
+/**
+ * Builds the record of a group rename, the way a metadata step writes it down.
+ *
+ * @param groupId The group to rename.
+ * @param from The name the group had.
+ * @param to The name the group takes.
+ *
+ * @returns The record of the step.
+ */
+export function createRenameFaceGroupRecord(groupId: number, from: string, to: string): RenameFaceGroupRecord {
+  return { version: HISTORY_RECORD_VERSION, kind: 'renameFaceGroup', groupId, from, to }
+}
+
+/**
+ * Builds the record of a group delete, the way a metadata step writes it down.
+ *
+ * @param groups The groups the step takes out, with their names and faces.
+ *
+ * @returns The record of the step.
+ */
+export function createDeleteFaceGroupsRecord(groups: Iterable<FaceGroupReference>): DeleteFaceGroupsRecord {
+  return {
+    version: HISTORY_RECORD_VERSION,
+    kind: 'deleteFaceGroups',
+    groups: [...groups].toSorted((one, other) => {
+      return one.id - other.id
     }),
   }
 }
@@ -804,6 +1003,22 @@ export function labelOf(record: HistoryRecord): string {
 
   if (record.kind === 'deleteRooms') {
     return `Delete ${String(new Set(record.from).size)} room(s)`
+  }
+
+  if (record.kind === 'setRoomName') {
+    return `Rename room ${String(record.room)}`
+  }
+
+  if (record.kind === 'createFaceGroup') {
+    return 'Make a group'
+  }
+
+  if (record.kind === 'renameFaceGroup') {
+    return `Rename group ${String(record.groupId)}`
+  }
+
+  if (record.kind === 'deleteFaceGroups') {
+    return `Delete ${String(record.groups.length)} group(s)`
   }
 
   if (record.kind === 'setUv') {

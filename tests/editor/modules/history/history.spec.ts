@@ -127,6 +127,21 @@ void describe('createHistory', () => {
     assert.equal(history.undoStack.value[0]?.label, 'step-5')
   })
 
+  void it('keeps a metadata step on the stack and in the stored records like the others', () => {
+    const history = createHistory()
+    const level = step('level')
+    const name = step('name')
+
+    history.run(level.command)
+    history.run({ ...name.command, metadata: true })
+
+    assert.deepEqual(history.records.value, [level.command.record, name.command.record])
+    assert.equal(history.undoStack.value.length, 2)
+
+    history.undo()
+    assert.deepEqual(name.done, ['name:apply', 'name:revert'])
+  })
+
   void it('does nothing on an empty stack', () => {
     const history = createHistory()
 

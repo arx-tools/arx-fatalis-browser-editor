@@ -12,7 +12,7 @@ import {
 } from '../../../modules/rooms/roomList.ts'
 import { deleteRooms } from '../../../modules/rooms/roomDeletion.ts'
 import { createRoomWithSelection, moveSelectionToRoom } from '../../../modules/rooms/roomMapper.ts'
-import { nameOf, renameRoom, roomNameOf, UNNAMED_ROOM } from '../../../modules/rooms/roomNames.ts'
+import { nameOf, renameRoomAsStep, roomNameOf, UNNAMED_ROOM } from '../../../modules/rooms/roomNames.ts'
 import { portalRevision } from '../../../modules/rooms/portalSync.ts'
 import { pickRoom, roomsOfFaces } from '../../../modules/rooms/roomSelection.ts'
 import { clearRoomHover, hoveredRoom, hoverRoom, selectedRooms, selectRoom } from '../../../modules/rooms/roomStore.ts'
@@ -456,7 +456,7 @@ function commitRename(): void {
   renaming.value = undefined
 
   if (draft.value !== (roomNameOf(room) ?? '')) {
-    renameRoom(room, draft.value)
+    renameRoomAsStep(room, draft.value)
   }
 }
 

@@ -1,4 +1,12 @@
 import JSZip from 'jszip'
+import {
+  EDITOR_GROUPS_PATH,
+  EDITOR_ROOMS_PATH,
+  groupsOfEditorFile,
+  roomNamesOfEditorFile,
+  type EditorGroup,
+} from '../../editorFiles.ts'
+import type { StoredRoomNames } from '../../rooms/roomNamesStorage.ts'
 import { MANIFEST_NAME, manifestOf, type LevelManifest } from '../../../../generator/manifest.ts'
 import {
   EDITOR_FOLDER,
@@ -43,6 +51,14 @@ export type ZipLevel = {
    * The state the editor kept in the zip, when it kept one.
    */
   readonly settings: EditorSettings | undefined
+  /**
+   * The names of the rooms the archive carried, when it carried them.
+   */
+  readonly rooms: StoredRoomNames | undefined
+  /**
+   * The groups of the faces the archive carried, when it carried them.
+   */
+  readonly groups: readonly EditorGroup[] | undefined
 }
 
 /**
@@ -306,6 +322,34 @@ async function readSettings(archive: JSZip): Promise<EditorSettings | undefined>
 }
 
 /**
+ * Reads one json file the editor keeps in the zip.
+ *
+ * @remarks
+ * A missing file, or one that is not JSON, says nothing: the level opens without what the file would have said, and the
+ * caller drops the value with its own reader (a version or a shape the build does not know).
+ *
+ * @param archive The zip to read.
+ * @param path The path of the file inside the zip.
+ *
+ * @returns The parsed value, or `undefined` when the file is not there or is not JSON.
+ */
+async function readEditorJson(archive: JSZip, path: string): Promise<unknown> {
+  const entry = Object.values(archive.files).find((file) => {
+    return !file.dir && zipPathOf(file.name) === path
+  })
+
+  if (entry === undefined) {
+    return undefined
+  }
+
+  try {
+    return JSON.parse(await entry.async('string')) as unknown
+  } catch {
+    return undefined
+  }
+}
+
+/**
  * Reads a level out of a zip.
  *
  * @remarks
@@ -337,16 +381,18 @@ export async function readLevelFromZip(data: ArrayBuffer, label: string): Promis
   )
   const files = await levelFilesOf(entriesOf(archive), mentioned, label)
   const settings = await readSettings(archive)
+  const rooms = roomNamesOfEditorFile(await readEditorJson(archive, EDITOR_ROOMS_PATH))
+  const groups = groupsOfEditorFile(await readEditorJson(archive, EDITOR_GROUPS_PATH))
 
   // the source and the steps are one idea: the steps are indices of the source, so the editor opens the source only
   // when the steps that belong to it are there. A zip of the game, or one of an older editor, has neither
   const source = await sourceFilesOf(Object.values(archive.files), label)
 
   if (source === undefined || settings?.history === undefined) {
-    return { label: manifest?.name ?? label, files, manifest, settings }
+    return { label: manifest?.name ?? label, files, manifest, settings, rooms, groups }
   }
 
-  return { label: manifest?.name ?? label, files: source, manifest, settings }
+  return { label: manifest?.name ?? label, files: source, manifest, settings, rooms, groups }
 }
 
 /**
@@ -394,6 +440,18 @@ export type ZipLevelSource = LevelSource & {
    * yet).
    */
   readonly settings: () => EditorSettings | undefined
+  /**
+   * The names of the rooms the zip carried, once it is loaded.
+   *
+   * @returns The names, or `undefined` when the zip has no file of them (or has not been read yet).
+   */
+  readonly rooms: () => StoredRoomNames | undefined
+  /**
+   * The groups of the faces the zip carried, once it is loaded.
+   *
+   * @returns The groups, or `undefined` when the zip has no file of them (or has not been read yet).
+   */
+  readonly groups: () => readonly EditorGroup[] | undefined
 }
 
 /**
@@ -407,6 +465,8 @@ export type ZipLevelSource = LevelSource & {
 export function createZipLevelSource(name: string, data: ArrayBuffer): ZipLevelSource {
   let manifest: LevelManifest | undefined
   let settings: EditorSettings | undefined
+  let rooms: StoredRoomNames | undefined
+  let groups: readonly EditorGroup[] | undefined
 
   return {
     label: name,
@@ -419,11 +479,19 @@ export function createZipLevelSource(name: string, data: ArrayBuffer): ZipLevelS
     settings: (): EditorSettings | undefined => {
       return settings
     },
+    rooms: (): StoredRoomNames | undefined => {
+      return rooms
+    },
+    groups: (): readonly EditorGroup[] | undefined => {
+      return groups
+    },
     load: async (): Promise<LevelFiles> => {
       const level = await readLevelFromZip(data, name)
 
       manifest = level.manifest
       settings = level.settings
+      rooms = level.rooms
+      groups = level.groups
 
       return level.files
     },
@@ -540,6 +608,8 @@ export function createZipUrlLevelSource(url: string, isDev = IS_DEVELOPMENT): Zi
   let data: ArrayBuffer | undefined
   let manifest: LevelManifest | undefined
   let settings: EditorSettings | undefined
+  let rooms: StoredRoomNames | undefined
+  let groups: readonly EditorGroup[] | undefined
 
   const name = fileNameOf(url)
 
@@ -554,6 +624,12 @@ export function createZipUrlLevelSource(url: string, isDev = IS_DEVELOPMENT): Zi
     settings: (): EditorSettings | undefined => {
       return settings
     },
+    rooms: (): StoredRoomNames | undefined => {
+      return rooms
+    },
+    groups: (): readonly EditorGroup[] | undefined => {
+      return groups
+    },
     load: async (fetchImpl: typeof fetch = fetch): Promise<LevelFiles> => {
       const response = await fetchImpl(zipFetchUrl(url, isDev))
 
@@ -567,6 +643,8 @@ export function createZipUrlLevelSource(url: string, isDev = IS_DEVELOPMENT): Zi
 
       manifest = level.manifest
       settings = level.settings
+      rooms = level.rooms
+      groups = level.groups
 
       return level.files
     },

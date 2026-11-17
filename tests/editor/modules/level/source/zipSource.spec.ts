@@ -58,6 +58,48 @@ function installedLevel(level: string, mark: string): Record<string, string> {
   }
 }
 
+void describe('the editor files of a zip', () => {
+  void it('reads the names of the rooms and the groups of the faces', async () => {
+    const level = await readLevelFromZip(
+      await zipOf({
+        ...installedLevel('level8', 'a'),
+        'editor/rooms.json': JSON.stringify({ version: 1, roomNames: { '1': 'The yard' } }),
+        'editor/groups.json': JSON.stringify({ version: 1, groups: [{ id: 1, name: 'the floor', faces: [0, 1] }] }),
+      }),
+      'level8.zip',
+    )
+
+    assert.deepEqual(level.rooms, { '1': 'The yard' })
+    assert.deepEqual(level.groups, [{ id: 1, name: 'the floor', faces: [0, 1] }])
+  })
+
+  void it('reads none of them from a zip of the game', async () => {
+    const level = await readLevelFromZip(await zipOf(installedLevel('level8', 'a')), 'level8.zip')
+
+    assert.equal(level.rooms, undefined)
+    assert.equal(level.groups, undefined)
+  })
+
+  void it('hands them to the source once the zip is read', async () => {
+    const source = createZipLevelSource(
+      'level8.zip',
+      await zipOf({
+        ...installedLevel('level8', 'a'),
+        'editor/rooms.json': JSON.stringify({ version: 1, roomNames: { '1': 'The yard' } }),
+        'editor/groups.json': JSON.stringify({ version: 1, groups: [{ id: 2, name: '', faces: [] }] }),
+      }),
+    )
+
+    assert.equal(source.rooms(), undefined)
+    assert.equal(source.groups(), undefined)
+
+    await source.load()
+
+    assert.deepEqual(source.rooms(), { '1': 'The yard' })
+    assert.deepEqual(source.groups(), [{ id: 2, name: '', faces: [] }])
+  })
+})
+
 void describe('readLevelFromZip', () => {
   void it('reads the three files of a level from the paths of the game', async () => {
     const level = await readLevelFromZip(await zipOf(installedLevel('level8', 'a')), 'level8.zip')

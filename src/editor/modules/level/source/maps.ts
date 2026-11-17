@@ -10,6 +10,9 @@ import { FLAT_PRESET, MINIMAL_PRESET, type NewLevelPreset } from '../blankLevel.
 import { restoreMapHistory, saveMapHistory } from '../edit/editing.ts'
 import { prepareLoadedMap } from '../edit/lighting.ts'
 import { levelStore } from '../edit/levelStore.ts'
+import type { EditorGroup } from '../../editorFiles.ts'
+import { seedFaceGroupsOf } from '../../groups/groupStorage.ts'
+import { seedRoomNamesOf, type StoredRoomNames } from '../../rooms/roomNamesStorage.ts'
 import type { LevelManifest } from '../../../../generator/manifest.ts'
 import type { EditorSettings } from './editorSettings.ts'
 import { clearDataDirScan, readDataFile, scanLevelNumbers } from './dataDir.ts'
@@ -343,6 +346,74 @@ export function zipSettingsOf(source: LevelSource): EditorSettings | undefined {
   }
 
   return source.settings()
+}
+
+/**
+ * Reads the names of the rooms a zip carried, once it is loaded.
+ *
+ * @param source The source the map was opened from.
+ *
+ * @returns The names, or `undefined` when the source is not a zip, or its zip has none.
+ */
+export function zipRoomsOf(source: LevelSource): StoredRoomNames | undefined {
+  if (!isZipLevelSource(source)) {
+    return undefined
+  }
+
+  return source.rooms()
+}
+
+/**
+ * Reads the groups of the faces a zip carried, once it is loaded.
+ *
+ * @param source The source the map was opened from.
+ *
+ * @returns The groups, or `undefined` when the source is not a zip, or its zip has none.
+ */
+export function zipGroupsOf(source: LevelSource): readonly EditorGroup[] | undefined {
+  if (!isZipLevelSource(source)) {
+    return undefined
+  }
+
+  return source.groups()
+}
+
+/**
+ * Seeds the browser with the names and the groups a zip carried, so the level opens with them.
+ *
+ * @remarks
+ * The two stores read the browser when their level is whole: the names when the map and its manifest are set, the groups
+ * when the steps of the level are replayed. The archive is read before that, so its files are the state the level opens
+ * with; a name the author types afterwards wins over the file, and the next export writes the newer one.
+ *
+ * @param id The value of the map.
+ * @param source The source the map came from.
+ */
+export function adoptEditorFilesOf(id: string, source: LevelSource): void {
+  if (!isZipLevelSource(source)) {
+    return
+  }
+
+  // a zip of an older editor kept the names in its manifest; the file is the newer shape, and the two say the same
+  const rooms = source.rooms() ?? source.manifest()?.roomNames
+
+  if (rooms !== undefined) {
+    seedRoomNamesOf(id, rooms)
+  }
+
+  const groups = source.groups()
+
+  if (groups === undefined) {
+    return
+  }
+
+  let highest = 0
+
+  for (const group of groups) {
+    highest = Math.max(highest, group.id)
+  }
+
+  seedFaceGroupsOf(id, { title: source.label, nextId: highest + 1, groups })
 }
 
 /**
@@ -734,6 +805,7 @@ export async function openMap(id: string): Promise<void> {
   currentMapManifest.value = zipManifestOf(source)
   currentMapSettings.value = zipSettingsOf(source)
   adoptHistoryOf(id, source)
+  adoptEditorFilesOf(id, source)
 
   // the address bar keeps the map of the screen, and a map picked from the list is not the zip of the url any more: the
   // zip of a previous link must not come back on a reload. The map is written here too, not only by the watcher of

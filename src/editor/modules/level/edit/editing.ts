@@ -1,6 +1,6 @@
 import { shallowRef, watch, type ShallowRef } from 'vue'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
-import { history, type HistoryCommand } from '../../history/history.ts'
+import { history, metadataCommandOf, type HistoryCommand } from '../../history/history.ts'
 import { historyOfMap, rememberMapHistory, type HistorySnapshot } from '../../history/mapHistory.ts'
 import { dropStoredHistory, readStoredHistory } from '../../history/mapHistoryStorage.ts'
 import { commandOf } from '../../history/commands.ts'
@@ -208,14 +208,20 @@ export function resetHistorySteps(): void {
  * @returns The steps of the editor, oldest first, and the length of the applied part.
  */
 export function snapshotOfHistory(): HistorySnapshot {
-  const applied = history.undoStack.value.map((command) => {
-    return command.record
-  })
-  const undone = history.redoStack.value.map((command) => {
-    return command.record
-  })
+  const applied = history.undoStack.value
+  const undone = history.redoStack.value
 
-  return { records: [...applied, ...undone], position: applied.length }
+  return {
+    records: [
+      ...applied.map((command) => {
+        return command.record
+      }),
+      ...undone.map((command) => {
+        return command.record
+      }),
+    ],
+    position: applied.length,
+  }
 }
 
 /**
@@ -291,6 +297,17 @@ export function restoreMapHistory(id: string, map: ArxMap): void {
   let applied = 0
 
   for (const record of records.slice(0, position)) {
+    // a metadata step is not replayed: its store comes back from the browser or the zip, and applying the step again
+    // would repeat the rename. It goes back on the stack, and its halves run when the author undoes or redoes it.
+    const metadata = metadataCommandOf(record)
+
+    if (metadata !== undefined) {
+      history.restoreApplied(metadata)
+      applied = applied + 1
+
+      continue
+    }
+
     const command = commandOf(record, map)
 
     if (command !== undefined) {
@@ -301,19 +318,27 @@ export function restoreMapHistory(id: string, map: ArxMap): void {
 
   // the steps the author took back before the reload are still theirs to make again: they go on the redo stack, built
   // from the state the replay left behind (the state they were taken back from)
-  const undoneCommands: HistoryCommand[] = []
+  let undone = 0
 
   for (const record of records.slice(position)) {
+    const metadata = metadataCommandOf(record)
+
+    if (metadata !== undefined) {
+      history.restoreUndone(metadata)
+      undone = undone + 1
+
+      continue
+    }
+
     const command = commandOf(record, map)
 
     if (command !== undefined) {
-      undoneCommands.push(withRevision(command))
+      history.restoreUndone(withRevision(command))
+      undone = undone + 1
     }
   }
 
-  history.redoStack.value = undoneCommands
-
-  const skipped = records.length - applied - undoneCommands.length
+  const skipped = records.length - applied - undone
 
   if (skipped > 0) {
     // a step of another build (an unknown kind or version) can not be replayed: the rest is on the level, and the

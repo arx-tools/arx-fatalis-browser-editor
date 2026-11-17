@@ -289,6 +289,76 @@ test('the name of a group stays in the browser', async ({ page }) => {
 })
 
 /**
+ * The group operations are steps of the history: a create, a rename and a delete are taken back and made again.
+ *
+ * @remarks
+ * The step is metadata, so the undo does not touch the faces of the level; the store of the groups writes the state into
+ * the browser, and a reload finds the groups and their names.
+ */
+test('the group operations are steps of the history', async ({ page }) => {
+  await seedLayout(page, groupsLayout())
+  await page.goto('/?map=blank-flat')
+  await waitForLevel(page)
+  await waitForLayoutSettled(page)
+
+  await pickFirstRoom(page)
+  await groupTheSelection(page)
+
+  const rows = groupInspector(page).locator('li.group')
+
+  await expect(rows).toHaveCount(1)
+  await expect(rows.first()).toContainText('group 1')
+
+  // the undo of the create takes the group out, the redo brings it back
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect(rows).toHaveCount(0)
+
+  await page.keyboard.press('ControlOrMeta+y')
+  await expect(rows).toHaveCount(1)
+
+  // a rename is a step too
+  const row = rows.first()
+
+  await row.dblclick()
+
+  const field = row.locator('.rename')
+
+  await field.fill('Floor')
+  await field.press('Enter')
+
+  await expect(row).toContainText('Floor')
+
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect(row).toContainText('group 1')
+
+  await page.keyboard.press('ControlOrMeta+y')
+  await expect(row).toContainText('Floor')
+
+  // the delete is a step, and its undo brings the group back with its name
+  await row.locator('.trash').click()
+  await expect(rows).toHaveCount(0)
+
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect(rows).toHaveCount(1)
+  await expect(rows.first()).toContainText('Floor')
+
+  // a reload reads the groups from the browser
+  await page.reload()
+  await waitForLevel(page)
+  await waitForLayoutSettled(page)
+
+  await expect(groupInspector(page).locator('li.group')).toHaveCount(1)
+  await expect(groupInspector(page).locator('li.group').first()).toContainText('Floor')
+
+  // the steps of the groups are on the stored history too: the rename can be taken back after the reload
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect(groupInspector(page).locator('li.group').first()).toContainText('group 1')
+
+  await page.keyboard.press('ControlOrMeta+y')
+  await expect(groupInspector(page).locator('li.group').first()).toContainText('Floor')
+})
+
+/**
  * The trash of a row takes the group out, and the faces stay.
  *
  * @remarks

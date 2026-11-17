@@ -277,9 +277,10 @@ export const painterLayout: LayoutNode = {
  *
  * @remarks
  * The owner measured the layout of the round (2026-11-13): the statistics at **350 x 203** and the selection inspector
- * under it on the left, the walkable view in the middle, and the top view at **350 x 260**, the room mapper at **350 x
- * 220** and the room inspector under them on the right. The walkable view's own readout carries the camera (the camera
- * controls widget is not on this layout), and the room map is the surface the round works on.
+ * under it on the left, the walkable view in the middle, and the top view at **350 x 260** on the right. The undo and
+ * redo row takes its **60** there (2026-11-17, the owner: the steps of the work under the plan), and the room inspector
+ * takes what the two locks leave. The walkable view's own readout carries the camera (the camera controls widget is not
+ * on this layout), and the room map is the surface the round works on.
  *
  * The `Rooms` name is what the header shows (2026-11-07, the owner). The **Selection Inspector** stays under the
  * numbers (2026-11-10): the fill of the selection paints the faces turned towards the camera only, so a fill that takes
@@ -303,9 +304,10 @@ export const roomsLayout: LayoutNode = {
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: [fixed(260), auto(1)],
+      sizes: [fixed(260), fixed(UNDO_ROW_HEIGHT), auto(1)],
       children: [
         { type: 'widget', kind: WIDGET_KINDS.topView },
+        { type: 'widget', kind: WIDGET_KINDS.undoRedo },
         { type: 'widget', kind: WIDGET_KINDS.roomInspector },
       ],
     },

@@ -13,6 +13,13 @@ import {
 } from '../../../generator/manifest.ts'
 import { roomCentersOf, roomDistancesOf } from '../../../generator/roomDistances.ts'
 import { roomRenumberingOf } from '../../../generator/rooms.ts'
+import {
+  EDITOR_GROUPS_PATH,
+  EDITOR_ROOMS_PATH,
+  editorGroupsJsonOf,
+  editorRoomsJsonOf,
+  type EditorGroup,
+} from '../editorFiles.ts'
 import type { HistorySnapshot } from '../history/mapHistory.ts'
 import { syncGeneratedPortals } from '../level/edit/generatedPortals.ts'
 import { editorSettingsJsonOf, SETTINGS_PATH, SOURCE_FOLDER } from '../level/source/editorSettings.ts'
@@ -303,6 +310,14 @@ export type ExportOptions = {
    * level is opened.
    */
   readonly roomNames?: Readonly<Record<string, string>>
+  /**
+   * The groups of the faces, as the Group Inspector made them.
+   *
+   * @remarks
+   * The archive keeps them in `editor/groups.json`, with the indices of the level the archive writes: opening the zip
+   * again finds the groups, and the faces they hold.
+   */
+  readonly groups?: readonly EditorGroup[]
   /**
    * The steps of the level, when it has some.
    *
@@ -690,6 +705,15 @@ export async function exportLevelZip(
   archive.file(SETTINGS_PATH, JSON.stringify(editorSettingsJsonOf(settings), undefined, 2))
   written.push(SETTINGS_PATH)
 
+  // the metadata of the editor, in files of their own: a reader finds the names and the groups without the manifest, and
+  // the manifest keeps the room names too for the readers of an older build
+  const roomNames = renumberedRoomNamesOf(namesOfExport(options), map.polygons)
+
+  archive.file(EDITOR_ROOMS_PATH, JSON.stringify(editorRoomsJsonOf(roomNames), undefined, 2))
+  written.push(EDITOR_ROOMS_PATH)
+  archive.file(EDITOR_GROUPS_PATH, JSON.stringify(editorGroupsJsonOf(options.groups), undefined, 2))
+  written.push(EDITOR_GROUPS_PATH)
+
   if (steps.length > 0) {
     written.push(...writeSource(map, archive))
   }
@@ -700,7 +724,7 @@ export async function exportLevelZip(
     metadata: options.manifest,
     author: options.author,
     project: options.project,
-    roomNames: renumberedRoomNamesOf(namesOfExport(options), map.polygons),
+    roomNames,
     editor: editorBuildOf(),
     exportedAt: options.exportedAt ?? new Date().toISOString(),
   })

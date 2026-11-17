@@ -4,6 +4,7 @@ import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { downloadBinaryAs } from '../modules/export/download.ts'
 import { exportLevelZip } from '../modules/export/exportLevel.ts'
 import { authorName, projectHomepage } from '../modules/export/authorFields.ts'
+import { faceGroupsJsonOf } from '../modules/groups/groupStore.ts'
 import { roomNamesJson } from '../modules/rooms/roomNames.ts'
 import { authorOf, exportSeedOf, levelIndexOf, projectOf } from '../modules/export/exportOptions.ts'
 import { snapshotOfHistory } from '../modules/level/edit/editing.ts'
@@ -224,6 +225,7 @@ async function exportIt(): Promise<void> {
         author: authorOf(authorName.value),
         project: projectOf(projectHomepage.value),
         roomNames: roomNamesJson(),
+        groups: faceGroupsJsonOf(),
         // the steps of the level: an archive with them is a save of the level, not only its result
         history: snapshotOfHistory(),
       },

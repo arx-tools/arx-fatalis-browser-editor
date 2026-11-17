@@ -245,3 +245,23 @@ export function writeStoredGroups(
     // the groups of the session stay in memory
   }
 }
+
+/**
+ * Writes the groups of one level, keeping the ones of the others.
+ *
+ * @remarks
+ * The editor seeds the storage with what a zip carried, so the store of the groups finds them when the level is whole.
+ *
+ * @param id The value of the map.
+ * @param entry The groups of the level.
+ * @param storage The storage to write, the `localStorage` of the page by default.
+ */
+export function seedFaceGroupsOf(
+  id: string,
+  entry: StoredMapGroups,
+  storage: StorageLike | undefined = getLocalStorage(undefined),
+): void {
+  const maps = { ...readStoredGroups(storage), [id]: entry }
+
+  writeStoredGroups(maps, storage)
+}

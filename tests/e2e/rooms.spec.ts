@@ -717,6 +717,74 @@ test('the name of a room is written on its row, with a double click', async ({ p
 })
 
 /**
+ * A room rename is a step of the history, and the name stays in the browser.
+ *
+ * @remarks
+ * The name is metadata: the step is not replayed on the level, the store of the names writes it into the browser, and a
+ * reload finds it. The undo and the redo take the rename back and make it again like any other step of the level.
+ */
+test('a room rename is a step of the history, and the name stays in the browser', async ({ page }) => {
+  test.setTimeout(120_000)
+  await seedLayout(page, roomsLayout)
+  await page.goto('/?map=blank-flat')
+  await waitForLevel(page)
+
+  const rows = page.locator('[data-widget-kind="room-inspector"] li.room')
+  const row = rows.first()
+
+  await row.dblclick()
+
+  const field = row.locator('.rename')
+
+  await field.fill('Hall')
+  await field.press('Enter')
+
+  await expect(row).toContainText('Hall')
+
+  // the undo takes the name back, the redo writes it again
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect(row).not.toContainText('Hall')
+  await expect(row).toContainText('room 1')
+
+  await page.keyboard.press('ControlOrMeta+y')
+  await expect(row).toContainText('Hall')
+
+  // a reload reads the name from the browser
+  await page.reload()
+  await waitForLevel(page)
+
+  const reloaded = page.locator('[data-widget-kind="room-inspector"] li.room').first()
+
+  await expect(reloaded).toContainText('Hall')
+
+  // the rename is on the stored history too: a reload keeps the step, and the undo takes it back
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect(reloaded).not.toContainText('Hall')
+
+  await page.keyboard.press('ControlOrMeta+y')
+  await expect(reloaded).toContainText('Hall')
+
+  // the delete takes the room with its name, and the undo brings both back
+  await reloaded.locator('.trash').click()
+
+  await expect
+    .poll(async () => {
+      return await statOf(page, 'Rooms')
+    })
+    .toBe(0)
+
+  await page.keyboard.press('ControlOrMeta+z')
+
+  await expect
+    .poll(async () => {
+      return await statOf(page, 'Rooms')
+    })
+    .toBe(1)
+
+  await expect(page.locator('[data-widget-kind="room-inspector"] li.room').first()).toContainText('Hall')
+})
+
+/**
  * The trash of a row takes the room out, and the faces stay.
  *
  * @remarks

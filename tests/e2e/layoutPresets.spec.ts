@@ -202,7 +202,7 @@ test('the rooms preset comes with the sizes the owner measured', async ({ page }
   await page.locator('header button[aria-label="Presets"]').click()
   await page.locator('.preset-menu .preset-row', { hasText: 'Rooms' }).click()
 
-  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(5)
+  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(6)
   await expect
     .poll(async () => {
       return await presetName(page)
@@ -213,6 +213,7 @@ test('the rooms preset comes with the sizes the owner measured', async ({ page }
   const statistics = await boxOf(page, 'map-statistics')
   const selection = await boxOf(page, 'selection-inspector')
   const top = await boxOf(page, 'top-view')
+  const undo = await boxOf(page, 'undo-redo')
   const inspector = await boxOf(page, 'room-inspector')
   const view = await boxOf(page, '3d-view')
 
@@ -220,17 +221,22 @@ test('the rooms preset comes with the sizes the owner measured', async ({ page }
   expect(statistics.height).toBe(203)
   expect(top.width).toBe(350)
   expect(top.height).toBe(260)
+  expect(undo.width).toBe(350)
+  expect(undo.height).toBe(60)
 
   expect(await page.locator('[data-widget-kind="map-statistics"]').getAttribute('data-locked-height')).toBe('203')
   expect(await page.locator('[data-widget-kind="top-view"]').getAttribute('data-locked-height')).toBe('260')
+  expect(await page.locator('[data-widget-kind="undo-redo"]').getAttribute('data-locked-height')).toBe('60')
   expect(await page.locator('[data-widget-kind="room-inspector"]').getAttribute('data-locked-height')).toBeNull()
 
-  // the two columns: the statistics and the selection on the left, the view, the top view and the rooms on the right
+  // the two columns: the statistics and the selection on the left, the view, the top view, the steps and the rooms on
+  // the right
   expect(selection.left).toBe(statistics.left)
   expect(selection.width).toBe(statistics.width)
   expect(selection.top).toBe(statistics.top + statistics.height + 4)
   expect(inspector.left).toBe(top.left)
-  expect(inspector.top).toBe(top.top + top.height + 4)
+  expect(undo.top).toBe(top.top + top.height + 4)
+  expect(inspector.top).toBe(undo.top + undo.height + 4)
   expect(view.left).toBe(statistics.left + statistics.width + 4)
   expect(view.width).toBeGreaterThan(350)
 

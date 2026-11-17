@@ -4,6 +4,7 @@ import { useTemplateRef } from 'vue'
 import { prepareLoadedMap } from '../modules/level/edit/lighting.ts'
 import { levelStore } from '../modules/level/edit/levelStore.ts'
 import {
+  adoptEditorFilesOf,
   adoptHistoryOf,
   currentMapId,
   currentMapManifest,
@@ -72,6 +73,7 @@ async function loadZip(event: Event): Promise<void> {
   currentMapManifest.value = zipManifestOf(source)
   currentMapSettings.value = zipSettingsOf(source)
   adoptHistoryOf(currentMapId.value, source)
+  adoptEditorFilesOf(currentMapId.value, source)
 
   // the steps the archive carries come back on the level the same way they do on a reload, and then the camera goes
   // where the zip was last left, or to the spawn of its player

@@ -33,6 +33,7 @@ import {
 } from './modules/level/source/levelSource.ts'
 import {
   arxLevels,
+  adoptEditorFilesOf,
   adoptHistoryOf,
   availableMapIdOf,
   currentMapId,
@@ -58,7 +59,7 @@ import {
 } from './modules/level/source/maps.ts'
 import { migrateLegacyPose } from './modules/level/source/maps/mapPoses.ts'
 import { startFaceGroups } from './modules/groups/groupStore.ts'
-import { startRoomNames } from './modules/rooms/roomNames.ts'
+import { startRoomNames } from './modules/rooms/roomNamesStart.ts'
 import { startRoomSelection } from './modules/rooms/roomSelection.ts'
 import { startCurrentRoom } from './modules/rooms/roomUnderCrosshair.ts'
 import { startPoseTracking } from './modules/level/source/maps/poseTracking.ts'
@@ -190,6 +191,7 @@ onMounted(async () => {
           currentMapManifest.value = zipManifestOf(source)
           currentMapSettings.value = zipSettingsOf(source)
           adoptHistoryOf(currentMapId.value, source)
+          adoptEditorFilesOf(currentMapId.value, source)
         }
       } else if (isOriginalLevelSource(source)) {
         currentMapId.value = `arx:${String(source.level)}`

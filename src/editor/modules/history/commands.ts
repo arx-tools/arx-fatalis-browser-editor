@@ -1,6 +1,7 @@
 import type { ArxPolygon } from 'arx-convert/types'
 import type { FaceRoom, FaceTexture } from '../../../generator/ArxMap.ts'
 import type { PolygonInsertion } from '../../../generator/arxMap/removal.ts'
+import { forgetRoomNames, renameRoom } from '../rooms/roomNames.ts'
 import { bumpRoomRevision } from '../rooms/roomRevision.ts'
 import type { HistoryCommand } from './history.ts'
 import {
@@ -200,11 +201,21 @@ function deleteRoomsCommandOf(record: DeleteRoomsRecord, level: MutableLevel): H
     apply: (): void => {
       level.setFaceRooms(moved)
       level.setPortals(portalsAfter)
+      forgetRoomNames(
+        record.names.map((named) => {
+          return named.room
+        }),
+      )
       bumpRoomRevision()
     },
     revert: (): void => {
       level.setFaceRooms(before)
       level.setPortals(portalsBefore)
+
+      for (const named of record.names) {
+        renameRoom(named.room, named.name)
+      }
+
       bumpRoomRevision()
     },
   }

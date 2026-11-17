@@ -1,9 +1,9 @@
 import type { FaceRoom } from '../../../generator/ArxMap.ts'
 import { commandOf } from '../history/commands.ts'
-import { createDeleteRoomsRecord } from '../history/records.ts'
+import { createDeleteRoomsRecord, type NamedRoom } from '../history/records.ts'
 import { runStep } from '../level/edit/editing.ts'
 import { levelStore } from '../level/edit/levelStore.ts'
-import { forgetRoomNames } from './roomNames.ts'
+import { roomNameOf } from './roomNames.ts'
 
 /**
  * Takes rooms out of the level.
@@ -13,8 +13,7 @@ import { forgetRoomNames } from './roomNames.ts'
  * reads a level with a room cut away. The portals of the rooms go with them (they name a room that is not there any
  * more), and the whole change is one step of the history, so the undo puts the rooms and their portals back together.
  *
- * A room's name is metadata, not a step (the same as a rename): the name of a deleted room goes with it, and an undo
- * brings the room back unnamed.
+ * A room's name is metadata, and the step carries the names it forgets: the undo brings the room back with its name.
  *
  * @param rooms The rooms to take out, `-1` and the ids of no room ignored.
  *
@@ -34,6 +33,15 @@ export function deleteRooms(rooms: readonly number[]): boolean {
 
   const changes: FaceRoom[] = []
   const removedPortals: number[] = []
+  const names: NamedRoom[] = []
+
+  for (const room of ids) {
+    const name = roomNameOf(room)
+
+    if (name !== undefined) {
+      names.push({ room, name })
+    }
+  }
 
   for (let index = 0; index < map.polygons.length; index = index + 1) {
     const polygon = map.polygons[index]
@@ -53,14 +61,13 @@ export function deleteRooms(rooms: readonly number[]): boolean {
     return false
   }
 
-  const command = commandOf(createDeleteRoomsRecord(changes, removedPortals), map)
+  const command = commandOf(createDeleteRoomsRecord(changes, removedPortals, names), map)
 
   if (command === undefined) {
     return false
   }
 
   runStep(command)
-  forgetRoomNames(ids)
 
   return true
 }

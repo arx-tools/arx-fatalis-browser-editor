@@ -48,6 +48,16 @@ export type HistoryCommand = {
    * Takes the change back: the exact inverse of {@link apply}.
    */
   revert(): void
+  /**
+   * Whether the step changes metadata of the level, and not the level itself.
+   *
+   * @remarks
+   * A step of a name or of a group has no polygon indices, so it is not replayed on the level: the store it changes is
+   * written down on its own (the browser, and the zip of the export), and the step is only here for the undo of the
+   * session. The records of the metadata steps are not persisted with the level, and a reload starts the undo chain of
+   * the names and the groups again (their state is what the store kept).
+   */
+  readonly metadata?: boolean
 }
 
 /**
@@ -110,6 +120,23 @@ export type History = {
    * The editor calls it when another level is loaded: the steps of the previous level are not the steps of this one.
    */
   readonly clear: () => void
+  /**
+   * Puts a step on the undo side without running it.
+   *
+   * @remarks
+   * A reload replays the stored steps, but a metadata step (a name, a group) is not replayed on the level: its store
+   * comes back from the browser or the zip, so applying it again would repeat a rename. The step is put back on the
+   * stack instead, and its halves run when the author undoes or redoes it.
+   *
+   * @param command The step to put back.
+   */
+  readonly restoreApplied: (command: HistoryCommand) => void
+  /**
+   * Puts a step on the redo side without running it.
+   *
+   * @param command The step to put back.
+   */
+  readonly restoreUndone: (command: HistoryCommand) => void
 }
 
 /**
@@ -172,6 +199,12 @@ export function createHistory(): History {
       undoStack.value = []
       redoStack.value = []
     },
+    restoreApplied: (command: HistoryCommand): void => {
+      undoStack.value = [...undoStack.value, command].slice(-HISTORY_DEPTH)
+    },
+    restoreUndone: (command: HistoryCommand): void => {
+      redoStack.value = [...redoStack.value, command]
+    },
   }
 }
 
@@ -179,3 +212,59 @@ export function createHistory(): History {
  * The history of the editor: one store, shared by the keys, the help and the later panels.
  */
 export const history = createHistory()
+
+/**
+ * Builds the step of a stored metadata record: a name, a group.
+ *
+ * @remarks
+ * The store that owns the metadata registers its builder at the start, so the replay of the steps of a level can put the
+ * metadata steps back on the stacks without knowing which module keeps them.
+ */
+export type MetadataCommandBuilder = (record: HistoryRecord) => HistoryCommand | undefined
+
+/**
+ * The builders of the metadata records, by the module that owns the store.
+ */
+const metadataBuilders: MetadataCommandBuilder[] = []
+
+/**
+ * Registers the builder of a module's metadata records.
+ *
+ * @param builder The builder, which gives `undefined` for a record of another module.
+ */
+export function onMetadataStep(builder: MetadataCommandBuilder): void {
+  metadataBuilders.push(builder)
+}
+
+/**
+ * Builds the step of a stored metadata record.
+ *
+ * @param record The stored record.
+ *
+ * @returns The step, or `undefined` when no store knows the record (a level step, or one of another build).
+ */
+export function metadataCommandOf(record: HistoryRecord): HistoryCommand | undefined {
+  for (const builder of metadataBuilders) {
+    const command = builder(record)
+
+    if (command !== undefined) {
+      return command
+    }
+  }
+
+  return undefined
+}
+
+/**
+ * Runs a step that changes metadata of the level (a name, a group), and not the level itself.
+ *
+ * @remarks
+ * The step goes on the stack like any other, so the undo takes the names and the groups in the order the author made
+ * them; the revision of the level is not bumped (no view draws the metadata), and {@link HistoryCommand.metadata} keeps
+ * the record out of the stored steps of the level.
+ *
+ * @param command The step to run.
+ */
+export function runMetadataStep(command: HistoryCommand): void {
+  history.run({ ...command, metadata: true })
+}

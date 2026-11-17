@@ -321,7 +321,7 @@ function removeGroup(section: FaceGroupSection, row: FaceGroupRow): void {
   flex: 1;
   min-height: 0;
   margin: 0;
-  padding: 0;
+  padding: 0 10px 0 0;
   overflow-y: auto;
   list-style: none;
 

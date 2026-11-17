@@ -82,6 +82,10 @@ export const WIDGET_KINDS = {
    */
   selectionInspector: 'selection-inspector',
   /**
+   * The lights of the level: the list, the shape of their markers and the pick of a light.
+   */
+  lightInspector: 'light-inspector',
+  /**
    * The uv of the selected face, on the texture.
    */
   uvMapper: 'uv-mapper',

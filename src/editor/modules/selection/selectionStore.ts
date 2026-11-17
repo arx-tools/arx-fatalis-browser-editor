@@ -1,5 +1,6 @@
 import { computed, shallowRef, type ComputedRef, type ShallowRef } from 'vue'
 import { onKeyboardAction } from '../keyboard/keyboard.ts'
+import { lightSelectionStore } from './lightSelectionStore.ts'
 
 /**
  * What a gesture does with the polygons it touches.
@@ -157,10 +158,12 @@ export const selectionStore = createSelectionStore()
  *
  * @remarks
  * Only the clearing has a key of its own (`C`): the adding and the removing live on the modifiers of a
- * click in the walkable view, because they act on what the crosshair points at.
+ * click in the walkable view, because they act on what the crosshair points at. The key clears the faces
+ * and the lights together: the walkable view has one crosshair, and the author means what it picks.
  */
 export function startSelection(): void {
   onKeyboardAction('clearSelection', () => {
     selectionStore.clear()
+    lightSelectionStore.clear()
   })
 }

@@ -252,6 +252,7 @@ function thumbOf(name: string): string | undefined {
 .rows {
   flex: 1;
   min-height: 0;
+  padding-right: 10px;
   overflow-y: auto;
 }
 

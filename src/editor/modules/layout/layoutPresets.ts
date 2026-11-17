@@ -145,9 +145,10 @@ export const editorLayout: LayoutNode = {
  *
  * @remarks
  * The walkable view is the surface the light is judged on, so the layout keeps the editor's frame (the three fixed views
- * on the left, the camera row and the view in the middle) and puts the **Lighting Controls** under the statistics, at
- * the 120 px of the profile row (and the slider the flat light will bring): the profile of the bake is a click away
- * from the view.
+ * on the left, the camera row and the view in the middle) and the right column is the light work, top down: the undo
+ * and redo row, the **Lighting Controls**, and the **Light Inspector** below them (2026-11-17, the owner). The two rows
+ * are 350 by 60, and the light inspector takes what is left. The statistics left the column with the round: the light
+ * work reads the lights, not the counts of the level.
  */
 export const lighterLayout: LayoutNode = {
   type: 'split',
@@ -184,12 +185,11 @@ export const lighterLayout: LayoutNode = {
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: [fixed(200), fixed(120), fixed(UNDO_ROW_HEIGHT), auto(1)],
+      sizes: [fixed(UNDO_ROW_HEIGHT), fixed(UNDO_ROW_HEIGHT), auto(1)],
       children: [
-        { type: 'widget', kind: WIDGET_KINDS.mapStatistics },
-        { type: 'widget', kind: WIDGET_KINDS.lightingControls },
         { type: 'widget', kind: WIDGET_KINDS.undoRedo },
-        { type: 'widget', kind: WIDGET_KINDS.selectionInspector },
+        { type: 'widget', kind: WIDGET_KINDS.lightingControls },
+        { type: 'widget', kind: WIDGET_KINDS.lightInspector },
       ],
     },
   ],

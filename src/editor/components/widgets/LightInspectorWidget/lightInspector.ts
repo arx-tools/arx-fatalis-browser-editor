@@ -1,0 +1,234 @@
+import type { ArxLight, ArxVector3 } from 'arx-convert/types'
+import type { CameraPose } from '../camera/cameraPose.ts'
+import { lightMarkerShapeOf, type LightMarkerShape } from '../shared/lightMarkers.ts'
+
+/**
+ * One row of the Light Inspector: a light of the level, as the list reads it.
+ */
+export type LightRow = {
+  /**
+   * The index of the light in `map.lights`, which names it: a light has no identifier of its own.
+   */
+  readonly index: number
+  /**
+   * The shape the marker of the light draws with.
+   */
+  readonly shape: LightMarkerShape
+  /**
+   * The place of the light in the game's coordinates (the LLF position and the scene of the level).
+   */
+  readonly position: ArxVector3
+  /**
+   * The colour of the light, as a css hex, for the swatch of the row.
+   */
+  readonly color: string
+}
+
+/**
+ * What the list shows of the shape of a light, in the words of the panel.
+ *
+ * @remarks
+ * The words are the owner's (2026-11-17): the static lights and the semi-dynamic ones, the fire, and the light that is
+ * off. They say the same thing the shape of the marker does, so the list and the view read the same kind.
+ *
+ * @param shape The shape of the marker.
+ *
+ * @returns The label of the row.
+ */
+export function lightShapeLabelOf(shape: LightMarkerShape): string {
+  switch (shape) {
+    case 'star': {
+      return 'Static'
+    }
+
+    case 'bulb': {
+      return 'Semi-dynamic'
+    }
+
+    case 'flame': {
+      return 'Fire'
+    }
+
+    case 'flameCrossed': {
+      return 'Off'
+    }
+  }
+}
+
+/**
+ * How far the camera stands from a light it jumps to.
+ *
+ * @remarks
+ * The owner asked for 300 units (2026-11-18): the light is in the middle of the walkable view, and the camera keeps
+ * the orientation it had, so the author sees the light from the side they were looking from.
+ */
+export const LIGHT_JUMP_DISTANCE = 300
+
+/**
+ * The label of a light in the list: its name, the index in `map.lights`.
+ *
+ * @remarks
+ * The label is a word and a number, not a `#` and a padded number: the digits of the font are not monospace, so the
+ * padding lined the rows up only by accident. The row gives the field a fixed width instead (2026-11-18, the owner).
+ *
+ * @param index The index of the light in `map.lights`.
+ *
+ * @returns The `light` and the number.
+ */
+export function lightIndexLabelOf(index: number): string {
+  return `light ${index}`
+}
+
+/**
+ * The pose the camera takes to look at a light.
+ *
+ * @remarks
+ * The orientation of the camera is the one it has: the jump only moves the camera, so the light lands in the middle of
+ * the view it already looks towards, at {@link LIGHT_JUMP_DISTANCE} units. The light is a row of the list, which
+ * carries the place in the game's coordinates.
+ *
+ * @param pose The pose of the camera.
+ * @param light The light to look at.
+ *
+ * @returns The pose of the camera, with the light in the middle of the view.
+ */
+export function lightJumpPoseOf(pose: CameraPose, light: LightRow): CameraPose {
+  const pitch = (pose.angle.pitch * Math.PI) / 180
+  const yaw = (pose.angle.yaw * Math.PI) / 180
+
+  // the forward of the game's camera: the x of the game points left, the y down, and the z out of the screen
+  const forward = {
+    x: -Math.cos(pitch) * Math.sin(yaw),
+    y: Math.sin(pitch),
+    z: Math.cos(pitch) * Math.cos(yaw),
+  }
+
+  const offsetX = forward.x * LIGHT_JUMP_DISTANCE
+  const offsetY = forward.y * LIGHT_JUMP_DISTANCE
+  const offsetZ = forward.z * LIGHT_JUMP_DISTANCE
+
+  return {
+    position: {
+      x: light.position.x - offsetX,
+      y: light.position.y - offsetY,
+      z: light.position.z - offsetZ,
+    },
+    angle: pose.angle,
+  }
+}
+
+/**
+ * The place of a light, as the list writes it.
+ *
+ * @param position The place in the game's coordinates.
+ *
+ * @returns The three numbers, one decimal each, with a comma between them.
+ */
+export function lightPositionLabelOf(position: ArxVector3): string {
+  return `${position.x.toFixed(1)}, ${position.y.toFixed(1)}, ${position.z.toFixed(1)}`
+}
+
+/**
+ * The two digit hex of one channel of a colour.
+ *
+ * @param value The channel, from 0 to 255.
+ *
+ * @returns The channel in hex, two digits.
+ */
+function channelOf(value: number): string {
+  return Math.round(value).toString(16).padStart(2, '0')
+}
+
+/**
+ * The colour of a light, as a css hex.
+ *
+ * @param light The light of the LLF.
+ *
+ * @returns The `#rrggbb` of the light, from the 0..255 channels.
+ */
+function lightColorOf(light: ArxLight): string {
+  return `#${channelOf(light.color.r)}${channelOf(light.color.g)}${channelOf(light.color.b)}`
+}
+
+/**
+ * Builds the rows of the Light Inspector.
+ *
+ * @param lights The lights of the LLF.
+ * @param scene The scene position of the level, which the game coordinates of the light add to.
+ *
+ * @returns One row per light, in the order of `map.lights`.
+ */
+export function lightRowsOf(lights: readonly ArxLight[], scene: ArxVector3): LightRow[] {
+  return lights.map((light, index) => {
+    return {
+      index,
+      shape: lightMarkerShapeOf(light),
+      position: {
+        x: light.position.x + scene.x,
+        y: light.position.y + scene.y,
+        z: light.position.z + scene.z,
+      },
+      color: lightColorOf(light),
+    }
+  })
+}
+
+/**
+ * What a row matches in the search.
+ *
+ * @param row The row of the list.
+ *
+ * @returns The text the search is looked for in.
+ */
+function searchTextOf(row: LightRow): string {
+  return `light ${row.index} #${row.index} ${lightShapeLabelOf(row.shape)} ${lightPositionLabelOf(row.position)}`.toLowerCase()
+}
+
+/**
+ * The rows the search and the shape filter let through.
+ *
+ * @param rows The rows of the list.
+ * @param query What the author typed into the search field.
+ * @param shape The shape to show, or `all` for every shape.
+ *
+ * @returns The rows that match both.
+ */
+export function filteredLightRows(
+  rows: readonly LightRow[],
+  query: string,
+  shape: 'all' | LightMarkerShape,
+): LightRow[] {
+  const needle = query.trim().toLowerCase()
+
+  return rows.filter((row) => {
+    if (shape !== 'all' && row.shape !== shape) {
+      return false
+    }
+
+    return needle === '' || searchTextOf(row).includes(needle)
+  })
+}
+
+/**
+ * What the panel says above the list: how many lights there are, and how many of them are selected.
+ *
+ * @param total How many lights the level has.
+ * @param selected How many of them the selection holds.
+ *
+ * @returns The line of the panel.
+ */
+export function lightSelectionLabelOf(total: number, selected: number): string {
+  let noun = 'lights'
+
+  if (total === 1) {
+    noun = 'light'
+  }
+
+  const lights = `${total} ${noun}`
+
+  if (selected === 0) {
+    return lights
+  }
+
+  return `${lights} · ${selected} selected`
+}

@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { Sprite, Texture } from 'three'
+import { PerspectiveCamera, Sprite, Texture } from 'three'
 import { ArxLightFlags, type ArxLight } from 'arx-convert/types'
 import {
   createLightMarkers,
   disposeLightMarkers,
   lightMarkerColorOf,
   lightMarkerShapeOf,
+  lightMarkerIndexAt,
   lightMarkerSizeOf,
   updateLightMarkers,
   type LightMarkerTextures,
@@ -130,15 +131,45 @@ void describe('createLightMarkers', () => {
     assert.deepEqual(first.position.toArray(), [-10, -20, 30])
     assert.deepEqual(first.scale.toArray(), [20, 20, 1])
     assert.equal(first.material.map, textures.star)
+    assert.equal(first.userData.lightIndex, 0)
 
     const second = group.children.at(1)
 
     assert.ok(second instanceof Sprite)
     assert.deepEqual(second.position.toArray(), [1, 2, -3])
     assert.equal(second.material.map, textures.bulb)
+    assert.equal(second.userData.lightIndex, 1)
 
     disposeLightMarkers(group)
     assert.equal(group.children.length, 0)
+  })
+})
+
+void describe('lightMarkerIndexAt', () => {
+  void it('reads the light of the marker under the crosshair', () => {
+    const textures = texturesOf()
+    const group = createLightMarkers([light({ position: { x: 0, y: 0, z: 0 } })], textures)
+    const camera = new PerspectiveCamera(75, 1, 0.1, 100)
+
+    camera.position.set(0, 0, 10)
+    camera.lookAt(0, 0, 0)
+    camera.updateMatrixWorld(true)
+    group.updateMatrixWorld(true)
+
+    assert.equal(lightMarkerIndexAt(camera, group), 0)
+  })
+
+  void it('reads nothing when the crosshair points away from the marker', () => {
+    const textures = texturesOf()
+    const group = createLightMarkers([light({ position: { x: 0, y: 50, z: 0 } })], textures)
+    const camera = new PerspectiveCamera(75, 1, 0.1, 100)
+
+    camera.position.set(0, 0, 10)
+    camera.lookAt(0, 0, 0)
+    camera.updateMatrixWorld(true)
+    group.updateMatrixWorld(true)
+
+    assert.equal(lightMarkerIndexAt(camera, group), undefined)
   })
 })
 

@@ -10,6 +10,7 @@ import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { WIDGET_KINDS } from '../../../modules/layout/widgetKinds.ts'
 import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
 import { getModifierOfKey } from '../../../modules/keyboard/functions.ts'
+import { lightSelectionStore } from '../../../modules/selection/lightSelectionStore.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import { roomNameOf } from '../../../modules/rooms/roomNames.ts'
 import { litRooms } from '../../../modules/rooms/roomStore.ts'
@@ -32,6 +33,7 @@ import {
   updateLightMarkers,
   type LightMarkerTextures,
 } from '../shared/lightMarkers.ts'
+import { createLightSelectionOverlay, type LightSelectionOverlay } from '../shared/lightSelectionOverlay.ts'
 import { attachPortalLines, type PortalOverlay } from '../shared/portalOverlay.ts'
 import { roomPaletteOf } from '../../../../generator/rooms.ts'
 import { roomRevision } from '../../../modules/rooms/roomRevision.ts'
@@ -141,6 +143,7 @@ let shown: Mesh[] = []
 let wireframe: LevelWireframe | undefined
 let rooms: RoomOverlay | undefined
 let lightMarkers: Group | undefined
+let lightSelection: LightSelectionOverlay | undefined
 let lightTextures: LightMarkerTextures | undefined
 let spikeEntity: Group | undefined
 let portalLines: PortalOverlay | undefined
@@ -190,6 +193,9 @@ const dragSelection = useSelectionDrag({
   },
   overlay: () => {
     return selection
+  },
+  lightMarkers: () => {
+    return lightMarkers
   },
   controls: () => {
     return controls
@@ -411,6 +417,12 @@ function showMap(map: ArxMap): void {
   lightMarkers.visible = isLightsVisible.value
   view.scene.add(lightMarkers)
 
+  // the ring of the selected lights: a sprite per pick, over the marker, in the place of the light
+  lightSelection = createLightSelectionOverlay()
+  lightSelection.group.visible = isLightsVisible.value
+  lightSelection.update(map.lights, lightSelectionStore.lights.value)
+  view.scene.add(lightSelection.group)
+
   // the switches read the wireframe too (its lines follow the mesh), so they come after it is there: a fresh load
   // with the mesh on then starts in the inverted look, not in the grey of a hidden level
   updateVisibility()
@@ -515,6 +527,15 @@ function hideMap(): void {
     lightTextures = undefined
   }
 
+  if (lightSelection !== undefined) {
+    view?.scene.remove(lightSelection.group)
+    lightSelection.dispose()
+    lightSelection = undefined
+  }
+
+  // the selected lights are indices of the level that went: a new level has a list of its own
+  lightSelectionStore.clear()
+
   if (spikeEntity !== undefined) {
     view?.scene.remove(spikeEntity)
     disposeSpikeEntityModel(spikeEntity)
@@ -601,13 +622,18 @@ onMounted(() => {
   // the light markers are a switch too: the sparkles stay in the scene, and the switch takes them off the frame
   // the light markers follow both the switch and an edit of a light: the shape comes from the flags, and the colour, the
   // size and the place from the fields (the light editor and the history steps of a light bump the revision)
-  stopWatchingLights = watch([isLightsVisible, lightsRevision], ([visible]) => {
+  stopWatchingLights = watch([isLightsVisible, lightsRevision, lightSelectionStore.lights], ([visible]) => {
     if (lightMarkers !== undefined) {
       lightMarkers.visible = visible
 
       if (lightTextures !== undefined && loadedMap !== undefined) {
         updateLightMarkers(lightMarkers, loadedMap.lights, lightTextures)
       }
+    }
+
+    if (lightSelection !== undefined && loadedMap !== undefined) {
+      lightSelection.group.visible = visible
+      lightSelection.update(loadedMap.lights, lightSelectionStore.lights.value)
     }
 
     loop.requestRender()

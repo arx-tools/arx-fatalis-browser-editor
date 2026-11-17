@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { lighterLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
 import type { LayoutNode } from '../../src/editor/modules/layout/layoutNode.ts'
-import { editorUrl, waitForLayoutSettled, waitForLevel } from './support/editor.ts'
+import { editorUrl, waitForLayoutSettled } from './support/editor.ts'
 
 /**
  * The box of a widget on the dock, in whole pixels.
@@ -69,7 +69,6 @@ test('a step back to another ratio of two free widgets keeps the layout and the 
   )
 
   await page.goto(editorUrl())
-  await waitForLevel(page)
   await waitForLayoutSettled(page)
 
   // the factory state first: the two elevations are the same height

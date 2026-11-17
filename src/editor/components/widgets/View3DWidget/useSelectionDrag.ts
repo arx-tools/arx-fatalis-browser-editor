@@ -1,13 +1,15 @@
 import type { ArxPolygon, ArxVector3 } from 'arx-convert/types'
-import type { PerspectiveCamera, Mesh } from 'three'
+import type { Group, PerspectiveCamera, Mesh } from 'three'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { usedVerticesOf } from '../../../../generator/polygons.ts'
 import { crosshairStore } from '../../../modules/crosshair/crosshairStore.ts'
 import { isKeyDown } from '../../../modules/keyboard/keyboard.ts'
 import { fillAreaOf, type SelectionFill } from '../../../modules/selection/fillArea.ts'
+import { lightSelectionStore } from '../../../modules/selection/lightSelectionStore.ts'
 import { selectionModeOf, selectionStore, type SelectionMode } from '../../../modules/selection/selectionStore.ts'
 import { isRoomColorsVisible } from '../shared/levelDisplay.ts'
 import type { ViewScene } from '../shared/viewScene.ts'
+import { lightMarkerIndexAt } from '../shared/lightMarkers.ts'
 import type { CameraControls } from './cameraControls.ts'
 import {
   faceToSweep,
@@ -65,6 +67,12 @@ export type SelectionDragContext = {
    * @returns The overlay, or `undefined` while there is no level.
    */
   readonly overlay: () => PolygonSelectionOverlay | undefined
+  /**
+   * The markers of the lights of the level.
+   *
+   * @returns The group of the markers, or `undefined` while there is no level.
+   */
+  readonly lightMarkers: () => Group | undefined
   /**
    * The camera controls of the view: the gesture only runs under the pointer lock.
    *
@@ -128,7 +136,7 @@ export type SelectionDrag = {
  * @returns The handlers the widget binds.
  */
 export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
-  const { view, map, meshes, overlay, controls } = context
+  const { view, map, meshes, overlay, lightMarkers, controls } = context
 
   /**
    * What a running drag does with the faces it sweeps over.
@@ -282,6 +290,22 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
 
       if (view() === undefined || map() === undefined) {
         return
+      }
+
+      // a marker under the crosshair takes the press: the light is the smaller target of the two, and the walkable
+      // view is where the Gizmo of the markers is read. The click writes the light selection, and the faces stay as
+      // they were: the light editor and the face work have a selection of their own.
+      const camera = view()?.camera
+      const markers = lightMarkers()
+
+      if (camera !== undefined && markers !== undefined) {
+        const light = lightMarkerIndexAt(camera, markers)
+
+        if (light !== undefined) {
+          lightSelectionStore.selectMany([light], selectionModeOf(event))
+
+          return
+        }
       }
 
       dragMode = selectionModeOf(event)

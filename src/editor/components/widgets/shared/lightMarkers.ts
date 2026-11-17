@@ -1,4 +1,15 @@
-import { AdditiveBlending, CanvasTexture, Color, Group, Sprite, SpriteMaterial, type Texture } from 'three'
+import {
+  AdditiveBlending,
+  CanvasTexture,
+  Color,
+  Group,
+  Raycaster,
+  Sprite,
+  SpriteMaterial,
+  Vector2,
+  type Camera,
+  type Texture,
+} from 'three'
 import { ArxLightFlags, type ArxLight } from 'arx-convert/types'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 
@@ -299,10 +310,11 @@ export function createLightMarkerTextures(): LightMarkerTextures {
  *
  * @param light The light of the LLF.
  * @param textures The textures of the shapes.
+ * @param index The index of the light in `map.lights`, which the pick reads back.
  *
  * @returns The sprite of the marker.
  */
-function markerOf(light: ArxLight, textures: LightMarkerTextures): Sprite {
+function markerOf(light: ArxLight, textures: LightMarkerTextures, index: number): Sprite {
   const material = new SpriteMaterial({
     map: textures[lightMarkerShapeOf(light)],
     color: lightMarkerColorOf(light),
@@ -314,6 +326,8 @@ function markerOf(light: ArxLight, textures: LightMarkerTextures): Sprite {
   const sprite = new Sprite(material)
   const size = lightMarkerSizeOf(light)
 
+  // the light of a marker is its index in `map.lights`: the pick reads it back from the sprite
+  sprite.userData.lightIndex = index
   sprite.scale.set(size, size, 1)
   sprite.position.copy(arxVector3toVector3(light.position))
 
@@ -333,11 +347,40 @@ export function createLightMarkers(lights: readonly ArxLight[], textures: LightM
 
   group.name = 'light-markers'
 
-  for (const light of lights) {
-    group.add(markerOf(light, textures))
+  for (const [index, light] of lights.entries()) {
+    group.add(markerOf(light, textures, index))
   }
 
   return group
+}
+
+/**
+ * Reads the light whose marker the crosshair of a view points at.
+ *
+ * @remarks
+ * The pointer of the walkable view is locked, so a pick is a ray from the middle of the screen: the sprite of a marker
+ * is a quad that always faces the camera, and the raycaster answers the nearest one. The light a marker draws is its
+ * index in `map.lights` (the `userData` of the sprite), which the light pick writes into the light selection.
+ *
+ * @param camera The camera of the view.
+ * @param markers The group {@link createLightMarkers} built.
+ *
+ * @returns The index of the light, or `undefined` when no marker is under the crosshair.
+ */
+export function lightMarkerIndexAt(camera: Camera, markers: Group): number | undefined {
+  const raycaster = new Raycaster()
+  const centre = new Vector2(0, 0)
+
+  raycaster.setFromCamera(centre, camera)
+
+  const hit = raycaster.intersectObjects(markers.children, false)[0]
+  const index: unknown = hit?.object.userData.lightIndex
+
+  if (typeof index === 'number') {
+    return index
+  }
+
+  return undefined
 }
 
 /**
@@ -376,8 +419,8 @@ export function updateLightMarkers(group: Group, lights: readonly ArxLight[], te
   if (group.children.length !== lights.length) {
     disposeLightMarkers(group)
 
-    for (const light of lights) {
-      group.add(markerOf(light, textures))
+    for (const [index, light] of lights.entries()) {
+      group.add(markerOf(light, textures, index))
     }
 
     return

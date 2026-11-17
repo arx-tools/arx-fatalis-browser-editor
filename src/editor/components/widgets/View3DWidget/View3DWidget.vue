@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
-import { PerspectiveCamera, type Group, type Mesh, type Texture } from 'three'
+import { PerspectiveCamera, type Group, type Mesh } from 'three'
 import Crosshair from '../../Crosshair.vue'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { WIREFRAME_WITHOUT_MESH, arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
+import { lightsRevision } from '../../../modules/level/edit/lightEditing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { WIDGET_KINDS } from '../../../modules/layout/widgetKinds.ts'
 import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
@@ -24,7 +25,13 @@ import {
 } from '../shared/levelDisplay.ts'
 import { addPreviewLights, attachWireframe, viewMeshesOf, type LevelWireframe } from '../shared/levelScene.ts'
 import { disposeSpikeEntityModel, loadSpikeEntityModel } from '../../../modules/level/entities/entitySpike.ts'
-import { createLightMarkers, createLightSparkleTexture, disposeLightMarkers } from '../shared/lightMarkers.ts'
+import {
+  createLightMarkers,
+  createLightMarkerTextures,
+  disposeLightMarkers,
+  updateLightMarkers,
+  type LightMarkerTextures,
+} from '../shared/lightMarkers.ts'
 import { attachPortalLines, type PortalOverlay } from '../shared/portalOverlay.ts'
 import { roomPaletteOf } from '../../../../generator/rooms.ts'
 import { roomRevision } from '../../../modules/rooms/roomRevision.ts'
@@ -134,7 +141,7 @@ let shown: Mesh[] = []
 let wireframe: LevelWireframe | undefined
 let rooms: RoomOverlay | undefined
 let lightMarkers: Group | undefined
-let lightTexture: Texture | undefined
+let lightTextures: LightMarkerTextures | undefined
 let spikeEntity: Group | undefined
 let portalLines: PortalOverlay | undefined
 
@@ -399,8 +406,8 @@ function showMap(map: ArxMap): void {
   portalLines = attachPortalLines(view.scene, map.fts.portals, arxVector3toVector3(map.scenePosition))
 
   // the lights of the LLF: a sparkle for each, at the place of the light, with the colour and the fallStart of it
-  lightTexture = createLightSparkleTexture()
-  lightMarkers = createLightMarkers(map.lights, lightTexture)
+  lightTextures = createLightMarkerTextures()
+  lightMarkers = createLightMarkers(map.lights, lightTextures)
   lightMarkers.visible = isLightsVisible.value
   view.scene.add(lightMarkers)
 
@@ -500,8 +507,13 @@ function hideMap(): void {
     lightMarkers = undefined
   }
 
-  lightTexture?.dispose()
-  lightTexture = undefined
+  if (lightTextures !== undefined) {
+    for (const texture of Object.values(lightTextures)) {
+      texture.dispose()
+    }
+
+    lightTextures = undefined
+  }
 
   if (spikeEntity !== undefined) {
     view?.scene.remove(spikeEntity)
@@ -587,9 +599,15 @@ onMounted(() => {
   })
 
   // the light markers are a switch too: the sparkles stay in the scene, and the switch takes them off the frame
-  stopWatchingLights = watch(isLightsVisible, (visible) => {
+  // the light markers follow both the switch and an edit of a light: the shape comes from the flags, and the colour, the
+  // size and the place from the fields (the light editor and the history steps of a light bump the revision)
+  stopWatchingLights = watch([isLightsVisible, lightsRevision], ([visible]) => {
     if (lightMarkers !== undefined) {
       lightMarkers.visible = visible
+
+      if (lightTextures !== undefined && loadedMap !== undefined) {
+        updateLightMarkers(lightMarkers, loadedMap.lights, lightTextures)
+      }
     }
 
     loop.requestRender()

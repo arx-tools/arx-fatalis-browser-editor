@@ -1,11 +1,9 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { ArxPolygonFlags, type ArxPolygon, type ArxVector3, type ArxVertex } from 'arx-convert/types'
+import { ArxPolygonFlags, type ArxPolygon, type ArxVector3 } from 'arx-convert/types'
 import {
   DoubleSide,
   FrontSide,
-  type LineBasicMaterial,
-  type LineSegments,
   Mesh,
   MeshBasicMaterial,
   MeshLambertMaterial,
@@ -27,30 +25,8 @@ import {
   pickPolygonAt,
   pickPolygons,
   polygonFillGeometry,
-  polygonOutlineGeometry,
-  polygonsOutlineGeometry,
   splitBySide,
 } from '../../../../../src/editor/components/widgets/View3DWidget/polygonSelection.ts'
-
-/**
- * A corner of a face on the floor of the tests.
- */
-type Corner = readonly [number, number]
-
-/**
- * A camera of the test, above the floor of the quads.
- *
- * @returns The camera, looking down at the floor.
- */
-function cameraOf(): PerspectiveCamera {
-  const camera = new PerspectiveCamera(60, 1, 0.1, 100)
-
-  camera.position.set(5, 30, 5)
-  camera.lookAt(5, 0, 5)
-  camera.updateMatrixWorld()
-
-  return camera
-}
 
 /**
  * A flat polygon of the test, lying in the `XZ` plane, facing up.
@@ -114,38 +90,6 @@ function quadAt(x: number): ArxPolygon {
     ],
   }
 }
-
-/**
- * The vertices of a geometry, as a flat list.
- *
- * @param geometry The geometry to read.
- *
- * @returns Every coordinate of every point, three per point.
- */
-function coordinates(geometry: BufferGeometry): number[] {
-  return [...((geometry.getAttribute('position').array as Float32Array) ?? [])]
-}
-
-void describe('polygonOutlineGeometry', () => {
-  void it('gives the perimeter of a quad: four segments', () => {
-    const geometry = polygonOutlineGeometry(polygon(true), new Vector3(0, 0, 0))
-
-    // four edges, two points each
-    assert.equal(geometry.getAttribute('position').count, 8)
-  })
-
-  void it('gives the perimeter of a triangle: three segments', () => {
-    const geometry = polygonOutlineGeometry(polygon(false), new Vector3(0, 0, 0))
-
-    assert.equal(geometry.getAttribute('position').count, 6)
-  })
-
-  void it('shifts the outline by the scene position, like the mesh', () => {
-    const geometry = polygonOutlineGeometry(polygon(true), new Vector3(1, 2, 3))
-
-    assert.deepEqual(coordinates(geometry).slice(0, 3), [-1, -2, -3])
-  })
-})
 
 void describe('polygonFillGeometry', () => {
   void it('covers a quad with two triangles', () => {
@@ -361,38 +305,22 @@ void describe('pickPolygonAt', () => {
 })
 
 void describe('createPolygonSelectionOverlay', () => {
-  void it('shows the outline of the polygon under the crosshair, and hides it again', () => {
+  void it('draws the outline of the crosshair over the scene, and leaves the scene alone', () => {
+    // the contour is a pass of the renderer (a mask and a shader), not an object of the scene: a view without a renderer
+    // has no outline, and nothing to add to the scene
     const scene = new Scene()
-    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0), cameraOf())
+    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0))
 
     overlay.setCursor([polygon(true)], 'replace')
-    assert.equal(scene.children.length, 1)
+    assert.equal(scene.children.length, 0)
 
     overlay.setCursor([], 'replace')
     assert.equal(scene.children.length, 0)
   })
 
-  void it('colours the outline red when the click would remove the polygon', () => {
-    const scene = new Scene()
-    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0), cameraOf())
-
-    overlay.setCursor([polygon(true)], 'add')
-
-    // the colour is read out at the moment of the call: the overlay keeps one material and repaints it
-    const [outline] = scene.children as Array<LineSegments<BufferGeometry, LineBasicMaterial>>
-    const { material } = outline
-    const green = material.color.getHex()
-
-    overlay.setCursor([polygon(true)], 'remove')
-    const red = material.color.getHex()
-
-    assert.equal(green, Color.green.getHex())
-    assert.equal(red, Color.red.getHex())
-  })
-
   void it('fills the selected polygons, and empties the fill', () => {
     const scene = new Scene()
-    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0), cameraOf())
+    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0))
 
     overlay.setHighlight([polygon(true)])
     assert.equal(scene.children.length, 1)
@@ -403,7 +331,7 @@ void describe('createPolygonSelectionOverlay', () => {
 
   void it('paints the fill on the faces towards the camera only, like the level', () => {
     const scene = new Scene()
-    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0), cameraOf())
+    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0))
 
     overlay.setHighlight([polygon(true)])
 
@@ -423,7 +351,7 @@ void describe('createPolygonSelectionOverlay', () => {
 
   void it('turns the yellow nearly solid on the room map, and back to a tint on the level', () => {
     const scene = new Scene()
-    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0), cameraOf())
+    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0))
 
     overlay.setHighlight([polygon(true)])
     overlay.setBackdrop(true)
@@ -441,7 +369,7 @@ void describe('createPolygonSelectionOverlay', () => {
 
   void it('draws a grey base under the fill while the room map is on', () => {
     const scene = new Scene()
-    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0), cameraOf())
+    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0))
 
     overlay.setHighlight([polygon(true)])
     overlay.setBackdrop(true)
@@ -462,7 +390,7 @@ void describe('createPolygonSelectionOverlay', () => {
 
   void it('takes the base away with the map, and keeps the fill', () => {
     const scene = new Scene()
-    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0), cameraOf())
+    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0))
 
     overlay.setHighlight([polygon(true)])
     overlay.setBackdrop(true)
@@ -473,7 +401,7 @@ void describe('createPolygonSelectionOverlay', () => {
 
   void it('draws no base without a selection', () => {
     const scene = new Scene()
-    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0), cameraOf())
+    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0))
 
     overlay.setBackdrop(true)
     overlay.setHighlight([])
@@ -481,24 +409,9 @@ void describe('createPolygonSelectionOverlay', () => {
     assert.equal(scene.children.length, 0)
   })
 
-  void it('draws the fill under the outline', () => {
-    const scene = new Scene()
-    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0), cameraOf())
-
-    overlay.setHighlight([polygon(true)])
-    overlay.setCursor([polygon(true)], 'replace')
-
-    const orders = scene.children.map((child) => {
-      return child.renderOrder
-    })
-
-    // the fill (7) first, then the outline of the cursor (9), with the wireframe of the level between them (8)
-    assert.deepEqual(orders, [7, 9])
-  })
-
   void it('takes both out of the scene on dispose', () => {
     const scene = new Scene()
-    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0), cameraOf())
+    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0))
 
     overlay.setHighlight([polygon(true)])
     overlay.setCursor([polygon(true)], 'replace')
@@ -641,7 +554,7 @@ void describe('splitBySide', () => {
 void describe('the sides of the fill', () => {
   void it('paints the faces the level culls on the front only', () => {
     const scene = new Scene()
-    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0), cameraOf())
+    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0))
 
     overlay.setHighlight([polygon(true)])
 
@@ -652,7 +565,7 @@ void describe('the sides of the fill', () => {
 
   void it('paints the face the level draws from both sides on both sides', () => {
     const scene = new Scene()
-    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0), cameraOf())
+    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0))
 
     overlay.setHighlight([doubleSidedQuad()])
 
@@ -664,7 +577,7 @@ void describe('the sides of the fill', () => {
 
   void it('puts the base of the room map under both kinds of face', () => {
     const scene = new Scene()
-    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0), cameraOf())
+    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0))
 
     overlay.setHighlight([polygon(true), doubleSidedQuad()])
     overlay.setBackdrop(true)
@@ -686,98 +599,5 @@ void describe('the sides of the fill', () => {
       }).length,
       2,
     )
-  })
-})
-
-/**
- * One corner of a face of the test, on the floor.
- *
- * @param base The face to take the texture coordinates from.
- * @param point The corner on the floor, `x` and `z`.
- *
- * @returns The vertex of the face.
- */
-function cornerOf(base: ArxPolygon, point: Corner): ArxVertex {
-  return { ...base.vertices[0], x: point[0], z: point[1] }
-}
-
-/**
- * A triangle of the test, from the points of its corners on the floor.
- *
- * @param points The corners on the floor, `x` and `z`.
- *
- * @returns The face, with the fields an Arx polygon has: the game stores four slots for a triangle too, and its
- * perimeter is the first three of them.
- */
-function triangleAt(points: readonly [Corner, Corner, Corner]): ArxPolygon {
-  const base = polygon(false)
-
-  return {
-    ...base,
-    vertices: [
-      cornerOf(base, points[0]),
-      cornerOf(base, points[1]),
-      cornerOf(base, points[2]),
-      cornerOf(base, points[0]),
-    ],
-  }
-}
-
-void describe('polygonsOutlineGeometry', () => {
-  void it('draws the boundary of two faces that share an edge, and not the edge between them', () => {
-    // the two triangles make a square: their shared edge (10, 0) - (0, 10) is inside the set, and the outline is the four
-    // edges of the square
-    const first = triangleAt([
-      [0, 0],
-      [10, 0],
-      [0, 10],
-    ] as const)
-    const second = triangleAt([
-      [10, 0],
-      [0, 10],
-      [10, 10],
-    ] as const)
-    const geometry = polygonsOutlineGeometry([first, second], new Vector3(0, 0, 0))
-    const positions = geometry.getAttribute('position')
-
-    assert.equal(positions.count, 8)
-  })
-
-  void it('draws the phantom of the crosshair in front of the surface it lies on', () => {
-    // the depth test of the material is what hides the part of the line a raised face in the group covers, and the line
-    // has to sit a step closer to the camera than the surface it lies on, or it loses the test on the pixels it shares
-    const scene = new Scene()
-    const camera = cameraOf()
-    const overlay = createPolygonSelectionOverlay(scene, new Vector3(0, 0, 0), camera)
-    const face = polygon(true)
-
-    overlay.setCursor([face], 'replace')
-
-    const [outline] = scene.children as Array<LineSegments<BufferGeometry, LineBasicMaterial>>
-    const position = outline.geometry.getAttribute('position')
-
-    assert.equal(outline.material.depthTest, true)
-
-    // the first point of the outline is the first corner of the face, pulled towards the camera
-    const corner = face.vertices[0]
-    const distance = Math.hypot(
-      corner.x - camera.position.x,
-      corner.y - camera.position.y,
-      corner.z - camera.position.z,
-    )
-    const nudged = Math.hypot(
-      position.getX(0) - camera.position.x,
-      position.getY(0) - camera.position.y,
-      position.getZ(0) - camera.position.z,
-    )
-
-    assert.ok(nudged < distance)
-    assert.ok(nudged > distance * 0.99)
-  })
-
-  void it('keeps the perimeter of one face', () => {
-    const geometry = polygonsOutlineGeometry([polygon(true)], new Vector3(0, 0, 0))
-
-    assert.equal(geometry.getAttribute('position').count, 8)
   })
 })

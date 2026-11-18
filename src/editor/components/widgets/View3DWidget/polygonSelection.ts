@@ -5,8 +5,6 @@ import {
   Color as ThreeColor,
   DoubleSide,
   FrontSide,
-  LineBasicMaterial,
-  LineSegments,
   Mesh,
   MeshLambertMaterial,
   Raycaster,
@@ -18,6 +16,7 @@ import {
   type PerspectiveCamera,
   type Scene,
   type Side,
+  type WebGLRenderer,
   type Vector3,
 } from 'three'
 import { Color } from '../../../../generator/Color.ts'
@@ -27,10 +26,9 @@ import {
   isDoubleSided,
   isTouchingVertices,
   polygonFillTriangles,
-  polygonPerimeter,
   polygonOfTriangle,
-  vertexKeyOf,
 } from '../../../../generator/polygons.ts'
+import { createSelectionContour, type SelectionContour } from './selectionContour.ts'
 
 /**
  * Reads the polygon of one intersection.
@@ -294,6 +292,12 @@ export type PolygonSelectionOverlay = {
    */
   readonly setCursor: (polygons: readonly ArxPolygon[], mode: SelectionMode) => void
   /**
+   * Draws the outline of the crosshair over the scene, when the view has a renderer to draw it with.
+   *
+   * @param camera The camera the scene was drawn with.
+   */
+  readonly renderCursor: (camera: Camera) => void
+  /**
    * Shows the fill of the selected polygons.
    *
    * @param polygons The selected polygons, in any order.
@@ -346,130 +350,6 @@ function polygonVertices(polygon: ArxPolygon, offset: Vector3): Vector3[] {
   return polygon.vertices.map((vertex) => {
     return arxVector3toVector3(vertex).sub(offset)
   })
-}
-
-/**
- * Builds the outline of a polygon: its perimeter, as segments.
- *
- * @param polygon The polygon to outline.
- * @param offset The scene position of the level, already mirrored.
- *
- * @returns The segments, ready for a `LineSegments`.
- */
-export function polygonOutlineGeometry(polygon: ArxPolygon, offset: Vector3): BufferGeometry {
-  const vertices = polygonVertices(polygon, offset)
-  const perimeter = polygonPerimeter(polygon)
-  const positions: number[] = []
-
-  for (let index = 0; index < perimeter.length; index++) {
-    const from = vertices[perimeter[index]]
-    const to = vertices[perimeter[(index + 1) % perimeter.length]]
-
-    positions.push(from.x, from.y, from.z, to.x, to.y, to.z)
-  }
-
-  return positionsToGeometry(positions)
-}
-
-/**
- * Builds the outline of a set of polygons: its **boundary**, as one geometry of segments.
- *
- * @remarks
- * The outline is the edge of the set and not the wireframe of every face in it: an edge two faces of the set share is
- * inside the set, and it does not show (2026-11-18, the owner: the phantom of a group is the outer line of the group).
- * The edges are keyed by the positions of their corners ({@link vertexKeyOf}), so two faces that meet at a point of the
- * level give one edge, whatever order they store their corners in.
- *
- * @param polygons The polygons to outline.
- * @param offset The scene position of the level, already mirrored.
- *
- * @returns The segments, ready for a `LineSegments`.
- */
-export function polygonsOutlineGeometry(polygons: readonly ArxPolygon[], offset: Vector3): BufferGeometry {
-  const edges = new Map<string, { readonly from: Vector3; readonly to: Vector3; count: number }>()
-
-  for (const polygon of polygons) {
-    const vertices = polygonVertices(polygon, offset)
-    const perimeter = polygonPerimeter(polygon)
-
-    for (const [index, corner] of perimeter.entries()) {
-      const nextCorner = perimeter[(index + 1) % perimeter.length]
-      const from = vertices[corner]
-      const to = vertices[nextCorner]
-      const start = polygon.vertices[corner]
-      const end = polygon.vertices[nextCorner]
-
-      if (from === undefined || to === undefined || start === undefined || end === undefined) {
-        continue
-      }
-
-      const one = vertexKeyOf(start)
-      const other = vertexKeyOf(end)
-      let key = `${other}|${one}`
-
-      if (one < other) {
-        key = `${one}|${other}`
-      }
-
-      const known = edges.get(key)
-
-      if (known === undefined) {
-        edges.set(key, { from, to, count: 1 })
-
-        continue
-      }
-
-      known.count = known.count + 1
-    }
-  }
-
-  const positions: number[] = []
-
-  for (const edge of edges.values()) {
-    if (edge.count > 1) {
-      continue
-    }
-
-    positions.push(edge.from.x, edge.from.y, edge.from.z, edge.to.x, edge.to.y, edge.to.z)
-  }
-
-  return positionsToGeometry(positions)
-}
-
-/**
- * How much closer the phantom of the crosshair sits to the camera than the surface it lies on, as a fraction of the
- * distance.
- *
- * @remarks
- * A line on a surface loses the depth test on the pixels it shares with the surface: the eyes round the depth of both,
- * and which one wins is up to the driver. The phantom is pulled a small step towards the camera, so it wins on the
- * surface it lies on and still loses to anything the camera can see in front of it.
- */
-const OUTLINE_NUDGE = 0.002
-
-/**
- * Pulls the points of a geometry towards the camera.
- *
- * @param geometry The geometry to move, in place.
- * @param camera The camera to pull towards.
- * @param fraction How much of the distance to the camera the points take.
- */
-function nudgeTowardCamera(geometry: BufferGeometry, camera: Vector3, fraction: number): void {
-  const positions = geometry.getAttribute('position')
-
-  for (let index = 0; index < positions.count; index = index + 1) {
-    const x = positions.getX(index)
-    const y = positions.getY(index)
-    const z = positions.getZ(index)
-
-    const stepX = (camera.x - x) * fraction
-    const stepY = (camera.y - y) * fraction
-    const stepZ = (camera.z - z) * fraction
-
-    positions.setXYZ(index, x + stepX, y + stepY, z + stepZ)
-  }
-
-  positions.needsUpdate = true
 }
 
 /**
@@ -627,34 +507,24 @@ function backdropMaterialOf(side: Side): MeshLambertMaterial {
  *
  * @param scene The scene of the widget.
  * @param offset The scene position of the level, already mirrored.
- * @param camera The camera of the view: the phantom of the crosshair is drawn in front of the surface it lies on, and
- * the surface hides the part of it that the author can not see anyway.
+ * @param renderer The renderer of the view: the outline of the crosshair is a screen-space contour, and its mask is a
+ * render target of the canvas. A view without a renderer has no outline.
  *
  * @returns The overlay, with nothing shown yet.
  */
-export function createPolygonSelectionOverlay(scene: Scene, offset: Vector3, camera: Camera): PolygonSelectionOverlay {
-  // the outline lies on the surface it outlines, and the surface in front of it hides it: the outline of a group is the
-  // line the author sees, and a raised face of the group covers the part of the line that runs behind it (2026-11-18,
-  // the owner: the edge of the model went through a fold of the bed, and the line read as if it were inside the group).
-  //
-  // The depth test needs the line to be a little closer than the surface it lies on, or the two fight for the same
-  // pixels and the line mostly loses: `showCursor` pulls it towards the camera, and the pair of faces the outline
-  // belongs to is the nearest one anyway (the pick takes the nearest face).
-  //
-  // `transparent` with a full opacity is not about blending: three draws the transparent objects after the
-  // opaque ones, and the fill of the selection is transparent, so this is what puts the outline over the
-  // fill (its `renderOrder` is the highest of the three: above the fill and above the wireframe)
-  const outlineMaterial = new LineBasicMaterial({
-    color: Color.green.getHex(),
-    depthTest: true,
-    transparent: true,
-  })
-  const outline = new LineSegments(new BufferGeometry(), outlineMaterial)
-  outline.renderOrder = 9
-  // the geometry of the outline is replaced on every frame, and the frustum check of three works on a
-  // bounding sphere that such a geometry only gets on demand: it is cheaper to skip the check than to
-  // rebuild the sphere for a handful of points
-  outline.frustumCulled = false
+export function createPolygonSelectionOverlay(
+  scene: Scene,
+  offset: Vector3,
+  renderer?: WebGLRenderer,
+): PolygonSelectionOverlay {
+  // the outline of the crosshair is the contour of the faces as the camera sees them: a line built from the faces would
+  // show through what hides it, and a fold of a group would read as a line inside the group (2026-11-18, the owner). The
+  // contour is a mask of the faces in a render target, and a shader that draws the edge of that mask.
+  let contour: SelectionContour | undefined
+
+  if (renderer !== undefined) {
+    contour = createSelectionContour(renderer, offset)
+  }
 
   // the fill lies on the surface of the selected polygons, exactly where the mesh is, so it needs the
   // polygon offset: without it the two fight for the same pixels and the fill mostly loses. The offset
@@ -726,41 +596,12 @@ export function createPolygonSelectionOverlay(scene: Scene, offset: Vector3, cam
     put(doubleBackdrop, hasDoubleSided && hasBackdrop)
   }
 
-  /**
-   * Outlines the polygons under the crosshair.
-   *
-   * @param polygons The polygons to show.
-   */
-  function showCursor(polygons: readonly ArxPolygon[]): void {
-    const geometry = polygonsOutlineGeometry(polygons, offset)
-
-    nudgeTowardCamera(geometry, camera.position, OUTLINE_NUDGE)
-
-    outline.geometry.dispose()
-    outline.geometry = geometry
-
-    if (!outline.parent) {
-      scene.add(outline)
-    }
-  }
-
   return {
     setCursor: (polygons: readonly ArxPolygon[], mode: SelectionMode): void => {
-      if (polygons.length === 0) {
-        scene.remove(outline)
-
-        return
-      }
-
-      showCursor(polygons)
-
-      let colour = Color.green.getHex()
-
-      if (mode === 'remove') {
-        colour = Color.red.getHex()
-      }
-
-      outlineMaterial.color.set(colour)
+      contour?.set(polygons, mode)
+    },
+    renderCursor: (camera: Camera): void => {
+      contour?.render(camera)
     },
     setHighlight: (polygons, tintOf, inGroup): void => {
       const { singleSided, doubleSided } = splitBySide(polygons)
@@ -807,15 +648,13 @@ export function createPolygonSelectionOverlay(scene: Scene, offset: Vector3, cam
       updateHighlight()
     },
     dispose: (): void => {
-      scene.remove(outline)
+      contour?.dispose()
       scene.remove(fill)
       scene.remove(backdrop)
       scene.remove(doubleFill)
       scene.remove(doubleBackdrop)
-      outline.geometry.dispose()
       fill.geometry.dispose()
       doubleFill.geometry.dispose()
-      outlineMaterial.dispose()
       fillMaterial.dispose()
       doubleFillMaterial.dispose()
       backdropMaterial.dispose()

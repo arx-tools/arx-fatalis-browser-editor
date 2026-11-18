@@ -533,7 +533,7 @@ function showMap(map: ArxMap): void {
   })
 
   // the fill of the selection, in the space of the same meshes
-  selectionOverlay = createPolygonSelectionOverlay(view.scene, arxVector3toVector3(map.scenePosition), view.camera)
+  selectionOverlay = createPolygonSelectionOverlay(view.scene, arxVector3toVector3(map.scenePosition))
   selectionOverlay.setHighlight(selectedPolygonsOf(map), undefined, inGroupOf(selectedGroupPolygons.value))
 
   stopWatchingSelection = watch(selectionStore.polygons, () => {

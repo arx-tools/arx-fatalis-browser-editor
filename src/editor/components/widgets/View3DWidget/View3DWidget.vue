@@ -238,6 +238,14 @@ const loop = createFrameLoop({
   gizmo: () => {
     return gizmo
   },
+  afterRender: () => {
+    // the contour of the crosshair is a screen-space pass, and it goes over the scene it was drawn from
+    const sceneCamera = view?.camera
+
+    if (sceneCamera !== undefined) {
+      selection?.renderCursor(sceneCamera)
+    }
+  },
 })
 
 /**
@@ -470,7 +478,7 @@ function showMap(map: ArxMap): void {
     })
 
   loop.resetPick()
-  selection = createPolygonSelectionOverlay(view.scene, arxVector3toVector3(map.scenePosition), view.camera)
+  selection = createPolygonSelectionOverlay(view.scene, arxVector3toVector3(map.scenePosition), view.renderer)
   dragSelection.updateHighlight()
   loop.requestRender()
 

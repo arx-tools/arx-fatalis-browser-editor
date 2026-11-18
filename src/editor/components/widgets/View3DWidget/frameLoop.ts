@@ -48,6 +48,10 @@ export type FrameLoopContext = {
    * @returns The gizmo, or `undefined` before the widget made it.
    */
   readonly gizmo: () => OrientationGizmo | undefined
+  /**
+   * Draws the overlays that come after the scene on the same canvas, like the contour of the crosshair.
+   */
+  readonly afterRender?: () => void
 }
 
 /**
@@ -174,6 +178,7 @@ export function createFrameLoop(context: FrameLoopContext): FrameLoop {
     updateDrag()
 
     viewScene.renderer.render(viewScene.scene, viewScene.camera)
+    context.afterRender?.()
     gizmo()?.render()
   }
 

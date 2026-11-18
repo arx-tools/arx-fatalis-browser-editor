@@ -5,6 +5,7 @@ import type { LayoutNode } from '../../src/editor/modules/layout/layoutNode.ts'
 import {
   lockPointer,
   nextFrames,
+  readPose,
   screenshotDifference,
   seedLayout,
   selectionCount,
@@ -41,6 +42,52 @@ function groupsLayout(): LayoutNode {
           { kind: 'auto', ratio: 1 },
         ],
         children: [
+          { type: 'widget', kind: WIDGET_KINDS.mapStatistics },
+          { type: 'widget', kind: WIDGET_KINDS.selectionInspector },
+        ],
+      },
+      { type: 'widget', kind: WIDGET_KINDS.view3d },
+      {
+        type: 'split',
+        orientation: 'vertical',
+        sizes: [
+          { kind: 'auto', ratio: 1 },
+          { kind: 'auto', ratio: 1 },
+        ],
+        children: [
+          { type: 'widget', kind: WIDGET_KINDS.roomInspector },
+          { type: 'widget', kind: WIDGET_KINDS.groupInspector },
+        ],
+      },
+    ],
+  }
+}
+
+/**
+ * The layout of the tests with the camera form, so a jump can be read back.
+ *
+ * @remarks
+ * The same tree as {@link groupsLayout}, with the camera form at the top of the left column: the form is how a test
+ * reads the pose of the camera before and after a jump.
+ *
+ * @returns The tree to put into the storage.
+ */
+function groupsLayoutWithCamera(): LayoutNode {
+  return {
+    type: 'split',
+    orientation: 'horizontal',
+    sizes: [
+      { kind: 'fixed', px: 350 },
+      { kind: 'auto', ratio: 1 },
+      { kind: 'fixed', px: 350 },
+    ],
+    children: [
+      {
+        type: 'split',
+        orientation: 'vertical',
+        sizes: [{ kind: 'auto', ratio: 1 }],
+        children: [
+          { type: 'widget', kind: WIDGET_KINDS.cameraControls },
           { type: 'widget', kind: WIDGET_KINDS.mapStatistics },
           { type: 'widget', kind: WIDGET_KINDS.selectionInspector },
         ],
@@ -113,23 +160,6 @@ async function groupTheSelection(page: Page): Promise<void> {
   await page.keyboard.press('ControlOrMeta+g')
 }
 
-/**
- * The names of the sections of the group inspector.
- *
- * @param page The page to read.
- *
- * @returns The titles, in the order the widget shows them.
- */
-async function sectionTitles(page: Page): Promise<string[]> {
-  return await groupInspector(page)
-    .locator('li.section')
-    .evaluateAll((sections) => {
-      return sections.map((section) => {
-        return (section.textContent ?? '').trim()
-      })
-    })
-}
-
 test.setTimeout(120_000)
 
 /**
@@ -185,7 +215,6 @@ test('Ctrl+G makes a group of the selection, and its row picks the faces back', 
   await expect(groups).toHaveCount(1)
   await expect(groups.first()).toContainText('group 1')
   await expect(groups.first()).toContainText(`${String(faces)} faces`)
-  expect(await sectionTitles(page)).toEqual(['Blank: Flat Plane'])
 
   // the click on the picked room again clears the selection, and the row has the faces to pick back
   await pickFirstRoom(page)
@@ -275,7 +304,6 @@ test('the name of a group stays in the browser', async ({ page }) => {
   await waitForLayoutSettled(page)
 
   await expect(groupInspector(page).locator('li.group').first()).toContainText('the floor')
-  expect(await sectionTitles(page)).toEqual(['Blank: Flat Plane'])
 
   // an empty (or whitespace) name is not a name: the row falls back to the default of the id
   const after = groupInspector(page).locator('li.group').first()
@@ -463,13 +491,14 @@ test('Delete takes the picked group out, the faces stay', async ({ page }) => {
 })
 
 /**
- * The groups are stored per level, and the widget titles every level the author grouped faces on.
+ * The inspector lists the groups of the level on the screen, and no other level's.
  *
  * @remarks
- * A group never spans two levels: the faces are indices of the level they were made on. The sections of the widget carry
- * the name the header writes the level with (`Blank: Flat Plane`), and the open level comes first.
+ * The groups of the other levels are the storage of those levels: standing on level 4 there is nothing to do with the
+ * groups of level 1, so the widget does not take the room for them. The lists of the two levels are apart in the
+ * storage, and a visit to a level finds its own again.
  */
-test('the sections of the group inspector follow the levels', async ({ page }) => {
+test('the group inspector lists the groups of the level on the screen, and no other', async ({ page }) => {
   await seedLayout(page, groupsLayout())
   await page.goto('/?map=blank-flat')
   const flatFaces = await waitForLevel(page)
@@ -479,8 +508,9 @@ test('the sections of the group inspector follow the levels', async ({ page }) =
   await groupTheSelection(page)
 
   await expect(groupInspector(page).locator('li.group')).toHaveCount(1)
+  await expect(groupInspector(page).locator('li.group').first()).toContainText(`${String(flatFaces)} faces`)
 
-  // the minimal level of the blank maps: one face, and a group of its own
+  // a group on the minimal level: the flat level's group is not in its list
   await mapSelect(page).selectOption('blank:minimal')
 
   await expect
@@ -489,26 +519,42 @@ test('the sections of the group inspector follow the levels', async ({ page }) =
     })
     .toBe(1)
 
+  await expect(groupInspector(page).locator('li.group')).toHaveCount(0)
+
   await pickFirstRoom(page)
   await groupTheSelection(page)
 
-  await expect(groupInspector(page).locator('li.group')).toHaveCount(2)
+  await expect(groupInspector(page).locator('li.group')).toHaveCount(1)
+  await expect(groupInspector(page).locator('li.group').first()).toContainText('1 face')
 
-  // the open level first, the one that is put away after it
-  expect(await sectionTitles(page)).toEqual(['Blank: Minimal', 'Blank: Flat Plane'])
+  // the flat level kept its own group
+  await mapSelect(page).selectOption('blank:flat')
 
-  const rows = groupInspector(page).locator('li.group')
+  await expect
+    .poll(async () => {
+      return await statOf(page, 'Total faces')
+    })
+    .toBe(flatFaces)
 
-  await expect(rows.nth(0)).toContainText('1 face')
-  await expect(rows.nth(1)).toContainText(`${String(flatFaces)} faces`)
+  await expect(groupInspector(page).locator('li.group')).toHaveCount(1)
+  await expect(groupInspector(page).locator('li.group').first()).toContainText(`${String(flatFaces)} faces`)
 
-  // the storage kept both levels: a reload finds the two sections
-  await page.reload()
-  await waitForLevel(page)
-  await waitForLayoutSettled(page)
+  // the storage keeps the two levels apart
+  await expect
+    .poll(async () => {
+      return await page.evaluate(() => {
+        const raw = localStorage.getItem('faceGroups')
 
-  expect(await sectionTitles(page)).toEqual(['Blank: Minimal', 'Blank: Flat Plane'])
-  await expect(groupInspector(page).locator('li.group')).toHaveCount(2)
+        if (raw === null) {
+          return []
+        }
+
+        const parsed = JSON.parse(raw) as { readonly maps?: Record<string, unknown> }
+
+        return Object.keys(parsed.maps ?? {})
+      })
+    })
+    .toEqual(expect.arrayContaining(['blank:flat', 'blank:minimal']))
 })
 
 /**
@@ -670,4 +716,141 @@ test('the eye of a group takes its faces out of the mesh, and the delete puts th
   const again = await screenshotDifference(page, before, restored)
 
   expect(again.differing).toBe(0)
+})
+
+/**
+ * Groups are a lock: the key that makes one takes the same one apart.
+ *
+ * @remarks
+ * The selection of the level is the group (the room row picked its faces), so `Ctrl+G` takes the group apart instead of
+ * grouping it again, and the `+` of the heading does nothing while a locked face is selected: a face is in one group at
+ * most (2026-11-18, the owner).
+ */
+test('Ctrl+G takes a group apart, and the add button refuses a locked selection', async ({ page }) => {
+  await seedLayout(page, groupsLayout())
+  await page.goto('/?map=blank-flat')
+  const faces = await waitForLevel(page)
+  await waitForLayoutSettled(page)
+
+  await pickFirstRoom(page)
+  await groupTheSelection(page)
+
+  const groups = groupInspector(page).locator('li.group')
+
+  await expect(groups).toHaveCount(1)
+
+  // the selection is the whole group: the add button makes no second group of it
+  await page.locator('button[aria-label="Group the selected faces"]').click()
+  await expect(groups).toHaveCount(1)
+  await expect(groups.first()).toContainText(`${String(faces)} faces`)
+
+  // the same key takes the group apart, and the faces stay in the level
+  await groupTheSelection(page)
+
+  await expect(groups).toHaveCount(0)
+
+  const level = await statOf(page, 'Total faces')
+
+  expect(level).toBe(faces)
+
+  await expect
+    .poll(async () => {
+      return await selectionCount(page)
+    })
+    .toBe(faces)
+})
+
+/**
+ * The magnifier of a row goes to the group, from the distance of its size.
+ *
+ * @remarks
+ * The camera keeps its angles and steps back along the forward, so the group is in front of it: the distance follows the
+ * box of the group ({@link faceGroupJumpPoseOf}), which is how a small group is looked at from close. The jump selects
+ * the faces, so the mark of what the camera went to is on the level.
+ */
+test('the magnifier of a group goes to it, and picks its faces', async ({ page }) => {
+  await page.setViewportSize({ width: 1631, height: 850 })
+  await seedLayout(page, groupsLayoutWithCamera())
+  await page.goto('/?map=blank-flat')
+  await waitForLevel(page)
+  await waitForLayoutSettled(page)
+
+  await pickFirstRoom(page)
+
+  const faces = await selectionCount(page)
+
+  await groupTheSelection(page)
+
+  const row = groupInspector(page).locator('li.group').first()
+
+  await expect(row).toContainText('group 1')
+
+  const before = await readPose(page)
+  const start = [before.x, before.z]
+
+  await page.keyboard.press('c')
+  await row.locator('button.zoom').click()
+
+  await expect
+    .poll(async () => {
+      const pose = await readPose(page)
+
+      return [pose.x, pose.z]
+    })
+    .not.toEqual(start)
+
+  // the angles stay: the jump moves the eye, not the look
+  const after = await readPose(page)
+
+  expect(after.yaw).toBe(before.yaw)
+  expect(after.pitch).toBe(before.pitch)
+
+  // the faces of the group are the selection the camera went to
+  await expect
+    .poll(async () => {
+      return await selectionCount(page)
+    })
+    .toBe(faces)
+})
+
+/**
+ * The fill of a group is red, and taking the group apart puts the yellow back without a click.
+ *
+ * @remarks
+ * The colour of the fill follows the groups and not only the faces: a group is a lock and its mark says so, and the red
+ * has to appear when the group is made and go when it is taken apart, with the selection the same all along (2026-11-18,
+ * the owner: the two bugs of the first round).
+ */
+test('a group is red in the fill, and taking it apart puts the yellow back', async ({ page }) => {
+  await seedLayout(page, groupsLayout())
+  await page.goto('/?map=blank-flat')
+  await waitForLevel(page)
+  await waitForLayoutSettled(page)
+
+  const view = page.locator('[data-widget-kind="3d-view"] canvas.stage')
+
+  await pickFirstRoom(page)
+  await nextFrames(page, 2)
+
+  const yellow = await view.screenshot()
+
+  await groupTheSelection(page)
+  await expect(groupInspector(page).locator('li.group')).toHaveCount(1)
+  await nextFrames(page, 2)
+
+  const red = await view.screenshot()
+  const recoloured = await screenshotDifference(page, yellow, red)
+
+  // the faces of the group are red now: the picture of the same selection is another picture
+  expect(recoloured.differing).toBeGreaterThan(50)
+
+  // the same key takes the group apart: the faces stay in the selection, and the mark is yellow again
+  await groupTheSelection(page)
+  await expect(groupInspector(page).locator('li.group')).toHaveCount(0)
+  await nextFrames(page, 2)
+
+  const back = await view.screenshot()
+  const same = await screenshotDifference(page, yellow, back)
+
+  expect(same.differing).toBe(0)
 })

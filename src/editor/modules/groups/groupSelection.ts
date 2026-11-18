@@ -46,6 +46,47 @@ export const selectedFaceGroups: ComputedRef<ReadonlySet<number>> = computed(() 
 })
 
 /**
+ * The faces of the groups the selection holds a face of.
+ *
+ * @remarks
+ * The fill of the views paints these red: a group is a lock, and the mark of its faces says it is one unit
+ * (2026-11-18, the owner). The walkable view and the fixed views read the same set, so a group reads the same way on the
+ * views.
+ */
+export const selectedGroupPolygons: ComputedRef<ReadonlySet<ArxPolygon>> = computed(() => {
+  const members = new Set<ArxPolygon>()
+
+  if (selectedFaceGroups.value.size === 0) {
+    return members
+  }
+
+  for (const group of activeFaceGroups.value) {
+    if (!selectedFaceGroups.value.has(group.id)) {
+      continue
+    }
+
+    for (const member of group.members) {
+      members.add(member)
+    }
+  }
+
+  return members
+})
+
+/**
+ * Reads the predicate of a fill: is this face in one of the picked groups.
+ *
+ * @param polygons The faces of the groups the selection holds a face of.
+ *
+ * @returns A function the view's fill asks for every face it paints.
+ */
+export function inGroupOf(polygons: ReadonlySet<ArxPolygon>): (polygon: ArxPolygon) => boolean {
+  return (polygon: ArxPolygon): boolean => {
+    return polygons.has(polygon)
+  }
+}
+
+/**
  * Tells whether the pick of the list is exactly this group.
  *
  * @param groupId The group whose pick is asked.

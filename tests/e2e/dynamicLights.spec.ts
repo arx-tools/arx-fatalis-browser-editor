@@ -206,3 +206,88 @@ test('the small views draw the marker shapes, and hide the lights of a switched 
     })
     .toBe(0)
 })
+
+/**
+ * The flicker of the layer stops while the tab is hidden, and comes back with it.
+ *
+ * @remarks
+ * A browser tab in the background draws nothing the author can see, and the layer used to paint its torch frames all
+ * along: a quarter of a core for hours on a tab nobody looked at (2026-11-18, the owner). The page says it is hidden
+ * through its visibility, and the layer stops its chain of frames with it.
+ *
+ * The test counts the animation frames the page asks for, not the pixels: the flicker of a torch is a few shades on the
+ * corners of a room, and whether that reaches a pixel of the canvas is up to the camera and the texture under it.
+ */
+test('the flicker stops while the tab is hidden, and comes back with it', async ({ page }) => {
+  await page.addInitScript(() => {
+    const raf = globalThis.requestAnimationFrame
+    const counter = { value: 0 }
+
+    Reflect.set(globalThis, '__rafCalls', counter)
+    Object.defineProperty(globalThis, 'requestAnimationFrame', {
+      configurable: true,
+      writable: true,
+      value: (callback: FrameRequestCallback): number => {
+        counter.value = counter.value + 1
+
+        return raf(callback)
+      },
+    })
+  })
+
+  await openTorch(page)
+
+  // the Lighter preset leaves the layer off: the switch is what makes the torches burn
+  await page.locator('#dynamic-lights').click()
+  await page.waitForTimeout(600)
+
+  async function rafCalls(): Promise<number> {
+    return await page.evaluate(() => {
+      const counter = Reflect.get(globalThis, '__rafCalls') as { value: number }
+
+      return counter.value
+    })
+  }
+
+  async function resetCount(): Promise<void> {
+    await page.evaluate(() => {
+      const counter = Reflect.get(globalThis, '__rafCalls') as { value: number }
+
+      counter.value = 0
+    })
+  }
+
+  // the layer is on: its ticker asks for frames all the time
+  await resetCount()
+  await page.waitForTimeout(300)
+
+  expect(await rafCalls()).toBeGreaterThan(5)
+
+  // the page says it is hidden, and the chain of the layer stops with it
+  await page.evaluate(() => {
+    const { document } = globalThis
+
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
+    document.dispatchEvent(new Event('visibilitychange'))
+  })
+  await page.waitForTimeout(200)
+
+  await resetCount()
+  await page.waitForTimeout(300)
+
+  expect(await rafCalls()).toBe(0)
+
+  // the tab comes back: the ticker comes back with it
+  await page.evaluate(() => {
+    const { document } = globalThis
+
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+    document.dispatchEvent(new Event('visibilitychange'))
+  })
+  await page.waitForTimeout(200)
+
+  await resetCount()
+  await page.waitForTimeout(300)
+
+  expect(await rafCalls()).toBeGreaterThan(5)
+})

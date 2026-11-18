@@ -1,6 +1,6 @@
 import { ArxLightFlags, type ArxColor, type ArxLight, type ArxPolygon } from 'arx-convert/types'
 import { isQuad } from 'arx-convert/utils'
-import { BufferAttribute, MathUtils, type BufferGeometry } from 'three'
+import { Box3, BufferAttribute, MathUtils, Sphere, Vector3, type BufferGeometry } from 'three'
 import type { ArxMap } from '../../../../../generator/ArxMap.ts'
 import { arxVector3toVector3 } from '../../../../../generator/meshes.ts'
 import { blendModeOf, isWater } from '../../../../../generator/polygons.ts'
@@ -195,6 +195,15 @@ export type DynamicLightModel = {
    * The colour of the lights of the current frame, three channels each, reused by every update.
    */
   readonly lightColors: Float32Array
+  /**
+   * The box of the corners the layer lights, in the frame of the scene.
+   *
+   * @remarks
+   * The layer writes the colour of these corners on every frame of the flicker, and the frame is worth it only when a
+   * view can see one of them: a walkable view that looks at a room with no burning light has nothing to draw, and the
+   * cull of the frame tests this sphere against its frustum (2026-11-18, the owner).
+   */
+  readonly bounds: Sphere
 }
 
 /**
@@ -487,6 +496,34 @@ function pairTableOf(pairs: LightPairs, vertexCount: number): PairTable {
 }
 
 /**
+ * Reads the box of the corners the layer lights.
+ *
+ * @param vertices The corners of the layer, by their place in the geometry.
+ * @param positions The positions of the geometry.
+ *
+ * @returns The sphere around the lit corners; a point at the origin when the layer lights nothing.
+ */
+function boundsOf(vertices: Int32Array, positions: Float32Array): Sphere {
+  if (vertices.length === 0) {
+    return new Sphere(new Vector3(), 0)
+  }
+
+  const box = new Box3()
+
+  for (const vertex of vertices) {
+    const at = vertex * 3
+
+    box.expandByPoint(new Vector3(positions[at] ?? 0, positions[at + 1] ?? 0, positions[at + 2] ?? 0))
+  }
+
+  const sphere = new Sphere()
+
+  box.getBoundingSphere(sphere)
+
+  return sphere
+}
+
+/**
  * Builds the dynamic light layer of a level.
  *
  * @remarks
@@ -566,6 +603,7 @@ export function createDynamicLightModel(map: ArxMap): DynamicLightModel | undefi
     paletteIndexes,
     baseColors,
     lightColors: new Float32Array(lights.length * 3),
+    bounds: boundsOf(table.vertices, positionAttribute.array),
   }
 }
 

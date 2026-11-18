@@ -1,4 +1,4 @@
-import type { BufferGeometry } from 'three'
+import { Frustum, Matrix4, type BufferGeometry, type Camera } from 'three'
 import { watch } from 'vue'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { persistedRef } from '../../persistedRef/persistedRef.ts'
@@ -25,6 +25,16 @@ import {
  * the layer follows it a moment after the last frame instead of holding the drag back.
  */
 const REBUILD_DELAY_IN_MS = 150
+
+/**
+ * How often the flicker takes a frame, in milliseconds.
+ *
+ * @remarks
+ * The game lights its torches on every frame it draws, and the editor drew the flicker on every frame of the browser too:
+ * a quarter of a core on a big level, all the time, for a light that a film would show at fifteen frames a second. Twenty
+ * is smooth enough for a torch and leaves the frames of the browser to the camera (2026-11-18, the owner).
+ */
+const FLICKER_INTERVAL_IN_MS = 50
 
 /**
  * Whether the baked light of the level is on the corners.
@@ -55,9 +65,13 @@ export const isDynamicLightsVisible = persistedRef<boolean>({
 })
 
 /**
- * What draws the layer: the render of a view that registered itself.
+ * What draws the layer: the render of a view that registered itself, and the camera it draws with.
+ *
+ * @remarks
+ * The camera is what the cull of a frame reads: a walkable view that looks at a room without a burning light has nothing
+ * to draw of the layer, and its frames are the expensive part (2026-11-18, the owner).
  */
-const views = new Set<() => void>()
+const views = new Map<() => void, () => Camera | undefined>()
 
 /**
  * The model of the level on the screen, or `undefined` before a level arrives.
@@ -82,6 +96,11 @@ let isApplied = false
  * The animation frame the layer waits for, or `0` when it is not running.
  */
 let frame = 0
+
+/**
+ * When the flicker took its last frame, in the milliseconds of the animation frames.
+ */
+let lastFrameAt = Number.NEGATIVE_INFINITY
 
 /**
  * The timer of a rebuild, or `undefined` when none is waiting.
@@ -121,7 +140,7 @@ function solidGeometryOf(map: ArxMap): BufferGeometry | undefined {
  * Asks every registered view for a frame.
  */
 function renderViews(): void {
-  for (const render of views) {
+  for (const render of views.keys()) {
     render()
   }
 }
@@ -229,20 +248,109 @@ function rebuild(): void {
 }
 
 /**
- * Draws one frame of the layer, and asks the views for a frame.
+ * Tells whether the page is hidden: a browser tab in the background draws no frame of its own.
+ *
+ * @returns True when the document says it is hidden.
  */
-function step(): void {
+function isPageHidden(): boolean {
+  if (typeof document === 'undefined') {
+    return false
+  }
+
+  return document.visibilityState === 'hidden'
+}
+
+/**
+ * The model of the layer, when it still belongs to the geometry of the level.
+ *
+ * @returns The model, or `undefined` when there is none to draw.
+ */
+function currentModel(): DynamicLightModel | undefined {
+  const map = levelStore.map.value
+
+  if (map === undefined || model === undefined) {
+    return undefined
+  }
+
+  const geometry = solidGeometryOf(map)
+
+  if (geometry === undefined || isDynamicLightModelStale(model, geometry)) {
+    return undefined
+  }
+
+  return model
+}
+
+/**
+ * Tells whether a view can see any of the corners the layer lights.
+ *
+ * @remarks
+ * The layer writes the colour of its corners on every frame, and that is worth doing only while one of them is in front
+ * of a camera: a walkable view inside a room without a burning light sees the same picture, frame after frame. The box
+ * of the lit corners is tested against the frustum of the first registered view (the views of the editor show the same
+ * level from their own cameras; the walkable view is the one that draws the layer).
+ *
+ * @returns True when no camera is registered (the layer does not cull then), or when a camera sees the box.
+ */
+function isLayerInView(): boolean {
+  const model = currentModel()
+
+  if (model === undefined) {
+    return false
+  }
+
+  let camera: Camera | undefined
+
+  for (const cameraOf of views.values()) {
+    camera = cameraOf()
+
+    if (camera !== undefined) {
+      break
+    }
+  }
+
+  if (camera === undefined) {
+    return true
+  }
+
+  camera.updateMatrixWorld()
+
+  const frustum = new Frustum().setFromProjectionMatrix(
+    new Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse),
+  )
+
+  return frustum.intersectsSphere(model.bounds)
+}
+
+/**
+ * Draws one frame of the layer, and asks the views for a frame.
+ *
+ * @param now The time of the animation frame, in milliseconds.
+ */
+function step(now: number): void {
   frame = 0
 
-  if (!isDynamicLightsVisible.value || views.size === 0) {
+  if (!isDynamicLightsVisible.value || views.size === 0 || isPageHidden()) {
+    return
+  }
+
+  frame = requestAnimationFrame(step)
+
+  // the flicker of a torch is slower than the frame of a camera: a frame of the layer every fifty milliseconds is
+  // smooth, and the browser keeps the rest
+  if (now - lastFrameAt < FLICKER_INTERVAL_IN_MS) {
+    return
+  }
+
+  lastFrameAt = now
+
+  if (!isLayerInView()) {
     return
   }
 
   if (applyFrame()) {
     renderViews()
   }
-
-  frame = requestAnimationFrame(step)
 }
 
 /**
@@ -253,6 +361,7 @@ function startTicker(): void {
     return
   }
 
+  lastFrameAt = Number.NEGATIVE_INFINITY
   frame = requestAnimationFrame(step)
 }
 
@@ -359,14 +468,26 @@ function sync(): void {
 }
 
 /**
+ * The camera of a view that has none: the layer does not cull a frame for it.
+ *
+ * @returns Nothing.
+ */
+function noCamera(): Camera | undefined {
+  return undefined
+}
+
+/**
  * Registers the render of a view, so the layer can ask it for a frame.
  *
  * @param render What the view does to draw a frame.
+ * @param cameraOf The camera the view draws with, which the cull of a frame reads (nothing culls without it).
  *
  * @returns The function that takes the view out of the layer.
  */
-export function registerDynamicLightsView(render: () => void): () => void {
-  views.add(render)
+export function registerDynamicLightsView(render: () => void, cameraOf?: () => Camera | undefined): () => void {
+  const camera: () => Camera | undefined = cameraOf ?? noCamera
+
+  views.set(render, camera)
 
   if (isOverridden()) {
     sync()
@@ -408,6 +529,20 @@ export function startDynamicLights(): void {
     },
     { immediate: true },
   )
+
+  // a browser tab in the background draws nothing the author can see: the flicker stops with the tab, and comes back
+  // with it (the tab of the editor ran for hours in the background, and the layer took a quarter of a core all along)
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (isPageHidden()) {
+        stopTicker()
+
+        return
+      }
+
+      sync()
+    })
+  }
 
   watch(levelRevision, () => {
     if (!isOverridden() || views.size === 0) {

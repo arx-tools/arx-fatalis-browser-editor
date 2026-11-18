@@ -9,6 +9,7 @@ import {
   isStaticLightsVisible,
   registerDynamicLightsView,
 } from '../../../modules/level/edit/dynamicLights.ts'
+import { activeFaceGroups } from '../../../modules/groups/groupStore.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { lightsRevision } from '../../../modules/level/edit/lightEditing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
@@ -167,6 +168,7 @@ let selection: PolygonSelectionOverlay | undefined
 let loadedMap: ArxMap | undefined
 
 let stopWatchingSelection: (() => void) | undefined
+let stopWatchingGroups: (() => void) | undefined
 let controls: CameraControls | undefined
 let observer: ResizeObserver | undefined
 let stopWatching: (() => void) | undefined
@@ -246,9 +248,14 @@ const loop = createFrameLoop({
  * render, not by their widget. The registration is a constant of the setup: the view is one of them from the moment it
  * exists, and it leaves the layer when the widget goes away.
  */
-const unregisterDynamicLights = registerDynamicLightsView(() => {
-  loop.requestRender()
-})
+const unregisterDynamicLights = registerDynamicLightsView(
+  () => {
+    loop.requestRender()
+  },
+  () => {
+    return view?.camera
+  },
+)
 
 /**
  * Recolours the outline of the face under the crosshair when a modifier key goes down or up.
@@ -463,7 +470,7 @@ function showMap(map: ArxMap): void {
     })
 
   loop.resetPick()
-  selection = createPolygonSelectionOverlay(view.scene, arxVector3toVector3(map.scenePosition))
+  selection = createPolygonSelectionOverlay(view.scene, arxVector3toVector3(map.scenePosition), view.camera)
   dragSelection.updateHighlight()
   loop.requestRender()
 
@@ -705,6 +712,13 @@ onMounted(() => {
     loop.requestRender()
   })
 
+  // the groups colour the fill (the red of a locked group) and the phantom of the crosshair: making or taking apart a
+  // group changes the picture without touching the selection (2026-11-18, the owner)
+  stopWatchingGroups = watch(activeFaceGroups, () => {
+    dragSelection.updateHighlight()
+    loop.requestRender()
+  })
+
   globalThis.addEventListener('keydown', onModifierKey)
   globalThis.addEventListener('keyup', onModifierKey)
   document.addEventListener('mousedown', dragSelection.onMouseDown)
@@ -715,28 +729,37 @@ onMounted(() => {
 // the level is not the widget's: it may have been loaded before this widget was even mounted, and it
 // stays loaded when the widget goes away (a layout reset rebuilds the dock, not the map)
 onBeforeUnmount(() => {
-  stopWatching?.()
+  const stops = [
+    stopWatching,
+    stopWatchingWireframe,
+    stopWatchingMesh,
+    stopWatchingPortals,
+    stopWatchingLights,
+    stopWatchingPortalRevision,
+    stopWatchingRooms,
+    stopWatchingRoom,
+    stopWatchingEdit,
+    stopWatchingRoomRevision,
+    stopWatchingSelection,
+    stopWatchingGroups,
+  ]
+
+  for (const stop of stops) {
+    stop?.()
+  }
+
   stopWatching = undefined
-  stopWatchingWireframe?.()
   stopWatchingWireframe = undefined
-  stopWatchingMesh?.()
   stopWatchingMesh = undefined
-  stopWatchingPortals?.()
   stopWatchingPortals = undefined
-  stopWatchingLights?.()
   stopWatchingLights = undefined
-  stopWatchingPortalRevision?.()
   stopWatchingPortalRevision = undefined
-  stopWatchingRooms?.()
   stopWatchingRooms = undefined
-  stopWatchingRoom?.()
   stopWatchingRoom = undefined
-  stopWatchingEdit?.()
   stopWatchingEdit = undefined
-  stopWatchingRoomRevision?.()
   stopWatchingRoomRevision = undefined
-  stopWatchingSelection?.()
   stopWatchingSelection = undefined
+  stopWatchingGroups = undefined
   unregisterDynamicLights()
 
   globalThis.removeEventListener('keydown', onModifierKey)

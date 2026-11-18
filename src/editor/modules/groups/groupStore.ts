@@ -92,28 +92,6 @@ export type FaceGroupRow = {
 }
 
 /**
- * The groups of one level, under the name of that level.
- */
-export type FaceGroupSection = {
-  /**
-   * The value of the map the groups belong to.
-   */
-  readonly mapId: string
-  /**
-   * The name of the level with its group, like `Arx: Level 8`, the way the header writes it.
-   */
-  readonly title: string
-  /**
-   * Whether this is the level on the screen: only its groups can be picked.
-   */
-  readonly isCurrent: boolean
-  /**
-   * The groups of the level, in the order they were made.
-   */
-  readonly groups: readonly FaceGroupRow[]
-}
-
-/**
  * The polygons the hidden groups of the level take out of the mesh.
  *
  * @param groups The groups of the level.
@@ -155,6 +133,64 @@ export const activeFaceGroups: ShallowRef<readonly FaceGroup[]> = shallowRef([])
  * moves the faces (`levelRevision`), which is what keeps a count right.
  */
 export const presentPolygons: ShallowRef<ReadonlySet<ArxPolygon>> = shallowRef(new Set())
+
+/**
+ * The groups of a level, with a face in the first group that holds it.
+ *
+ * @remarks
+ * The groups were not a partition before 2026-11-18: an older storage, or the undo of a step, can hand over two groups
+ * that hold the same face. The first group (by the order of the list) keeps it. A group whose every face went that way
+ * is dropped, but a group that only lost its faces to a **delete** stays: it holds the polygons the undo brings back.
+ *
+ * @param groups The groups of the level.
+ * @param present The polygons of the level, so a face that is not there is not claimed.
+ *
+ * @returns The groups, without the overlaps.
+ */
+function withoutOverlapsOf(groups: readonly FaceGroup[], present: ReadonlySet<ArxPolygon>): FaceGroup[] {
+  const claimed = new Set<ArxPolygon>()
+  const kept: FaceGroup[] = []
+
+  for (const group of groups) {
+    const members = new Set<ArxPolygon>()
+
+    for (const member of group.members) {
+      if (present.has(member) && claimed.has(member)) {
+        continue
+      }
+
+      if (present.has(member)) {
+        claimed.add(member)
+      }
+
+      members.add(member)
+    }
+
+    if (members.size === 0 && group.members.size > 0) {
+      let lost = false
+
+      for (const member of group.members) {
+        if (present.has(member)) {
+          lost = true
+        }
+      }
+
+      if (lost) {
+        continue
+      }
+    }
+
+    if (members.size === group.members.size) {
+      kept.push(group)
+
+      continue
+    }
+
+    kept.push({ ...group, members })
+  }
+
+  return kept
+}
 
 /**
  * The groups of the levels the author grouped faces on, by the value of the map.
@@ -201,21 +237,6 @@ function displayNameOf(group: FaceGroup): string {
 }
 
 /**
- * The name the widget shows for a stored group: the one the author gave it, or the default of its id.
- *
- * @param group The stored group to name.
- *
- * @returns The label of its row.
- */
-function storedNameOf(group: Pick<FaceGroup, 'id' | 'name'>): string {
-  if (group.name === '') {
-    return `group ${group.id.toString()}`
-  }
-
-  return group.name
-}
-
-/**
  * The name of a level, the way the header writes it: `Arx: Level 8`, `Blank: Flat Plane`.
  *
  * @remarks
@@ -252,19 +273,17 @@ function refreshPresentPolygons(): void {
 }
 
 /**
- * The groups of every level the author made one on, the open level first.
+ * The rows of the group inspector: the groups of the level on the screen, in the order they were made.
  *
  * @remarks
- * The open level's rows are the live groups (the count follows the level), and the ones of the other levels are the
- * storage: their faces are indices of a level that is not here, so the count is what the level had when it was left.
+ * Only the level on the screen has rows: the groups of the other levels are the storage of those levels, and the author
+ * has nothing to do with them from here (a visit to that level finds them). The count of a row is the faces of the
+ * group that are still in the level.
  */
-export const faceGroupSections: ComputedRef<readonly FaceGroupSection[]> = computed(() => {
-  const sections: FaceGroupSection[] = []
-  const current = currentMapId.value
+export const faceGroupRows: ComputedRef<readonly FaceGroupRow[]> = computed(() => {
   const present = presentPolygons.value
-  const rows: FaceGroupRow[] = []
 
-  for (const group of activeFaceGroups.value) {
+  return activeFaceGroups.value.map((group) => {
     let faceCount = 0
 
     for (const member of group.members) {
@@ -273,34 +292,8 @@ export const faceGroupSections: ComputedRef<readonly FaceGroupSection[]> = compu
       }
     }
 
-    rows.push({ id: group.id, name: group.name, label: displayNameOf(group), faceCount, visible: group.visible })
-  }
-
-  sections.push({ mapId: current, title: titleOfMap(current), isCurrent: true, groups: rows })
-
-  const others = Object.entries(storedGroups.value)
-    .filter(([mapId, entry]) => {
-      return mapId !== current && entry.groups.length > 0
-    })
-    .toSorted((one, other) => {
-      return one[1].title.localeCompare(other[1].title)
-    })
-
-  for (const [mapId, entry] of others) {
-    const storedRows: FaceGroupRow[] = entry.groups.map((group) => {
-      return {
-        id: group.id,
-        name: group.name,
-        label: storedNameOf(group),
-        faceCount: group.faces.length,
-        visible: group.visible ?? true,
-      }
-    })
-
-    sections.push({ mapId, title: entry.title, isCurrent: false, groups: storedRows })
-  }
-
-  return sections
+    return { id: group.id, name: group.name, label: displayNameOf(group), faceCount, visible: group.visible }
+  })
 })
 
 /**
@@ -416,6 +409,130 @@ export function faceGroupsJsonOf(): readonly StoredFaceGroup[] {
 }
 
 /**
+ * The group the face of the open level belongs to.
+ *
+ * @remarks
+ * A face is in one group at most (the groups are a partition of the faces the author locked, see
+ * {@link createFaceGroupFromSelection} and the load): the first group that holds it is the one. The faces of the level
+ * are polygons in memory, so the search is a walk of the groups and a set lookup in each.
+ *
+ * @param index The face, by its index in the level.
+ *
+ * @returns The group, or `undefined` when the face is free (or the level is not open).
+ */
+export function faceGroupOfFace(index: number): FaceGroup | undefined {
+  const map = levelStore.map.value
+
+  if (map === undefined) {
+    return undefined
+  }
+
+  const polygon = map.polygons[index]
+
+  if (polygon === undefined) {
+    return undefined
+  }
+
+  return activeFaceGroups.value.find((group) => {
+    return group.members.has(polygon)
+  })
+}
+
+/**
+ * The group the selection is exactly, when it is one.
+ *
+ * @remarks
+ * The lock of the groups: a selection that is a whole group (every face of it that is in the level) is the group. The
+ * faces are polygons in memory, so the check reads the selection as polygons and counts the members of every group.
+ *
+ * @returns The group the selection is, or `undefined`.
+ */
+export function faceGroupOfSelection(): FaceGroup | undefined {
+  const map = levelStore.map.value
+  const selection = selectionStore.polygons.value
+
+  if (map === undefined || selection.size === 0) {
+    return undefined
+  }
+
+  const selected = new Set<ArxPolygon>()
+
+  for (const index of selection) {
+    const polygon = map.polygons[index]
+
+    if (polygon !== undefined) {
+      selected.add(polygon)
+    }
+  }
+
+  if (selected.size === 0) {
+    return undefined
+  }
+
+  return activeFaceGroups.value.find((group) => {
+    let inside = 0
+
+    for (const member of group.members) {
+      if (!presentPolygons.value.has(member)) {
+        continue
+      }
+
+      if (!selected.has(member)) {
+        return false
+      }
+
+      inside = inside + 1
+    }
+
+    return inside === selected.size
+  })
+}
+
+/**
+ * The faces of a set, with the faces of the groups they belong to.
+ *
+ * @remarks
+ * A group is a unit: a gesture that touches one of its faces touches the whole group. The pick of a click, the pencil of
+ * the walkable view and the fill of a double click all go through this, so a locked face never arrives alone in the
+ * selection.
+ *
+ * @param indices The faces of the gesture.
+ *
+ * @returns The faces and their groups, in the order of the level, without repeats.
+ */
+export function faceIndicesWithGroupsOf(indices: Iterable<number>): number[] {
+  const map = levelStore.map.value
+  const faces = new Set<number>()
+  let indexOf: Map<ArxPolygon, number> | undefined
+
+  if (map !== undefined) {
+    indexOf = indexMapOf(map)
+  }
+
+  for (const index of indices) {
+    faces.add(index)
+
+    const group = faceGroupOfFace(index)
+
+    if (group === undefined || indexOf === undefined) {
+      continue
+    }
+
+    for (const member of group.members) {
+      const memberIndex = indexOf.get(member)
+
+      if (memberIndex !== undefined) {
+        faces.add(memberIndex)
+      }
+    }
+  }
+
+  return [...faces].toSorted((one, other) => {
+    return one - other
+  })
+}
+
+/**
  * The indices of the faces of a group of the open level.
  *
  * @param groupId The group whose faces the selection wants.
@@ -523,7 +640,15 @@ function addGroups(groups: readonly FaceGroup[]): void {
     return
   }
 
-  activeFaceGroups.value = [...activeFaceGroups.value, ...missing]
+  const map = levelStore.map.value
+  let present: ReadonlySet<ArxPolygon> = new Set()
+
+  if (map !== undefined) {
+    present = new Set(map.polygons)
+  }
+
+  // a step that puts a group back can not take faces the level grouped since: the first group keeps them
+  activeFaceGroups.value = withoutOverlapsOf([...activeFaceGroups.value, ...missing], present)
   saveOpenLevel()
   applyHiddenPolygons()
 }
@@ -674,6 +799,11 @@ export function createFaceGroupFromSelection(): number | undefined {
   const members = new Set<ArxPolygon>()
 
   for (const index of selectionStore.polygons.value) {
+    // a face of a group is locked: a selection that holds one is not grouped (the owner's rule, 2026-11-18)
+    if (faceGroupOfFace(index) !== undefined) {
+      return undefined
+    }
+
     const polygon = map.polygons[index]
 
     if (polygon !== undefined) {
@@ -855,6 +985,28 @@ export function deleteFaceGroups(mapId: string, groupIds: readonly number[]): vo
 }
 
 /**
+ * Groups the selection, or ungroups the group the selection is (the `Ctrl+G` of the editor).
+ *
+ * @remarks
+ * The group is a lock: a selection that holds a locked face is not grouped (nothing happens), and a selection that is a
+ * whole group takes the lock off (the group goes, the faces stay). The rule is the owner's (2026-11-18): the same key
+ * puts the faces into a group and takes them out of it.
+ */
+export function groupOrUngroupTheSelection(): void {
+  const group = faceGroupOfSelection()
+
+  if (group !== undefined) {
+    if (activeMapId !== undefined) {
+      deleteFaceGroups(activeMapId, [group.id])
+    }
+
+    return
+  }
+
+  createFaceGroupFromSelection()
+}
+
+/**
  * Puts the groups of a level into the ref, resolved against the map of that level.
  *
  * @param id The value of the map.
@@ -894,7 +1046,8 @@ function loadGroupsOf(id: string, map: ArxMap): void {
     return { id: group.id, name: group.name, members, visible: group.visible ?? true }
   })
 
-  activeFaceGroups.value = groups
+  // an older storage can hold a face in two groups: the first one keeps it
+  activeFaceGroups.value = withoutOverlapsOf(groups, new Set(map.polygons))
   isLoaded = true
 
   applyHiddenPolygons()
@@ -951,5 +1104,5 @@ export function startFaceGroups(): void {
     saveOpenLevel()
   })
 
-  onKeyboardAction('createFaceGroup', createFaceGroupFromSelection)
+  onKeyboardAction('createFaceGroup', groupOrUngroupTheSelection)
 }

@@ -61,9 +61,20 @@ Object.defineProperties(globalThis, {
 })
 
 /**
- * Runs the frame the layer is waiting for, if there is one.
+ * The time of the animation frames of the test.
+ *
+ * @remarks
+ * The layer takes a frame of the flicker every fifty milliseconds, so the fake frames have to move their clock: a frame
+ * that repeats the time of the one before it is one the layer skips.
  */
-function nextFrame(): void {
+let frameTime = 0
+
+/**
+ * Runs the frame the layer is waiting for, if there is one.
+ *
+ * @param step How many milliseconds the clock moves before the frame; the layer takes one of its own every fifty.
+ */
+function nextFrame(step = 100): void {
   const [handle, callback] = frames.entries().next().value ?? []
 
   if (handle === undefined || callback === undefined) {
@@ -71,7 +82,8 @@ function nextFrame(): void {
   }
 
   frames.delete(handle)
-  callback(0)
+  frameTime = frameTime + step
+  callback(frameTime)
 }
 
 /**

@@ -86,7 +86,7 @@ void describe('useSelectionDrag.pickUnderCrosshair', () => {
     const camera = cameraOf()
     const textures = texturesOf()
     const markers = createLightMarkers([light()], textures)
-    const calls: Array<ArxPolygon | undefined> = []
+    const calls: Array<readonly ArxPolygon[]> = []
 
     markers.updateMatrixWorld(true)
 
@@ -102,8 +102,8 @@ void describe('useSelectionDrag.pickUnderCrosshair', () => {
       },
       overlay: () => {
         return {
-          setCursor: (polygon: ArxPolygon | undefined): void => {
-            calls.push(polygon)
+          setCursor: (polygons: readonly ArxPolygon[]): void => {
+            calls.push(polygons)
           },
         } as unknown as PolygonSelectionOverlay
       },
@@ -124,7 +124,7 @@ void describe('useSelectionDrag.pickUnderCrosshair', () => {
 
     assert.equal(lightHoverStore.light.value, 0)
     assert.equal(crosshairStore.polygon.value, undefined)
-    assert.deepEqual(calls, [undefined])
+    assert.deepEqual(calls, [[]])
 
     for (const texture of Object.values(textures)) {
       texture.dispose()
@@ -135,7 +135,7 @@ void describe('useSelectionDrag.pickUnderCrosshair', () => {
     const camera = cameraOf()
     const textures = texturesOf()
     const markers = createLightMarkers([light()], textures)
-    const calls: Array<ArxPolygon | undefined> = []
+    const calls: Array<readonly ArxPolygon[]> = []
 
     markers.updateMatrixWorld(true)
     isLightsVisible.value = false
@@ -152,8 +152,8 @@ void describe('useSelectionDrag.pickUnderCrosshair', () => {
       },
       overlay: () => {
         return {
-          setCursor: (polygon: ArxPolygon | undefined): void => {
-            calls.push(polygon)
+          setCursor: (polygons: readonly ArxPolygon[]): void => {
+            calls.push(polygons)
           },
         } as unknown as PolygonSelectionOverlay
       },
@@ -171,7 +171,7 @@ void describe('useSelectionDrag.pickUnderCrosshair', () => {
     drag.pickUnderCrosshair()
 
     assert.equal(lightHoverStore.light.value, undefined)
-    assert.deepEqual(calls, [undefined])
+    assert.deepEqual(calls, [[]])
 
     for (const texture of Object.values(textures)) {
       texture.dispose()
@@ -318,7 +318,7 @@ void describe('useSelectionDrag.pickUnderCrosshair', () => {
     const camera = cameraOf()
     const textures = texturesOf()
     const markers = createLightMarkers([], textures)
-    const calls: Array<ArxPolygon | undefined> = []
+    const calls: Array<readonly ArxPolygon[]> = []
 
     markers.updateMatrixWorld(true)
     lightHoverStore.set(3)
@@ -335,8 +335,8 @@ void describe('useSelectionDrag.pickUnderCrosshair', () => {
       },
       overlay: () => {
         return {
-          setCursor: (polygon: ArxPolygon | undefined): void => {
-            calls.push(polygon)
+          setCursor: (polygons: readonly ArxPolygon[]): void => {
+            calls.push(polygons)
           },
         } as unknown as PolygonSelectionOverlay
       },
@@ -355,7 +355,7 @@ void describe('useSelectionDrag.pickUnderCrosshair', () => {
 
     assert.equal(lightHoverStore.light.value, undefined)
     assert.equal(crosshairStore.polygon.value, undefined)
-    assert.deepEqual(calls, [undefined])
+    assert.deepEqual(calls, [[]])
 
     for (const texture of Object.values(textures)) {
       texture.dispose()

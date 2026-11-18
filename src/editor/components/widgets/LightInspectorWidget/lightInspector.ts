@@ -1,5 +1,6 @@
 import type { ArxLight, ArxVector3 } from 'arx-convert/types'
 import type { CameraPose } from '../camera/cameraPose.ts'
+import { jumpPoseOf } from '../camera/jumpPose.ts'
 import { lightMarkerShapeOf, type LightMarkerShape } from '../shared/lightMarkers.ts'
 
 /**
@@ -93,28 +94,7 @@ export function lightIndexLabelOf(index: number): string {
  * @returns The pose of the camera, with the light in the middle of the view.
  */
 export function lightJumpPoseOf(pose: CameraPose, light: LightRow): CameraPose {
-  const pitch = (pose.angle.pitch * Math.PI) / 180
-  const yaw = (pose.angle.yaw * Math.PI) / 180
-
-  // the forward of the game's camera: the x of the game points left, the y down, and the z out of the screen
-  const forward = {
-    x: -Math.cos(pitch) * Math.sin(yaw),
-    y: Math.sin(pitch),
-    z: Math.cos(pitch) * Math.cos(yaw),
-  }
-
-  const offsetX = forward.x * LIGHT_JUMP_DISTANCE
-  const offsetY = forward.y * LIGHT_JUMP_DISTANCE
-  const offsetZ = forward.z * LIGHT_JUMP_DISTANCE
-
-  return {
-    position: {
-      x: light.position.x - offsetX,
-      y: light.position.y - offsetY,
-      z: light.position.z - offsetZ,
-    },
-    angle: pose.angle,
-  }
+  return jumpPoseOf(pose, light.position, LIGHT_JUMP_DISTANCE)
 }
 
 /**

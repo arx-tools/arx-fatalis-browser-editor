@@ -6,6 +6,7 @@ import {
   layoutWithTheKeys,
   lockPointer,
   readPose,
+  screenshotDifference,
   seedLayout,
   selectionCount,
   waitForLevel,
@@ -221,4 +222,73 @@ test('the edit modes are exclusive, and the keys and the eyes flip them', async 
   })
 
   expect(stored).toEqual({ transform: 'false', rotate: 'true' })
+})
+
+/**
+ * The fill of a group is red in the fixed views, and a move and its undo leave it red.
+ *
+ * @remarks
+ * The level revision repaints the fill of a fixed view, and that repaint read the faces without their groups: a move with
+ * the gizmo turned the red of a locked group back to the yellow of a pick (2026-11-19, the owner). The undo puts the
+ * faces back, so the picture of the view has to be the one of the group before the drag, byte for byte.
+ */
+test('a move and its undo leave the red fill of a group on the fixed views', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'the pointer lock of the walkable view needs chromium here')
+  test.setTimeout(120_000)
+
+  await seedLayout(page, layoutWithSelectionInspector())
+  await page.goto(editorUrl())
+
+  const view = page.locator('[data-widget-kind="3d-view"] canvas').first()
+  const undo = page.locator('[data-widget-kind="undo-redo"] button[aria-label^="Undo"]')
+  const redo = page.locator('[data-widget-kind="undo-redo"] button[aria-label^="Redo"]')
+  const top = page.locator('[data-widget-kind="top-view"] canvas.stage')
+
+  await expect(view).toBeVisible()
+  await waitForLevel(page)
+
+  const spawn = await readPose(page)
+
+  await lockPointer(page, view)
+  await writePose(page, spawn)
+  await clickCrosshair(view)
+
+  await expect
+    .poll(async () => {
+      return await selectionCount(page)
+    })
+    .toBe(1)
+
+  // the face is a group: the fill of the views is red from here
+  await page.keyboard.press('ControlOrMeta+g')
+  await page.waitForTimeout(400)
+
+  const before = await top.screenshot()
+
+  // the green arrow of the gizmo, from the middle of the face up, as the drag test above does it
+  await page.evaluate(() => {
+    globalThis.document.exitPointerLock()
+  })
+  await page.waitForTimeout(500)
+
+  await page.mouse.move(890, 230)
+  await page.mouse.down()
+  await page.mouse.move(890, 150, { steps: 8 })
+  await page.mouse.up()
+
+  await expect(undo).toBeEnabled()
+
+  // the move is a repaint of the fixed view: the red of the group has to stay (the green arrow moves the face up, which
+  // the plan of the top view does not show, so the colour is what the undo below reads)
+  await page.waitForTimeout(400)
+
+  // the undo puts the face back (the group of the `Ctrl+G` is a step of its own, so the undo has one more to give)
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect(redo).toBeEnabled()
+  await page.waitForTimeout(400)
+
+  const back = await top.screenshot()
+  const same = await screenshotDifference(page, before, back)
+
+  expect(same.differing).toBe(0)
 })

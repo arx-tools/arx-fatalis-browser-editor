@@ -1,19 +1,24 @@
 <script setup lang="ts">
-import { Eye, EyeOff, Pencil, Plus, Trash2 } from 'lucide-vue-next'
+import { Eye, EyeOff, Pencil, Plus, ScanSearch, Trash2 } from 'lucide-vue-next'
 import { computed, nextTick, shallowRef, useTemplateRef } from 'vue'
 import {
   createFaceGroupFromSelection,
   deleteFaceGroups,
-  faceGroupSections,
+  faceGroupRows,
+  faceIndicesOfGroup,
   renameFaceGroup,
   setFaceGroupVisibility,
   type FaceGroupRow,
-  type FaceGroupSection,
 } from '../../../modules/groups/groupStore.ts'
+import { currentMapId } from '../../../modules/level/source/maps.ts'
 import { pickFaceGroup, selectedFaceGroups } from '../../../modules/groups/groupSelection.ts'
+import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { faceCountLabelOf } from '../../../modules/rooms/roomList.ts'
+import { lightSelectionStore } from '../../../modules/selection/lightSelectionStore.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import WidgetHeading from '../../WidgetHeading.vue'
+import { cameraStore } from '../camera/cameraStore.ts'
+import { faceGroupExtentOf, faceGroupJumpPoseOf } from './groupInspector.ts'
 
 /**
  * The label of the widget, from the widget definition.
@@ -23,10 +28,10 @@ const props = defineProps<{
 }>()
 
 /**
- * The groups of every level the author made one on, the open level first.
+ * The groups of the level on the screen.
  */
-const sections = computed<readonly FaceGroupSection[]>(() => {
-  return faceGroupSections.value
+const rows = computed<readonly FaceGroupRow[]>(() => {
+  return faceGroupRows.value
 })
 
 /**
@@ -48,13 +53,13 @@ const selectionLabel = computed<string>(() => {
 })
 
 /**
- * The name of the group being renamed, and the text of the field.
+ * The id of the group being renamed, and the text of the field.
  *
  * @remarks
- * The key is the level and the group together: the ids are the ids of a level, so two levels can have a `group 1`. The
- * field sits in the row, the way the room inspector renames.
+ * The ids are the ids of the level on the screen, which is the only level the widget lists. The field sits in the row,
+ * the way the room inspector renames.
  */
-const renaming = shallowRef<string | undefined>(undefined)
+const renaming = shallowRef<number | undefined>(undefined)
 const draft = shallowRef('')
 
 /**
@@ -70,18 +75,6 @@ let nameField: HTMLInputElement | undefined
  * The list of the groups, so a click in it can take the focus (the `Delete` of the inspector acts on the picked rows).
  */
 const list = useTemplateRef<HTMLUListElement>('groupList')
-
-/**
- * The key of a row: the level and the group together.
- *
- * @param mapId The value of the map of the section.
- * @param groupId The group the row stands for.
- *
- * @returns The key that keeps the groups of two levels apart.
- */
-function rowKeyOf(mapId: string, groupId: number): string {
-  return `${mapId}:${groupId.toString()}`
-}
 
 /**
  * Takes the field of the row being renamed, and lets it go when the row closes.
@@ -115,27 +108,20 @@ function createGroup(): void {
 /**
  * Picks a group: its faces arrive in the selection, with the modifiers of the click.
  *
- * @param section The section of the row.
  * @param row The group of the row.
  * @param event The click.
  */
-function pick(section: FaceGroupSection, row: FaceGroupRow, event: MouseEvent): void {
-  // the faces are indices of the level of the row: another level has no faces here to select
-  if (!section.isCurrent) {
-    return
-  }
-
+function pick(row: FaceGroupRow, event: MouseEvent): void {
   pickFaceGroup(row.id, event)
 }
 
 /**
  * Opens the field of a row.
  *
- * @param section The section of the row.
  * @param row The group of the row.
  */
-async function startRename(section: FaceGroupSection, row: FaceGroupRow): Promise<void> {
-  renaming.value = rowKeyOf(section.mapId, row.id)
+async function startRename(row: FaceGroupRow): Promise<void> {
+  renaming.value = row.id
   // the field carries what the row shows, so the default name is there to type over, not only as a placeholder under an
   // empty field
   draft.value = row.label
@@ -150,30 +136,23 @@ async function startRename(section: FaceGroupSection, row: FaceGroupRow): Promis
  * Writes the name the author typed on the row, and closes the field.
  */
 function commitRename(): void {
-  const key = renaming.value
+  const id = renaming.value
 
-  if (key === undefined) {
+  if (id === undefined) {
     return
   }
 
   renaming.value = undefined
 
-  const separator = key.lastIndexOf(':')
-  const mapId = key.slice(0, separator)
-  const groupId = Number.parseInt(key.slice(separator + 1), 10)
-  const group = sections.value
-    .find((section) => {
-      return section.mapId === mapId
-    })
-    ?.groups.find((row) => {
-      return row.id === groupId
-    })
+  const group = rows.value.find((row) => {
+    return row.id === id
+  })
 
   if (group === undefined || draft.value === group.label) {
     return
   }
 
-  renameFaceGroup(mapId, groupId, draft.value)
+  renameFaceGroup(currentMapId.value, group.id, draft.value)
 }
 
 /**
@@ -184,23 +163,51 @@ function cancelRename(): void {
 }
 
 /**
+ * Goes to a group: the camera steps back from its box, and the faces arrive in the selection.
+ *
+ * @remarks
+ * The jump is the way to find a group the author can not see on the views: the distance follows the size of the box
+ * (a few faces are looked at from close), and the selection marks what the camera went to. The light selection goes,
+ * the way a pick of the faces takes it away.
+ *
+ * @param row The group to go to.
+ */
+function jumpTo(row: FaceGroupRow): void {
+  const pose = cameraStore.pose.value
+  const map = levelStore.map.value
+
+  if (pose === undefined || map === undefined) {
+    return
+  }
+
+  const indices = faceIndicesOfGroup(row.id)
+  const extent = faceGroupExtentOf(map, indices)
+
+  if (extent === undefined) {
+    return
+  }
+
+  lightSelectionStore.clear()
+  selectionStore.selectMany(indices, 'replace')
+  cameraStore.moveCamera(faceGroupJumpPoseOf(pose, extent))
+}
+
+/**
  * Shows or hides the faces of a group.
  *
- * @param section The section of the row.
  * @param row The group to show or hide.
  */
-function toggleVisibility(section: FaceGroupSection, row: FaceGroupRow): void {
-  setFaceGroupVisibility(section.mapId, row.id, !row.visible)
+function toggleVisibility(row: FaceGroupRow): void {
+  setFaceGroupVisibility(currentMapId.value, row.id, !row.visible)
 }
 
 /**
  * Takes a group out of its level.
  *
- * @param section The section of the row.
  * @param row The group to take out.
  */
-function removeGroup(section: FaceGroupSection, row: FaceGroupRow): void {
-  deleteFaceGroups(section.mapId, [row.id])
+function removeGroup(row: FaceGroupRow): void {
+  deleteFaceGroups(currentMapId.value, [row.id])
 }
 </script>
 
@@ -222,72 +229,73 @@ function removeGroup(section: FaceGroupSection, row: FaceGroupRow): void {
     </WidgetHeading>
     <p class="selection">{{ selectionLabel }}</p>
     <ul ref="groupList" class="groups" tabindex="0" @pointerdown="focusList">
-      <template v-for="section in sections" :key="section.mapId">
-        <li v-if="section.groups.length > 0" class="section" :class="{ 'is-current': section.isCurrent }">
-          {{ section.title }}
-        </li>
-        <li
-          v-for="row in section.groups"
-          :key="rowKeyOf(section.mapId, row.id)"
-          class="group"
-          :class="{
-            'is-other': !section.isCurrent,
-            'is-selected': section.isCurrent && selectedFaceGroups.has(row.id),
-          }"
-          @click="pick(section, row, $event)"
-          @dblclick="startRename(section, row)"
+      <li
+        v-for="row in rows"
+        :key="row.id"
+        class="group"
+        :class="{ 'is-selected': selectedFaceGroups.has(row.id) }"
+        @click="pick(row, $event)"
+        @dblclick="startRename(row)"
+      >
+        <button
+          class="eye"
+          type="button"
+          :class="{ 'is-visible': row.visible }"
+          :aria-label="row.visible ? `Hide ${row.label}` : `Show ${row.label}`"
+          :aria-pressed="row.visible"
+          :title="row.visible ? `Hide ${row.label}` : `Show ${row.label}`"
+          @click.stop="toggleVisibility(row)"
+          @dblclick.stop
         >
-          <button
-            class="eye"
-            type="button"
-            :class="{ 'is-visible': row.visible }"
-            :disabled="!section.isCurrent"
-            :aria-label="row.visible ? `Hide ${row.label}` : `Show ${row.label}`"
-            :aria-pressed="row.visible"
-            :title="row.visible ? `Hide ${row.label}` : `Show ${row.label}`"
-            @click.stop="toggleVisibility(section, row)"
-            @dblclick.stop
-          >
-            <Eye v-if="row.visible" :size="14" />
-            <EyeOff v-else :size="14" />
-          </button>
-          <input
-            v-if="renaming === rowKeyOf(section.mapId, row.id)"
-            :ref="captureNameField"
-            v-model="draft"
-            class="rename"
-            type="text"
-            :placeholder="row.label"
-            :aria-label="`The name of group ${row.label}`"
-            @click.stop
-            @dblclick.stop
-            @keydown.enter="commitRename"
-            @keydown.esc="cancelRename"
-            @blur="commitRename"
-          />
-          <span v-else class="name" :title="row.label">{{ row.label }}</span>
-          <span class="count">{{ faceCountLabelOf(row.faceCount) }}</span>
-          <button
-            class="edit"
-            type="button"
-            :aria-label="`Rename ${row.label}`"
-            :title="`Rename ${row.label}`"
-            @click.stop="startRename(section, row)"
-            @dblclick.stop
-          >
-            <Pencil :size="13" />
-          </button>
-          <button
-            class="trash"
-            type="button"
-            :aria-label="`Delete ${row.label}`"
-            :title="`Delete ${row.label}`"
-            @click.stop="removeGroup(section, row)"
-          >
-            <Trash2 :size="13" />
-          </button>
-        </li>
-      </template>
+          <Eye v-if="row.visible" :size="14" />
+          <EyeOff v-else :size="14" />
+        </button>
+        <input
+          v-if="renaming === row.id"
+          :ref="captureNameField"
+          v-model="draft"
+          class="rename"
+          type="text"
+          :placeholder="row.label"
+          :aria-label="`The name of group ${row.label}`"
+          @click.stop
+          @dblclick.stop
+          @keydown.enter="commitRename"
+          @keydown.esc="cancelRename"
+          @blur="commitRename"
+        />
+        <span v-else class="name" :title="row.label">{{ row.label }}</span>
+        <span class="count">{{ faceCountLabelOf(row.faceCount) }}</span>
+        <button
+          class="zoom"
+          type="button"
+          :aria-label="`Jump to ${row.label}`"
+          :title="`Jump to ${row.label}`"
+          @click.stop="jumpTo(row)"
+          @dblclick.stop
+        >
+          <ScanSearch :size="13" />
+        </button>
+        <button
+          class="edit"
+          type="button"
+          :aria-label="`Rename ${row.label}`"
+          :title="`Rename ${row.label}`"
+          @click.stop="startRename(row)"
+          @dblclick.stop
+        >
+          <Pencil :size="13" />
+        </button>
+        <button
+          class="trash"
+          type="button"
+          :aria-label="`Delete ${row.label}`"
+          :title="`Delete ${row.label}`"
+          @click.stop="removeGroup(row)"
+        >
+          <Trash2 :size="13" />
+        </button>
+      </li>
     </ul>
   </div>
 </template>
@@ -362,20 +370,6 @@ function removeGroup(section: FaceGroupSection, row: FaceGroupRow): void {
 
 // the header of a section: the name of the level, the way the header of the editor writes it (`Blank: Flat Plane`), so
 // the two read the same and the author knows which level the groups under it belong to
-.section {
-  padding: 6px 6px 3px;
-  color: $text-icon;
-  font-size: 11px;
-  font-weight: bold;
-
-  // another level is read, not worked on: its rows do not pick faces
-  &:not(.is-current) {
-    color: $text-subtle;
-    font-weight: normal;
-    opacity: 0.75;
-  }
-}
-
 .group {
   display: flex;
   align-items: center;
@@ -396,11 +390,6 @@ function removeGroup(section: FaceGroupSection, row: FaceGroupRow): void {
   &.is-selected {
     color: $text;
     background: rgba($accent, 0.15);
-  }
-
-  // another level is read, not worked on: its rows pick no faces
-  &.is-other {
-    cursor: default;
   }
 }
 
@@ -467,6 +456,7 @@ function removeGroup(section: FaceGroupSection, row: FaceGroupRow): void {
 }
 
 // the pencil of a row: a rename without the double click, quiet until the row is under the pointer
+.zoom,
 .edit {
   display: inline-flex;
   flex: none;

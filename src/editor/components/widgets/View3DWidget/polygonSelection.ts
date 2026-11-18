@@ -14,6 +14,7 @@ import {
   type Intersection,
   type Mesh as ThreeMesh,
   type OrthographicCamera,
+  type Camera,
   type PerspectiveCamera,
   type Scene,
   type Side,
@@ -28,6 +29,7 @@ import {
   polygonFillTriangles,
   polygonPerimeter,
   polygonOfTriangle,
+  vertexKeyOf,
 } from '../../../../generator/polygons.ts'
 
 /**
@@ -255,6 +257,17 @@ const BACKDROP_COLOR = '#4a4f57'
 const BACKDROP_OPACITY = 0.92
 
 /**
+ * The colour of the fill of the faces of a **group**.
+ *
+ * @remarks
+ * A group is a lock: its faces go into the group together and are taken out of it together, and the red mark says the
+ * selection is a unit (2026-11-18, the owner: the green of the phantom is the add, the red of the fill is the unit). The
+ * material of the fill stays yellow, so the two colours come from the vertices: yellow (1, 1, 0) carries red (1, 0, 0)
+ * as it is, and the free faces keep the yellow.
+ */
+const GROUP_FILL_COLOR = new ThreeColor(Color.red.getHex())
+
+/**
  * The outline of the polygon under the crosshair, and the fill of the selected ones.
  *
  * @remarks
@@ -273,12 +286,13 @@ const BACKDROP_OPACITY = 0.92
  */
 export type PolygonSelectionOverlay = {
   /**
-   * Shows the polygon under the crosshair, or hides the outline.
+   * Shows the polygons under the crosshair, or hides the outline.
    *
-   * @param polygon The polygon to outline, or `undefined` for none.
+   * @param polygons The polygons to outline (the face under the crosshair, or the whole group of it), or an empty list
+   * for none.
    * @param mode The mode of the click that is about to happen; it colours the outline.
    */
-  readonly setCursor: (polygon: ArxPolygon | undefined, mode: SelectionMode) => void
+  readonly setCursor: (polygons: readonly ArxPolygon[], mode: SelectionMode) => void
   /**
    * Shows the fill of the selected polygons.
    *
@@ -286,7 +300,11 @@ export type PolygonSelectionOverlay = {
    * @param tintOf The colour of the room of a face, which the mark keeps a hint of, or `undefined` for a face without a
    * room (and for every face while the level is not coloured).
    */
-  readonly setHighlight: (polygons: readonly ArxPolygon[], tintOf?: (polygon: ArxPolygon) => string | undefined) => void
+  readonly setHighlight: (
+    polygons: readonly ArxPolygon[],
+    tintOf?: (polygon: ArxPolygon) => string | undefined,
+    inGroup?: (polygon: ArxPolygon) => boolean,
+  ) => void
   /**
    * Draws a grey base under the fill, or takes it away.
    *
@@ -354,12 +372,114 @@ export function polygonOutlineGeometry(polygon: ArxPolygon, offset: Vector3): Bu
 }
 
 /**
+ * Builds the outline of a set of polygons: its **boundary**, as one geometry of segments.
+ *
+ * @remarks
+ * The outline is the edge of the set and not the wireframe of every face in it: an edge two faces of the set share is
+ * inside the set, and it does not show (2026-11-18, the owner: the phantom of a group is the outer line of the group).
+ * The edges are keyed by the positions of their corners ({@link vertexKeyOf}), so two faces that meet at a point of the
+ * level give one edge, whatever order they store their corners in.
+ *
+ * @param polygons The polygons to outline.
+ * @param offset The scene position of the level, already mirrored.
+ *
+ * @returns The segments, ready for a `LineSegments`.
+ */
+export function polygonsOutlineGeometry(polygons: readonly ArxPolygon[], offset: Vector3): BufferGeometry {
+  const edges = new Map<string, { readonly from: Vector3; readonly to: Vector3; count: number }>()
+
+  for (const polygon of polygons) {
+    const vertices = polygonVertices(polygon, offset)
+    const perimeter = polygonPerimeter(polygon)
+
+    for (const [index, corner] of perimeter.entries()) {
+      const nextCorner = perimeter[(index + 1) % perimeter.length]
+      const from = vertices[corner]
+      const to = vertices[nextCorner]
+      const start = polygon.vertices[corner]
+      const end = polygon.vertices[nextCorner]
+
+      if (from === undefined || to === undefined || start === undefined || end === undefined) {
+        continue
+      }
+
+      const one = vertexKeyOf(start)
+      const other = vertexKeyOf(end)
+      let key = `${other}|${one}`
+
+      if (one < other) {
+        key = `${one}|${other}`
+      }
+
+      const known = edges.get(key)
+
+      if (known === undefined) {
+        edges.set(key, { from, to, count: 1 })
+
+        continue
+      }
+
+      known.count = known.count + 1
+    }
+  }
+
+  const positions: number[] = []
+
+  for (const edge of edges.values()) {
+    if (edge.count > 1) {
+      continue
+    }
+
+    positions.push(edge.from.x, edge.from.y, edge.from.z, edge.to.x, edge.to.y, edge.to.z)
+  }
+
+  return positionsToGeometry(positions)
+}
+
+/**
+ * How much closer the phantom of the crosshair sits to the camera than the surface it lies on, as a fraction of the
+ * distance.
+ *
+ * @remarks
+ * A line on a surface loses the depth test on the pixels it shares with the surface: the eyes round the depth of both,
+ * and which one wins is up to the driver. The phantom is pulled a small step towards the camera, so it wins on the
+ * surface it lies on and still loses to anything the camera can see in front of it.
+ */
+const OUTLINE_NUDGE = 0.002
+
+/**
+ * Pulls the points of a geometry towards the camera.
+ *
+ * @param geometry The geometry to move, in place.
+ * @param camera The camera to pull towards.
+ * @param fraction How much of the distance to the camera the points take.
+ */
+function nudgeTowardCamera(geometry: BufferGeometry, camera: Vector3, fraction: number): void {
+  const positions = geometry.getAttribute('position')
+
+  for (let index = 0; index < positions.count; index = index + 1) {
+    const x = positions.getX(index)
+    const y = positions.getY(index)
+    const z = positions.getZ(index)
+
+    const stepX = (camera.x - x) * fraction
+    const stepY = (camera.y - y) * fraction
+    const stepZ = (camera.z - z) * fraction
+
+    positions.setXYZ(index, x + stepX, y + stepY, z + stepZ)
+  }
+
+  positions.needsUpdate = true
+}
+
+/**
  * Builds the fill of a set of polygons: their triangles, as one geometry.
  *
  * @param polygons The polygons to fill.
  * @param offset The scene position of the level, already mirrored.
  * @param tintOf The colour of the room of a face, which the mark keeps a hint of, or `undefined` for every face (and
  * for a face without a room).
+ * @param baseOf The colour of the mark of a face, or `undefined` for the yellow of the pick.
  *
  * @returns The triangles, ready for a `Mesh`.
  */
@@ -367,6 +487,7 @@ export function polygonFillGeometry(
   polygons: readonly ArxPolygon[],
   offset: Vector3,
   tintOf?: (polygon: ArxPolygon) => string | undefined,
+  baseOf?: (polygon: ArxPolygon) => ThreeColor,
 ): BufferGeometry {
   const positions: number[] = []
   const normals: number[] = []
@@ -374,6 +495,7 @@ export function polygonFillGeometry(
   const yellow = new ThreeColor(Color.yellow.getHex())
 
   for (const polygon of polygons) {
+    const base = baseOf?.(polygon) ?? yellow
     const vertices = polygonVertices(polygon, offset)
     // the game gives one normal for the first two corners and another for the last two when the polygon is curved,
     // the way the level builds its own geometry: the corner normals are what makes the base under the fill shade like
@@ -410,10 +532,10 @@ export function polygonFillGeometry(
         room = tintOf?.(polygon)
       }
 
-      let mark = yellow
+      let mark = base
 
       if (room !== undefined) {
-        mark = yellow.clone().lerp(new ThreeColor(room), TINT_OF_ROOM)
+        mark = base.clone().lerp(new ThreeColor(room), TINT_OF_ROOM)
       }
 
       for (let vertex = 0; vertex < 3; vertex++) {
@@ -505,21 +627,26 @@ function backdropMaterialOf(side: Side): MeshLambertMaterial {
  *
  * @param scene The scene of the widget.
  * @param offset The scene position of the level, already mirrored.
+ * @param camera The camera of the view: the phantom of the crosshair is drawn in front of the surface it lies on, and
+ * the surface hides the part of it that the author can not see anyway.
  *
  * @returns The overlay, with nothing shown yet.
  */
-export function createPolygonSelectionOverlay(scene: Scene, offset: Vector3): PolygonSelectionOverlay {
-  // the outline lies on the surface of the polygon it outlines, exactly where the mesh is: without turning
-  // the depth test off the two fight for the same pixels and the line mostly loses. It is safe to draw it
-  // over everything, because the pick always takes the nearest face, so the outline never belongs to a
-  // polygon behind a wall.
+export function createPolygonSelectionOverlay(scene: Scene, offset: Vector3, camera: Camera): PolygonSelectionOverlay {
+  // the outline lies on the surface it outlines, and the surface in front of it hides it: the outline of a group is the
+  // line the author sees, and a raised face of the group covers the part of the line that runs behind it (2026-11-18,
+  // the owner: the edge of the model went through a fold of the bed, and the line read as if it were inside the group).
+  //
+  // The depth test needs the line to be a little closer than the surface it lies on, or the two fight for the same
+  // pixels and the line mostly loses: `showCursor` pulls it towards the camera, and the pair of faces the outline
+  // belongs to is the nearest one anyway (the pick takes the nearest face).
   //
   // `transparent` with a full opacity is not about blending: three draws the transparent objects after the
   // opaque ones, and the fill of the selection is transparent, so this is what puts the outline over the
   // fill (its `renderOrder` is the highest of the three: above the fill and above the wireframe)
   const outlineMaterial = new LineBasicMaterial({
     color: Color.green.getHex(),
-    depthTest: false,
+    depthTest: true,
     transparent: true,
   })
   const outline = new LineSegments(new BufferGeometry(), outlineMaterial)
@@ -600,13 +727,17 @@ export function createPolygonSelectionOverlay(scene: Scene, offset: Vector3): Po
   }
 
   /**
-   * Outlines the polygon under the crosshair.
+   * Outlines the polygons under the crosshair.
    *
-   * @param polygon The polygon to show.
+   * @param polygons The polygons to show.
    */
-  function showCursor(polygon: ArxPolygon): void {
+  function showCursor(polygons: readonly ArxPolygon[]): void {
+    const geometry = polygonsOutlineGeometry(polygons, offset)
+
+    nudgeTowardCamera(geometry, camera.position, OUTLINE_NUDGE)
+
     outline.geometry.dispose()
-    outline.geometry = polygonOutlineGeometry(polygon, offset)
+    outline.geometry = geometry
 
     if (!outline.parent) {
       scene.add(outline)
@@ -614,14 +745,14 @@ export function createPolygonSelectionOverlay(scene: Scene, offset: Vector3): Po
   }
 
   return {
-    setCursor: (polygon: ArxPolygon | undefined, mode: SelectionMode): void => {
-      if (polygon === undefined) {
+    setCursor: (polygons: readonly ArxPolygon[], mode: SelectionMode): void => {
+      if (polygons.length === 0) {
         scene.remove(outline)
 
         return
       }
 
-      showCursor(polygon)
+      showCursor(polygons)
 
       let colour = Color.green.getHex()
 
@@ -631,14 +762,25 @@ export function createPolygonSelectionOverlay(scene: Scene, offset: Vector3): Po
 
       outlineMaterial.color.set(colour)
     },
-    setHighlight: (polygons: readonly ArxPolygon[], tintOf): void => {
+    setHighlight: (polygons, tintOf, inGroup): void => {
       const { singleSided, doubleSided } = splitBySide(polygons)
+      let baseOf: ((polygon: ArxPolygon) => ThreeColor) | undefined
+
+      if (inGroup !== undefined) {
+        baseOf = (polygon: ArxPolygon): ThreeColor => {
+          if (inGroup(polygon)) {
+            return GROUP_FILL_COLOR
+          }
+
+          return new ThreeColor(Color.yellow.getHex())
+        }
+      }
 
       fill.geometry.dispose()
       doubleFill.geometry.dispose()
 
-      const singleGeometry = polygonFillGeometry(singleSided, offset, tintOf)
-      const doubleGeometry = polygonFillGeometry(doubleSided, offset, tintOf)
+      const singleGeometry = polygonFillGeometry(singleSided, offset, tintOf, baseOf)
+      const doubleGeometry = polygonFillGeometry(doubleSided, offset, tintOf, baseOf)
 
       fill.geometry = singleGeometry
       backdrop.geometry = singleGeometry

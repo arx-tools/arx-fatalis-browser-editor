@@ -27,6 +27,8 @@ import {
   isWireframeVisible,
 } from '../shared/levelDisplay.ts'
 import { attachPortalLines, type PortalOverlay } from '../shared/portalOverlay.ts'
+import { activeFaceGroups } from '../../../modules/groups/groupStore.ts'
+import { inGroupOf, selectedGroupPolygons } from '../../../modules/groups/groupSelection.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import { hoverRoom, litRooms } from '../../../modules/rooms/roomStore.ts'
 import { pickRoom } from '../../../modules/rooms/roomSelection.ts'
@@ -130,6 +132,7 @@ let stopWatchingRoom: (() => void) | undefined
 let stopWatchingEdit: (() => void) | undefined
 let stopWatchingRoomRevision: (() => void) | undefined
 let stopWatchingSelection: (() => void) | undefined
+let stopWatchingGroups: (() => void) | undefined
 let stopWatchingLights: (() => void) | undefined
 
 /**
@@ -530,11 +533,17 @@ function showMap(map: ArxMap): void {
   })
 
   // the fill of the selection, in the space of the same meshes
-  selectionOverlay = createPolygonSelectionOverlay(view.scene, arxVector3toVector3(map.scenePosition))
-  selectionOverlay.setHighlight(selectedPolygonsOf(map))
+  selectionOverlay = createPolygonSelectionOverlay(view.scene, arxVector3toVector3(map.scenePosition), view.camera)
+  selectionOverlay.setHighlight(selectedPolygonsOf(map), undefined, inGroupOf(selectedGroupPolygons.value))
 
   stopWatchingSelection = watch(selectionStore.polygons, () => {
-    selectionOverlay?.setHighlight(selectedPolygonsOf(map))
+    selectionOverlay?.setHighlight(selectedPolygonsOf(map), undefined, inGroupOf(selectedGroupPolygons.value))
+    requestRender()
+  })
+
+  // a group colours the fill without touching the selection: making or taking apart a group repaints the view too
+  stopWatchingGroups = watch(activeFaceGroups, () => {
+    selectionOverlay?.setHighlight(selectedPolygonsOf(map), undefined, inGroupOf(selectedGroupPolygons.value))
     requestRender()
   })
 
@@ -572,6 +581,8 @@ function hideMap(): void {
   selectionOverlay = undefined
   stopWatchingSelection?.()
   stopWatchingSelection = undefined
+  stopWatchingGroups?.()
+  stopWatchingGroups = undefined
   stopWatchingLights?.()
   stopWatchingLights = undefined
   lightMarks = []
@@ -674,7 +685,7 @@ stopWatchingEdit = watch(levelRevision, () => {
   const current = levelStore.map.value
 
   if (current !== undefined) {
-    selectionOverlay?.setHighlight(selectedPolygonsOf(current))
+    selectionOverlay?.setHighlight(selectedPolygonsOf(current), undefined, inGroupOf(selectedGroupPolygons.value))
   }
 
   requestRender()
@@ -761,6 +772,8 @@ onBeforeUnmount(() => {
   stopWatchingRoom = undefined
   stopWatchingSelection?.()
   stopWatchingSelection = undefined
+  stopWatchingGroups?.()
+  stopWatchingGroups = undefined
   stopWatchingLights?.()
   stopWatchingLights = undefined
 

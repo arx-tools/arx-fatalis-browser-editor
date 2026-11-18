@@ -3,6 +3,8 @@ import type { Group, PerspectiveCamera, Mesh } from 'three'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { usedVerticesOf } from '../../../../generator/polygons.ts'
 import { crosshairStore } from '../../../modules/crosshair/crosshairStore.ts'
+import { faceGroupOfFace, faceIndicesWithGroupsOf } from '../../../modules/groups/groupStore.ts'
+import { inGroupOf, selectedGroupPolygons } from '../../../modules/groups/groupSelection.ts'
 import { isKeyDown } from '../../../modules/keyboard/keyboard.ts'
 import { fillAreaOf, type SelectionFill } from '../../../modules/selection/fillArea.ts'
 import { lightHoverStore } from '../../../modules/selection/lightHoverStore.ts'
@@ -235,23 +237,40 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
       return
     }
 
-    // the pencil ran into a face the gesture already holds: nothing changes, but the drawing goes on from here
-    if (dragMode !== 'remove' && sweep.kind === 'cross') {
-      dragVertices = [...dragVertices, ...usedVerticesOf(polygon)]
+    // a face of a group is locked: the pencil takes the whole group in, or takes it out, in one piece
+    const faces = faceIndicesWithGroupsOf([sweep.index])
+    const polygons = faces.flatMap((face) => {
+      const member = level.polygons[face]
 
-      return
-    }
-
-    if (dragMode === 'remove') {
-      if (selectionStore.polygons.value.has(sweep.index)) {
-        selectionStore.remove(sweep.index)
+      if (member === undefined) {
+        return []
       }
 
+      return [member]
+    })
+    const vertices = polygons.flatMap((member) => {
+      return usedVerticesOf(member)
+    })
+
+    if (dragMode === 'remove') {
+      selectionStore.selectMany(faces, 'remove')
+
       return
     }
 
-    selectionStore.add(sweep.index)
-    dragVertices = [...dragVertices, ...usedVerticesOf(polygon)]
+    // the pencil ran into faces the gesture already holds: nothing changes, but the drawing goes on from here
+    const holds = faces.every((face) => {
+      return selectionStore.polygons.value.has(face)
+    })
+
+    if (holds || sweep.kind === 'cross') {
+      dragVertices = [...dragVertices, ...vertices]
+
+      return
+    }
+
+    selectionStore.selectMany(faces, 'add')
+    dragVertices = [...dragVertices, ...vertices]
   }
 
   /**
@@ -386,7 +405,8 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
         lightSelectionStore.clear()
       }
 
-      selectionStore.selectMany(area, mode)
+      // the fill brings the group of every face it reaches
+      selectionStore.selectMany(faceIndicesWithGroupsOf(area), mode)
     },
     pickUnderCrosshair: (): void => {
       const scene = view()
@@ -404,7 +424,7 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
       if (light !== undefined) {
         lightHoverStore.set(light)
         crosshairStore.set(undefined)
-        paint.setCursor(undefined, dragMode ?? selectionModeOfKeys())
+        paint.setCursor([], dragMode ?? selectionModeOfKeys())
 
         return
       }
@@ -412,6 +432,25 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
       lightHoverStore.set(undefined)
 
       const index = pickPolygon(scene.camera, meshes(), level.triangleToPolygon)
+      const mode = dragMode ?? selectionModeOfKeys()
+
+      // a face of a group is locked: the crosshair shows the whole group, the way a click takes it
+      if (index !== undefined && faceGroupOfFace(index) !== undefined) {
+        const polygons = faceIndicesWithGroupsOf([index]).flatMap((face) => {
+          const member = level.polygons[face]
+
+          if (member === undefined) {
+            return []
+          }
+
+          return [member]
+        })
+
+        paint.setCursor(polygons, mode)
+
+        return
+      }
+
       let polygon: ArxPolygon | undefined
 
       if (index !== undefined) {
@@ -420,7 +459,14 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
 
       // the widgets that describe a face (the inspector) read this, and only a change of the face wakes them up
       crosshairStore.set(index)
-      paint.setCursor(polygon, dragMode ?? selectionModeOfKeys())
+
+      let cursor: ArxPolygon[] = []
+
+      if (polygon !== undefined) {
+        cursor = [polygon]
+      }
+
+      paint.setCursor(cursor, mode)
     },
     updateDrag: (): void => {
       if (dragMode === undefined) {
@@ -449,7 +495,8 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
       }
 
       paint.setBackdrop(isRoomColorsVisible.value)
-      paint.setHighlight(selectedPolygons(), tintOf)
+      // the faces of a group are the red ones, the free faces keep the yellow
+      paint.setHighlight(selectedPolygons(), tintOf, inGroupOf(selectedGroupPolygons.value))
     },
   }
 }

@@ -81,6 +81,8 @@ void describe('createLightSelectionOverlay', () => {
     assert.ok(hover instanceof Sprite)
     assert.equal(focus.material.blending, NormalBlending)
     assert.equal(hover.material.blending, AdditiveBlending)
+    assert.equal(focus.renderOrder, 10)
+    assert.equal(hover.renderOrder, 10)
     assert.notEqual(focus.material.map, hover.material.map)
 
     overlay.dispose()

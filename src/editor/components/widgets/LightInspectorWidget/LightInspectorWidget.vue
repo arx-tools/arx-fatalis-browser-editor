@@ -5,7 +5,7 @@ import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { cameraStore } from '../camera/cameraStore.ts'
 import { lightsRevision } from '../../../modules/level/edit/lightEditing.ts'
 import { lightSelectionStore } from '../../../modules/selection/lightSelectionStore.ts'
-import { selectionModeOf } from '../../../modules/selection/selectionStore.ts'
+import { selectionModeOf, selectionStore } from '../../../modules/selection/selectionStore.ts'
 import type { LightMarkerShape } from '../shared/lightMarkers.ts'
 import WidgetHeading from '../../WidgetHeading.vue'
 import {
@@ -117,8 +117,15 @@ function pick(index: number, event: MouseEvent): void {
     lightSelectionStore.lights.value.has(index)
   ) {
     lightSelectionStore.clear()
+    selectionStore.clear()
 
     return
+  }
+
+  // a plain click is a new selection: the faces of the other kind go with it (the two stores are still separate; the
+  // unified selection is the 254)
+  if (mode === 'replace') {
+    selectionStore.clear()
   }
 
   lightSelectionStore.selectMany([index], mode)

@@ -149,6 +149,8 @@ export function createLightSelectionOverlay(): LightSelectionOverlay {
     const sprite = new Sprite(material)
     const size = lightMarkerSizeOf(light) * RING_SCALE
 
+    // the ring belongs to the light display: it stays over the fill of the selected polygons, with the marker
+    sprite.renderOrder = 10
     sprite.scale.set(size, size, 1)
     sprite.position.copy(arxVector3toVector3(light.position))
     group.add(sprite)

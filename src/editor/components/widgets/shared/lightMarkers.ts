@@ -328,6 +328,10 @@ function markerOf(light: ArxLight, textures: LightMarkerTextures, index: number)
 
   // the light of a marker is its index in `map.lights`: the pick reads it back from the sprite
   sprite.userData.lightIndex = index
+
+  // the markers are a display of their own over the level, so they draw above the fill (7) and the outline (9) of the
+  // selected polygons; otherwise a selected room would hide the lights in it (2026-11-18, the owner)
+  sprite.renderOrder = 10
   sprite.scale.set(size, size, 1)
   sprite.position.copy(arxVector3toVector3(light.position))
 

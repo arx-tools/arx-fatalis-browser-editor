@@ -278,6 +278,26 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
     return polygons
   }
 
+  /**
+   * The light whose marker the crosshair of the view points at.
+   *
+   * @remarks
+   * The markers are a target only while the Lights switch shows them: with the switch off the author looks at the
+   * level, and a light in the way must not take the crosshair from the face under it.
+   *
+   * @returns The index of the light, or `undefined` when no marker is under the crosshair or the switch is off.
+   */
+  function lightUnderCrosshair(): number | undefined {
+    const scene = view()
+    const markers = lightMarkers()
+
+    if (scene === undefined || markers === undefined || !isLightsVisible.value) {
+      return undefined
+    }
+
+    return lightMarkerIndexAt(scene.camera, markers)
+  }
+
   return {
     onMouseDown: (event): void => {
       if (controls()?.isLocked !== true) {
@@ -294,19 +314,22 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
       }
 
       // a marker under the crosshair takes the press: the light is the smaller target of the two, and the walkable
-      // view is where the Gizmo of the markers is read. The click writes the light selection, and the faces stay as
-      // they were: the light editor and the face work have a selection of their own.
-      const camera = view()?.camera
-      const markers = lightMarkers()
+      // view is where the Gizmo of the markers is read.
+      const light = lightUnderCrosshair()
 
-      if (camera !== undefined && markers !== undefined && isLightsVisible.value) {
-        const light = lightMarkerIndexAt(camera, markers)
+      if (light !== undefined) {
+        const mode = selectionModeOf(event)
 
-        if (light !== undefined) {
-          lightSelectionStore.selectMany([light], selectionModeOf(event))
-
-          return
+        // a plain click is a new selection, whatever it took before: the faces of the other kind go with it. The
+        // Shift and the Ctrl keep the other kind, so a light and a face can be gathered together (the two stores are
+        // still separate; the unified selection is the 254)
+        if (mode === 'replace') {
+          selectionStore.clear()
         }
+
+        lightSelectionStore.selectMany([light], mode)
+
+        return
       }
 
       dragMode = selectionModeOf(event)
@@ -314,6 +337,7 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
 
       if (dragMode === 'replace') {
         selectionStore.clear()
+        lightSelectionStore.clear()
       }
 
       selectUnderCrosshair()
@@ -335,6 +359,12 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
         return
       }
 
+      // a double click on a light does nothing: the light is not a face, and the fill area of the face behind it is
+      // not what the author aimed at (2026-11-18, the owner)
+      if (lightUnderCrosshair() !== undefined) {
+        return
+      }
+
       const index = pickPolygon(scene.camera, meshes(), level.triangleToPolygon)
 
       if (index === undefined) {
@@ -350,8 +380,13 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
       }
 
       const area = fillAreaOf(fill, level.polygons, level.vertexToPolygons, index)
+      const mode = selectionModeOf(event)
 
-      selectionStore.selectMany(area, selectionModeOf(event))
+      if (mode === 'replace') {
+        lightSelectionStore.clear()
+      }
+
+      selectionStore.selectMany(area, mode)
     },
     pickUnderCrosshair: (): void => {
       const scene = view()
@@ -364,14 +399,7 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
 
       // a marker under the crosshair is the target of the view: the ring of the light is its mark, and the face behind
       // it is not the face the author means, so the phantom outline of the crosshair goes (2026-11-18, the owner)
-      const markers = lightMarkers()
-      let light: number | undefined
-
-      // the markers only mean a target while the Lights switch shows them: with the switch off the author is looking
-      // at the level, and a light in the way must not take the crosshair from the face under it
-      if (markers !== undefined && isLightsVisible.value) {
-        light = lightMarkerIndexAt(scene.camera, markers)
-      }
+      const light = lightUnderCrosshair()
 
       if (light !== undefined) {
         lightHoverStore.set(light)

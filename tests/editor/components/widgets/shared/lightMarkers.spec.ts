@@ -132,6 +132,7 @@ void describe('createLightMarkers', () => {
     assert.deepEqual(first.scale.toArray(), [20, 20, 1])
     assert.equal(first.material.map, textures.star)
     assert.equal(first.userData.lightIndex, 0)
+    assert.equal(first.renderOrder, 10)
 
     const second = group.children.at(1)
 

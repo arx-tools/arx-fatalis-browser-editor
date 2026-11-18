@@ -9,6 +9,7 @@ import { onKeyboardAction } from '../../keyboard/keyboard.ts'
 import { bumpPortalRevision } from '../../rooms/portalSync.ts'
 import { selectionStore } from '../../selection/selectionStore.ts'
 import { bumpLightingCacheVersion } from './lightingCache.ts'
+import { touchLights } from './lightEditing.ts'
 import { levelStore } from './levelStore.ts'
 
 /**
@@ -93,6 +94,11 @@ function withRevision(command: HistoryCommand): HistoryCommand {
     // a tunnel brings its portals and takes them out with itself: the outline and the room warnings follow them
     if (step.record.kind === 'buildTunnel') {
       bumpPortalRevision()
+    }
+
+    // a light edit moves the markers and their shapes with the fields of the light
+    else if (step.record.kind === 'setLight') {
+      touchLights()
     }
   }
 

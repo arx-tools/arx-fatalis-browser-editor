@@ -10,6 +10,7 @@ import PolygonInspectorWidget from './components/widgets/PolygonInspectorWidget/
 import MapStatisticsWidget from './components/widgets/MapStatisticsWidget/MapStatisticsWidget.vue'
 import RenderPerformanceWidget from './components/widgets/RenderPerformanceWidget/RenderPerformanceWidget.vue'
 import SelectionInspectorWidget from './components/widgets/SelectionInspectorWidget/SelectionInspectorWidget.vue'
+import LightEditorWidget from './components/widgets/LightEditorWidget/LightEditorWidget.vue'
 import LightInspectorWidget from './components/widgets/LightInspectorWidget/LightInspectorWidget.vue'
 import TextureBrowserWidget from './components/widgets/TextureBrowserWidget/TextureBrowserWidget.vue'
 import UndoRedoWidget from './components/widgets/UndoRedoWidget/UndoRedoWidget.vue'
@@ -108,7 +109,7 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
   },
   {
     kind: WIDGET_KINDS.lightingControls,
-    label: 'Lighting Controls',
+    label: 'Global Lighting Controls',
     contentSized: true,
     group: 'controls',
     create: (): Widget => {
@@ -182,6 +183,14 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
     group: 'info',
     create: (label): Widget => {
       return new VueWidget(LightInspectorWidget, { label })
+    },
+  },
+  {
+    kind: WIDGET_KINDS.lightEditor,
+    label: 'Light Editor',
+    group: 'controls',
+    create: (label): Widget => {
+      return new VueWidget(LightEditorWidget, { label })
     },
   },
   {

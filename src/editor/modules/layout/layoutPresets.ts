@@ -156,7 +156,7 @@ export const editorLayout: LayoutNode = {
  * @remarks
  * The walkable view is the surface the light is judged on, so the layout keeps the editor's frame (the three fixed views
  * on the left, the camera row and the view in the middle) and the right column is the light work, top down: the undo
- * and redo row, the **Lighting Controls**, and the **Light Inspector** below them (2026-11-17, the owner). The two rows
+ * and redo row, the **Global Lighting Controls**, and the **Light Inspector** below them (2026-11-17, the owner). The two rows
  * are 350 by 60, and the light inspector takes what is left. The statistics left the column with the round: the light
  * work reads the lights, not the counts of the level.
  */
@@ -195,10 +195,11 @@ export const lighterLayout: LayoutNode = {
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: [fixed(UNDO_ROW_HEIGHT), fixed(LIGHTING_CONTROLS_HEIGHT), auto(1)],
+      sizes: [fixed(UNDO_ROW_HEIGHT), fixed(LIGHTING_CONTROLS_HEIGHT), auto(1), auto(1)],
       children: [
         { type: 'widget', kind: WIDGET_KINDS.undoRedo },
         { type: 'widget', kind: WIDGET_KINDS.lightingControls },
+        { type: 'widget', kind: WIDGET_KINDS.lightEditor },
         { type: 'widget', kind: WIDGET_KINDS.lightInspector },
       ],
     },

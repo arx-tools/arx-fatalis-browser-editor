@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { ArxPolygonFlags, type ArxColor, type ArxPolygon, type ArxPortal, type ArxVector3 } from 'arx-convert/types'
+import {
+  ArxPolygonFlags,
+  type ArxColor,
+  type ArxLight,
+  type ArxPolygon,
+  type ArxPortal,
+  type ArxVector3,
+} from 'arx-convert/types'
 import { Quaternion, Vector3 } from 'three'
 import { isQuad } from 'arx-convert/utils'
 import type { FaceRoom, FaceTexture } from '../../../../src/generator/ArxMap.ts'
@@ -16,10 +23,12 @@ import {
   createSetUvRecord,
   createRotateFacesRecord,
   createScaleFacesRecord,
+  createSetLightRecord,
   createTranslateFacesRecord,
   HISTORY_RECORD_VERSION,
   labelOf,
   type MutableLevel,
+  type SetLightEdit,
 } from '../../../../src/editor/modules/history/records.ts'
 
 /**
@@ -66,6 +75,7 @@ function fakeLevel(count: number): {
   containers: Map<number, string>
   lighting: ArxColor[]
   portals: ArxPortal[]
+  lights: ArxLight[]
 } {
   const polygons = Array.from({ length: count }, (_, index) => {
     return triangle(index)
@@ -73,12 +83,14 @@ function fakeLevel(count: number): {
   const containers = new Map<number, string>([[1, '[stone]_wall1.bmp']])
   const lighting: ArxColor[] = [{ r: 1, g: 2, b: 3, a: 1 }]
   const portals: ArxPortal[] = []
+  const lights: ArxLight[] = []
 
   return {
     polygons,
     containers,
     lighting,
     portals,
+    lights,
     level: {
       polygons,
       portals,
@@ -228,7 +240,40 @@ function fakeLevel(count: number): {
           }
         }
       },
+      lights,
+      setLights: (changes: ReadonlyArray<{ readonly index: number; readonly light: ArxLight }>): void => {
+        for (const change of changes) {
+          if (lights[change.index] !== undefined) {
+            lights[change.index] = change.light
+          }
+        }
+      },
     },
+  }
+}
+
+/**
+ * A light of the test, with every field of an LLF light.
+ *
+ * @param overrides The fields the test changes.
+ *
+ * @returns The light, with the fields of the test.
+ */
+function light(overrides: Partial<ArxLight> = {}): ArxLight {
+  return {
+    position: { x: 1, y: 2, z: 3 },
+    color: { r: 255, g: 255, b: 255, a: 255 },
+    fallStart: 100,
+    fallEnd: 200,
+    intensity: 1,
+    exFlicker: { r: 0, g: 0, b: 0, a: 255 },
+    exRadius: 0,
+    exFrequency: 0,
+    exSize: 0,
+    exSpeed: 0,
+    exFlareSize: 0,
+    flags: 0,
+    ...overrides,
   }
 }
 
@@ -271,6 +316,47 @@ void describe('createDeleteFacesRecord', () => {
 void describe('labelOf', () => {
   void it('says how many faces the step takes out', () => {
     assert.equal(labelOf(createDeleteFacesRecord([1, 2, 3])), 'Delete 3 face(s)')
+  })
+})
+
+void describe('createSetLightRecord', () => {
+  void it('sorts the lights by their index, and reads one twice once', () => {
+    const first = light()
+    const second = light()
+    const edits: SetLightEdit[] = [
+      { index: 3, before: first, after: first },
+      { index: 1, before: second, after: second },
+      { index: 3, before: second, after: second },
+    ]
+    const record = createSetLightRecord(edits)
+
+    assert.deepEqual(record.indices, [1, 3])
+    assert.equal(record.before.length, 2)
+    assert.equal(record.after.length, 2)
+    assert.equal(record.version, HISTORY_RECORD_VERSION)
+  })
+
+  void it('copies the snapshots, so a later edit of the light does not reach them', () => {
+    const before = light()
+    const after = light({ intensity: 2 })
+    const record = createSetLightRecord([{ index: 0, before, after }])
+
+    before.color.r = 0
+    after.color.g = 0
+
+    assert.equal(record.before[0]?.color.r, 255)
+    assert.equal(record.after[0]?.color.g, 255)
+  })
+
+  void it('writes the number of the lights in the caption', () => {
+    const one = createSetLightRecord([{ index: 3, before: light(), after: light() }])
+    const many = createSetLightRecord([
+      { index: 1, before: light(), after: light() },
+      { index: 2, before: light(), after: light() },
+    ])
+
+    assert.equal(labelOf(one), 'Edit light 3')
+    assert.equal(labelOf(many), 'Edit 2 lights')
   })
 })
 

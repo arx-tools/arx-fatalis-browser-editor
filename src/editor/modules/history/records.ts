@@ -1,4 +1,4 @@
-import type { ArxColor, ArxPolygon, ArxPortal, ArxVector3 } from 'arx-convert/types'
+import type { ArxColor, ArxLight, ArxPolygon, ArxPortal, ArxVector3 } from 'arx-convert/types'
 import type { FaceRoom, FaceTexture } from '../../../generator/ArxMap.ts'
 import type { PolygonInsertion } from '../../../generator/arxMap/removal.ts'
 import type { FaceUv } from '../../../generator/arxMap/uvs.ts'
@@ -462,6 +462,75 @@ export type BuildTunnelRecord = {
 }
 
 /**
+ * One light of a step: the light before the edit and the light after it.
+ *
+ * @remarks
+ * The light editor writes the fields of a light on the draft as the author drags, so the step that goes on the stack
+ * holds the two **snapshots** of the light, not the movement: the same shape replays on the load, and the undo puts the
+ * file's light back. A light is a plain object of numbers and three vectors, so the two are JSON.
+ */
+export type SetLightEdit = {
+  /**
+   * The light, by its index in the LLF.
+   */
+  readonly index: number
+  /**
+   * The light before the step.
+   */
+  readonly before: ArxLight
+  /**
+   * The light after it.
+   */
+  readonly after: ArxLight
+}
+
+/**
+ * The step that writes one or more lights of the level.
+ *
+ * @remarks
+ * The selection of the light editor may hold more than one light, and they are edited together in one step (only when
+ * every editable field matches, see `lightSelectionOf`). The three lists are aligned: the index, the light before it and
+ * the light after it at the same place. The fields are the whole light, so the step does not have to know which of them
+ * the author touched.
+ */
+export type SetLightRecord = {
+  /**
+   * The version of the shape of this record, see {@link HISTORY_RECORD_VERSION}.
+   */
+  readonly version: number
+  /**
+   * What the step does, which names its payload.
+   */
+  readonly kind: 'setLight'
+  /**
+   * The lights, by their index in the LLF, sorted.
+   */
+  readonly indices: readonly number[]
+  /**
+   * The lights before the step, in the order of {@link indices}.
+   */
+  readonly before: readonly ArxLight[]
+  /**
+   * The lights after it, in the same order.
+   */
+  readonly after: readonly ArxLight[]
+}
+
+/**
+ * A change of a light the step writes, as the command and the level speak it.
+ */
+export type LightChange = {
+  /**
+   * The light, by its index in the LLF.
+   */
+  readonly index: number
+  /**
+   * The light it takes.
+   */
+  readonly light: ArxLight
+}
+
+/**
  * A step the way a JSON can hold it.
  *
  * @remarks
@@ -482,6 +551,7 @@ export type HistoryRecord =
   | RenameFaceGroupRecord
   | RotateFacesRecord
   | ScaleFacesRecord
+  | SetLightRecord
   | SetRoomNameRecord
   | SetRoomRecord
   | SetTextureRecord
@@ -591,6 +661,16 @@ export type MutableLevel = {
    * @param scale How far the corners move along the three axes, around 1.
    */
   scalePolygons(faces: readonly number[], pivot: ArxVector3, scale: ArxVector3): void
+  /**
+   * The lights of the level, as the LLF holds them.
+   */
+  readonly lights: readonly ArxLight[]
+  /**
+   * Writes lights of the level, by their index in the LLF.
+   *
+   * @param changes The lights the step sets.
+   */
+  setLights(changes: readonly LightChange[]): void
 }
 
 /**
@@ -985,6 +1065,65 @@ export function createScaleFacesRecord(
 }
 
 /**
+ * Copies a light of a step, so the record does not share the vectors of the level.
+ *
+ * @param light The light to copy.
+ *
+ * @returns A light with vectors of its own.
+ */
+function copyLightOf(light: ArxLight): ArxLight {
+  return {
+    ...light,
+    position: { ...light.position },
+    color: { ...light.color },
+    exFlicker: { ...light.exFlicker },
+  }
+}
+
+/**
+ * Builds the record of a light edit, the way a step writes it down.
+ *
+ * @remarks
+ * The lights are sorted by their index and a light that comes twice is one, so the same selection gives the same record
+ * whatever order the store held it in. The two snapshots are copied: the map keeps the live light, and a later edit of
+ * it must not reach back into the step.
+ *
+ * @param edits The lights the step writes, with their two snapshots.
+ *
+ * @returns The record of the step.
+ */
+export function createSetLightRecord(edits: Iterable<SetLightEdit>): SetLightRecord {
+  const byIndex = new Map<number, SetLightEdit>()
+
+  for (const edit of edits) {
+    if (!byIndex.has(edit.index)) {
+      byIndex.set(edit.index, edit)
+    }
+  }
+
+  const sorted = byIndex
+    .values()
+    .toArray()
+    .toSorted((one, other) => {
+      return one.index - other.index
+    })
+
+  return {
+    version: HISTORY_RECORD_VERSION,
+    kind: 'setLight',
+    indices: sorted.map((edit) => {
+      return edit.index
+    }),
+    before: sorted.map((edit) => {
+      return copyLightOf(edit.before)
+    }),
+    after: sorted.map((edit) => {
+      return copyLightOf(edit.after)
+    }),
+  }
+}
+
+/**
  * The caption of a step, from its record.
  *
  * @param record The record of the step.
@@ -1022,6 +1161,14 @@ export function labelOf(record: HistoryRecord): string {
 
   if (record.kind === 'deleteFaceGroups') {
     return `Delete ${String(record.groups.length)} group(s)`
+  }
+
+  if (record.kind === 'setLight') {
+    if (record.indices.length === 1) {
+      return `Edit light ${String(record.indices[0])}`
+    }
+
+    return `Edit ${String(record.indices.length)} lights`
   }
 
   if (record.kind === 'setUv') {

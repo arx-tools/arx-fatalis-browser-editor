@@ -453,6 +453,23 @@ export class ArxMap {
   }
 
   /**
+   * Writes lights of the level, by their index in the LLF.
+   *
+   * @remarks
+   * The light editor writes a light of the level on every frame of a drag; the step of the history keeps the two
+   * snapshots and writes the same values again, so the two paths go through this one.
+   *
+   * @param changes The lights, with the index each of them takes.
+   */
+  setLights(changes: ReadonlyArray<{ readonly index: number; readonly light: ArxLight }>): void {
+    for (const change of changes) {
+      if (this.llf.lights[change.index] !== undefined) {
+        this.llf.lights[change.index] = change.light
+      }
+    }
+  }
+
+  /**
    * The name of the texture a polygon draws with.
    *
    * @remarks

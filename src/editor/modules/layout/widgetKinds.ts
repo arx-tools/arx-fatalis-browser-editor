@@ -86,6 +86,10 @@ export const WIDGET_KINDS = {
    */
   lightInspector: 'light-inspector',
   /**
+   * The fields of the selected lights: the colour, the falloff, the flags and the advanced numbers.
+   */
+  lightEditor: 'light-editor',
+  /**
    * The uv of the selected face, on the texture.
    */
   uvMapper: 'uv-mapper',

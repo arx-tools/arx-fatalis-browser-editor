@@ -13,6 +13,7 @@ import {
   type MutableLevel,
   type RotateFacesRecord,
   type ScaleFacesRecord,
+  type SetLightRecord,
   type SetRoomRecord,
   type SetTextureRecord,
   type SetUvRecord,
@@ -258,6 +259,50 @@ function textureCommandOf(record: SetTextureRecord, level: MutableLevel): Histor
 }
 
 /**
+ * Builds the command of a light edit.
+ *
+ * @remarks
+ * The two halves are the two snapshots of the record: the step writes the light after the edit, the undo the one before
+ * it. The lists are aligned (the index, the light before it and the light after it), and a record whose lists do not line
+ * up, or a light the level no longer has, gives no command instead of writing the wrong index.
+ *
+ * @param record The record of the step.
+ * @param level The level the step changes.
+ *
+ * @returns The command, or undefined when a light of the record is not in the level.
+ */
+function lightCommandOf(record: SetLightRecord, level: MutableLevel): HistoryCommand | undefined {
+  if (record.before.length !== record.indices.length || record.after.length !== record.indices.length) {
+    return undefined
+  }
+
+  for (const index of record.indices) {
+    if (level.lights[index] === undefined) {
+      return undefined
+    }
+  }
+
+  return {
+    label: labelOf(record),
+    record,
+    apply: (): void => {
+      level.setLights(
+        record.after.map((light, at) => {
+          return { index: record.indices[at], light }
+        }),
+      )
+    },
+    revert: (): void => {
+      level.setLights(
+        record.before.map((light, at) => {
+          return { index: record.indices[at], light }
+        }),
+      )
+    },
+  }
+}
+
+/**
  * Builds the command of a uv edit.
  *
  * @remarks
@@ -435,6 +480,10 @@ export function commandOf(record: HistoryRecord, level: MutableLevel): HistoryCo
 
   if (record.kind === 'deleteRooms') {
     return deleteRoomsCommandOf(record, level)
+  }
+
+  if (record.kind === 'setLight') {
+    return lightCommandOf(record, level)
   }
 
   if (record.kind === 'setUv') {

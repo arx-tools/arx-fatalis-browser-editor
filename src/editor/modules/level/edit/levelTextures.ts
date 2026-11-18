@@ -509,6 +509,35 @@ export function repaintLevelColors(): void {
 }
 
 /**
+ * Writes the groups of the level again, without painting it.
+ *
+ * @remarks
+ * A group that hides its faces changes the **index** of the solid mesh (its triangles are the visible faces), and a group
+ * is a range of the index: the renderer needs the groups again. The vertices, the materials and the baked colours are the
+ * same (the faces a group hides keep their place in the buffers), so the textures are not read again and the colour
+ * attribute is not written: this is the cheap half of a paint, for a change of the view alone.
+ */
+export function repaintLevelView(): void {
+  const level = current?.map
+  const paintedLevel = painted
+  const mesh = level?.solidMeshes[0]
+
+  if (level === undefined || paintedLevel === undefined || mesh === undefined) {
+    return
+  }
+
+  const indexOfKey = new Map<string, number>(
+    paintedLevel.keys.map((key, index) => {
+      return [key, index]
+    }),
+  )
+
+  mesh.geometry.clearGroups()
+  addRunGroups(mesh.geometry, level, level.textureRuns, indexOfKey)
+  bumpLevelRevision()
+}
+
+/**
  * Paints the level on the screen again, with the data directory the user just picked.
  *
  * @remarks

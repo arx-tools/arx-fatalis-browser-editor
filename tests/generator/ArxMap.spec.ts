@@ -825,21 +825,6 @@ void describe('setPortals', () => {
 })
 
 /**
- * How many corners a face owns in the solid geometry and in the wireframe.
- *
- * @param polygon The face to measure.
- *
- * @returns Six corners and eight wireframe points for a quad, three and six for a triangle.
- */
-function cornersOf(polygon: ArxPolygon): { readonly solid: number; readonly wireframe: number } {
-  if (isQuad(polygon)) {
-    return { solid: 6, wireframe: 8 }
-  }
-
-  return { solid: 3, wireframe: 6 }
-}
-
-/**
  * A face of the level, with the assertion that it is there.
  *
  * @param map The level to read.
@@ -860,14 +845,19 @@ function polygonOf(map: ArxMap, index: number): ArxPolygon {
 }
 
 void describe('setHiddenPolygons', () => {
-  void it('takes the faces out of the mesh, and keeps them in the level', () => {
+  void it('takes the faces out of the index of the mesh, and keeps them in the level', () => {
     const map = flatMap()
     const hidden = new Set([polygonOf(map, 0), polygonOf(map, 1)])
     const geometry = map.solidMeshes[0]?.geometry
-    const before = geometry?.getAttribute('position').count ?? 0
+    const corners = geometry?.getAttribute('position').count ?? 0
+    const triangles = (geometry?.getIndex()?.count ?? 0) / 3
     const removed = [...hidden]
       .map((polygon) => {
-        return cornersOf(polygon).solid
+        if (isQuad(polygon)) {
+          return 2
+        }
+
+        return 1
       })
       .reduce((one, other) => {
         return one + other
@@ -876,30 +866,61 @@ void describe('setHiddenPolygons', () => {
     const rebuilt = map.setHiddenPolygons(hidden)
 
     assert.equal(rebuilt, true)
-    // the level is whole, the view is not
+    // the level and the vertices are whole, the index is not
     assert.equal(map.polygons.length, 121)
     assert.equal(map.visiblePolygons.length, 119)
-    assert.equal(geometry?.getAttribute('position').count, before - removed)
-    // the geometry starts at the first visible face, and its triangle points at that face of the level
-    assert.equal(map.triangleToPolygon[0], 2)
+    assert.equal(geometry?.getAttribute('position').count, corners)
+    assert.equal((geometry?.getIndex()?.count ?? 0) / 3, triangles - removed)
     assert.equal(map.visiblePolygons[0], polygonOf(map, 2))
   })
 
-  void it('puts the faces back when the view is not hidden any more', () => {
+  void it('puts the faces back into the index when the view is not hidden any more', () => {
     const map = flatMap()
     const geometry = map.solidMeshes[0]?.geometry
-    const before = geometry?.getAttribute('position').count ?? 0
-    const wireBefore = map.wireframeGeometry.getAttribute('position').count
+    const triangles = (geometry?.getIndex()?.count ?? 0) / 3
 
     map.setHiddenPolygons(new Set([polygonOf(map, 0)]))
-    assert.ok((geometry?.getAttribute('position').count ?? 0) < before)
+    assert.ok((geometry?.getIndex()?.count ?? 0) / 3 < triangles)
 
     map.setHiddenPolygons(new Set())
 
     assert.equal(map.visiblePolygons.length, map.polygons.length)
-    assert.equal(geometry?.getAttribute('position').count, before)
-    assert.equal(map.wireframeGeometry.getAttribute('position').count, wireBefore)
-    assert.equal(map.triangleToPolygon[0], 0)
+    assert.equal((geometry?.getIndex()?.count ?? 0) / 3, triangles)
+    // the wireframe draws every point again
+    assert.equal(map.wireframeGeometry.getIndex(), null)
+  })
+
+  void it('leaves the triangles of the hidden faces out of the tree of the picking', () => {
+    const map = flatMap()
+    const mesh = map.solidMeshes[0]
+
+    map.setHiddenPolygons(new Set([polygonOf(map, 0)]))
+
+    // a ray from above the hidden face: the level under it is the face behind, or nothing
+    const face = polygonOf(map, 0)
+    const vertex = face.vertices[0]
+
+    if (vertex === undefined) {
+      throw new TypeError('the face has no corner')
+    }
+
+    const scene = map.scenePosition
+    const from = new Vector3(-vertex.x + scene.x, -vertex.y + scene.y + 100, vertex.z - scene.z)
+    const raycaster = new Raycaster(from, new Vector3(0, -1, 0))
+    const hits = raycaster.intersectObject(mesh, false)
+
+    // the hidden face is not a hit: the picking can not reach it
+    const reachedTheHidden = hits.some((hit) => {
+      const triangle = hit.faceIndex
+
+      if (triangle === undefined || triangle === null) {
+        return false
+      }
+
+      return map.triangleToPolygon[triangle] === 0
+    })
+
+    assert.equal(reachedTheHidden, false)
   })
 
   void it('keeps the welded vertices of the visible faces out of the hidden ones', () => {
@@ -918,12 +939,9 @@ void describe('setHiddenPolygons', () => {
     assert.ok(touched.size > 0)
   })
 
-  void it('moves the corners of a visible face, with the places of the hidden ones skipped', () => {
+  void it('moves the corners of a visible face, the hidden ones staying in their place in the buffers', () => {
     const map = flatMap()
     const delta = { x: 10, y: 20, z: 30 }
-
-    map.setHiddenPolygons(new Set([polygonOf(map, 0)]))
-
     const geometry = map.solidMeshes[0]?.geometry
     const positions = geometry?.getAttribute('position')
 
@@ -931,46 +949,101 @@ void describe('setHiddenPolygons', () => {
       throw new TypeError('the level has no position attribute')
     }
 
-    const before = [positions.getX(0), positions.getY(0), positions.getZ(0)]
+    // the face 1 owns the second range of the geometry: hiding the face 0 does not move it
+    const first = polygonOf(map, 0)
+    const corner = first.vertices[0]
+
+    if (corner === undefined) {
+      throw new TypeError('the face has no corner')
+    }
+
+    const quad = isQuad(first)
+    let at = 0
+
+    if (quad) {
+      at = 6
+    } else {
+      at = 3
+    }
+
+    const before = [positions.getX(at), positions.getY(at), positions.getZ(at)]
+
+    map.setHiddenPolygons(new Set([first]))
+
+    assert.deepEqual([positions.getX(at), positions.getY(at), positions.getZ(at)], before)
 
     map.translatePolygons([1], delta)
 
-    // the first corner of the geometry is the first corner of the first visible face, and it took the mirrored offset
+    // the hidden face kept its place in the buffers: the move of the face 1 lands on its own vertices
     assert.deepEqual(
-      [positions.getX(0), positions.getY(0), positions.getZ(0)],
+      [positions.getX(at), positions.getY(at), positions.getZ(at)],
       [before[0] - delta.x, before[1] - delta.y, before[2] + delta.z],
     )
   })
 
-  void it('builds the level again when a face goes while a group is hidden', () => {
+  void it('cuts a deleted face while a group is hidden, and keeps the index of the view', () => {
     const map = flatMap()
+    const geometry = map.solidMeshes[0]?.geometry
 
     map.setHiddenPolygons(new Set([polygonOf(map, 0)]))
 
     map.deletePolygons([2])
 
     assert.equal(map.polygons.length, 120)
-    // the deleted face and the hidden one are both out of the view
     assert.equal(map.visiblePolygons.length, 119)
-    assert.equal(map.triangleToPolygon.length, map.visiblePolygons.length * 2)
-    assert.equal(map.visiblePolygons[0], polygonOf(map, 1))
+    // the triangles are the visible faces: the deleted one went, the hidden one is out
+    const visibleTriangles = map.visiblePolygons
+      .map((polygon) => {
+        if (isQuad(polygon)) {
+          return 2
+        }
+
+        return 1
+      })
+      .reduce((one, other) => {
+        return one + other
+      }, 0)
+
+    assert.equal((geometry?.getIndex()?.count ?? 0) / 3, visibleTriangles)
   })
 
-  void it('empties the mesh when every face is hidden, and puts the level back', () => {
+  void it('empties the index when every face is hidden, and puts the level back', () => {
     const map = flatMap()
-    const corners = map.solidMeshes[0]?.geometry.getAttribute('position').count ?? 0
+    const geometry = map.solidMeshes[0]?.geometry
+    const triangles = (geometry?.getIndex()?.count ?? 0) / 3
 
     map.setHiddenPolygons(new Set(map.polygons))
 
     assert.equal(map.visiblePolygons.length, 0)
-    assert.equal(map.solidMeshes[0]?.geometry.getAttribute('position').count, 0)
-    assert.equal(map.wireframeGeometry.getAttribute('position').count, 0)
-    assert.equal(map.triangleToPolygon.length, 0)
+    assert.equal(geometry?.getIndex()?.count ?? 0, 0)
+    // the vertices are the ones of the level: the index is what the views draw
+    assert.equal((geometry?.getAttribute('position').count ?? 0) > 0, true)
 
     map.setHiddenPolygons(new Set())
 
     assert.equal(map.visiblePolygons.length, map.polygons.length)
-    assert.equal(map.solidMeshes[0]?.geometry.getAttribute('position').count, corners)
+    assert.equal((geometry?.getIndex()?.count ?? 0) / 3, triangles)
+  })
+
+  void it('hides every face of a painted level, whose groups are ranges of the old index', () => {
+    const map = flatMap()
+    const geometry = map.solidMeshes[0]?.geometry
+    const index = geometry?.getIndex()
+
+    if (geometry === undefined || index === null || index === undefined) {
+      throw new TypeError('the level has no index')
+    }
+
+    // the paint leaves the groups of the texture runs on the geometry, and the tree of the picking reads them
+    geometry.addGroup(0, index.count / 2, 0)
+    geometry.addGroup(index.count / 2, index.count / 2, 1)
+
+    map.setHiddenPolygons(new Set(map.polygons))
+
+    assert.equal(geometry.getIndex()?.count ?? -1, 0)
+    // the groups of the old index are gone with it
+    assert.equal(geometry.groups.length, 0)
+    assert.notEqual(geometry.boundsTree, undefined)
   })
 
   void it('counts the faces of the level in the statistics, not of the view', () => {

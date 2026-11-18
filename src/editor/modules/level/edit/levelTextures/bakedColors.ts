@@ -43,8 +43,7 @@ function walkCornersOf(map: ArxMap, visit: CornerVisit): number {
     at = at + 3
   }
 
-  // the walk follows the mesh: the faces a group hides are not in the geometry
-  for (const polygon of map.visiblePolygons) {
+  for (const polygon of map.polygons) {
     const lit = blendModeOf(polygon) === 'opaque' && !isWater(polygon)
 
     step(polygon, 0, lit)

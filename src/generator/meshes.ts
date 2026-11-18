@@ -448,6 +448,60 @@ export function wireframeColorsOf(
  *
  * @returns The geometry of the lines.
  */
+/**
+ * The index of the points of the wireframe the level draws.
+ *
+ * @remarks
+ * The points of the wireframe are laid out per polygon, two per edge (six for a triangle, eight for a quad). A face a
+ * group hides from the view keeps its points in the buffer (the places of the polygons do not move), and this index
+ * leaves them out of the lines the views draw.
+ *
+ * @param polygons The polygons of the level, in the order the wireframe was built with.
+ * @param hidden The polygons a group hid from the view.
+ *
+ * @returns The index of the points to draw.
+ */
+export function wireframePointIndex(polygons: readonly ArxPolygon[], hidden: ReadonlySet<ArxPolygon>): Uint32Array {
+  let total = 0
+
+  for (const polygon of polygons) {
+    if (hidden.has(polygon)) {
+      continue
+    }
+
+    if (isQuad(polygon)) {
+      total = total + 8
+
+      continue
+    }
+
+    total = total + 6
+  }
+
+  const index = new Uint32Array(total)
+  let at = 0
+  let point = 0
+
+  for (const polygon of polygons) {
+    let count = 6
+
+    if (isQuad(polygon)) {
+      count = 8
+    }
+
+    if (!hidden.has(polygon)) {
+      for (let one = 0; one < count; one = one + 1) {
+        index[at] = point + one
+        at = at + 1
+      }
+    }
+
+    point = point + count
+  }
+
+  return index
+}
+
 export function arxPolygonsToWireframeGeometry(
   polygons: readonly ArxPolygon[],
   offset: Vector3,

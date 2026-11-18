@@ -300,16 +300,21 @@ export function readTextureRuns(
  * a material of their own, see `levelTextures`), and an index in the polygon order gives tens of thousands of runs on
  * a big level (level 11: 30 349), one in this order gives one per container and side (266 + the two-sided ones).
  *
- * The order is written as an index and **not by moving the vertices**, so the picking keeps reading `face.a` the way
- * it does: the vertex of the first corner divided by three is the triangle of the polygon list (see
+ * The order is written as an index and **not by moving the vertices**, so the picking keeps reading `face.a` the way it
+ * does: the vertex of the first corner divided by three is the triangle of the polygon list (see
  * `polygonSelection.polygonOfHit`). The tree is built with `indirect: true` (`accelerateRaycast`), so it does not
  * write the index back into its own order.
  *
  * A stable sort keeps the order of the polygons inside one run, which is the order the level reads best.
  *
+ * The faces a group hid from the view are **out of the index**: their vertices stay in the buffers (so the places of
+ * the polygons and the palette do not move), and the renderer, the picking and the tree of the geometry do not see
+ * their triangles.
+ *
  * @param geometry The geometry of the solid mesh; the new index goes on it.
  * @param polygons The polygons of the level, in the order of their triangles.
  * @param triangleToPolygon The polygon of every triangle of the geometry.
+ * @param hidden The polygons a group hid from the view, when there is one.
  *
  * @returns The runs the new index holds, in the order the geometry draws them.
  */
@@ -317,35 +322,50 @@ export function indexSolidGeometryInTextureOrder(
   geometry: BufferGeometry,
   polygons: readonly ArxPolygon[],
   triangleToPolygon: readonly number[],
+  hidden?: ReadonlySet<ArxPolygon>,
 ): TextureRun[] {
   const triangles = geometry.getAttribute('position').count / 3
+  const kept: number[] = []
+
+  for (let triangle = 0; triangle < triangles; triangle = triangle + 1) {
+    const polygon = polygons[triangleToPolygon[triangle] ?? -1]
+
+    if (polygon !== undefined && hidden?.has(polygon) === true) {
+      continue
+    }
+
+    kept.push(triangle)
+  }
 
   // the run of a triangle is its container, its side, its blend mode and its brightness, in one number:
   // `((container * 2 + side) * 5 + blend) * 256 + trans`, with the brightness in hundredths
   const runKeyOfTriangle = new Float64Array(triangles)
   let sorted = true
+  let previous = -1
 
-  for (let triangle = 0; triangle < triangles; triangle = triangle + 1) {
-    runKeyOfTriangle[triangle] = runKeyOfPolygon(polygons[triangleToPolygon[triangle] ?? -1])
+  for (const [place, triangle] of kept.entries()) {
+    const key = runKeyOfPolygon(polygons[triangleToPolygon[triangle] ?? -1])
+
+    runKeyOfTriangle[triangle] = key
 
     // a cut keeps the order of the polygons, so the level that was in this order stays in it: the check is one walk,
     // the sort is a comparison per triangle (level 11: 40 ms against 2 ms)
-    if (triangle > 0 && runKeyOfTriangle[triangle] < runKeyOfTriangle[triangle - 1]) {
+    if (place > 0 && key < previous) {
       sorted = false
     }
+
+    previous = key
   }
 
   let order: readonly number[] | undefined
 
   if (!sorted) {
-    order = Array.from({ length: triangles }, (_, triangle) => {
-      return triangle
-    }).toSorted((left, right) => {
+    order = kept.toSorted((left, right) => {
       return runKeyOfTriangle[left] - runKeyOfTriangle[right]
     })
   }
 
-  const indices = new Uint32Array(triangles * 3)
+  const indices = new Uint32Array(kept.length * 3)
   const runs: TextureRun[] = []
   let runKey = -1
   let runStart = 0
@@ -354,11 +374,11 @@ export function indexSolidGeometryInTextureOrder(
     runs.push(textureRunOf(key, start, count))
   }
 
-  for (let position = 0; position < triangles; position = position + 1) {
-    let triangle = position
+  for (let position = 0; position < kept.length; position = position + 1) {
+    let triangle = kept[position] ?? position
 
     if (order !== undefined) {
-      triangle = order[position] ?? position
+      triangle = order[position] ?? triangle
     }
 
     const key = runKeyOfTriangle[triangle]

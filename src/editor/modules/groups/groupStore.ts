@@ -14,7 +14,7 @@ import { onKeyboardAction } from '../keyboard/keyboard.ts'
 import { levelRevision } from '../level/edit/editing.ts'
 import { levelStore } from '../level/edit/levelStore.ts'
 import { writeBakedColors } from '../level/edit/levelTextures/bakedColors.ts'
-import { repaintLevelColors } from '../level/edit/levelTextures.ts'
+import { repaintLevelView } from '../level/edit/levelTextures.ts'
 import {
   currentMapId,
   levelOpened,
@@ -345,7 +345,8 @@ function applyHiddenPolygons(): void {
     return
   }
 
-  if (hidden.size > 0) {
+  // a hidden face can not be picked, so it leaves the selection: the gizmo would move a face that is not on the screen
+  if (hidden.size > 0 && selectionStore.polygons.value.size > 0) {
     const indexOf = indexMapOf(map)
     const taken: number[] = []
 
@@ -362,15 +363,13 @@ function applyHiddenPolygons(): void {
     }
   }
 
-  // the paint puts the materials and the baked light on the new geometry; a level that was not painted yet gets the
-  // colours of the palette anyway
-  repaintLevelColors()
+  // the index of the mesh is the visible faces now: the renderer needs the groups of the runs again, and a level that
+  // was not painted yet gets the colours of the palette anyway
+  repaintLevelView()
 
   if (map.solidMeshes[0]?.geometry.getAttribute('color') === undefined) {
     writeBakedColors(map)
   }
-
-  refreshPresentPolygons()
 }
 
 /**

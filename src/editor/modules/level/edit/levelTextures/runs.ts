@@ -255,7 +255,7 @@ export function solidPolygonsOf(map: ArxMap): ArxPolygon[] {
   const polygons: ArxPolygon[] = []
   let counted = 0
 
-  for (const polygon of map.visiblePolygons) {
+  for (const polygon of map.polygons) {
     if (counted >= triangles) {
       break
     }

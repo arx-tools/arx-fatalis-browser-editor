@@ -277,13 +277,21 @@ export function vertexKeyOf(vertex: ArxVector3): string {
  * fill follow, so both walk the welds of the mesh and stop where the mesh is not welded.
  *
  * @param polygons The polygons of the level, in their own order.
+ * @param skipping The polygons to leave out (the faces a group hides from the view), when the caller has them.
  *
  * @returns The index of polygons for every vertex position.
  */
-export function vertexToPolygonsMap(polygons: readonly ArxPolygon[]): Map<string, number[]> {
+export function vertexToPolygonsMap(
+  polygons: readonly ArxPolygon[],
+  skipping?: ReadonlySet<ArxPolygon>,
+): Map<string, number[]> {
   const index = new Map<string, number[]>()
 
   for (const [polygonIndex, polygon] of polygons.entries()) {
+    if (skipping?.has(polygon) === true) {
+      continue
+    }
+
     for (const vertex of usedVerticesOf(polygon)) {
       const key = vertexKeyOf(vertex)
       const list = index.get(key)

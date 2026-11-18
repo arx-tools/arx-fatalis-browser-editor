@@ -259,6 +259,242 @@ function collectLights(llf: ArxLLF): Array<{ light: ArxLight; position: Vector3 
 }
 
 /**
+ * The size of a cell of the light grid, in the units of the level.
+ *
+ * @remarks
+ * A corner reads the lights of its own cell and the ones that reach too far to be put in cells: on a level of a city a
+ * cell of this size holds a few lights, against the five hundred a bake of the level reads.
+ */
+const LIGHT_CELL_SIZE = 512
+
+/**
+ * The number of cells a light may be registered in.
+ *
+ * @remarks
+ * A light that reaches over a big part of the level would be in thousands of cells, and a corner would read it almost
+ * everywhere: it goes to the list of the whole level instead.
+ */
+const LIGHT_CELL_LIMIT = 4096
+
+/**
+ * The fewest lights a bake reads before the grid is worth its lookups.
+ */
+const LIGHT_GRID_MINIMUM = 16
+
+/**
+ * The cells of the lights of a level.
+ */
+type LightGrid = {
+  /**
+   * The lights of the cells, by the hash of the coordinates of a cell.
+   *
+   * @remarks
+   * The lights are in the order of the level, and a cell merged with the list of the whole level keeps that order: a
+   * corner sums the same lights in the same order wherever it reads them from, so the bake of the whole level and the
+   * bake of the corners of an edit give the same palette.
+   */
+  readonly cells: ReadonlyMap<number, readonly number[]>
+  /**
+   * The lights that reach too far to be put in cells, in the order of the level.
+   */
+  readonly everywhere: readonly number[]
+}
+
+/**
+ * The grid of a level, and the lights it was built from.
+ */
+type LightGridCache = {
+  /**
+   * The grid itself.
+   */
+  readonly grid: LightGrid
+  /**
+   * The lights of the bake at the build, of which the grid holds the places and the reaches.
+   */
+  readonly lights: readonly ArxLight[]
+}
+
+/**
+ * The hash of a cell of the grid.
+ *
+ * @remarks
+ * Two cells may share a hash: the grid then holds the lights of both, and the bake tests them and leaves the ones out
+ * that do not reach. A collision costs a few tests, never a light.
+ *
+ * @param x The cell on the first axis.
+ * @param y The cell on the second one.
+ * @param z The cell on the third one.
+ *
+ * @returns The number the cells are stored under.
+ */
+function cellHashOf(x: number, y: number, z: number): number {
+  return (Math.imul(x, 73_856_093) ^ Math.imul(y, 19_349_663) ^ Math.imul(z, 83_492_791)) >>> 0
+}
+
+/**
+ * The cell of a corner of the level.
+ *
+ * @param position The corner, in the frame of the scene.
+ *
+ * @returns The number its cell is stored under.
+ */
+function cellHashOfPosition(position: Vector3): number {
+  return cellHashOf(
+    Math.floor(position.x / LIGHT_CELL_SIZE),
+    Math.floor(position.y / LIGHT_CELL_SIZE),
+    Math.floor(position.z / LIGHT_CELL_SIZE),
+  )
+}
+
+/**
+ * Builds the grid of the lights of a bake.
+ *
+ * @param lights The lights of the bake, with their position in the frame of the scene.
+ *
+ * @returns The grid, or `undefined` when the bake reads too few lights for it to pay off.
+ */
+function buildLightGridOf(
+  lights: ReadonlyArray<{ readonly light: ArxLight; readonly position: Vector3 }>,
+): LightGrid | undefined {
+  if (lights.length < LIGHT_GRID_MINIMUM) {
+    return undefined
+  }
+
+  const cells = new Map<number, number[]>()
+  const everywhere: number[] = []
+
+  /**
+   * Puts a light into one cell of the grid.
+   *
+   * @param x The cell on the first axis.
+   * @param y The cell on the second one.
+   * @param z The cell on the third one.
+   * @param index The light, by its index in the bake.
+   */
+  function addToCellOf(x: number, y: number, z: number, index: number): void {
+    const hash = cellHashOf(x, y, z)
+    let cell = cells.get(hash)
+
+    if (cell === undefined) {
+      cell = []
+      cells.set(hash, cell)
+    }
+
+    // two cells may share a hash, and a light that covers both comes twice: the repeats of a light are side by side,
+    // because the walk fills the cells of a light in one go
+    if (cell.at(-1) !== index) {
+      cell.push(index)
+    }
+  }
+
+  for (const [index, { light, position }] of lights.entries()) {
+    const reach = light.fallEnd
+
+    if (reach <= 0) {
+      continue
+    }
+
+    const firstX = Math.floor((position.x - reach) / LIGHT_CELL_SIZE)
+    const lastX = Math.floor((position.x + reach) / LIGHT_CELL_SIZE)
+    const firstY = Math.floor((position.y - reach) / LIGHT_CELL_SIZE)
+    const lastY = Math.floor((position.y + reach) / LIGHT_CELL_SIZE)
+    const firstZ = Math.floor((position.z - reach) / LIGHT_CELL_SIZE)
+    const lastZ = Math.floor((position.z + reach) / LIGHT_CELL_SIZE)
+    const count = (lastX - firstX + 1) * (lastY - firstY + 1) * (lastZ - firstZ + 1)
+
+    if (count > LIGHT_CELL_LIMIT) {
+      everywhere.push(index)
+
+      continue
+    }
+
+    for (let x = firstX; x <= lastX; x = x + 1) {
+      for (let y = firstY; y <= lastY; y = y + 1) {
+        for (let z = firstZ; z <= lastZ; z = z + 1) {
+          addToCellOf(x, y, z, index)
+        }
+      }
+    }
+  }
+
+  return { cells, everywhere }
+}
+
+/**
+ * Tells whether two lists of lights stand where the grid was built.
+ *
+ * @remarks
+ * The place and the reach of every light are what the cells hold. The colour and the intensity of a
+ * light do not move it, so a drag of them keeps the grid of the level.
+ *
+ * @param one The lights the grid was built from.
+ * @param other The lights of the bake now.
+ *
+ * @returns True when the two lists place the same lights the same way.
+ */
+function placesEveryLightOf(one: readonly ArxLight[], other: readonly ArxLight[]): boolean {
+  if (one.length !== other.length) {
+    return false
+  }
+
+  for (const [index, light] of one.entries()) {
+    const candidate = other[index]
+
+    if (
+      candidate?.position.x !== light.position.x ||
+      candidate?.position.y !== light.position.y ||
+      candidate?.position.z !== light.position.z ||
+      candidate?.fallEnd !== light.fallEnd
+    ) {
+      return false
+    }
+  }
+
+  return true
+}
+
+/**
+ * The grids of the levels, by their lighting.
+ */
+const lightGrids = new WeakMap<ArxLLF, LightGridCache>()
+
+/**
+ * Reads the grid of a level, and builds it when it is missing or stale.
+ *
+ * @param llf The lighting of the level: the cache is keyed by it.
+ * @param lights The lights of the bake, with their position in the frame of the scene.
+ *
+ * @returns The grid, or `undefined` when the bake reads too few lights for it to pay off.
+ */
+function lightGridOf(
+  llf: ArxLLF,
+  lights: ReadonlyArray<{ readonly light: ArxLight; readonly position: Vector3 }>,
+): LightGrid | undefined {
+  if (lights.length < LIGHT_GRID_MINIMUM) {
+    return undefined
+  }
+
+  const placed = lights.map((entry) => {
+    return entry.light
+  })
+  const cached = lightGrids.get(llf)
+
+  if (cached !== undefined && placesEveryLightOf(cached.lights, placed)) {
+    return cached.grid
+  }
+
+  const grid = buildLightGridOf(lights)
+
+  if (grid === undefined) {
+    return undefined
+  }
+
+  lightGrids.set(llf, { grid, lights: placed })
+
+  return grid
+}
+
+/**
  * The lowest value of a baked colour for a profile.
  *
  * @param mode The profile of the bake.
@@ -331,6 +567,65 @@ type CornerBake = {
    * The vector the bake reuses for the direction of the light.
    */
   readonly toLight: Vector3
+  /**
+   * The lights to read for the corner, by their index in {@link CornerBake.lights}, ascending.
+   *
+   * @remarks
+   * The grid of the lights writes the list for every corner, and the bake of the whole level keeps the whole list: the
+   * two are the same order, so the sum of the corner is the same. The array is reused from corner to corner, and only
+   * {@link CornerBake.candidateCount} of its entries are the lights of the corner.
+   */
+  readonly candidates: number[]
+  /**
+   * How many entries of {@link CornerBake.candidates} are the lights of the corner.
+   */
+  candidateCount: number
+}
+
+/**
+ * Fills the lights of the corner from the grid.
+ *
+ * @remarks
+ * The cell of the corner and the lights that reach everywhere are two ascending lists: this merges them, so a corner
+ * sums its lights in the order of the level. Two cells may share a hash, and the same light may be in both of them: the
+ * merge drops the repeats, or the light would be counted twice. A corner whose cell holds no light and whose level has
+ * no light that reaches everywhere reads nothing, and the bake gives it the floor of the profile.
+ *
+ * @param context The bake of the walk.
+ * @param grid The grid of the lights of the level.
+ */
+function fillCandidatesOf(context: BakeContext, grid: LightGrid): void {
+  const { corner } = context
+  const { candidates } = corner
+  const cell = grid.cells.get(cellHashOfPosition(corner.position))
+  const { everywhere } = grid
+  // one past the last light: the merge reads the end of a list as a light that never comes
+  const none = corner.lights.length
+  let one = 0
+  let other = 0
+  let at = 0
+
+  while (one < (cell?.length ?? 0) || other < everywhere.length) {
+    let fromCell = none
+
+    if (cell !== undefined) {
+      fromCell = cell[one] ?? none
+    }
+
+    const fromEverywhere = everywhere[other] ?? none
+
+    if (fromCell <= fromEverywhere) {
+      candidates[at] = fromCell
+      one = one + 1
+    } else {
+      candidates[at] = fromEverywhere
+      other = other + 1
+    }
+
+    at = at + 1
+  }
+
+  context.corner.candidateCount = at
 }
 
 /**
@@ -366,7 +661,14 @@ function bakeCornerOf(options: CornerBake, doubleSided: boolean): ArxColor {
   let green = 0
   let blue = 0
 
-  for (const { light, position } of options.lights) {
+  for (let slot = 0; slot < options.candidateCount; slot = slot + 1) {
+    const entry = options.lights[options.candidates[slot] ?? 0]
+
+    if (entry === undefined) {
+      continue
+    }
+
+    const { light, position } = entry
     // the squared distance rejects the light before the square root and the divisions: a corner of a big level is out
     // of the reach of most of its lights, and the full bake is half a second of this loop
     const alongX = position.x - options.position.x
@@ -449,13 +751,13 @@ async function letThePagePaint(): Promise<void> {
  */
 type BakeContext = {
   /**
-   * The position of the scene of the level, which the corners and the lights are relative to.
-   */
-  readonly scenePosition: ArxVector3
-  /**
    * The corner every step of the walk writes before it bakes it.
    */
   readonly corner: CornerBake
+  /**
+   * The grid of the lights, when the walk fills the lights of a corner from it.
+   */
+  readonly grid: LightGrid | undefined
 }
 
 /**
@@ -466,13 +768,17 @@ type BakeContext = {
  * floor of the profile. The modes that do not read the lights (`MaxBrightness`, `CompleteDarkness`, `TextureRainbow`,
  * `Flat`) have no context: their palette is not the light of the level.
  *
- * @param fts The scene of the level.
- * @param llf The lighting of the level.
+ * @param lights The lights of the bake, with their position in the frame of the scene.
  * @param options The profile of the bake and what it reads.
+ * @param grid The grid of the lights, when the bake reads only the ones a corner needs.
  *
  * @returns What the bake of a corner reads, or `undefined` when the mode does not read the lights.
  */
-function bakeContextOf(fts: ArxFTS, llf: ArxLLF, options: LightingOptions): BakeContext | undefined {
+function bakeContextOf(
+  lights: ReadonlyArray<{ readonly light: ArxLight; readonly position: Vector3 }>,
+  options: LightingOptions,
+  grid?: LightGrid,
+): BakeContext | undefined {
   const modesWithoutLights: readonly LightingCalculatorMode[] = [
     'MaxBrightness',
     'CompleteDarkness',
@@ -499,12 +805,16 @@ function bakeContextOf(fts: ArxFTS, llf: ArxLLF, options: LightingOptions): Bake
   const raycaster = new Raycaster()
   raycaster.firstHitOnly = true
 
+  const candidates = lights.keys().toArray()
+
   return {
-    scenePosition: fts.header.mScenePosition,
+    grid,
     corner: {
       position: new Vector3(),
       normal: new Vector3(),
-      lights: collectLights(llf),
+      lights,
+      candidates,
+      candidateCount: candidates.length,
       blockers,
       raycaster,
       factor,
@@ -522,12 +832,13 @@ function bakeContextOf(fts: ArxFTS, llf: ArxLLF, options: LightingOptions): Bake
  * lights, and both the position and the normal are mirrored the way the mesh is.
  *
  * @param context The corner of the walk.
+ * @param scenePosition The position of the scene of the level, which the corners are shifted by.
  * @param polygon The face the corner belongs to.
  * @param index The position of the corner in the face, from zero.
  */
-function moveCornerOf(context: BakeContext, polygon: ArxPolygon, index: number): void {
+function moveCornerOf(context: BakeContext, scenePosition: ArxVector3, polygon: ArxPolygon, index: number): void {
   const vertex = polygon.vertices[index]
-  const { scenePosition, corner } = context
+  const { corner } = context
 
   corner.position.set(-vertex.x + scenePosition.x, -vertex.y + scenePosition.y, vertex.z - scenePosition.z)
 
@@ -576,7 +887,10 @@ function* bakeLlfColorsSteps(fts: ArxFTS, llf: ArxLLF, options: LightingOptions)
     })
   }
 
-  const context = bakeContextOf(fts, llf, options)
+  const lights = collectLights(llf)
+  const grid = lightGridOf(llf, lights)
+  const context = bakeContextOf(lights, options, grid)
+  const scenePosition = fts.header.mScenePosition
   const colors: ArxColor[] = llf.colors.map(() => {
     return { r: 0, g: 0, b: 0, a: 255 }
   })
@@ -592,7 +906,12 @@ function* bakeLlfColorsSteps(fts: ArxFTS, llf: ArxLLF, options: LightingOptions)
       const colorIndex = polygon.vertices[index].llfColorIdx
 
       if (colorIndex !== undefined) {
-        moveCornerOf(context, polygon, index)
+        moveCornerOf(context, scenePosition, polygon, index)
+
+        if (grid !== undefined) {
+          fillCandidatesOf(context, grid)
+        }
+
         colors[colorIndex] = bakeCornerOf(context.corner, doubleSided)
       }
 
@@ -661,102 +980,84 @@ export async function bakeLlfColorsInChunks(fts: ArxFTS, llf: ArxLLF, options: L
 }
 
 /**
- * Tells whether a corner is close enough to a light to take its light.
- *
- * @param corner The corner, in the frame of the scene.
- * @param lights The lights, with their position in the frame of the scene.
- *
- * @returns True when at least one of them reaches the corner.
+ * The corners of a level the partial bake reads, one entry per corner of its geometry.
  */
-function isReachedBy(
-  corner: Vector3,
-  lights: ReadonlyArray<{ readonly position: Vector3; readonly fallEnd: number }>,
-): boolean {
-  for (const light of lights) {
-    const dx = corner.x - light.position.x
-    const dy = corner.y - light.position.y
-    const dz = corner.z - light.position.z
-    const alongX = dx * dx
-    const alongY = dy * dy
-    const alongZ = dz * dz
-    const distanceSquared = alongX + alongY + alongZ
-    const reach = light.fallEnd * light.fallEnd
-
-    if (distanceSquared <= reach) {
-      return true
-    }
-  }
-
-  return false
+export type CornerSpots = {
+  /**
+   * The position of every corner, three channels each, in the frame of the scene.
+   */
+  readonly positions: Float32Array
+  /**
+   * The normal of every corner, three channels each, in the frame of the scene.
+   */
+  readonly normals: Float32Array
+  /**
+   * Whether the face of the corner is drawn from both sides, so its normal turned away still takes the light.
+   */
+  readonly doubleSided: Uint8Array
+  /**
+   * The palette entry of every corner, or `-1` when the corner takes no colour from the palette.
+   */
+  readonly paletteIndexes: Int32Array
 }
 
 /**
- * Bakes the palette entries of the corners some lights reach.
+ * Bakes the palette entries of some corners of the level.
  *
  * @remarks
  * The light editor writes a light on every frame of a drag, and the palette has to follow it: the full bake would be
- * half a second on a big level, so this one bakes only the corners the light **before** the edit and the light **after**
- * it reach — the two spheres mark every entry whose colour the edit can change. The two states are needed: a light that
- * shrinks or moves away has to give its old corners back to the other lights, and those corners are the ones the sphere
- * of its old place holds.
+ * half a second on a big level, so this one bakes only the corners the edit reached (see `cornersWithin` in the editor:
+ * the corners the light **before** the edit and the light **after** it reach, because a light that shrinks or moves
+ * away has to give its old corners back to the other lights).
  *
- * The colour of an entry is the one the full bake would write: the walk bakes it from **every** light of the level, not
- * only from the changed one, and with the same math (see {@link bakeCornerOf}). The position of the light is the scene
- * relative one of the LLF, the same the full bake reads.
+ * The colour of an entry is the one the full bake would write: every corner is baked from **all** the lights of the
+ * level, with the same math and in the same order ({@link bakeCornerOf}), and the lights a corner can not take are
+ * filtered out by the grid of the level ({@link LightGrid}).
  *
  * The modes that do not read the lights (`MaxBrightness`, `CompleteDarkness`, `TextureRainbow`, `Flat`) give an empty
  * map: their palette is not the light of the level.
  *
- * @param fts The scene of the level.
  * @param llf The lighting of the level: the lights and the palette.
  * @param options The profile of the bake and what it reads.
- * @param reach The lights whose corners are baked: the two states of every light an edit touched.
+ * @param spots The corners of the level, in the frame of the scene.
+ * @param entries The corners to bake, by their entry in the spots.
  *
  * @returns The new colour of every affected palette entry, by its index in the palette.
  */
-export function bakeLlfColorsAround(
-  fts: ArxFTS,
+export function bakeLlfColorsAt(
   llf: ArxLLF,
   options: LightingOptions,
-  reach: readonly ArxLight[],
+  spots: CornerSpots,
+  entries: readonly number[],
 ): Map<number, ArxColor> {
   const colors = new Map<number, ArxColor>()
-  const context = bakeContextOf(fts, llf, options)
+  const lights = collectLights(llf)
+  const grid = lightGridOf(llf, lights)
+  const context = bakeContextOf(lights, options, grid)
 
   if (context === undefined) {
     return colors
   }
 
-  const lights = reach
-    .filter((light) => {
-      return light.fallEnd > 0
-    })
-    .map((light) => {
-      return { position: arxVector3toVector3(light.position), fallEnd: light.fallEnd }
-    })
-
-  if (lights.length === 0) {
-    return colors
-  }
-
   const { corner } = context
 
-  for (const polygon of fts.polygons) {
-    const doubleSided = (polygon.flags & ArxPolygonFlags.DoubleSided) !== 0
+  for (const entry of entries) {
+    const index = spots.paletteIndexes[entry] ?? -1
 
-    for (let index = 0; index < colorCountOf(polygon); index = index + 1) {
-      const colorIndex = polygon.vertices[index].llfColorIdx
-
-      if (colorIndex === undefined) {
-        continue
-      }
-
-      moveCornerOf(context, polygon, index)
-
-      if (isReachedBy(corner.position, lights)) {
-        colors.set(colorIndex, bakeCornerOf(corner, doubleSided))
-      }
+    if (index < 0) {
+      continue
     }
+
+    const at = entry * 3
+
+    corner.position.set(spots.positions[at] ?? 0, spots.positions[at + 1] ?? 0, spots.positions[at + 2] ?? 0)
+    corner.normal.set(spots.normals[at] ?? 0, spots.normals[at + 1] ?? 0, spots.normals[at + 2] ?? 0).normalize()
+
+    if (grid !== undefined) {
+      fillCandidatesOf(context, grid)
+    }
+
+    colors.set(index, bakeCornerOf(corner, spots.doubleSided[entry] === 1))
   }
 
   return colors

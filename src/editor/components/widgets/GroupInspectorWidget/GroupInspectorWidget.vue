@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { Pencil, Plus, Trash2 } from 'lucide-vue-next'
+import { Eye, EyeOff, Pencil, Plus, Trash2 } from 'lucide-vue-next'
 import { computed, nextTick, shallowRef, useTemplateRef } from 'vue'
 import {
   createFaceGroupFromSelection,
   deleteFaceGroups,
   faceGroupSections,
   renameFaceGroup,
+  setFaceGroupVisibility,
   type FaceGroupRow,
   type FaceGroupSection,
 } from '../../../modules/groups/groupStore.ts'
@@ -183,6 +184,16 @@ function cancelRename(): void {
 }
 
 /**
+ * Shows or hides the faces of a group.
+ *
+ * @param section The section of the row.
+ * @param row The group to show or hide.
+ */
+function toggleVisibility(section: FaceGroupSection, row: FaceGroupRow): void {
+  setFaceGroupVisibility(section.mapId, row.id, !row.visible)
+}
+
+/**
  * Takes a group out of its level.
  *
  * @param section The section of the row.
@@ -226,6 +237,20 @@ function removeGroup(section: FaceGroupSection, row: FaceGroupRow): void {
           @click="pick(section, row, $event)"
           @dblclick="startRename(section, row)"
         >
+          <button
+            class="eye"
+            type="button"
+            :class="{ 'is-visible': row.visible }"
+            :disabled="!section.isCurrent"
+            :aria-label="row.visible ? `Hide ${row.label}` : `Show ${row.label}`"
+            :aria-pressed="row.visible"
+            :title="row.visible ? `Hide ${row.label}` : `Show ${row.label}`"
+            @click.stop="toggleVisibility(section, row)"
+            @dblclick.stop
+          >
+            <Eye v-if="row.visible" :size="14" />
+            <EyeOff v-else :size="14" />
+          </button>
           <input
             v-if="renaming === rowKeyOf(section.mapId, row.id)"
             :ref="captureNameField"
@@ -375,6 +400,36 @@ function removeGroup(section: FaceGroupSection, row: FaceGroupRow): void {
 
   // another level is read, not worked on: its rows pick no faces
   &.is-other {
+    cursor: default;
+  }
+}
+
+// the eye of the row: orange while the group is drawn, a crossed eye while its faces are out of the mesh
+.eye {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  color: $text-subtle;
+  background: none;
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+
+  &.is-visible {
+    color: $accent;
+  }
+
+  &:hover:not(:disabled) {
+    color: $text;
+    background: $surface-panel;
+  }
+
+  &:disabled {
+    opacity: 0.4;
     cursor: default;
   }
 }

@@ -4,7 +4,8 @@ import { ArxLightFlags, type ArxColor, type ArxLight, type ArxVector3 } from 'ar
 import { Mesh, MeshBasicMaterial, PlaneGeometry } from 'three'
 import { createBlankLevelFiles, MINIMAL_PRESET } from '../../src/editor/modules/level/blankLevel.ts'
 import { ArxMap } from '../../src/generator/ArxMap.ts'
-import { bakeLlfColors, bakeLlfColorsAround, type LightingOptions } from '../../src/generator/lighting.ts'
+import { bakedCornersOf, cornersWithin } from '../../src/editor/modules/level/edit/levelTextures/bakedColors.ts'
+import { bakeLlfColors, bakeLlfColorsAt, type LightingOptions } from '../../src/generator/lighting.ts'
 import { Settings } from '../../src/generator/Settings.ts'
 
 /**
@@ -270,7 +271,52 @@ function lightAbove(corner: Corner, options: AboveOptions = {}): ArxLight {
   )
 }
 
-void describe('bakeLlfColorsAround', () => {
+/**
+ * The corners of a level the spheres of the lights reach.
+ *
+ * @param map The level to read.
+ * @param lights The lights of the edit: the states before and after it.
+ *
+ * @returns The entries of the corner index the spheres reach, in the order of the geometry.
+ *
+ * @throws When the level has no corner index.
+ */
+function reachedBy(map: ArxMap, lights: readonly ArxLight[]): number[] {
+  const corners = bakedCornersOf(map)
+
+  if (corners === undefined) {
+    throw new TypeError('the level has no corner index')
+  }
+
+  return cornersWithin(
+    corners,
+    lights.map((light) => {
+      // the bake mirrors the place of the light, the way the mesh is mirrored
+      return { x: -light.position.x, y: -light.position.y, z: light.position.z, radius: light.fallEnd }
+    }),
+  )
+}
+
+/**
+ * The spots of the corners of a level, as the partial bake reads them.
+ *
+ * @param map The level to read.
+ *
+ * @returns The corners of the level.
+ *
+ * @throws When the level has no corner index.
+ */
+function spotsOf(map: ArxMap): NonNullable<ReturnType<typeof bakedCornersOf>> {
+  const corners = bakedCornersOf(map)
+
+  if (corners === undefined) {
+    throw new TypeError('the level has no corner index')
+  }
+
+  return corners
+}
+
+void describe('bakeLlfColorsAt', () => {
   void it('bakes the corners the light left and the corners it reaches now', () => {
     const before = lightAbove({ x: 0, y: 0, z: 0 })
     const after = lightAbove({ x: 100, y: 0, z: 100 }, { color: { r: 0, g: 0, b: 255, a: 255 } })
@@ -283,7 +329,7 @@ void describe('bakeLlfColorsAround', () => {
     // the edit moves the light to the last corner
     moved.llf.lights = [after]
 
-    const around = bakeLlfColorsAround(moved.fts, moved.llf, { mode: 'Arx' }, [before, after])
+    const around = bakeLlfColorsAt(moved.llf, { mode: 'Arx' }, spotsOf(moved), reachedBy(moved, [before, after]))
 
     // the two spheres mark the two corners: the one the light gives back and the one it reaches now
     assert.deepEqual(around.keys().toArray(), [0, 3])
@@ -300,6 +346,34 @@ void describe('bakeLlfColorsAround', () => {
     assert.deepEqual(around.get(3), reference.llf.colors[3])
   })
 
+  void it('bakes from every light of the level, not only the one that changed', () => {
+    const map = litFloor()
+    const one = lightAbove({ x: 0, y: 0, z: 0 }, { fallEnd: 300 })
+    const other = lightAbove({ x: 100, y: 0, z: 100 }, { fallEnd: 300 })
+    const changed = lightAbove({ x: 0, y: 0, z: 0 }, { fallEnd: 300, color: { r: 0, g: 0, b: 255, a: 255 } })
+
+    // both lights reach both of their corners, so the edit of one of them has to bake the other one in too
+    map.llf.lights = [changed, other]
+
+    const reached = reachedBy(map, [one, changed])
+    const around = bakeLlfColorsAt(map.llf, { mode: 'Arx' }, spotsOf(map), reached)
+
+    map.llf.colors = bakeLlfColors(map.fts, map.llf, { mode: 'Arx' })
+
+    const same = [...around].map(([index, color]) => {
+      return [index, color, map.llf.colors[index]]
+    })
+
+    assert.deepEqual(
+      same.filter(([, color, expected]) => {
+        return JSON.stringify(color) !== JSON.stringify(expected)
+      }),
+      [],
+    )
+    // the two wide spheres reach the four corners of the floor
+    assert.deepEqual(around.keys().toArray(), [0, 1, 2, 3])
+  })
+
   void it('leaves the corners the light does not reach out', () => {
     const map = litFloor()
     // a light over the first corner, and another one over the last one: the other two corners are out of their reach
@@ -308,7 +382,7 @@ void describe('bakeLlfColorsAround', () => {
 
     map.llf.lights = [one, other]
 
-    const around = bakeLlfColorsAround(map.fts, map.llf, { mode: 'Arx' }, [one, other])
+    const around = bakeLlfColorsAt(map.llf, { mode: 'Arx' }, spotsOf(map), reachedBy(map, [one, other]))
 
     assert.deepEqual(around.keys().toArray(), [0, 3])
   })
@@ -321,7 +395,7 @@ void describe('bakeLlfColorsAround', () => {
 
     map.llf.lights = [semidynamic]
 
-    const around = bakeLlfColorsAround(map.fts, map.llf, { mode: 'Arx' }, [burning])
+    const around = bakeLlfColorsAt(map.llf, { mode: 'Arx' }, spotsOf(map), reachedBy(map, [burning]))
 
     // the light is out of the palette now, so the corner it used to light goes back to the ambient floor
     assert.deepEqual(around.get(0), { r: 23, g: 23, b: 23, a: 255 })
@@ -335,7 +409,7 @@ void describe('bakeLlfColorsAround', () => {
 
     const modes = ['Flat', 'MaxBrightness', 'CompleteDarkness', 'TextureRainbow'] as const
     const sizes = modes.map((mode) => {
-      return bakeLlfColorsAround(map.fts, map.llf, { mode }, [light]).size
+      return bakeLlfColorsAt(map.llf, { mode }, spotsOf(map), reachedBy(map, [light])).size
     })
 
     assert.deepEqual(sizes, [0, 0, 0, 0])

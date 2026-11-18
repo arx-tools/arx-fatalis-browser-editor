@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
-import type { ArxPortal } from 'arx-convert/types'
+import type { ArxPolygon, ArxPortal } from 'arx-convert/types'
 import { isQuad } from 'arx-convert/utils'
 import { getBVHExtremes } from 'three-mesh-bvh'
 import { BufferAttribute, Quaternion, Raycaster, Triangle, Vector3 } from 'three'
@@ -821,5 +821,164 @@ void describe('setPortals', () => {
     assert.equal(map.fts.rooms.length, 6)
     assert.deepEqual(map.fts.rooms[1]?.portals, [0])
     assert.deepEqual(map.fts.rooms[5]?.portals, [0])
+  })
+})
+
+/**
+ * How many corners a face owns in the solid geometry and in the wireframe.
+ *
+ * @param polygon The face to measure.
+ *
+ * @returns Six corners and eight wireframe points for a quad, three and six for a triangle.
+ */
+function cornersOf(polygon: ArxPolygon): { readonly solid: number; readonly wireframe: number } {
+  if (isQuad(polygon)) {
+    return { solid: 6, wireframe: 8 }
+  }
+
+  return { solid: 3, wireframe: 6 }
+}
+
+/**
+ * A face of the level, with the assertion that it is there.
+ *
+ * @param map The level to read.
+ * @param index Which face.
+ *
+ * @returns The face.
+ *
+ * @throws When the level has no such face.
+ */
+function polygonOf(map: ArxMap, index: number): ArxPolygon {
+  const polygon = map.polygons[index]
+
+  if (polygon === undefined) {
+    throw new TypeError(`the level has no face ${String(index)}`)
+  }
+
+  return polygon
+}
+
+void describe('setHiddenPolygons', () => {
+  void it('takes the faces out of the mesh, and keeps them in the level', () => {
+    const map = flatMap()
+    const hidden = new Set([polygonOf(map, 0), polygonOf(map, 1)])
+    const geometry = map.solidMeshes[0]?.geometry
+    const before = geometry?.getAttribute('position').count ?? 0
+    const removed = [...hidden]
+      .map((polygon) => {
+        return cornersOf(polygon).solid
+      })
+      .reduce((one, other) => {
+        return one + other
+      }, 0)
+
+    const rebuilt = map.setHiddenPolygons(hidden)
+
+    assert.equal(rebuilt, true)
+    // the level is whole, the view is not
+    assert.equal(map.polygons.length, 121)
+    assert.equal(map.visiblePolygons.length, 119)
+    assert.equal(geometry?.getAttribute('position').count, before - removed)
+    // the geometry starts at the first visible face, and its triangle points at that face of the level
+    assert.equal(map.triangleToPolygon[0], 2)
+    assert.equal(map.visiblePolygons[0], polygonOf(map, 2))
+  })
+
+  void it('puts the faces back when the view is not hidden any more', () => {
+    const map = flatMap()
+    const geometry = map.solidMeshes[0]?.geometry
+    const before = geometry?.getAttribute('position').count ?? 0
+    const wireBefore = map.wireframeGeometry.getAttribute('position').count
+
+    map.setHiddenPolygons(new Set([polygonOf(map, 0)]))
+    assert.ok((geometry?.getAttribute('position').count ?? 0) < before)
+
+    map.setHiddenPolygons(new Set())
+
+    assert.equal(map.visiblePolygons.length, map.polygons.length)
+    assert.equal(geometry?.getAttribute('position').count, before)
+    assert.equal(map.wireframeGeometry.getAttribute('position').count, wireBefore)
+    assert.equal(map.triangleToPolygon[0], 0)
+  })
+
+  void it('keeps the welded vertices of the visible faces out of the hidden ones', () => {
+    const map = flatMap()
+
+    map.setHiddenPolygons(new Set([polygonOf(map, 0), polygonOf(map, 1)]))
+
+    const touched = new Set(
+      map.vertexToPolygons.values().flatMap((polygons) => {
+        return polygons
+      }),
+    )
+
+    assert.ok(!touched.has(0))
+    assert.ok(!touched.has(1))
+    assert.ok(touched.size > 0)
+  })
+
+  void it('moves the corners of a visible face, with the places of the hidden ones skipped', () => {
+    const map = flatMap()
+    const delta = { x: 10, y: 20, z: 30 }
+
+    map.setHiddenPolygons(new Set([polygonOf(map, 0)]))
+
+    const geometry = map.solidMeshes[0]?.geometry
+    const positions = geometry?.getAttribute('position')
+
+    if (!(positions instanceof BufferAttribute)) {
+      throw new TypeError('the level has no position attribute')
+    }
+
+    const before = [positions.getX(0), positions.getY(0), positions.getZ(0)]
+
+    map.translatePolygons([1], delta)
+
+    // the first corner of the geometry is the first corner of the first visible face, and it took the mirrored offset
+    assert.deepEqual(
+      [positions.getX(0), positions.getY(0), positions.getZ(0)],
+      [before[0] - delta.x, before[1] - delta.y, before[2] + delta.z],
+    )
+  })
+
+  void it('builds the level again when a face goes while a group is hidden', () => {
+    const map = flatMap()
+
+    map.setHiddenPolygons(new Set([polygonOf(map, 0)]))
+
+    map.deletePolygons([2])
+
+    assert.equal(map.polygons.length, 120)
+    // the deleted face and the hidden one are both out of the view
+    assert.equal(map.visiblePolygons.length, 119)
+    assert.equal(map.triangleToPolygon.length, map.visiblePolygons.length * 2)
+    assert.equal(map.visiblePolygons[0], polygonOf(map, 1))
+  })
+
+  void it('empties the mesh when every face is hidden, and puts the level back', () => {
+    const map = flatMap()
+    const corners = map.solidMeshes[0]?.geometry.getAttribute('position').count ?? 0
+
+    map.setHiddenPolygons(new Set(map.polygons))
+
+    assert.equal(map.visiblePolygons.length, 0)
+    assert.equal(map.solidMeshes[0]?.geometry.getAttribute('position').count, 0)
+    assert.equal(map.wireframeGeometry.getAttribute('position').count, 0)
+    assert.equal(map.triangleToPolygon.length, 0)
+
+    map.setHiddenPolygons(new Set())
+
+    assert.equal(map.visiblePolygons.length, map.polygons.length)
+    assert.equal(map.solidMeshes[0]?.geometry.getAttribute('position').count, corners)
+  })
+
+  void it('counts the faces of the level in the statistics, not of the view', () => {
+    const map = flatMap()
+    const before = map.statistics.faceCount
+
+    map.setHiddenPolygons(new Set([polygonOf(map, 0), polygonOf(map, 1)]))
+
+    assert.equal(map.statistics.faceCount, before)
   })
 })

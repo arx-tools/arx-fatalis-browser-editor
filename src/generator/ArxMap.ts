@@ -23,7 +23,6 @@ import {
   createLevelMaterial,
   wireframeColorsOf,
 } from './meshes.ts'
-import { countFacesOfTriangles } from './polygonCounts.ts'
 import { Settings } from './Settings.ts'
 import { triangleToPolygonMap, vertexToPolygonsMap } from './polygons.ts'
 import { Player } from './Player.ts'
@@ -51,6 +50,28 @@ function scaleAround(value: number, pivot: number, factor: number): number {
   const scaled = offset * factor
 
   return pivot + scaled
+}
+
+/**
+ * Writes the normal of a corner of the solid mesh, scaled and normalized.
+ *
+ * @remarks
+ * The normals of the mesh follow the inverse of the scale factors, so a face squashed on one axis keeps the light of
+ * the shape it has.
+ *
+ * @param normals The normal attribute of the geometry.
+ * @param at The corner, by its index in the attribute.
+ * @param inverse The inverse of the scale factors, which is what the normal takes.
+ */
+function writeScaledNormalOf(normals: BufferAttribute, at: number, inverse: Vector3): void {
+  const nx = normals.getX(at) * inverse.x
+  const ny = normals.getY(at) * inverse.y
+  const nz = normals.getZ(at) * inverse.z
+  const length = Math.hypot(nx, ny, nz)
+
+  if (length > 0) {
+    normals.setXYZ(at, nx / length, ny / length, nz / length)
+  }
 }
 
 /**
@@ -223,6 +244,16 @@ export class ArxMap {
   polygons: readonly ArxPolygon[]
 
   /**
+   * The polygons the mesh draws, in the order of its triangles.
+   *
+   * @remarks
+   * A group of the author can be hidden from the view for a while: its faces stay in {@link polygons} (the level, the
+   * steps of the history and the groups are the same), and they are out of the mesh, so the picking can not reach them
+   * and the level is drawn without them. The two lists are the same until a face is hidden.
+   */
+  visiblePolygons: readonly ArxPolygon[]
+
+  /**
    * The polygon index of every triangle of the mesh.
    *
    * @remarks
@@ -308,7 +339,7 @@ export class ArxMap {
    * the double click do. So a delete pays nothing for it, and the first drag after an edit pays it once.
    */
   get vertexToPolygons(): ReadonlyMap<string, readonly number[]> {
-    const index = this.vertexPolygons ?? vertexToPolygonsMap(this.polygons)
+    const index = this.vertexPolygons ?? vertexToPolygonsMap(this.polygons, this.hiddenPolygons)
 
     this.vertexPolygons = index
 
@@ -324,6 +355,16 @@ export class ArxMap {
    * The vertex index of {@link vertexToPolygons}, until the polygons change.
    */
   private vertexPolygons: ReadonlyMap<string, readonly number[]> | undefined
+
+  /**
+   * The polygons a group of the author hid from the view.
+   *
+   * @remarks
+   * The view only: the level keeps them, and the export leaves them out. Their vertices are not in the geometry, so
+   * every walk of the geometry skips them (the places of the polygons in the two lists differ from the first hidden
+   * one).
+   */
+  private hiddenPolygons: ReadonlySet<ArxPolygon> = new Set()
 
   /**
    * The name of every texture the level uses, by the id a polygon points at.
@@ -436,6 +477,7 @@ export class ArxMap {
     this.solidMeshes = [solidMesh]
     this.meshes = [solidMesh]
     this.polygons = polygons
+    this.visiblePolygons = polygons
     this.wireframeGeometry = new BufferGeometry()
     this.triangleToPolygon = triangleToPolygonMap(polygons)
 
@@ -644,7 +686,7 @@ export class ArxMap {
       return
     }
 
-    const colors = wireframeColorsOf(this.polygons, (polygon) => {
+    const colors = wireframeColorsOf(this.visiblePolygons, (polygon) => {
       return this.wireframeColorOf(polygon)
     })
 
@@ -785,6 +827,10 @@ export class ArxMap {
         corners = 4
       }
 
+      // the model follows the edit even for a hidden face (an undo of a move arrives after the hide): the geometry has no
+      // vertex of it, so the buffers and the offsets skip it
+      const drawn = !this.hiddenPolygons.has(polygon)
+
       if (moved.has(index)) {
         for (let corner = 0; corner < corners; corner++) {
           const vertex = polygon.vertices[corner]
@@ -796,29 +842,33 @@ export class ArxMap {
           }
         }
 
-        for (let vertex = 0; vertex < solidCount; vertex++) {
-          const at = solidOffset + vertex
-          positions.setXYZ(
-            at,
-            positions.getX(at) + bufferDelta.x,
-            positions.getY(at) + bufferDelta.y,
-            positions.getZ(at) + bufferDelta.z,
-          )
-        }
+        if (drawn) {
+          for (let vertex = 0; vertex < solidCount; vertex++) {
+            const at = solidOffset + vertex
+            positions.setXYZ(
+              at,
+              positions.getX(at) + bufferDelta.x,
+              positions.getY(at) + bufferDelta.y,
+              positions.getZ(at) + bufferDelta.z,
+            )
+          }
 
-        for (let vertex = 0; vertex < wireCount; vertex++) {
-          const at = wireOffset + vertex
-          wirePositions.setXYZ(
-            at,
-            wirePositions.getX(at) + bufferDelta.x,
-            wirePositions.getY(at) + bufferDelta.y,
-            wirePositions.getZ(at) + bufferDelta.z,
-          )
+          for (let vertex = 0; vertex < wireCount; vertex++) {
+            const at = wireOffset + vertex
+            wirePositions.setXYZ(
+              at,
+              wirePositions.getX(at) + bufferDelta.x,
+              wirePositions.getY(at) + bufferDelta.y,
+              wirePositions.getZ(at) + bufferDelta.z,
+            )
+          }
         }
       }
 
-      solidOffset = solidOffset + solidCount
-      wireOffset = wireOffset + wireCount
+      if (drawn) {
+        solidOffset = solidOffset + solidCount
+        wireOffset = wireOffset + wireCount
+      }
     }
 
     positions.needsUpdate = true
@@ -892,6 +942,10 @@ export class ArxMap {
         corners = 4
       }
 
+      // the model turns even for a hidden face (an undo of a turn arrives after the hide): the geometry has no vertex of
+      // it, so the buffers and the offsets skip it
+      const drawn = !this.hiddenPolygons.has(polygon)
+
       if (turned.has(index)) {
         for (let corner = 0; corner < corners; corner++) {
           const vertex = polygon.vertices[corner]
@@ -911,34 +965,38 @@ export class ArxMap {
           normal.z = direction.z
         }
 
-        for (let vertex = 0; vertex < solidCount; vertex++) {
-          const at = solidOffset + vertex
+        if (drawn) {
+          for (let vertex = 0; vertex < solidCount; vertex++) {
+            const at = solidOffset + vertex
 
-          point
-            .set(positions.getX(at), positions.getY(at), positions.getZ(at))
-            .sub(scenePivot)
-            .applyQuaternion(sceneTurn)
-            .add(scenePivot)
-          positions.setXYZ(at, point.x, point.y, point.z)
+            point
+              .set(positions.getX(at), positions.getY(at), positions.getZ(at))
+              .sub(scenePivot)
+              .applyQuaternion(sceneTurn)
+              .add(scenePivot)
+            positions.setXYZ(at, point.x, point.y, point.z)
 
-          direction.set(normals.getX(at), normals.getY(at), normals.getZ(at)).applyQuaternion(sceneTurn)
-          normals.setXYZ(at, direction.x, direction.y, direction.z)
-        }
+            direction.set(normals.getX(at), normals.getY(at), normals.getZ(at)).applyQuaternion(sceneTurn)
+            normals.setXYZ(at, direction.x, direction.y, direction.z)
+          }
 
-        for (let vertex = 0; vertex < wireCount; vertex++) {
-          const at = wireOffset + vertex
+          for (let vertex = 0; vertex < wireCount; vertex++) {
+            const at = wireOffset + vertex
 
-          point
-            .set(wirePositions.getX(at), wirePositions.getY(at), wirePositions.getZ(at))
-            .sub(scenePivot)
-            .applyQuaternion(sceneTurn)
-            .add(scenePivot)
-          wirePositions.setXYZ(at, point.x, point.y, point.z)
+            point
+              .set(wirePositions.getX(at), wirePositions.getY(at), wirePositions.getZ(at))
+              .sub(scenePivot)
+              .applyQuaternion(sceneTurn)
+              .add(scenePivot)
+            wirePositions.setXYZ(at, point.x, point.y, point.z)
+          }
         }
       }
 
-      solidOffset = solidOffset + solidCount
-      wireOffset = wireOffset + wireCount
+      if (drawn) {
+        solidOffset = solidOffset + solidCount
+        wireOffset = wireOffset + wireCount
+      }
     }
 
     positions.needsUpdate = true
@@ -1003,6 +1061,10 @@ export class ArxMap {
         corners = 4
       }
 
+      // the model scales even for a hidden face (an undo of a scale arrives after the hide): the geometry has no vertex
+      // of it, so the buffers and the offsets skip it
+      const drawn = !this.hiddenPolygons.has(polygon)
+
       if (scaled.has(index)) {
         for (let corner = 0; corner < corners; corner++) {
           const vertex = polygon.vertices[corner]
@@ -1027,40 +1089,37 @@ export class ArxMap {
           }
         }
 
-        for (let vertex = 0; vertex < solidCount; vertex++) {
-          const at = solidOffset + vertex
+        if (drawn) {
+          for (let vertex = 0; vertex < solidCount; vertex++) {
+            const at = solidOffset + vertex
 
-          positions.setXYZ(
-            at,
-            scaleAround(positions.getX(at), scenePivot.x, factors.x),
-            scaleAround(positions.getY(at), scenePivot.y, factors.y),
-            scaleAround(positions.getZ(at), scenePivot.z, factors.z),
-          )
+            positions.setXYZ(
+              at,
+              scaleAround(positions.getX(at), scenePivot.x, factors.x),
+              scaleAround(positions.getY(at), scenePivot.y, factors.y),
+              scaleAround(positions.getZ(at), scenePivot.z, factors.z),
+            )
 
-          const nx = normals.getX(at) * levelInverse.x
-          const ny = normals.getY(at) * levelInverse.y
-          const nz = normals.getZ(at) * levelInverse.z
-          const length = Math.hypot(nx, ny, nz)
-
-          if (length > 0) {
-            normals.setXYZ(at, nx / length, ny / length, nz / length)
+            writeScaledNormalOf(normals, at, levelInverse)
           }
-        }
 
-        for (let vertex = 0; vertex < wireCount; vertex++) {
-          const at = wireOffset + vertex
+          for (let vertex = 0; vertex < wireCount; vertex++) {
+            const at = wireOffset + vertex
 
-          wirePositions.setXYZ(
-            at,
-            scaleAround(wirePositions.getX(at), scenePivot.x, factors.x),
-            scaleAround(wirePositions.getY(at), scenePivot.y, factors.y),
-            scaleAround(wirePositions.getZ(at), scenePivot.z, factors.z),
-          )
+            wirePositions.setXYZ(
+              at,
+              scaleAround(wirePositions.getX(at), scenePivot.x, factors.x),
+              scaleAround(wirePositions.getY(at), scenePivot.y, factors.y),
+              scaleAround(wirePositions.getZ(at), scenePivot.z, factors.z),
+            )
+          }
         }
       }
 
-      solidOffset = solidOffset + solidCount
-      wireOffset = wireOffset + wireCount
+      if (drawn) {
+        solidOffset = solidOffset + solidCount
+        wireOffset = wireOffset + wireCount
+      }
     }
 
     positions.needsUpdate = true
@@ -1080,13 +1139,20 @@ export class ArxMap {
    * but the faces stays: the lights, the anchors and the portals do not come from the mesh.
    */
   refreshStatistics(): void {
-    const faces = countFacesOfTriangles(this.triangleToPolygon)
+    // the numbers are the ones of the level, not of the view: a hidden group is still in the level
+    let quadCount = 0
+
+    for (const polygon of this.polygons) {
+      if (isQuad(polygon)) {
+        quadCount = quadCount + 1
+      }
+    }
 
     this.figures = {
       ...this.figures,
-      faceCount: faces.faceCount,
-      triangleCount: faces.triangleCount,
-      quadCount: faces.quadCount,
+      faceCount: this.polygons.length,
+      triangleCount: this.polygons.length - quadCount,
+      quadCount,
     }
   }
 
@@ -1140,6 +1206,22 @@ export class ArxMap {
       return
     }
 
+    // the cut and the splice count the vertices of every polygon, and a hidden one has none in the geometry: a level with
+    // a hidden group is built again from the polygons that stay
+    if (this.hiddenPolygons.size > 0) {
+      const solid = this.polygons.filter((polygon) => {
+        return !removed.has(polygon)
+      })
+
+      if (solid.length === this.polygons.length) {
+        return
+      }
+
+      this.rebuild(solid)
+
+      return
+    }
+
     const solid: ArxPolygon[] = []
     const solidCounts: number[] = []
     const solidKept: boolean[] = []
@@ -1186,6 +1268,8 @@ export class ArxMap {
     }
 
     this.polygons = solid
+    // nothing is hidden here (a level with a hidden group is built again): the view is the level
+    this.visiblePolygons = solid
     this.triangleToPolygon = triangleToPolygonMap(this.polygons)
     this.vertexPolygons = undefined
     this.figures = { ...this.figures, faceCount, triangleCount, quadCount }
@@ -1254,6 +1338,12 @@ export class ArxMap {
       from = from + 1
     }
 
+    if (this.hiddenPolygons.size > 0) {
+      this.rebuild(next)
+
+      return
+    }
+
     const restored = new Set(
       insertions.map((insertion) => {
         return insertion.polygon
@@ -1319,6 +1409,8 @@ export class ArxMap {
     }
 
     this.polygons = next
+    // nothing is hidden here (a level with a hidden group is built again): the view is the level
+    this.visiblePolygons = next
     this.triangleToPolygon = triangleToPolygonMap(next)
     this.vertexPolygons = undefined
     this.figures = {
@@ -1342,6 +1434,56 @@ export class ArxMap {
   }
 
   /**
+   * Bakes the polygons of the hidden groups out of the view, or puts them back.
+   *
+   * @remarks
+   * The level keeps every polygon: the groups, the steps of the history and the export read {@link polygons}, and the
+   * faces of a hidden group are the same polygons as before. What changes is the **mesh**: the faces that are not in
+   * {@link visiblePolygons} are not in the geometry, so the picking can not reach them, the level is not drawn with
+   * them, and the statistics of the view follow. Showing them again rebuilds the same geometry from the level.
+   *
+   * The build is the one of a load (about 260 ms on the biggest level), because the geometry is built from the polygons
+   * and a hidden face moves every place after it: hiding is a deliberate act of the author, not a drag.
+   *
+   * @param hidden The polygons to hide; an empty set shows every face.
+   *
+   * @returns True when the mesh was built again; false when the view already showed this set.
+   */
+  setHiddenPolygons(hidden: ReadonlySet<ArxPolygon>): boolean {
+    if (hidden.size === this.hiddenPolygons.size) {
+      let same = true
+
+      for (const polygon of hidden) {
+        if (!this.hiddenPolygons.has(polygon)) {
+          same = false
+
+          break
+        }
+      }
+
+      if (same) {
+        return false
+      }
+    }
+
+    this.hiddenPolygons = new Set(hidden)
+    this.rebuild(this.polygons)
+
+    return true
+  }
+
+  /**
+   * Tells whether a polygon of the level is out of the view.
+   *
+   * @param polygon The polygon to ask about.
+   *
+   * @returns True when a hidden group holds it.
+   */
+  isHidden(polygon: ArxPolygon): boolean {
+    return this.hiddenPolygons.has(polygon)
+  }
+
+  /**
    * Reads the colour of the wireframe of a polygon, from the flat colour of its texture.
    *
    * @param polygon The face to read.
@@ -1353,24 +1495,60 @@ export class ArxMap {
   }
 
   /**
-   * Rebuilds every field that comes from the polygons, on the first build of the level.
+   * The polygon of every triangle of the geometry, by the index of the polygon in the level.
+   *
+   * @remarks
+   * The list is built from the **visible** polygons: the geometry has no vertex of a hidden one, so its triangles are
+   * the visible faces only. The values are the indices of {@link polygons}, which is what the picking, the selection and
+   * the texture runs read.
+   *
+   * @returns The polygon index of every triangle, in the order of the geometry.
+   */
+  private trianglesOf(): number[] {
+    const triangles: number[] = []
+
+    for (const [index, polygon] of this.polygons.entries()) {
+      if (this.hiddenPolygons.has(polygon)) {
+        continue
+      }
+
+      let count = 1
+
+      if (isQuad(polygon)) {
+        count = 2
+      }
+
+      for (let one = 0; one < count; one = one + 1) {
+        triangles.push(index)
+      }
+    }
+
+    return triangles
+  }
+
+  /**
+   * Rebuilds every field that comes from the polygons, on the first build of the level or when the view changes.
    *
    * @param polygons Every polygon of the level, in the order of the mesh.
    */
   private rebuild(polygons: readonly ArxPolygon[]): void {
     const offset = arxVector3toVector3(this.fts.header.mScenePosition)
+    const visible = polygons.filter((polygon) => {
+      return !this.hiddenPolygons.has(polygon)
+    })
 
     this.polygons = polygons
-    this.triangleToPolygon = triangleToPolygonMap(polygons)
+    this.visiblePolygons = visible
+    this.triangleToPolygon = this.trianglesOf()
     this.vertexPolygons = undefined
 
     refillFromGeometry(
       this.wireframeGeometry,
-      arxPolygonsToWireframeGeometry(polygons, offset, (polygon) => {
+      arxPolygonsToWireframeGeometry(visible, offset, (polygon) => {
         return this.wireframeColorOf(polygon)
       }),
     )
-    refillFromGeometry(this.solidMeshes[0].geometry, arxPolygonsToGeometry(polygons, offset))
+    refillFromGeometry(this.solidMeshes[0].geometry, arxPolygonsToGeometry(visible, offset))
 
     this.textureRuns = indexSolidGeometryInTextureOrder(
       this.solidMeshes[0].geometry,

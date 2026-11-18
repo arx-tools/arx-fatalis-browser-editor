@@ -4,6 +4,8 @@ import { WIDGET_KINDS } from '../../src/editor/modules/layout/widgetKinds.ts'
 import type { LayoutNode } from '../../src/editor/modules/layout/layoutNode.ts'
 import {
   lockPointer,
+  nextFrames,
+  screenshotDifference,
   seedLayout,
   selectionCount,
   statOf,
@@ -568,4 +570,104 @@ test('Ctrl+G under the pointer lock makes the group with its default name', asyn
       })
     })
     .toBe(true)
+})
+
+/**
+ * The eye of a group takes its faces out of the mesh, and the delete gives them back.
+ *
+ * @remarks
+ * The view is not a step of the level: the faces stay in the level (the statistics count them), they are out of the mesh
+ * (the picking can not reach them, and the level is drawn without them), and the storage keeps the choice with the group.
+ * A hidden group that is deleted gives its faces back, because the group that hid them is gone.
+ */
+test('the eye of a group takes its faces out of the mesh, and the delete puts them back', async ({ page }) => {
+  await seedLayout(page, groupsLayout())
+  await page.goto('/?map=blank-flat')
+
+  const faces = await waitForLevel(page)
+
+  await waitForLayoutSettled(page)
+
+  // the whole flat level is one room: its row selects every face, and the group is the whole view
+  await pickFirstRoom(page)
+
+  await expect
+    .poll(async () => {
+      return await selectionCount(page)
+    })
+    .toBe(faces)
+
+  await groupTheSelection(page)
+
+  const groups = groupInspector(page).locator('li.group')
+
+  await expect(groups).toHaveCount(1)
+
+  const row = groups.first()
+  const eye = row.locator('button.eye')
+
+  await expect(eye).toHaveAttribute('aria-pressed', 'true')
+  await expect(row).toContainText(`${String(faces)} faces`)
+
+  // the selection goes before the picture: a selected face draws a fill, and the hide would drop it
+  await page.keyboard.press('c')
+
+  await expect
+    .poll(async () => {
+      return await selectionCount(page)
+    })
+    .toBe(0)
+
+  const view = page.locator('[data-widget-kind="3d-view"] canvas.stage')
+
+  await nextFrames(page, 2)
+
+  const before = await view.screenshot()
+
+  await eye.click()
+
+  await expect(eye).toHaveAttribute('aria-pressed', 'false')
+
+  await expect
+    .poll(async () => {
+      return await page.evaluate(() => {
+        return localStorage.getItem('faceGroups')
+      })
+    })
+    .toContain('"visible":false')
+
+  await nextFrames(page, 3)
+
+  const hidden = await view.screenshot()
+  const gone = await screenshotDifference(page, before, hidden)
+
+  // the level is not drawn: the picture lost its light, and the level keeps its faces
+  expect(gone.differing).toBeGreaterThan(50)
+  expect(gone.secondSum).toBeLessThan(gone.firstSum)
+  expect(await statOf(page, 'Total faces')).toBe(faces)
+
+  await eye.click()
+
+  await expect(eye).toHaveAttribute('aria-pressed', 'true')
+  await nextFrames(page, 3)
+
+  const back = await view.screenshot()
+  const same = await screenshotDifference(page, before, back)
+
+  // the same geometry: a still camera draws the same picture
+  expect(same.differing).toBe(0)
+
+  // a hidden group that goes gives its faces back to the mesh
+  await eye.click()
+  await expect(eye).toHaveAttribute('aria-pressed', 'false')
+
+  await row.locator('button.trash').click()
+
+  await expect(groups).toHaveCount(0)
+  await nextFrames(page, 3)
+
+  const restored = await view.screenshot()
+  const again = await screenshotDifference(page, before, restored)
+
+  expect(again.differing).toBe(0)
 })

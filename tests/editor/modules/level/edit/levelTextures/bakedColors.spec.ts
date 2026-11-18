@@ -4,8 +4,11 @@ import { ArxPolygonFlags, type ArxColor, type ArxPolygon } from 'arx-convert/typ
 import { Color, SRGBColorSpace } from 'three'
 import { createBlankLevelFiles, FLAT_PRESET } from '../../../../../../src/editor/modules/level/blankLevel.ts'
 import {
+  bakedCornersOf,
+  cornersWithin,
   writeBakedColors,
   writeBakedCornerColors,
+  type BakedCorners,
 } from '../../../../../../src/editor/modules/level/edit/levelTextures/bakedColors.ts'
 import { setFlatLight } from '../../../../../../src/editor/modules/level/edit/lightingFlat.ts'
 import { ArxMap } from '../../../../../../src/generator/ArxMap.ts'
@@ -166,6 +169,126 @@ void describe('writeBakedColors', () => {
   })
 })
 
+/**
+ * The index of the corners of a level, with the assertion that it was built.
+ *
+ * @param map The level to read.
+ *
+ * @returns The corners of the level.
+ *
+ * @throws When the level has no corner index.
+ */
+function cornersOf(map: ArxMap): BakedCorners {
+  const corners = bakedCornersOf(map)
+
+  if (corners === undefined) {
+    throw new TypeError('the level has no corner index')
+  }
+
+  return corners
+}
+
+void describe('bakedCornersOf', () => {
+  void it('reads the palette entry of every corner in the order the renderer walks them', () => {
+    const map = flatMap()
+    const polygon = firstPolygonOf(map)
+
+    map.llf.colors = [0, 1, 2, 3].map(() => {
+      return { r: 255, g: 255, b: 255, a: 255 }
+    })
+
+    for (const [index, vertex] of polygon.vertices.entries()) {
+      vertex.llfColorIdx = index
+    }
+
+    const corners = cornersOf(map)
+
+    // the renderer walks the quad as a, b, c and c, b, d
+    assert.deepEqual([...corners.paletteIndexes.slice(0, 6)], [0, 1, 2, 2, 1, 3])
+    assert.deepEqual([...corners.lit.slice(0, 6)], [1, 1, 1, 1, 1, 1])
+    assert.deepEqual([...corners.doubleSided.slice(0, 6)], [0, 0, 0, 0, 0, 0])
+    assert.equal(corners.positions.length, corners.count * 3)
+    assert.equal(corners.normals.length, corners.count * 3)
+  })
+
+  void it('reads the palette entry of a corner without one as none', () => {
+    const map = flatMap()
+    const polygon = firstPolygonOf(map)
+
+    delete polygon.vertices[1].llfColorIdx
+
+    assert.equal(cornersOf(map).paletteIndexes[1], -1)
+  })
+
+  void it('follows the paint: a blended or a two-sided face is another index', () => {
+    const map = flatMap()
+    const polygon = firstPolygonOf(map)
+
+    writeBakedColors(map)
+
+    polygon.flags = ArxPolygonFlags.Quad | ArxPolygonFlags.Transparent | ArxPolygonFlags.DoubleSided
+    polygon.transval = 0.5
+
+    // the paint writes the attribute again, and the index goes with it
+    writeBakedColors(map)
+
+    assert.deepEqual([...cornersOf(map).lit.slice(0, 6)], [0, 0, 0, 0, 0, 0])
+    assert.deepEqual([...cornersOf(map).doubleSided.slice(0, 6)], [1, 1, 1, 1, 1, 1])
+  })
+
+  void it('reads the place and the normal of a corner from the geometry', () => {
+    const map = flatMap()
+    const corners = cornersOf(map)
+    const geometry = map.solidMeshes[0]?.geometry
+    const positions = geometry?.getAttribute('position').array as Float32Array
+    const normals = geometry?.getAttribute('normal').array as Float32Array
+
+    // the index does not copy the geometry: it reads the arrays the renderer draws
+    assert.equal(corners.positions, positions)
+    assert.equal(corners.normals, normals)
+    assert.ok(
+      Math.abs(Math.hypot(corners.normals[0] ?? 0, corners.normals[1] ?? 0, corners.normals[2] ?? 0) - 1) < 1e-5,
+    )
+  })
+})
+
+void describe('cornersWithin', () => {
+  void it('gives the corners the spheres reach, in the order of the geometry', () => {
+    const map = flatMap()
+    const corners = cornersOf(map)
+    const first = corners.positions.slice(0, 3)
+    const sphere = { x: first[0] ?? 0, y: first[1] ?? 0, z: first[2] ?? 0, radius: 0 }
+
+    const reached = cornersWithin(corners, [sphere])
+
+    // the sphere is a point on the first corner: that one is in it, and every other one is out
+    assert.ok(reached.includes(0))
+    assert.ok(
+      reached.every((entry) => {
+        return entry === 0
+      }),
+    )
+  })
+
+  void it('gives a corner once, however many spheres reach it', () => {
+    const map = flatMap()
+    const corners = cornersOf(map)
+    const first = corners.positions.slice(0, 3)
+    const sphere = { x: first[0] ?? 0, y: first[1] ?? 0, z: first[2] ?? 0, radius: 30 }
+
+    const reached = cornersWithin(corners, [sphere, { ...sphere, radius: 40 }])
+
+    assert.ok(reached.length > 0)
+    assert.deepEqual(reached, [...new Set(reached)])
+  })
+
+  void it('gives nothing without a sphere', () => {
+    const map = flatMap()
+
+    assert.deepEqual(cornersWithin(cornersOf(map), []), [])
+  })
+})
+
 void describe('writeBakedCornerColors', () => {
   /**
    * The palette of four corners of the tests, and the entries of the face.
@@ -194,14 +317,15 @@ void describe('writeBakedCornerColors', () => {
     return palette
   }
 
-  void it('writes the corners of the entries it is given, and leaves the others alone', () => {
+  void it('writes the corners it is given, and leaves the others alone', () => {
     const map = flatMap()
     const palette = paintPalette(map)
     const changed: ArxColor = { r: 10, g: 20, b: 30, a: 255 }
 
     palette[1] = changed
 
-    const written = writeBakedCornerColors(map, new Set([1]))
+    // the entry 1 is the second and the fifth corner of the attribute
+    const written = writeBakedCornerColors(map, cornersOf(map), [1, 4])
     const values = firstColorsOf(map, 6)
     // the attribute is a float32 array: the expected values go through one too
     const linear = linearOf(changed).map((value) => {
@@ -209,10 +333,9 @@ void describe('writeBakedCornerColors', () => {
     })
 
     assert.equal(written, true)
-    // the renderer walks the quad as a, b, c and c, b, d: the entry 1 is the second and the fifth corner
     assert.deepEqual(values.slice(3, 6), linear)
     assert.deepEqual(values.slice(12, 15), linear)
-    // the entries the writer was not told about keep the colour of the full write
+    // the corners the writer was not told about keep the colour of the full write
     assert.deepEqual(values.slice(0, 3), linearOf(palette[0] ?? { r: 0, g: 0, b: 0, a: 255 }))
     assert.deepEqual(values.slice(6, 9), linearOf(palette[2] ?? { r: 0, g: 0, b: 0, a: 255 }))
     assert.deepEqual(values.slice(15, 18), linearOf(palette[3] ?? { r: 0, g: 0, b: 0, a: 255 }))
@@ -228,7 +351,7 @@ void describe('writeBakedCornerColors', () => {
     writeBakedColors(map)
     palette[1] = { r: 10, g: 20, b: 30, a: 255 }
 
-    writeBakedCornerColors(map, new Set([1]))
+    writeBakedCornerColors(map, cornersOf(map), [1, 4])
 
     assert.deepEqual(firstColorsOf(map, 6), [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
   })
@@ -240,7 +363,7 @@ void describe('writeBakedCornerColors', () => {
     setFlatLight(map, 0.5)
     palette[1] = { r: 10, g: 20, b: 30, a: 255 }
 
-    assert.equal(writeBakedCornerColors(map, new Set([1])), false)
+    assert.equal(writeBakedCornerColors(map, cornersOf(map), [1, 4]), false)
 
     setFlatLight(map, undefined)
   })
@@ -253,6 +376,6 @@ void describe('writeBakedCornerColors', () => {
     geometry?.deleteAttribute('color')
     palette[1] = { r: 10, g: 20, b: 30, a: 255 }
 
-    assert.equal(writeBakedCornerColors(map, new Set([1])), false)
+    assert.equal(writeBakedCornerColors(map, cornersOf(map), [1, 4]), false)
   })
 })

@@ -490,6 +490,28 @@ void describe('buildExportFts', () => {
 })
 
 void describe('exportLevelFiles', () => {
+  void it('leaves the faces a hidden group takes out of the view out of the files', () => {
+    const map = flatMap()
+    const hidden = map.polygons[0]
+
+    if (hidden === undefined) {
+      throw new TypeError('the level has no face')
+    }
+
+    map.setHiddenPolygons(new Set([hidden]))
+
+    const files = exportLevelFiles(map)
+    const scene = FTS.load(unpackArxFile(files.fts, 'fts'))
+    const description = DLF.load(unpackArxFile(files.dlf, 'dlf'))
+    const lighting = LLF.load(unpackArxFile(files.llf, 'llf'))
+
+    // the level keeps the face, the archive does not: the game never draws it
+    assert.equal(map.polygons.length, 121)
+    assert.equal(scene.polygons.length, 120)
+    assert.equal(description.header.numberOfPolygonsInFTS, 120)
+    assert.equal(lighting.header.numberOfPolygonsInFTS, 120)
+  })
+
   void it('writes the three packed files of the edited level', () => {
     const map = flatMap()
 

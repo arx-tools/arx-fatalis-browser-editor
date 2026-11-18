@@ -1,7 +1,7 @@
 import type { ArxLight } from 'arx-convert/types'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
-import { bakeLlfColorsAround } from '../../../../generator/lighting.ts'
-import { writeBakedCornerColors } from './levelTextures/bakedColors.ts'
+import { bakeLlfColorsAt } from '../../../../generator/lighting.ts'
+import { bakedCornersOf, cornersWithin, writeBakedCornerColors, type LightSphere } from './levelTextures/bakedColors.ts'
 import { bumpLightingCacheVersion } from './lightingCache.ts'
 import { paletteBakeOptionsOf, readsPalette } from './lightingProfile.ts'
 
@@ -28,16 +28,17 @@ export type LightPaletteChange = {
  * The spheres of the two states of every changed light, without the repeats.
  *
  * @remarks
- * The reach of a light is its `fallEnd` around its position, so two states with the same place and the same end are the
- * same sphere: a colour or an intensity edit gives one sphere instead of two, and the walk of the level is the same.
+ * The reach of a light is its `fallEnd` around its position, in the frame of the scene (the bake mirrors the position of
+ * the light, the way the mesh is mirrored). Two states with the same place and the same end are the same sphere: a
+ * colour or an intensity edit gives one sphere instead of two, and the walk of the corners is the same.
  *
  * @param changed The lights the edit touched.
  *
- * @returns The lights whose spheres mark the corners to bake.
+ * @returns The spheres whose corners the bake takes.
  */
-function reachOf(changed: readonly LightPaletteChange[]): ArxLight[] {
+function spheresOf(changed: readonly LightPaletteChange[]): LightSphere[] {
   const seen = new Set<string>()
-  const reach: ArxLight[] = []
+  const spheres: LightSphere[] = []
 
   for (const change of changed) {
     for (const light of [change.before, change.after]) {
@@ -46,12 +47,12 @@ function reachOf(changed: readonly LightPaletteChange[]): ArxLight[] {
 
       if (!seen.has(key)) {
         seen.add(key)
-        reach.push(light)
+        spheres.push({ x: -x, y: -y, z, radius: light.fallEnd })
       }
     }
   }
 
-  return reach
+  return spheres
 }
 
 /**
@@ -60,9 +61,9 @@ function reachOf(changed: readonly LightPaletteChange[]): ArxLight[] {
  * @remarks
  * The light editor writes a light on the frame of every input, and the level has to follow it without the bake of the
  * whole palette (about half a second on a big level). Only the corners the **old** and the **new** sphere of a changed
- * light reach are baked, with the math of the full bake, and only those entries of the palette and of the `color`
- * attribute of the mesh are written. The entries no light of the edit reaches keep their colour: the edit can not reach
- * them.
+ * light reach are baked, with the math and the light order of the full bake, and only those entries of the palette and
+ * of the `color` attribute of the mesh are written. The corners no light of the edit reaches keep their colour: the edit
+ * can not reach them.
  *
  * The bake follows the profile of the widget: the flat and the rainbow ones do not read the lights, so there is nothing
  * to bake there. The palette cache of the profiles is dropped, because the palette of the level is not the one the last
@@ -78,7 +79,20 @@ export function refreshLightPalette(map: ArxMap, changed: readonly LightPaletteC
     return
   }
 
-  const colors = bakeLlfColorsAround(map.fts, map.llf, options, reachOf(changed))
+  const corners = bakedCornersOf(map)
+  const spheres = spheresOf(changed)
+
+  if (corners === undefined || spheres.length === 0) {
+    return
+  }
+
+  const reached = cornersWithin(corners, spheres)
+
+  if (reached.length === 0) {
+    return
+  }
+
+  const colors = bakeLlfColorsAt(map.llf, options, corners, reached)
 
   if (colors.size === 0) {
     return
@@ -91,5 +105,5 @@ export function refreshLightPalette(map: ArxMap, changed: readonly LightPaletteC
   }
 
   bumpLightingCacheVersion()
-  writeBakedCornerColors(map, new Set(colors.keys()))
+  writeBakedCornerColors(map, corners, reached)
 }

@@ -35,6 +35,11 @@ export type StoredFaceGroup = {
    * The indices of the faces of the group, in the order of the level.
    */
   readonly faces: readonly number[]
+  /**
+   * Whether the group is drawn; `false` is a group the author hid, and a missing value is a group of an older build,
+   * which is visible.
+   */
+  readonly visible?: boolean
 }
 
 /**
@@ -118,7 +123,18 @@ function storedFaceGroupOf(value: unknown): StoredFaceGroup | undefined {
     return undefined
   }
 
-  return { id, name, faces }
+  const { visible } = value
+
+  if (visible !== undefined && typeof visible !== 'boolean') {
+    return undefined
+  }
+
+  // an older value has no flag, and the group it carries is visible: the key stays out of the shape
+  if (visible === undefined) {
+    return { id, name, faces }
+  }
+
+  return { id, name, faces, visible }
 }
 
 /**

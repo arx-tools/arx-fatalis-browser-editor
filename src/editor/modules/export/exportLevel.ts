@@ -437,7 +437,8 @@ export function exportLevelFiles(map: ArxMap, options: ExportOptions = {}): Leve
   // the portals of a flat level come from its rooms: the file is written with the portals of the rooms it has now, even
   // if the watch of the editor has not run since the last step of the rooms
   syncGeneratedPortals(map)
-  const { polygons } = map
+  // the faces a group hides are not in the level that is written: they are out of the mesh, and the export leaves them out
+  const polygons = map.visiblePolygons
   const scene = FTS.save(buildExportFts(map.fts, polygons))
   const lighting = LLF.save(buildExportLlf(map.llf, polygons, options))
   const description = DLF.save(buildExportDlf(map.dlf, polygons.length, options.levelIndex))
@@ -707,7 +708,8 @@ export async function exportLevelZip(
 ): Promise<{ readonly name: string; readonly data: ArrayBuffer }> {
   // the portals of a flat level come from its rooms: the file is written with the portals of the rooms it has now
   syncGeneratedPortals(map)
-  const { polygons } = map
+  // the faces a group hides are not in the level that is written: they are out of the mesh, and the export leaves them out
+  const polygons = map.visiblePolygons
 
   onProgress?.(EXPORT_PROGRESS.start)
   await nextPaint()

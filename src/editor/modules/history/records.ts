@@ -193,6 +193,14 @@ export type FaceGroupReference = {
    * The indices of the faces of the group.
    */
   readonly faces: readonly number[]
+  /**
+   * Whether the group was drawn; `false` is a hidden group, and a missing value is a record of an older build.
+   *
+   * @remarks
+   * The undo of a delete puts the group back the way it was: a hidden group comes back hidden, with its faces out of the
+   * mesh again.
+   */
+  readonly visible?: boolean
 }
 
 /**
@@ -788,9 +796,13 @@ export function createDeleteFaceGroupsRecord(groups: Iterable<FaceGroupReference
   return {
     version: HISTORY_RECORD_VERSION,
     kind: 'deleteFaceGroups',
-    groups: [...groups].toSorted((one, other) => {
-      return one.id - other.id
-    }),
+    groups: [...groups]
+      .map((group): FaceGroupReference => {
+        return { id: group.id, name: group.name, faces: [...group.faces], visible: group.visible ?? true }
+      })
+      .toSorted((one, other) => {
+        return one.id - other.id
+      }),
   }
 }
 

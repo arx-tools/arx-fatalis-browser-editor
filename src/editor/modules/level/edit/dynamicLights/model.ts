@@ -316,7 +316,7 @@ function vertexLightingOf(map: ArxMap, vertexCount: number): VertexLighting | un
   const paletteLength = map.llf.colors.length
   let at = 0
 
-  for (const polygon of map.polygons) {
+  for (const polygon of map.visiblePolygons) {
     const lit = isLightablePolygon(polygon)
     let corners = TRIANGLE_CORNERS
 

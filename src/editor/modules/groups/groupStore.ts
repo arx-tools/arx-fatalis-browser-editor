@@ -13,6 +13,8 @@ import {
 import { onKeyboardAction } from '../keyboard/keyboard.ts'
 import { levelRevision } from '../level/edit/editing.ts'
 import { levelStore } from '../level/edit/levelStore.ts'
+import { writeBakedColors } from '../level/edit/levelTextures/bakedColors.ts'
+import { repaintLevelColors } from '../level/edit/levelTextures.ts'
 import {
   currentMapId,
   levelOpened,
@@ -53,6 +55,14 @@ export type FaceGroup = {
    * The polygons of the group.
    */
   readonly members: ReadonlySet<ArxPolygon>
+  /**
+   * Whether the mesh draws the faces of the group.
+   *
+   * @remarks
+   * A hidden group is a view state, not an edit: its faces stay in the level, and the mesh leaves them out (the picking
+   * can not reach them, and the export skips them). The eye of the row toggles it.
+   */
+  readonly visible: boolean
 }
 
 /**
@@ -75,6 +85,10 @@ export type FaceGroupRow = {
    * How many faces of the group are still in the level.
    */
   readonly faceCount: number
+  /**
+   * Whether the group is drawn: the eye of the row shows it.
+   */
+  readonly visible: boolean
 }
 
 /**
@@ -97,6 +111,30 @@ export type FaceGroupSection = {
    * The groups of the level, in the order they were made.
    */
   readonly groups: readonly FaceGroupRow[]
+}
+
+/**
+ * The polygons the hidden groups of the level take out of the mesh.
+ *
+ * @param groups The groups of the level.
+ *
+ * @returns The polygons no hidden group leaves in the view; a group that holds a face of another hidden group takes it
+ * out once.
+ */
+function hiddenPolygonsOf(groups: readonly FaceGroup[]): Set<ArxPolygon> {
+  const hidden = new Set<ArxPolygon>()
+
+  for (const group of groups) {
+    if (group.visible) {
+      continue
+    }
+
+    for (const member of group.members) {
+      hidden.add(member)
+    }
+  }
+
+  return hidden
 }
 
 /**
@@ -235,7 +273,7 @@ export const faceGroupSections: ComputedRef<readonly FaceGroupSection[]> = compu
       }
     }
 
-    rows.push({ id: group.id, name: group.name, label: displayNameOf(group), faceCount })
+    rows.push({ id: group.id, name: group.name, label: displayNameOf(group), faceCount, visible: group.visible })
   }
 
   sections.push({ mapId: current, title: titleOfMap(current), isCurrent: true, groups: rows })
@@ -250,7 +288,13 @@ export const faceGroupSections: ComputedRef<readonly FaceGroupSection[]> = compu
 
   for (const [mapId, entry] of others) {
     const storedRows: FaceGroupRow[] = entry.groups.map((group) => {
-      return { id: group.id, name: group.name, label: storedNameOf(group), faceCount: group.faces.length }
+      return {
+        id: group.id,
+        name: group.name,
+        label: storedNameOf(group),
+        faceCount: group.faces.length,
+        visible: group.visible ?? true,
+      }
     })
 
     sections.push({ mapId, title: entry.title, isCurrent: false, groups: storedRows })
@@ -281,6 +325,55 @@ function indexMapOf(map: ArxMap): Map<ArxPolygon, number> {
 }
 
 /**
+ * Takes the faces of the hidden groups out of the mesh of the level on the screen, or puts them back.
+ *
+ * @remarks
+ * The hidden state is a view of the level, not a step: the level keeps the faces, the mesh leaves them out, and the
+ * export skips them. The faces a group just hid leave the selection too (a hidden face could not be picked, and the
+ * gizmo would move it unseen), and the paint of the level runs again, because the geometry under it is new.
+ */
+function applyHiddenPolygons(): void {
+  const map = levelStore.map.value
+
+  if (map === undefined) {
+    return
+  }
+
+  const hidden = hiddenPolygonsOf(activeFaceGroups.value)
+
+  if (!map.setHiddenPolygons(hidden)) {
+    return
+  }
+
+  if (hidden.size > 0) {
+    const indexOf = indexMapOf(map)
+    const taken: number[] = []
+
+    for (const polygon of hidden) {
+      const index = indexOf.get(polygon)
+
+      if (index !== undefined) {
+        taken.push(index)
+      }
+    }
+
+    if (taken.length > 0) {
+      selectionStore.selectMany(taken, 'remove')
+    }
+  }
+
+  // the paint puts the materials and the baked light on the new geometry; a level that was not painted yet gets the
+  // colours of the palette anyway
+  repaintLevelColors()
+
+  if (map.solidMeshes[0]?.geometry.getAttribute('color') === undefined) {
+    writeBakedColors(map)
+  }
+
+  refreshPresentPolygons()
+}
+
+/**
  * The groups of the open level, with the faces resolved to the indices of the level.
  *
  * @remarks
@@ -300,6 +393,11 @@ export function faceGroupsJsonOf(): readonly StoredFaceGroup[] {
     const faces: number[] = []
 
     for (const member of group.members) {
+      // the faces a hidden group takes out of the view are out of the level the archive carries too
+      if (activeMap?.isHidden(member) === true) {
+        continue
+      }
+
       const index = indexOf.get(member)
 
       if (index !== undefined) {
@@ -313,6 +411,7 @@ export function faceGroupsJsonOf(): readonly StoredFaceGroup[] {
       faces: faces.toSorted((one, other) => {
         return one - other
       }),
+      visible: group.visible,
     }
   })
 }
@@ -395,6 +494,7 @@ function saveOpenLevel(): void {
       faces: faces.toSorted((one, other) => {
         return one - other
       }),
+      visible: group.visible,
     }
   })
 
@@ -426,6 +526,7 @@ function addGroups(groups: readonly FaceGroup[]): void {
 
   activeFaceGroups.value = [...activeFaceGroups.value, ...missing]
   saveOpenLevel()
+  applyHiddenPolygons()
 }
 
 /**
@@ -458,7 +559,7 @@ function addGroupsFromReference(references: readonly FaceGroupReference[]): void
       }
     }
 
-    groups.push({ id: reference.id, name: reference.name, members })
+    groups.push({ id: reference.id, name: reference.name, members, visible: reference.visible ?? true })
   }
 
   addGroups(groups)
@@ -474,6 +575,8 @@ function removeGroups(ids: ReadonlySet<number>): void {
     return !ids.has(group.id)
   })
   saveOpenLevel()
+  // a group that goes takes its hiding with it: the faces it hid come back to the mesh
+  applyHiddenPolygons()
 }
 
 /**
@@ -646,6 +749,60 @@ export function renameFaceGroup(mapId: string, groupId: number, name: string): v
 }
 
 /**
+ * Shows or hides the faces of a group of the level on the screen.
+ *
+ * @remarks
+ * The eye of the row writes this, and it is a **view** of the level, not a step of the history: the faces stay in the
+ * level, the mesh leaves them out (the picking can not reach them, the export skips them), and the undo of an edit does
+ * not turn the view back. The storage keeps the choice with the group, so the next visit of the level finds it.
+ *
+ * A group of a level that is not open only takes the flag: there is no mesh here to take its faces out of.
+ *
+ * @param mapId The level the group lives on.
+ * @param groupId The group to show or hide.
+ * @param visible Whether the mesh draws its faces.
+ */
+export function setFaceGroupVisibility(mapId: string, groupId: number, visible: boolean): void {
+  if (mapId === activeMapId && isLoaded) {
+    const group = activeFaceGroups.value.find((candidate) => {
+      return candidate.id === groupId
+    })
+
+    if (group === undefined || group.visible === visible) {
+      return
+    }
+
+    activeFaceGroups.value = activeFaceGroups.value.map((candidate) => {
+      if (candidate.id !== groupId) {
+        return candidate
+      }
+
+      return { ...candidate, visible }
+    })
+    saveOpenLevel()
+    applyHiddenPolygons()
+
+    return
+  }
+
+  const entry = storedGroups.value[mapId]
+
+  if (entry === undefined) {
+    return
+  }
+
+  const groups = entry.groups.map((group) => {
+    if (group.id !== groupId) {
+      return group
+    }
+
+    return { ...group, visible }
+  })
+
+  writeEntry(mapId, { ...entry, groups })
+}
+
+/**
  * Takes groups out of a level.
  *
  * @remarks
@@ -673,7 +830,7 @@ export function deleteFaceGroups(mapId: string, groupIds: readonly number[]): vo
     }
 
     const references: FaceGroupReference[] = removed.map((group) => {
-      return { id: group.id, name: group.name, faces: faceIndicesOfGroup(group.id) }
+      return { id: group.id, name: group.name, faces: faceIndicesOfGroup(group.id), visible: group.visible }
     })
     const record = createDeleteFaceGroupsRecord(references)
     const command = faceGroupCommandOf(record)
@@ -716,6 +873,7 @@ function loadGroupsOf(id: string, map: ArxMap): void {
     activeFaceGroups.value = []
     nextGroupId = 1
     isLoaded = true
+    applyHiddenPolygons()
 
     return
   }
@@ -734,11 +892,13 @@ function loadGroupsOf(id: string, map: ArxMap): void {
       }
     }
 
-    return { id: group.id, name: group.name, members }
+    return { id: group.id, name: group.name, members, visible: group.visible ?? true }
   })
 
   activeFaceGroups.value = groups
   isLoaded = true
+
+  applyHiddenPolygons()
 }
 
 /**

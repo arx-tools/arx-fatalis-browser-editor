@@ -3,8 +3,8 @@ import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
 import { editorUrl, seedLayout, waitForLevel } from './support/editor.ts'
 
 /**
- * The dots of the lights in a fixed view: the overlay canvas is a 2D canvas over the scene, and the dots are its only
- * painting, so a pixel with an alpha is a dot.
+ * The markers of the lights in a fixed view: the overlay canvas is a 2D canvas over the scene, and the markers are its
+ * only painting, so a pixel with an alpha belongs to one.
  *
  * @param page The page of the editor.
  *
@@ -32,7 +32,7 @@ async function lightPixels(page: Page): Promise<number> {
   })
 }
 
-test('the fixed views draw a dot of the colour of every light while the switch is on', async ({ page }) => {
+test('the fixed views draw a marker of every light while the switch is on', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
   await seedLayout(page, editorLayout)
   await page.goto(editorUrl())

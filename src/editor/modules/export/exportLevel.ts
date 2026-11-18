@@ -1,5 +1,13 @@
 import { DLF, FTS, LLF } from 'arx-convert'
-import type { ArxColor, ArxDLF, ArxFTS, ArxLLF, ArxPolygon } from 'arx-convert/types'
+import {
+  type ArxColor,
+  type ArxDLF,
+  type ArxFTS,
+  type ArxLLF,
+  type ArxLight,
+  type ArxPolygon,
+  ArxLightFlags,
+} from 'arx-convert/types'
 import { getCellCoords, isQuad, MAP_WIDTH_IN_CELLS } from 'arx-convert/utils'
 import { getHeaderSize } from 'arx-header-size'
 import JSZip from 'jszip'
@@ -89,6 +97,11 @@ async function nextPaint(): Promise<void> {
  * black hole (the same value the archived editor used).
  */
 const MISSING_COLOR: ArxColor = { r: 255, g: 255, b: 255, a: 255 }
+
+/**
+ * The black a corner takes when the static light is switched off: the game draws the level dark, as the editor does.
+ */
+const DARK_COLOR: ArxColor = { r: 0, g: 0, b: 0, a: 255 }
 
 /**
  * The number of colours a polygon owns in the palette of the LLF.
@@ -209,6 +222,42 @@ export function buildExportFts(fts: ArxFTS, polygons: readonly ArxPolygon[]): Ar
 }
 
 /**
+ * Which light layers the export writes.
+ *
+ * @remarks
+ * The switches of the light layer are the author's: a layer that is off is not in the level, so its lights are not in the
+ * file, and the palette of a level without its static light is black. The defaults are both on: a level exported from a
+ * fresh editor keeps every light.
+ */
+export type ExportLights = {
+  /**
+   * Whether the baked (static) light of the level goes into the file.
+   */
+  readonly staticLights?: boolean
+  /**
+   * Whether the semi-dynamic lights of the level go into the file.
+   */
+  readonly dynamicLights?: boolean
+}
+
+/**
+ * Tells whether a light of the layer takes part in the export.
+ *
+ * @param light The light of the LLF.
+ * @param withStaticLights Whether the static layer is on.
+ * @param withDynamicLights Whether the dynamic layer is on.
+ *
+ * @returns True when the file keeps the light.
+ */
+function isExportedLight(light: ArxLight, withStaticLights: boolean, withDynamicLights: boolean): boolean {
+  if ((light.flags & ArxLightFlags.SemiDynamic) !== 0) {
+    return withDynamicLights
+  }
+
+  return withStaticLights
+}
+
+/**
  * Rebuilds the lighting of a level from the palette it was loaded with.
  *
  * @remarks
@@ -217,17 +266,27 @@ export function buildExportFts(fts: ArxFTS, polygons: readonly ArxPolygon[]): Ar
  * vertex). An edit moves the polygons, so the list is rebuilt in the order of the screen from the colours the vertices
  * already point at — the **light** of a face is kept, it is not baked again.
  *
+ * The switches of the light layer decide what the file keeps: the lights of a layer that is off are left out, and a level
+ * without its static light gets a black palette, so the game draws what the editor showed. The palette keeps its length
+ * in every case: the corners point into it by their index.
+ *
  * @param llf The lighting as it was loaded.
  * @param polygons The polygons of the screen.
+ * @param lights Which layers of the light take part in the export; both are on when it is left out.
  *
  * @returns The lighting of the file to write.
  */
-export function buildExportLlf(llf: ArxLLF, polygons: readonly ArxPolygon[]): ArxLLF {
+export function buildExportLlf(llf: ArxLLF, polygons: readonly ArxPolygon[], lights: ExportLights = {}): ArxLLF {
   const header = { ...llf.header, numberOfPolygonsInFTS: polygons.length }
+  const withStaticLights = lights.staticLights ?? true
+  const withDynamicLights = lights.dynamicLights ?? true
+  const exportedLights = llf.lights.filter((light) => {
+    return isExportedLight(light, withStaticLights, withDynamicLights)
+  })
 
   // a level without a palette (a blank one, or one of the generator) has no colour to follow: the file keeps none
   if (llf.colors.length === 0) {
-    return { ...llf, header, colors: [] }
+    return { ...llf, header, lights: exportedLights, colors: [] }
   }
 
   const colors: ArxColor[] = []
@@ -237,17 +296,21 @@ export function buildExportLlf(llf: ArxLLF, polygons: readonly ArxPolygon[]): Ar
     const count = colorCountOf(polygon)
 
     for (let vertex = 0; vertex < count; vertex = vertex + 1) {
-      colors.push(llf.colors[base + vertex] ?? MISSING_COLOR)
+      if (withStaticLights) {
+        colors.push(llf.colors[base + vertex] ?? MISSING_COLOR)
+      } else {
+        colors.push(DARK_COLOR)
+      }
     }
   }
 
-  return { ...llf, header, colors }
+  return { ...llf, header, lights: exportedLights, colors }
 }
 
 /**
  * The values the export dialog lets the user change before the archive is written.
  */
-export type ExportOptions = {
+export type ExportOptions = ExportLights & {
   /**
    * The index the level gets: the paths inside the archive, and the header of the description.
    *
@@ -376,7 +439,7 @@ export function exportLevelFiles(map: ArxMap, options: ExportOptions = {}): Leve
   syncGeneratedPortals(map)
   const { polygons } = map
   const scene = FTS.save(buildExportFts(map.fts, polygons))
-  const lighting = LLF.save(buildExportLlf(map.llf, polygons))
+  const lighting = LLF.save(buildExportLlf(map.llf, polygons, options))
   const description = DLF.save(buildExportDlf(map.dlf, polygons.length, options.levelIndex))
 
   return {
@@ -661,7 +724,7 @@ export async function exportLevelZip(
   await nextPaint()
 
   // the lighting, the whole file compressed
-  const llf = packWholeFile(LLF.save(buildExportLlf(map.llf, polygons)))
+  const llf = packWholeFile(LLF.save(buildExportLlf(map.llf, polygons, options)))
 
   onProgress?.(EXPORT_PROGRESS.lightingPacked)
   await nextPaint()

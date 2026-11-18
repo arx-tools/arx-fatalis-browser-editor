@@ -11,6 +11,7 @@ import {
   type Texture,
 } from 'three'
 import { ArxLightFlags, type ArxLight } from 'arx-convert/types'
+import { isDynamicLightsVisible, isStaticLightsVisible } from '../../../modules/level/edit/dynamicLights.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 
 /**
@@ -32,6 +33,55 @@ const LIGHT_MARKER_MIN_SIZE = 6
  * The side of the square the marker textures are drawn into, in pixels.
  */
 const LIGHT_MARKER_TEXTURE_SIZE = 64
+
+/**
+ * How big a marker is in a fixed view, in CSS pixels.
+ *
+ * @remarks
+ * The small views draw the same shapes as the walkable one, at one size: a light's `fallStart` is not readable in a plan
+ * of the whole level, and a fixed size keeps the rows of the lights apart.
+ */
+export const FIXED_VIEW_MARKER_SIZE = 10
+
+/**
+ * The grey a marker takes when the light of its group is switched off.
+ *
+ * @remarks
+ * The static and the dynamic layer have a switch of their own: a light of a switched off layer is still in the level, so
+ * its marker stays on the screen, but grey and more transparent so it reads as disabled.
+ */
+const DISABLED_MARKER_COLOR = new Color(0.55, 0.55, 0.55)
+
+/**
+ * The opacity of a disabled marker.
+ */
+const DISABLED_MARKER_OPACITY = 0.3
+
+/**
+ * The shape of a marker needs a colour of its own: the textures are white, and the fixed views draw the shape directly.
+ */
+type MarkerColor = {
+  readonly r: number
+  readonly g: number
+  readonly b: number
+}
+
+/**
+ * The white of the marker textures.
+ */
+const WHITE: MarkerColor = { r: 255, g: 255, b: 255 }
+
+/**
+ * Makes a css colour of a marker colour and an alpha.
+ *
+ * @param color The colour of the shape.
+ * @param alpha The alpha of the part of the shape.
+ *
+ * @returns The css colour.
+ */
+function rgbaOf(color: MarkerColor, alpha: number): string {
+  return `rgba(${color.r.toString()}, ${color.g.toString()}, ${color.b.toString()}, ${alpha.toString()})`
+}
 
 /**
  * The shapes a light marker can take, by the flags of the light.
@@ -126,12 +176,13 @@ function markerCanvasOf(): { canvas: HTMLCanvasElement; context: CanvasRendering
  * @param context The 2D context of the texture.
  * @param centre The middle of the square.
  * @param strength The alpha of the middle of the halo.
+ * @param color The colour of the shape.
  */
-function drawGlow(context: CanvasRenderingContext2D, centre: number, strength: number): void {
+function drawGlow(context: CanvasRenderingContext2D, centre: number, strength: number, color: MarkerColor): void {
   const glow = context.createRadialGradient(centre, centre, 0, centre, centre, centre)
 
-  glow.addColorStop(0, `rgba(255, 255, 255, ${strength})`)
-  glow.addColorStop(1, 'rgba(255, 255, 255, 0)')
+  glow.addColorStop(0, rgbaOf(color, strength))
+  glow.addColorStop(1, rgbaOf(color, 0))
   context.fillStyle = glow
   context.fillRect(0, 0, LIGHT_MARKER_TEXTURE_SIZE, LIGHT_MARKER_TEXTURE_SIZE)
 }
@@ -145,14 +196,15 @@ function drawGlow(context: CanvasRenderingContext2D, centre: number, strength: n
  *
  * @param context The 2D context of the texture.
  * @param centre The middle of the square.
+ * @param color The colour of the shape.
  */
-function drawStar(context: CanvasRenderingContext2D, centre: number): void {
+function drawStar(context: CanvasRenderingContext2D, centre: number, color: MarkerColor): void {
   const glow = context.createRadialGradient(centre, centre, 0, centre, centre, centre)
 
-  glow.addColorStop(0, 'rgba(255, 255, 255, 1)')
-  glow.addColorStop(0.18, 'rgba(255, 255, 255, 0.75)')
-  glow.addColorStop(0.45, 'rgba(255, 255, 255, 0.18)')
-  glow.addColorStop(1, 'rgba(255, 255, 255, 0)')
+  glow.addColorStop(0, rgbaOf(color, 1))
+  glow.addColorStop(0.18, rgbaOf(color, 0.75))
+  glow.addColorStop(0.45, rgbaOf(color, 0.18))
+  glow.addColorStop(1, rgbaOf(color, 0))
   context.fillStyle = glow
   context.fillRect(0, 0, LIGHT_MARKER_TEXTURE_SIZE, LIGHT_MARKER_TEXTURE_SIZE)
 
@@ -179,7 +231,7 @@ function drawStar(context: CanvasRenderingContext2D, centre: number): void {
   }
 
   context.closePath()
-  context.fillStyle = 'rgba(255, 255, 255, 0.95)'
+  context.fillStyle = rgbaOf(color, 0.95)
   context.fill()
 }
 
@@ -188,11 +240,12 @@ function drawStar(context: CanvasRenderingContext2D, centre: number): void {
  *
  * @param context The 2D context of the texture.
  * @param centre The middle of the square.
+ * @param color The colour of the shape.
  */
-function drawBulb(context: CanvasRenderingContext2D, centre: number): void {
-  drawGlow(context, centre, 0.35)
+function drawBulb(context: CanvasRenderingContext2D, centre: number, color: MarkerColor): void {
+  drawGlow(context, centre, 0.35, color)
 
-  context.fillStyle = 'rgba(255, 255, 255, 0.95)'
+  context.fillStyle = rgbaOf(color, 0.95)
   context.beginPath()
   context.arc(centre, centre - 4, centre * 0.4, 0, Math.PI * 2)
   context.fill()
@@ -229,12 +282,13 @@ function flamePathOf(context: CanvasRenderingContext2D, centre: number): void {
  *
  * @param context The 2D context of the texture.
  * @param centre The middle of the square.
+ * @param color The colour of the shape.
  */
-function drawFlame(context: CanvasRenderingContext2D, centre: number): void {
-  drawGlow(context, centre, 0.3)
+function drawFlame(context: CanvasRenderingContext2D, centre: number, color: MarkerColor): void {
+  drawGlow(context, centre, 0.3, color)
 
   flamePathOf(context, centre)
-  context.fillStyle = 'rgba(255, 255, 255, 0.95)'
+  context.fillStyle = rgbaOf(color, 0.95)
   context.fill()
 }
 
@@ -247,12 +301,13 @@ function drawFlame(context: CanvasRenderingContext2D, centre: number): void {
  *
  * @param context The 2D context of the texture.
  * @param centre The middle of the square.
+ * @param color The colour of the shape.
  */
-function drawFlameCrossed(context: CanvasRenderingContext2D, centre: number): void {
-  drawGlow(context, centre, 0.18)
+function drawFlameCrossed(context: CanvasRenderingContext2D, centre: number, color: MarkerColor): void {
+  drawGlow(context, centre, 0.18, color)
 
   flamePathOf(context, centre)
-  context.strokeStyle = 'rgba(255, 255, 255, 0.9)'
+  context.strokeStyle = rgbaOf(color, 0.9)
   context.lineWidth = 3
   context.stroke()
 
@@ -263,20 +318,100 @@ function drawFlameCrossed(context: CanvasRenderingContext2D, centre: number): vo
 }
 
 /**
- * Makes a marker texture from a drawing.
+ * Draws the shape of a marker in the square of the texture.
+ *
+ * @param context The 2D context of the texture.
+ * @param shape The shape to draw.
+ * @param centre The middle of the square.
+ * @param color The colour of the shape.
+ */
+function drawShape(
+  context: CanvasRenderingContext2D,
+  shape: LightMarkerShape,
+  centre: number,
+  color: MarkerColor,
+): void {
+  switch (shape) {
+    case 'star': {
+      drawStar(context, centre, color)
+
+      break
+    }
+
+    case 'bulb': {
+      drawBulb(context, centre, color)
+
+      break
+    }
+
+    case 'flame': {
+      drawFlame(context, centre, color)
+
+      break
+    }
+
+    case 'flameCrossed': {
+      drawFlameCrossed(context, centre, color)
+
+      break
+    }
+  }
+}
+
+/**
+ * Draws the shape of a marker at a size, for a 2D canvas.
+ *
+ * @remarks
+ * The fixed views draw the same shapes as the walkable view, but as 2D icons over their canvas: this is the one drawing
+ * the textures use, with the colour of the light instead of white. The caller puts the top left corner of the shape on
+ * the canvas (a translate), and the shape is drawn in the square of `size`.
+ *
+ * @param context The 2D context of the canvas.
+ * @param shape The shape to draw.
+ * @param size The width and the height of the square, in the units of the context.
+ * @param color The colour of the shape.
+ */
+export function drawLightMarkerShape(
+  context: CanvasRenderingContext2D,
+  shape: LightMarkerShape,
+  size: number,
+  color: MarkerColor,
+): void {
+  const scale = size / LIGHT_MARKER_TEXTURE_SIZE
+
+  context.save()
+  context.scale(scale, scale)
+  drawShape(context, shape, LIGHT_MARKER_TEXTURE_SIZE / 2, color)
+  context.restore()
+}
+
+/**
+ * Tells whether the switch of the group of a light is off.
+ *
+ * @param light The light of the LLF.
+ *
+ * @returns True when the light is in a layer the author switched off.
+ */
+export function isLightDisabled(light: ArxLight): boolean {
+  if ((light.flags & ArxLightFlags.SemiDynamic) !== 0) {
+    return !isDynamicLightsVisible.value
+  }
+
+  return !isStaticLightsVisible.value
+}
+
+/**
+ * Makes a marker texture from a shape.
  *
  * @param name The name of the texture, for the debug tools of three.
- * @param draw The drawing of the icon.
+ * @param shape The shape of the icon.
  *
  * @returns The texture of the shape.
  */
-function markerTextureOf(
-  name: string,
-  draw: (context: CanvasRenderingContext2D, centre: number) => void,
-): CanvasTexture {
+function markerTextureOf(name: string, shape: LightMarkerShape): CanvasTexture {
   const { canvas, context } = markerCanvasOf()
 
-  draw(context, LIGHT_MARKER_TEXTURE_SIZE / 2)
+  drawShape(context, shape, LIGHT_MARKER_TEXTURE_SIZE / 2, WHITE)
 
   const texture = new CanvasTexture(canvas)
 
@@ -298,10 +433,10 @@ function markerTextureOf(
  */
 export function createLightMarkerTextures(): LightMarkerTextures {
   return {
-    star: markerTextureOf('light-marker-star', drawStar),
-    bulb: markerTextureOf('light-marker-bulb', drawBulb),
-    flame: markerTextureOf('light-marker-flame', drawFlame),
-    flameCrossed: markerTextureOf('light-marker-flame-crossed', drawFlameCrossed),
+    star: markerTextureOf('light-marker-star', 'star'),
+    bulb: markerTextureOf('light-marker-bulb', 'bulb'),
+    flame: markerTextureOf('light-marker-flame', 'flame'),
+    flameCrossed: markerTextureOf('light-marker-flame-crossed', 'flameCrossed'),
   }
 }
 
@@ -315,9 +450,19 @@ export function createLightMarkerTextures(): LightMarkerTextures {
  * @returns The sprite of the marker.
  */
 function markerOf(light: ArxLight, textures: LightMarkerTextures, index: number): Sprite {
+  const disabled = isLightDisabled(light)
+  let color = lightMarkerColorOf(light)
+  let opacity = 1
+
+  if (disabled) {
+    color = DISABLED_MARKER_COLOR
+    opacity = DISABLED_MARKER_OPACITY
+  }
+
   const material = new SpriteMaterial({
     map: textures[lightMarkerShapeOf(light)],
-    color: lightMarkerColorOf(light),
+    color,
+    opacity,
     transparent: true,
     depthWrite: false,
     blending: AdditiveBlending,
@@ -444,7 +589,13 @@ export function updateLightMarkers(group: Group, lights: readonly ArxLight[], te
       child.material.needsUpdate = true
     }
 
-    child.material.color.copy(lightMarkerColorOf(light))
+    if (isLightDisabled(light)) {
+      child.material.color.copy(DISABLED_MARKER_COLOR)
+      child.material.opacity = DISABLED_MARKER_OPACITY
+    } else {
+      child.material.color.copy(lightMarkerColorOf(light))
+      child.material.opacity = 1
+    }
 
     const size = lightMarkerSizeOf(light)
 

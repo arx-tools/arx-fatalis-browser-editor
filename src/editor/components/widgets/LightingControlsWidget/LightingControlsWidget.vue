@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { LoaderCircle } from 'lucide-vue-next'
+import { LoaderCircle, Power } from 'lucide-vue-next'
 import { computed } from 'vue'
+import { isDynamicLightsVisible, isStaticLightsVisible } from '../../../modules/level/edit/dynamicLights.ts'
 import {
   flatLuminosity,
   isBakingLighting,
@@ -54,6 +55,38 @@ const luminosityPercentage = computed<number>(() => {
 const isFlat = computed<boolean>(() => {
   return lightingProfile.value === 'Flat'
 })
+
+/**
+ * The static light of the level, bound to the checkbox.
+ *
+ * @remarks
+ * The palette of the level is the static light the game baked; the switch takes it away, so the level is dark and only
+ * the dynamic layer lights it. It is a view preference of the author, kept in the browser like the profile.
+ */
+const staticLights = computed<boolean>({
+  get: (): boolean => {
+    return isStaticLightsVisible.value
+  },
+  set: (value: boolean): void => {
+    isStaticLightsVisible.value = value
+  },
+})
+
+/**
+ * The dynamic light layer of the level, bound to the checkbox.
+ *
+ * @remarks
+ * The layer draws the semi-dynamic lights of the level on top of the baked palette (the torches and the candles, with
+ * their flicker): it is the look of the game, and a view preference of the author, kept in the browser like the profile.
+ */
+const dynamicLights = computed<boolean>({
+  get: (): boolean => {
+    return isDynamicLightsVisible.value
+  },
+  set: (value: boolean): void => {
+    isDynamicLightsVisible.value = value
+  },
+})
 </script>
 
 <template>
@@ -90,6 +123,42 @@ const isFlat = computed<boolean>(() => {
           aria-label="Flat luminosity"
         />
         <span class="value">{{ luminosityPercentage }}%</span>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="caption" for="static-lights">Static lights</label>
+      <div class="row">
+        <button
+          id="static-lights"
+          class="power"
+          :class="{ 'is-on': staticLights }"
+          type="button"
+          :aria-pressed="staticLights"
+          aria-label="Static lights"
+          title="Static lights"
+          @click="staticLights = !staticLights"
+        >
+          <Power :size="14" aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="caption" for="dynamic-lights">Dynamic lights</label>
+      <div class="row">
+        <button
+          id="dynamic-lights"
+          class="power"
+          :class="{ 'is-on': dynamicLights }"
+          type="button"
+          :aria-pressed="dynamicLights"
+          aria-label="Dynamic lights"
+          title="Dynamic lights"
+          @click="dynamicLights = !dynamicLights"
+        >
+          <Power :size="14" aria-hidden="true" />
+        </button>
       </div>
     </div>
   </div>
@@ -170,6 +239,37 @@ const isFlat = computed<boolean>(() => {
     margin: 0;
     accent-color: $interactive;
     cursor: pointer;
+  }
+
+  // the switch of a light layer: a power icon like the icon buttons of the header (2026-11-18, the owner): no plate of
+  // its own, the dark background of the panel shows through; a faint border and a grey icon while the layer is off, a
+  // lighter border and the accent while it is on, and the grey of the panel under the pointer.
+  .power {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 22px;
+    padding: 0;
+    border: 1px solid $border;
+    border-radius: 4px;
+    background: transparent;
+    color: $text-muted;
+    cursor: pointer;
+
+    &:hover {
+      background: $surface-panel;
+    }
+
+    &:focus-visible {
+      border-color: $interactive;
+      outline: 1px solid $interactive;
+    }
+
+    &.is-on {
+      border-color: $border-strong;
+      color: $accent;
+    }
   }
 
   // the readout of the slider: it shares the row with the range, so its field has one width for every value (0% is

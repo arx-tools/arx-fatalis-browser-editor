@@ -1,7 +1,9 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test } from '@playwright/test'
+import { LLF } from 'arx-convert'
 import JSZip from 'jszip'
 import { editorLayout, roomsLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
+import { unpackArxFile } from '../../src/generator/files.ts'
 import {
   E2E_LEVEL,
   editorUrl,
@@ -139,6 +141,52 @@ test('the export dialog writes the level under the fields of the dialog', async 
 
   // the end of the export is on the button of the dialog
   await expect(dialog.locator('.export')).toHaveText('Downloaded')
+})
+
+test('the export leaves the lights of a switched off layer out, and a static-off level dark', async ({ page }) => {
+  await page.setViewportSize({ width: 1631, height: 850 })
+
+  await seedLayout(page, editorLayout)
+  await page.goto(editorUrl())
+  await waitForLevel(page)
+
+  await page.locator('header button[aria-label="Presets"]').click()
+  await page.locator('.preset-menu .preset-row', { hasText: 'Lighter' }).click()
+  await page.waitForTimeout(300)
+
+  // the static layer off; the dynamic one is off by default
+  const statics = page.locator('#static-lights')
+
+  await expect(statics).toHaveAttribute('aria-pressed', 'true')
+  await statics.click()
+  await expect(statics).toHaveAttribute('aria-pressed', 'false')
+
+  await page.locator('header button[aria-label="Export the level as a zip"]').click()
+
+  const dialog = page.locator('[role="dialog"][aria-label="Export Map"]')
+  const [download] = await Promise.all([page.waitForEvent('download'), dialog.locator('.export').click()])
+  const archive = await JSZip.loadAsync(await readFile((await download.path()) ?? ''))
+  const path = `graph/levels/level${String(E2E_LEVEL)}/level${String(E2E_LEVEL)}.llf`
+  const bytes = await archive.file(path)?.async('uint8array')
+
+  if (bytes === undefined) {
+    throw new TypeError(`the archive has no ${path}`)
+  }
+
+  const packed = new Uint8Array(bytes.length)
+
+  packed.set(bytes)
+
+  const llf = LLF.load(unpackArxFile(packed.buffer, 'llf'))
+
+  // both layers are off, so no light takes part in the file, and the palette is black: the game draws the dark level
+  expect(llf.lights).toEqual([])
+  expect(llf.colors.length).toBeGreaterThan(0)
+  expect(
+    llf.colors.every((color) => {
+      return color.r === 0 && color.g === 0 && color.b === 0
+    }),
+  ).toBe(true)
 })
 
 test('a level of a zip opens on the camera pose the export wrote', async ({ page }) => {

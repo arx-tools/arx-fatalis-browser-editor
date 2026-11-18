@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { DLF, FTS, LLF } from 'arx-convert'
-import type { ArxColor, ArxLLF, ArxPolygon } from 'arx-convert/types'
+import { ArxLightFlags, type ArxColor, type ArxLight, type ArxLLF, type ArxPolygon } from 'arx-convert/types'
 import JSZip from 'jszip'
 import { createBlankLevelFiles, FLAT_PRESET } from '../../../../src/editor/modules/level/blankLevel.ts'
 import { syncGeneratedPortals } from '../../../../src/editor/modules/level/edit/generatedPortals.ts'
@@ -71,6 +71,30 @@ function colorOf(red: number): ArxColor {
   return { r: red, g: red, b: red, a: 255 }
 }
 
+/**
+ * A light of the test.
+ *
+ * @param flags The bits that mark the light.
+ *
+ * @returns The light, with the fields an LLF light has.
+ */
+function lightOf(flags: number): ArxLight {
+  return {
+    position: { x: 0, y: 0, z: 0 },
+    color: { r: 255, g: 255, b: 255, a: 255 },
+    fallStart: 0,
+    fallEnd: 100,
+    intensity: 1,
+    exFlicker: { r: 0, g: 0, b: 0, a: 255 },
+    exRadius: 0,
+    exFrequency: 0,
+    exSize: 0,
+    exSpeed: 0,
+    exFlareSize: 0,
+    flags,
+  }
+}
+
 void describe('buildExportLlf', () => {
   void it('rebuilds the palette in the order of the polygons of the screen', () => {
     const llf: ArxLLF = {
@@ -105,6 +129,43 @@ void describe('buildExportLlf', () => {
       }),
       [1, 255, 255],
     )
+  })
+
+  void it('leaves the semi-dynamic lights of a switched off dynamic layer out', () => {
+    const llf: ArxLLF = {
+      header: { lastModifiedBy: '', lastModifiedAt: 0, numberOfPolygonsInFTS: 1 },
+      lights: [lightOf(ArxLightFlags.None), lightOf(ArxLightFlags.SemiDynamic)],
+      colors: [colorOf(1)],
+    }
+    const exported = buildExportLlf(llf, [polygonOf(0, false)], { dynamicLights: false })
+
+    assert.equal(exported.lights.length, 1)
+    assert.equal(exported.lights[0].flags, ArxLightFlags.None)
+  })
+
+  void it('leaves the static lights out, and writes a black palette with the static layer off', () => {
+    const llf: ArxLLF = {
+      header: { lastModifiedBy: '', lastModifiedAt: 0, numberOfPolygonsInFTS: 1 },
+      lights: [lightOf(ArxLightFlags.None), lightOf(ArxLightFlags.SemiDynamic)],
+      colors: [colorOf(1), colorOf(2), colorOf(3), colorOf(4)],
+    }
+    const exported = buildExportLlf(llf, [polygonOf(0, false)], { staticLights: false })
+
+    assert.equal(exported.lights.length, 1)
+    assert.equal(exported.lights[0].flags, ArxLightFlags.SemiDynamic)
+    assert.deepEqual(exported.colors, [colorOf(0), colorOf(0), colorOf(0)])
+  })
+
+  void it('writes no light and a black palette with both layers off', () => {
+    const llf: ArxLLF = {
+      header: { lastModifiedBy: '', lastModifiedAt: 0, numberOfPolygonsInFTS: 1 },
+      lights: [lightOf(ArxLightFlags.None), lightOf(ArxLightFlags.SemiDynamic)],
+      colors: [colorOf(1), colorOf(2), colorOf(3), colorOf(4)],
+    }
+    const exported = buildExportLlf(llf, [polygonOf(0, false)], { staticLights: false, dynamicLights: false })
+
+    assert.deepEqual(exported.lights, [])
+    assert.deepEqual(exported.colors, [colorOf(0), colorOf(0), colorOf(0)])
   })
 
   void it('keeps a level without a palette without one', () => {

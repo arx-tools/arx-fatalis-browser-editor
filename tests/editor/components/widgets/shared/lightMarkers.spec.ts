@@ -1,10 +1,15 @@
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { beforeEach, describe, it } from 'node:test'
 import { PerspectiveCamera, Sprite, Texture } from 'three'
 import { ArxLightFlags, type ArxLight } from 'arx-convert/types'
 import {
+  isDynamicLightsVisible,
+  isStaticLightsVisible,
+} from '../../../../../src/editor/modules/level/edit/dynamicLights.ts'
+import {
   createLightMarkers,
   disposeLightMarkers,
+  isLightDisabled,
   lightMarkerColorOf,
   lightMarkerShapeOf,
   lightMarkerIndexAt,
@@ -57,6 +62,33 @@ function texturesOf(): LightMarkerTextures {
 
   return textures
 }
+
+beforeEach(() => {
+  isStaticLightsVisible.value = true
+  isDynamicLightsVisible.value = false
+})
+
+void describe('isLightDisabled', () => {
+  void it('leaves a static light on while the static switch is on', () => {
+    assert.equal(isLightDisabled(light()), false)
+  })
+
+  void it('disables a static light with the static switch off', () => {
+    isStaticLightsVisible.value = false
+
+    assert.equal(isLightDisabled(light()), true)
+  })
+
+  void it('leaves a semi-dynamic light on while the dynamic switch is on', () => {
+    isDynamicLightsVisible.value = true
+
+    assert.equal(isLightDisabled(light({ flags: ArxLightFlags.SemiDynamic })), false)
+  })
+
+  void it('disables a semi-dynamic light with the dynamic switch off', () => {
+    assert.equal(isLightDisabled(light({ flags: ArxLightFlags.SemiDynamic })), true)
+  })
+})
 
 void describe('lightMarkerSizeOf', () => {
   void it('takes its size from the fallStart of the light', () => {
@@ -144,6 +176,25 @@ void describe('createLightMarkers', () => {
     disposeLightMarkers(group)
     assert.equal(group.children.length, 0)
   })
+
+  void it('draws the marker of a switched off layer grey and see-through', () => {
+    const textures = texturesOf()
+    const group = createLightMarkers([light({ flags: ArxLightFlags.SemiDynamic })], textures)
+    const sprite = group.children.at(0)
+
+    assert.ok(sprite instanceof Sprite)
+    assert.equal(sprite.material.opacity, 0.3)
+    assert.ok(sprite.material.color.r < 1)
+
+    isDynamicLightsVisible.value = true
+
+    updateLightMarkers(group, [light({ flags: ArxLightFlags.SemiDynamic })], textures)
+
+    const expected = lightMarkerColorOf(light({ flags: ArxLightFlags.SemiDynamic }))
+
+    assert.equal(sprite.material.opacity, 1)
+    assert.ok(sprite.material.color.equals(expected))
+  })
 })
 
 void describe('lightMarkerIndexAt', () => {
@@ -176,6 +227,8 @@ void describe('lightMarkerIndexAt', () => {
 
 void describe('updateLightMarkers', () => {
   void it('takes the new shape, colour, size and place of an edited light', () => {
+    isDynamicLightsVisible.value = true
+
     const textures = texturesOf()
     const group = createLightMarkers([light()], textures)
     const sprite = group.children.at(0)

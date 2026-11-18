@@ -161,9 +161,10 @@ test('the flat light reads out as a percentage of a fixed width', async ({ page 
  * @remarks
  * The caption sits beside the control (2026-11-18): the profile row and the flat row start at the same x, after the
  * captions, and the content of the widget fits the 60 px the preset locks, so the caption of the profile is not cut at
- * the top (the 253).
+ * the top (the 253). The two switches of the light layer are the third and the fourth row, and the preset locks the
+ * height the four need.
  */
-test('the fields start at the same column, and the two rows fit the 60 px of the Lighter preset', async ({ page }) => {
+test('the fields start at the same column, and the four rows fit the Lighter preset', async ({ page }) => {
   await page.goto(editorUrl())
 
   await page.locator('header button[aria-label="Presets"]').click()
@@ -201,7 +202,7 @@ test('the fields start at the same column, and the two rows fit the 60 px of the
   // the captions take a fixed column, so the controls start at the same x
   expect(boxes.profileLeft).toBe(boxes.flatLeft)
 
-  // the caption is inside the 60 px of the widget: no part of it is cut at the top or the bottom
+  // the caption is inside the widget: no part of it is cut at the top or the bottom
   expect(boxes.captionTop).toBeGreaterThanOrEqual(boxes.widgetTop)
   expect(boxes.captionBottom).toBeLessThanOrEqual(boxes.widgetBottom)
 

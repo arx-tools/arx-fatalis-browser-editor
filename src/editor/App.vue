@@ -9,6 +9,7 @@ import MissingMapPrompt from './components/MissingMapPrompt.vue'
 import { startEditModes } from './components/widgets/shared/editModes.ts'
 import { startLevelDisplay } from './components/widgets/shared/levelDisplay.ts'
 import { startHelpPopup } from './modules/help/helpPopup.ts'
+import { startDynamicLights } from './modules/level/edit/dynamicLights.ts'
 import { startLevelEditing } from './modules/level/edit/editing.ts'
 import { startPortalGeneration } from './modules/rooms/portalSync.ts'
 import { startSelection } from './modules/selection/selectionStore.ts'
@@ -130,6 +131,7 @@ onMounted(async () => {
   startMapHistoryPersistence()
   startLevelTextures()
   startLighting()
+  startDynamicLights()
   startTextureCatalog()
   startRoomSelection()
   startCurrentRoom()

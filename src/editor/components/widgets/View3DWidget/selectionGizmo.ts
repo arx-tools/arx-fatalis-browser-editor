@@ -37,6 +37,16 @@ const LOCK_GUARD_MS = 300
 const ROTATION_SNAP_DEGREES = 15
 
 /**
+ * The turn between the frame of the scene and the frame of the game.
+ *
+ * @remarks
+ * The level is built with `M(x, y, z) = (-x, -y, z)` (see `arxVector3toVector3`), a half turn around Z. The compass of
+ * the corner is turned by it so its triad shows the game's axes; the gizmo gets the same turn, so its arrows point the
+ * way the compass and the coordinate readout do: the green Y down the game's Y, the red X the game's X.
+ */
+const GAME_TURN = new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), Math.PI)
+
+/**
  * The axis and the angle of a turn.
  */
 export type TurnAxisAngle = {
@@ -134,9 +144,9 @@ export type SelectionGizmo = {
  *
  * @remarks
  * The gizmo of three (`TransformControls`) is attached to a proxy at the **middle of the selection**; the proxy is the
- * only object it moves, and the drag writes the corners of the selected faces from it. The axes are the **world** ones
- * of the scene (green Y up, red X and blue Z), not the mirrored axes of the Arx compass: the move reads the screen the
- * way the level is drawn.
+ * only object it moves, and the drag writes the corners of the selected faces from it. The axes are the **game's**, the
+ * same frame the compass of the corner shows: the proxy stands turned by {@link GAME_TURN}, so the arrows point where
+ * the readout and the url say (the green Y down the game's Y), and a drag moves the level the way the arrow points.
  *
  * The drag writes the model on every frame (the view follows it), and the step of the history goes on the stack when
  * the pointer is let go: the model is taken back to the start of the drag first, so the one command adds the whole
@@ -154,7 +164,8 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
   const helper = controls.getHelper()
 
   controls.setMode('translate')
-  controls.setSpace('world')
+  // the proxy carries the frame of the game, so the gizmo of every mode turns with it
+  controls.setSpace('local')
   controls.setRotationSnap(MathUtils.degToRad(ROTATION_SNAP_DEGREES))
   options.scene.add(helper)
   options.scene.add(proxy)
@@ -248,8 +259,8 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
 
     proxy.position.set(world.x, world.y, world.z)
     // a turn or a scale of the last drag left the proxy turned or sized, and the gizmo of the next one is read from it:
-    // the proxy stands square and in its own size between two drags
-    proxy.quaternion.identity()
+    // the proxy stands in the game's frame and in its own size between two drags
+    proxy.quaternion.copy(GAME_TURN)
     proxy.scale.set(1, 1, 1)
 
     if (controls.object !== proxy) {
@@ -311,7 +322,8 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
       return
     }
 
-    // the turn of the drag since the press: the proxy stands square at the press, so the turn of it is the delta
+    // the turn of the drag since the press: the proxy stands in the game's frame at the press, so the turn of it is
+    // the delta of the world
     const total = proxy.quaternion.clone().multiply(startQuaternion.clone().invert())
     const step = total.clone().multiply(appliedTurn.clone().invert())
 

@@ -4,6 +4,11 @@ import { PerspectiveCamera, type Group, type Mesh } from 'three'
 import Crosshair from '../../Crosshair.vue'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { WIREFRAME_WITHOUT_MESH, arxVector3toVector3 } from '../../../../generator/meshes.ts'
+import {
+  isDynamicLightsVisible,
+  isStaticLightsVisible,
+  registerDynamicLightsView,
+} from '../../../modules/level/edit/dynamicLights.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { lightsRevision } from '../../../modules/level/edit/lightEditing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
@@ -231,6 +236,18 @@ const loop = createFrameLoop({
   gizmo: () => {
     return gizmo
   },
+})
+
+/**
+ * The view takes part in the dynamic light layer: the layer asks it for a frame on every step of the flicker.
+ *
+ * @remarks
+ * A frame of the layer redraws the scene of every view that holds the same level, so the layer knows the views by their
+ * render, not by their widget. The registration is a constant of the setup: the view is one of them from the moment it
+ * exists, and it leaves the layer when the widget goes away.
+ */
+const unregisterDynamicLights = registerDynamicLightsView(() => {
+  loop.requestRender()
 })
 
 /**
@@ -625,7 +642,14 @@ onMounted(() => {
   // the light markers follow both the switch and an edit of a light: the shape comes from the flags, and the colour, the
   // size and the place from the fields (the light editor and the history steps of a light bump the revision)
   stopWatchingLights = watch(
-    [isLightsVisible, lightsRevision, lightSelectionStore.lights, lightHoverStore.light],
+    [
+      isLightsVisible,
+      lightsRevision,
+      lightSelectionStore.lights,
+      lightHoverStore.light,
+      isStaticLightsVisible,
+      isDynamicLightsVisible,
+    ],
     ([visible]) => {
       if (lightMarkers !== undefined) {
         lightMarkers.visible = visible
@@ -713,6 +737,7 @@ onBeforeUnmount(() => {
   stopWatchingRoomRevision = undefined
   stopWatchingSelection?.()
   stopWatchingSelection = undefined
+  unregisterDynamicLights()
 
   globalThis.removeEventListener('keydown', onModifierKey)
   globalThis.removeEventListener('keyup', onModifierKey)

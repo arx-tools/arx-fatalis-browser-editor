@@ -8,7 +8,6 @@ import {
   lightingProfile,
   type LightingProfile,
 } from '../../../modules/level/edit/lighting.ts'
-import FieldLabel from '../../FieldLabel.vue'
 
 /**
  * The profile of the lighting, bound to the select of the widget.
@@ -59,7 +58,8 @@ const isFlat = computed<boolean>(() => {
 
 <template>
   <div class="LightingControlsWidget">
-    <FieldLabel class="field" label="Lighting Profile" for="lighting-profile">
+    <div class="field">
+      <label class="caption" for="lighting-profile">Lighting Profile</label>
       <div class="row">
         <select id="lighting-profile" v-model="profile" aria-label="Lighting profile">
           <option v-for="option in LIGHTING_PROFILES" :key="option.value" :value="option.value">
@@ -74,9 +74,10 @@ const isFlat = computed<boolean>(() => {
           title="Baking the light"
         />
       </div>
-    </FieldLabel>
+    </div>
 
-    <FieldLabel v-if="isFlat" class="field flat-field" label="Luminosity" for="flat-luminosity">
+    <div v-if="isFlat" class="field flat-field">
+      <label class="caption" for="flat-luminosity">Luminosity</label>
       <div class="row">
         <input
           id="flat-luminosity"
@@ -90,7 +91,7 @@ const isFlat = computed<boolean>(() => {
         />
         <span class="value">{{ luminosityPercentage }}%</span>
       </div>
-    </FieldLabel>
+    </div>
   </div>
 </template>
 
@@ -99,23 +100,35 @@ const isFlat = computed<boolean>(() => {
 
 // The lighting of the level: the profile of the bake, and the slider of the flat light. The widget is content-sized: it
 // wants the height of its rows, and the dock gives it that much when there is room. The widget has no heading of its
-// own: the dock says its name. The caption of a field sits above the control, like the fields of the camera form and
-// the jump: a word beside the control would take the width its value needs. The two fields are one column of a grid, so
-// both take the width of the widest row: the dropdown would otherwise sit inside the row of the flat light, short on
-// both sides.
+// own: the dock says its name. The caption sits **beside** the control (2026-11-18): the Lighter preset gives the
+// widget 350 by 60, and the caption above the control took the top of the widget away, so the two rows are one line
+// each, the captions on a fixed column, and the controls start at the same place. The two fields are one column of a
+// grid, so both take the width of the widest row.
 .LightingControlsWidget {
   display: grid;
   grid-template-columns: max-content;
   justify-content: center;
   align-content: center;
-  gap: 6px;
+  gap: 4px;
   height: 100%;
-  padding: 4px;
+  padding: 2px 4px;
   overflow: auto;
   font-size: 13px;
 
   .field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     margin: 0;
+  }
+
+  .caption {
+    flex: none;
+    width: 72px;
+    color: $text-muted;
+    font-size: 10px;
+    line-height: 1;
+    white-space: nowrap;
   }
 
   .row {

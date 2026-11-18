@@ -5,9 +5,10 @@ import { usedVerticesOf } from '../../../../generator/polygons.ts'
 import { crosshairStore } from '../../../modules/crosshair/crosshairStore.ts'
 import { isKeyDown } from '../../../modules/keyboard/keyboard.ts'
 import { fillAreaOf, type SelectionFill } from '../../../modules/selection/fillArea.ts'
+import { lightHoverStore } from '../../../modules/selection/lightHoverStore.ts'
 import { lightSelectionStore } from '../../../modules/selection/lightSelectionStore.ts'
 import { selectionModeOf, selectionStore, type SelectionMode } from '../../../modules/selection/selectionStore.ts'
-import { isRoomColorsVisible } from '../shared/levelDisplay.ts'
+import { isLightsVisible, isRoomColorsVisible } from '../shared/levelDisplay.ts'
 import type { ViewScene } from '../shared/viewScene.ts'
 import { lightMarkerIndexAt } from '../shared/lightMarkers.ts'
 import type { CameraControls } from './cameraControls.ts'
@@ -298,7 +299,7 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
       const camera = view()?.camera
       const markers = lightMarkers()
 
-      if (camera !== undefined && markers !== undefined) {
+      if (camera !== undefined && markers !== undefined && isLightsVisible.value) {
         const light = lightMarkerIndexAt(camera, markers)
 
         if (light !== undefined) {
@@ -360,6 +361,27 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
       if (scene === undefined || level === undefined || paint === undefined) {
         return
       }
+
+      // a marker under the crosshair is the target of the view: the ring of the light is its mark, and the face behind
+      // it is not the face the author means, so the phantom outline of the crosshair goes (2026-11-18, the owner)
+      const markers = lightMarkers()
+      let light: number | undefined
+
+      // the markers only mean a target while the Lights switch shows them: with the switch off the author is looking
+      // at the level, and a light in the way must not take the crosshair from the face under it
+      if (markers !== undefined && isLightsVisible.value) {
+        light = lightMarkerIndexAt(scene.camera, markers)
+      }
+
+      if (light !== undefined) {
+        lightHoverStore.set(light)
+        crosshairStore.set(undefined)
+        paint.setCursor(undefined, dragMode ?? selectionModeOfKeys())
+
+        return
+      }
+
+      lightHoverStore.set(undefined)
 
       const index = pickPolygon(scene.camera, meshes(), level.triangleToPolygon)
       let polygon: ArxPolygon | undefined

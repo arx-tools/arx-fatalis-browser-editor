@@ -156,14 +156,14 @@ test('the flat light reads out as a percentage of a fixed width', async ({ page 
 })
 
 /**
- * The dropdown spans the row of the flat light.
+ * The fields of the lighting controls start at the same column, and the two rows fit the 60 px of the Lighter preset.
  *
  * @remarks
- * The two fields are centered, and the row of the slider (the range and its readout) is wider than a select of its own
- * min-width: the dropdown would sit inside the row, sticking out on neither side. The fields share the width of the
- * widest row instead, so the dropdown, the slider and the readout start and end on the same vertical lines.
+ * The caption sits beside the control (2026-11-18): the profile row and the flat row start at the same x, after the
+ * captions, and the content of the widget fits the 60 px the preset locks, so the caption of the profile is not cut at
+ * the top (the 253).
  */
-test('the dropdown spans the row of the flat light', async ({ page }) => {
+test('the fields start at the same column, and the two rows fit the 60 px of the Lighter preset', async ({ page }) => {
   await page.goto(editorUrl())
 
   await page.locator('header button[aria-label="Presets"]').click()
@@ -175,26 +175,38 @@ test('the dropdown spans the row of the flat light', async ({ page }) => {
   await expect(controls).toBeVisible()
 
   const boxes = await controls.evaluate((widget) => {
-    const select = widget.querySelector<HTMLElement>('select')
-    const row = widget.querySelector<HTMLElement>(':scope .flat-field .row')
+    const profileRow = widget.querySelector<HTMLElement>(':scope .field:not(.flat-field) .row')
+    const flatRow = widget.querySelector<HTMLElement>(':scope .flat-field .row')
+    const caption = widget.querySelector<HTMLElement>('.caption')
 
-    if (select === null || row === null) {
+    if (profileRow === null || flatRow === null || caption === null) {
       throw new Error('The lighting controls have no field to compare.')
     }
 
-    const dropdown = select.getBoundingClientRect()
-    const sliderRow = row.getBoundingClientRect()
+    const widgetBox = widget.getBoundingClientRect()
+    const captionBox = caption.getBoundingClientRect()
 
     return {
-      dropdownLeft: dropdown.left,
-      dropdownRight: dropdown.right,
-      rowLeft: sliderRow.left,
-      rowRight: sliderRow.right,
+      profileLeft: Math.round(profileRow.getBoundingClientRect().left),
+      flatLeft: Math.round(flatRow.getBoundingClientRect().left),
+      captionTop: Math.round(captionBox.top),
+      captionBottom: Math.round(captionBox.bottom),
+      widgetTop: Math.round(widgetBox.top),
+      widgetBottom: Math.round(widgetBox.bottom),
+      scrollHeight: widget.scrollHeight,
+      clientHeight: widget.clientHeight,
     }
   })
 
-  expect(boxes.dropdownLeft).toBeCloseTo(boxes.rowLeft, 1)
-  expect(boxes.dropdownRight).toBeCloseTo(boxes.rowRight, 1)
+  // the captions take a fixed column, so the controls start at the same x
+  expect(boxes.profileLeft).toBe(boxes.flatLeft)
+
+  // the caption is inside the 60 px of the widget: no part of it is cut at the top or the bottom
+  expect(boxes.captionTop).toBeGreaterThanOrEqual(boxes.widgetTop)
+  expect(boxes.captionBottom).toBeLessThanOrEqual(boxes.widgetBottom)
+
+  // the content fits the locked height, so the widget does not need its scrollbar
+  expect(boxes.scrollHeight).toBeLessThanOrEqual(boxes.clientHeight + 1)
 })
 
 /**

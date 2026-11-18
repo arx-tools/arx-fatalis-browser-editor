@@ -10,6 +10,7 @@ import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { WIDGET_KINDS } from '../../../modules/layout/widgetKinds.ts'
 import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
 import { getModifierOfKey } from '../../../modules/keyboard/functions.ts'
+import { lightHoverStore } from '../../../modules/selection/lightHoverStore.ts'
 import { lightSelectionStore } from '../../../modules/selection/lightSelectionStore.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import { roomNameOf } from '../../../modules/rooms/roomNames.ts'
@@ -420,7 +421,7 @@ function showMap(map: ArxMap): void {
   // the ring of the selected lights: a sprite per pick, over the marker, in the place of the light
   lightSelection = createLightSelectionOverlay()
   lightSelection.group.visible = isLightsVisible.value
-  lightSelection.update(map.lights, lightSelectionStore.lights.value)
+  lightSelection.update(map.lights, lightSelectionStore.lights.value, lightHoverStore.light.value)
   view.scene.add(lightSelection.group)
 
   // the switches read the wireframe too (its lines follow the mesh), so they come after it is there: a fresh load
@@ -535,6 +536,7 @@ function hideMap(): void {
 
   // the selected lights are indices of the level that went: a new level has a list of its own
   lightSelectionStore.clear()
+  lightHoverStore.set(undefined)
 
   if (spikeEntity !== undefined) {
     view?.scene.remove(spikeEntity)
@@ -622,22 +624,25 @@ onMounted(() => {
   // the light markers are a switch too: the sparkles stay in the scene, and the switch takes them off the frame
   // the light markers follow both the switch and an edit of a light: the shape comes from the flags, and the colour, the
   // size and the place from the fields (the light editor and the history steps of a light bump the revision)
-  stopWatchingLights = watch([isLightsVisible, lightsRevision, lightSelectionStore.lights], ([visible]) => {
-    if (lightMarkers !== undefined) {
-      lightMarkers.visible = visible
+  stopWatchingLights = watch(
+    [isLightsVisible, lightsRevision, lightSelectionStore.lights, lightHoverStore.light],
+    ([visible]) => {
+      if (lightMarkers !== undefined) {
+        lightMarkers.visible = visible
 
-      if (lightTextures !== undefined && loadedMap !== undefined) {
-        updateLightMarkers(lightMarkers, loadedMap.lights, lightTextures)
+        if (lightTextures !== undefined && loadedMap !== undefined) {
+          updateLightMarkers(lightMarkers, loadedMap.lights, lightTextures)
+        }
       }
-    }
 
-    if (lightSelection !== undefined && loadedMap !== undefined) {
-      lightSelection.group.visible = visible
-      lightSelection.update(loadedMap.lights, lightSelectionStore.lights.value)
-    }
+      if (lightSelection !== undefined && loadedMap !== undefined) {
+        lightSelection.group.visible = visible
+        lightSelection.update(loadedMap.lights, lightSelectionStore.lights.value, lightHoverStore.light.value)
+      }
 
-    loop.requestRender()
-  })
+      loop.requestRender()
+    },
+  )
 
   // the portal outline is a switch of every view at once: the same ref is read by the six fixed ones
   stopWatchingPortals = watch(isPortalsVisible, () => {

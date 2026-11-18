@@ -1,4 +1,4 @@
-import { AdditiveBlending, CanvasTexture, Group, Sprite, SpriteMaterial } from 'three'
+import { AdditiveBlending, CanvasTexture, Group, Sprite, SpriteMaterial, type Texture } from 'three'
 import type { ArxLight } from 'arx-convert/types'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { lightMarkerSizeOf } from './lightMarkers.ts'
@@ -14,13 +14,24 @@ const RING_TEXTURE_SIZE = 64
 const RING_SCALE = 1.5
 
 /**
- * Draws the ring of a selected light: a white circle, so it reads around a marker of any colour.
+ * The yellow of the fill of a selected face, and of the ring of a focused light.
  *
- * @returns The texture of the white ring, for the sprite of a selected light.
+ * @remarks
+ * The faces paint their selection with the yellow of `Color.yellow` at the 0.35 of the fill, so the ring of a focused
+ * light is filled with the same mark (2026-11-18, the owner): the two selections read as one yellow.
+ */
+const FOCUS_FILL = 'rgba(255, 255, 0, 0.35)'
+
+/**
+ * Draws the ring of a light: two white circles, so it reads around a marker of any colour.
+ *
+ * @param filled Whether the circle is filled with the yellow of the focused lights.
+ *
+ * @returns The ring as a canvas texture, white or with the yellow fill of the focus.
  *
  * @throws When the browser gives no 2D canvas to draw the ring on.
  */
-function createRingTexture(): CanvasTexture {
+function createRingTexture(filled: boolean): CanvasTexture {
   const canvas = document.createElement('canvas')
   canvas.width = RING_TEXTURE_SIZE
   canvas.height = RING_TEXTURE_SIZE
@@ -32,6 +43,13 @@ function createRingTexture(): CanvasTexture {
   }
 
   const centre = RING_TEXTURE_SIZE / 2
+
+  if (filled) {
+    context.beginPath()
+    context.arc(centre, centre, centre - 6, 0, Math.PI * 2)
+    context.fillStyle = FOCUS_FILL
+    context.fill()
+  }
 
   context.beginPath()
   context.arc(centre, centre, centre - 6, 0, Math.PI * 2)
@@ -47,19 +65,26 @@ function createRingTexture(): CanvasTexture {
 
   const texture = new CanvasTexture(canvas)
 
-  texture.name = 'light-selection-ring'
+  let name = 'light-hover-ring'
+
+  if (filled) {
+    name = 'light-focus-ring'
+  }
+
+  texture.name = name
 
   return texture
 }
 
 /**
- * The ring around the selected lights.
+ * The ring around the hovered and the selected lights.
  *
  * @remarks
- * The selection of the lights is a set of indices of `map.lights`, and the ring is the view of it: one sprite per
- * selected light, around its marker, in the place of the light. The ring is white and additive, so it stands out over a
- * marker of any colour, and it is not part of the marker itself (a resize of the light is a change of the marker, not
- * of the pick).
+ * The hover and the selection are two states of the same mark: a light under the crosshair gets the white ring (the one
+ * the selection had), and the selected lights get the ring filled with the yellow of the selected faces, so the focused
+ * light reads as a picked face does (2026-11-18, the owner). The selected state wins: a light that is both hovered and
+ * selected is the yellow ring. The rings are not part of the marker itself (a resize of the light is a change of the
+ * marker, not of the pick).
  */
 export type LightSelectionOverlay = {
   /**
@@ -67,14 +92,15 @@ export type LightSelectionOverlay = {
    */
   readonly group: Group
   /**
-   * Builds the rings of a selection, from the lights of the level.
+   * Builds the rings of a selection and a hover, from the lights of the level.
    *
    * @param lights The lights of the LLF.
    * @param selected The indices of the selected lights.
+   * @param hovered The index of the light under the crosshair, if there is one.
    */
-  readonly update: (lights: readonly ArxLight[], selected: ReadonlySet<number>) => void
+  readonly update: (lights: readonly ArxLight[], selected: ReadonlySet<number>, hovered?: number) => void
   /**
-   * Takes the rings out of the scene, and lets the texture go.
+   * Takes the rings out of the scene, and lets the textures go.
    */
   readonly dispose: () => void
 }
@@ -85,7 +111,8 @@ export type LightSelectionOverlay = {
  * @returns The overlay, with no ring on it.
  */
 export function createLightSelectionOverlay(): LightSelectionOverlay {
-  const texture = createRingTexture()
+  const hoverTexture = createRingTexture(false)
+  const focusTexture = createRingTexture(true)
   const group = new Group()
   const sprites: Sprite[] = []
 
@@ -100,9 +127,37 @@ export function createLightSelectionOverlay(): LightSelectionOverlay {
     group.clear()
   }
 
+  /**
+   * Adds the ring of one light to the group.
+   *
+   * @param light The light of the LLF.
+   * @param texture The ring of its state.
+   * @param additive Whether the ring adds its light to the scene, the way the hover does.
+   */
+  function addRing(light: ArxLight, texture: Texture, additive: boolean): void {
+    const material = new SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthWrite: false,
+      toneMapped: false,
+    })
+
+    if (additive) {
+      material.blending = AdditiveBlending
+    }
+
+    const sprite = new Sprite(material)
+    const size = lightMarkerSizeOf(light) * RING_SCALE
+
+    sprite.scale.set(size, size, 1)
+    sprite.position.copy(arxVector3toVector3(light.position))
+    group.add(sprite)
+    sprites.push(sprite)
+  }
+
   return {
     group,
-    update: (lights: readonly ArxLight[], selected: ReadonlySet<number>): void => {
+    update: (lights: readonly ArxLight[], selected: ReadonlySet<number>, hovered?: number): void => {
       clear()
 
       for (const index of selected) {
@@ -112,25 +167,25 @@ export function createLightSelectionOverlay(): LightSelectionOverlay {
           continue
         }
 
-        const material = new SpriteMaterial({
-          map: texture,
-          transparent: true,
-          depthWrite: false,
-          blending: AdditiveBlending,
-          toneMapped: false,
-        })
-        const sprite = new Sprite(material)
-        const size = lightMarkerSizeOf(light) * RING_SCALE
-
-        sprite.scale.set(size, size, 1)
-        sprite.position.copy(arxVector3toVector3(light.position))
-        group.add(sprite)
-        sprites.push(sprite)
+        addRing(light, focusTexture, false)
       }
+
+      if (hovered === undefined || selected.has(hovered)) {
+        return
+      }
+
+      const light = lights[hovered]
+
+      if (light === undefined) {
+        return
+      }
+
+      addRing(light, hoverTexture, true)
     },
     dispose: (): void => {
       clear()
-      texture.dispose()
+      hoverTexture.dispose()
+      focusTexture.dispose()
     },
   }
 }

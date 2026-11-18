@@ -1,77 +1,6 @@
-import type { Buffer } from 'node:buffer'
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
-import { editorUrl, nextFrames, seedLayout, waitForLevel } from './support/editor.ts'
-
-/**
- * The dotted reading of two screenshots: how many pixels differ, and how bright the two are together.
- *
- * @param page The page the screenshots were taken in: the browser decodes the images.
- * @param first The first screenshot.
- * @param second The second screenshot.
- *
- * @returns The count of the pixels that differ, the brightness of both and the largest difference.
- */
-async function differenceOf(
-  page: Page,
-  first: Buffer,
-  second: Buffer,
-): Promise<{ differing: number; pixels: number; firstSum: number; secondSum: number; peak: number }> {
-  return await page.evaluate(
-    async ([one, other]) => {
-      const view = globalThis
-      async function imageOf(base64: string): Promise<ImageData> {
-        const image = new view.Image()
-
-        image.src = `data:image/png;base64,${base64}`
-        await image.decode()
-
-        const canvas = view.document.createElement('canvas')
-
-        canvas.width = image.width
-        canvas.height = image.height
-
-        const context = canvas.getContext('2d')
-
-        if (context === null) {
-          throw new Error('the browser gave no canvas to decode the screenshot')
-        }
-
-        context.drawImage(image, 0, 0)
-
-        return context.getImageData(0, 0, image.width, image.height)
-      }
-
-      const firstImage = await imageOf(one)
-      const secondImage = await imageOf(other)
-      let differing = 0
-      let firstSum = 0
-      let secondSum = 0
-      let peak = 0
-
-      for (let index = 0; index < firstImage.data.length; index = index + 4) {
-        const firstColor = firstImage.data[index] + firstImage.data[index + 1] + firstImage.data[index + 2]
-        const secondColor = secondImage.data[index] + secondImage.data[index + 1] + secondImage.data[index + 2]
-
-        firstSum = firstSum + firstColor
-        secondSum = secondSum + secondColor
-
-        const difference = Math.abs(firstColor - secondColor)
-
-        if (difference > 6) {
-          differing = differing + 1
-        }
-
-        if (difference > peak) {
-          peak = difference
-        }
-      }
-
-      return { differing, pixels: firstImage.data.length / 4, firstSum, secondSum, peak }
-    },
-    [first.toString('base64'), second.toString('base64')],
-  )
-}
+import { editorUrl, nextFrames, screenshotDifference, seedLayout, waitForLevel } from './support/editor.ts'
 
 /**
  * Opens the Lighter preset and puts the camera on a burning torch.
@@ -159,7 +88,7 @@ test('the dynamic light layer lights the level like the game, and goes off again
   await page.waitForTimeout(400)
 
   const on = await stageOf(page).screenshot()
-  const lit = await differenceOf(page, off, on)
+  const lit = await screenshotDifference(page, off, on)
 
   // the torch lights the floor and the walls around it: many pixels are brighter, not a few edges
   expect(lit.differing).toBeGreaterThan(1000)
@@ -169,7 +98,7 @@ test('the dynamic light layer lights the level like the game, and goes off again
   await nextFrames(page, 3)
 
   const offAgain = await stageOf(page).screenshot()
-  const back = await differenceOf(page, off, offAgain)
+  const back = await screenshotDifference(page, off, offAgain)
 
   // the baked colour comes back exactly: a still camera draws the same picture without the layer
   expect(back.differing).toBe(0)
@@ -188,7 +117,7 @@ test('the static light switch takes the baked light away, and puts it back', asy
   await nextFrames(page, 3)
 
   const dark = await stageOf(page).screenshot()
-  const darker = await differenceOf(page, off, dark)
+  const darker = await screenshotDifference(page, off, dark)
 
   // the baked light goes away: the level is dark, so the picture is much darker
   expect(darker.secondSum).toBeLessThan(darker.firstSum)
@@ -197,7 +126,7 @@ test('the static light switch takes the baked light away, and puts it back', asy
   await nextFrames(page, 3)
 
   const back = await stageOf(page).screenshot()
-  const restored = await differenceOf(page, off, back)
+  const restored = await screenshotDifference(page, off, back)
 
   expect(restored.differing).toBe(0)
 })

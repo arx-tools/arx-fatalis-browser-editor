@@ -12,6 +12,7 @@ import {
   createDynamicLightModel,
   isDynamicLightModelStale,
   refreshDynamicLightBaseColors,
+  refreshDynamicLightLights,
   type DynamicLightModel,
 } from './dynamicLights/model.ts'
 
@@ -453,6 +454,26 @@ export function startDynamicLights(): void {
   })
 
   watch(lightsRevision, () => {
+    const map = levelStore.map.value
+    const geometry = map?.solidMeshes[0]?.geometry
+
+    // a colour edit of a light keeps its weights: the layer takes the new light and draws it on the next frame, so the
+    // drag of the light editor is live even with the layer on (a move, an intensity or a flag still needs the build)
+    if (
+      map !== undefined &&
+      geometry !== undefined &&
+      model?.map === map &&
+      isDynamicLightsVisible.value &&
+      !isDynamicLightModelStale(model, geometry) &&
+      refreshDynamicLightLights(model, map)
+    ) {
+      if (applyFrame()) {
+        renderViews()
+      }
+
+      return
+    }
+
     scheduleRebuild()
   })
 }

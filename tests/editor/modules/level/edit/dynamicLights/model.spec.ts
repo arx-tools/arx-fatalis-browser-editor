@@ -11,6 +11,7 @@ import {
   isBurningLight,
   isDynamicLightModelStale,
   refreshDynamicLightBaseColors,
+  refreshDynamicLightLights,
   type DynamicLightModel,
 } from '../../../../../../src/editor/modules/level/edit/dynamicLights/model.ts'
 import { writeBakedColors } from '../../../../../../src/editor/modules/level/edit/levelTextures/bakedColors.ts'
@@ -779,5 +780,81 @@ void describe('refreshDynamicLightBaseColors', () => {
     refreshDynamicLightBaseColors(model, map)
 
     assert.equal(model.baseColors[0], 255)
+  })
+})
+
+void describe('refreshDynamicLightLights', () => {
+  void it('takes the new colour of a light without a build', () => {
+    const map = litFloor()
+    const torch = lightOf({ x: 0, y: -200, z: 0 })
+
+    map.llf.lights = [torch]
+
+    const model = modelOf(map)
+    const lighter = lightOf({ x: 0, y: -200, z: 0 }, { color: { r: 255, g: 0, b: 0, a: 255 } })
+
+    map.setLights([{ index: 0, light: lighter }])
+
+    assert.equal(refreshDynamicLightLights(model, map), true)
+    // the frame of the layer reads the light of the model: it is the one of the level now
+    assert.equal(model.lights[0], lighter)
+  })
+
+  void it('draws the new colour on the next frame', () => {
+    const map = litFloor()
+    const dim = lightOf({ x: 0, y: -200, z: 0 }, { color: { r: 25, g: 0, b: 0, a: 255 } })
+    const bright = lightOf({ x: 0, y: -200, z: 0 }, { color: { r: 200, g: 0, b: 0, a: 255 } })
+
+    map.llf.lights = [dim]
+
+    const model = modelOf(map)
+    const geometry = geometryOf(map)
+
+    applyDynamicLightModel(
+      model,
+      geometry,
+      () => {
+        return 0
+      },
+      true,
+    )
+
+    const dimRed = colorOf(map, 0, 0)
+
+    map.setLights([{ index: 0, light: bright }])
+    refreshDynamicLightLights(model, map)
+    applyDynamicLightModel(
+      model,
+      geometry,
+      () => {
+        return 0
+      },
+      true,
+    )
+
+    assert.ok(colorOf(map, 0, 0) > dimRed)
+  })
+
+  void it('asks for a build when a light moved, grew brighter or changed its flags', () => {
+    const map = litFloor()
+    const torch = lightOf({ x: 0, y: -200, z: 0 })
+
+    map.llf.lights = [torch]
+
+    const model = modelOf(map)
+    const moved = lightOf({ x: 20, y: -200, z: 0 })
+    const brighter = lightOf({ x: 20, y: -200, z: 0 }, { intensity: 2 })
+    const doused = lightOf(
+      { x: 20, y: -200, z: 0 },
+      { intensity: 2, flags: ArxLightFlags.SemiDynamic | ArxLightFlags.StartExtinguished },
+    )
+
+    const needsBuild = [moved, brighter, doused].map((light) => {
+      map.setLights([{ index: 0, light }])
+
+      return refreshDynamicLightLights(model, map)
+    })
+
+    assert.deepEqual(needsBuild, [false, false, false])
   })
 })

@@ -157,8 +157,12 @@ export type DynamicLightModel = {
   readonly normalVersion: number
   /**
    * The semi-dynamic lights that burn at load, in the order the pairs name them.
+   *
+   * @remarks
+   * The list is the lights of the map, and a light edit replaces them in the LLF: the entries are the ones the weights
+   * were built from, and a colour that changed only swaps the entries (see {@link refreshDynamicLightLights}).
    */
-  readonly lights: readonly ArxLight[]
+  readonly lights: ArxLight[]
   /**
    * The vertices the layer touches, in ascending order of the geometry.
    */
@@ -610,6 +614,68 @@ export function refreshDynamicLightBaseColors(model: DynamicLightModel, map: Arx
   for (let index = 0; index < model.paletteIndexes.length; index = index + 1) {
     writeBaseColor(model.paletteIndexes[index], source, model.baseColors, index * 3)
   }
+}
+
+/**
+ * Tells whether two states of a light throw the same light on a corner.
+ *
+ * @remarks
+ * The weights of the layer are the cosine, the falloff, the intensity and the factors of the game, multiplied once: the
+ * place, the two radii, the intensity and the flags of a light are what they were built from. The colour and the flicker
+ * are read on every frame, so a build is not needed when only those changed.
+ *
+ * @param one The state the weights were built from.
+ * @param other The state of the level now.
+ *
+ * @returns True when the two give the same weights.
+ */
+function sameWeightsOf(one: ArxLight, other: ArxLight): boolean {
+  return (
+    one.position.x === other.position.x &&
+    one.position.y === other.position.y &&
+    one.position.z === other.position.z &&
+    one.fallStart === other.fallStart &&
+    one.fallEnd === other.fallEnd &&
+    one.intensity === other.intensity &&
+    one.flags === other.flags
+  )
+}
+
+/**
+ * Takes the new colour of the lights into a built model, without building it again.
+ *
+ * @remarks
+ * The light editor writes a light on the frame of every input, and the layer draws the light of the model: the build of
+ * the pairs is the expensive half of the layer (a good part of a frame on a big level), so a colour that changed only
+ * swaps the light the model reads and moves the base colours with the palette. A light that moved, changed its reach,
+ * its intensity or its flags gives the same answer as a rebuild: the weights are stale.
+ *
+ * @param model The model that takes the lights.
+ * @param map The level the model belongs to.
+ *
+ * @returns True when the model took the lights, false when the layer needs a build.
+ */
+export function refreshDynamicLightLights(model: DynamicLightModel, map: ArxMap): boolean {
+  const burning = map.lights.filter((light) => {
+    return isBurningLight(light)
+  })
+
+  if (burning.length !== model.lights.length) {
+    return false
+  }
+
+  for (const [index, light] of burning.entries()) {
+    const built = model.lights[index]
+
+    if (built === undefined || !sameWeightsOf(built, light)) {
+      return false
+    }
+  }
+
+  model.lights.splice(0, model.lights.length, ...burning)
+  refreshDynamicLightBaseColors(model, map)
+
+  return true
 }
 
 /**

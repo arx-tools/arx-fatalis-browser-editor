@@ -4,10 +4,11 @@ import { history, metadataCommandOf, type HistoryCommand } from '../../history/h
 import { historyOfMap, rememberMapHistory, type HistorySnapshot } from '../../history/mapHistory.ts'
 import { dropStoredHistory, readStoredHistory } from '../../history/mapHistoryStorage.ts'
 import { commandOf } from '../../history/commands.ts'
-import { createDeleteFacesRecord } from '../../history/records.ts'
+import { createDeleteFacesRecord, type SetLightRecord } from '../../history/records.ts'
 import { onKeyboardAction } from '../../keyboard/keyboard.ts'
 import { bumpPortalRevision } from '../../rooms/portalSync.ts'
 import { selectionStore } from '../../selection/selectionStore.ts'
+import { refreshLightPalette, type LightPaletteChange } from './lightPalette.ts'
 import { bumpLightingCacheVersion } from './lightingCache.ts'
 import { touchLights } from './lightEditing.ts'
 import { levelStore } from './levelStore.ts'
@@ -64,6 +65,36 @@ export function bumpTextureRevision(): void {
 }
 
 /**
+ * Bakes the palette of the level again where a light edit changed the light of its corners.
+ *
+ * @remarks
+ * The step carries the two states of every light it touched, and those are the spheres the partial bake needs: the
+ * palette follows the light on the undo and the redo, which do not run the live write of the widget.
+ *
+ * @param record The record of the step.
+ */
+function refreshLightPaletteOf(record: SetLightRecord): void {
+  const map = levelStore.map.value
+
+  if (map === undefined) {
+    return
+  }
+
+  const changed: LightPaletteChange[] = []
+
+  for (const at of record.indices.keys()) {
+    const before = record.before[at]
+    const after = record.after[at]
+
+    if (before !== undefined && after !== undefined) {
+      changed.push({ before, after })
+    }
+  }
+
+  refreshLightPalette(map, changed)
+}
+
+/**
  * Wraps a step, so the views follow what it does.
  *
  * @remarks
@@ -96,9 +127,11 @@ function withRevision(command: HistoryCommand): HistoryCommand {
       bumpPortalRevision()
     }
 
-    // a light edit moves the markers and their shapes with the fields of the light
+    // a light edit moves the markers and their shapes with the fields of the light, and the palette of the level with
+    // the light itself (the undo and the redo take the palette back the same way the live edit moved it)
     else if (step.record.kind === 'setLight') {
       touchLights()
+      refreshLightPaletteOf(step.record)
     }
   }
 

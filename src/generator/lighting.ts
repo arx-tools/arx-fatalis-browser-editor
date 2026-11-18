@@ -6,6 +6,7 @@ import {
   type ArxLight,
   type ArxLLF,
   type ArxPolygon,
+  type ArxVector3,
 } from 'arx-convert/types'
 import { isQuad } from 'arx-convert/utils'
 import { MathUtils, type Mesh, Raycaster, Vector3 } from 'three'
@@ -291,6 +292,11 @@ function isOccluded(raycaster: Raycaster, blockers: Mesh[], from: Vector3, direc
 
 /**
  * What the bake of one corner reads.
+ *
+ * @remarks
+ * The two vectors are the corner, and a walk writes them for every corner it bakes: the bake of a level builds one of
+ * these and moves it from corner to corner, so the loop does not allocate a new context for each of the hundred thousand
+ * corners of a big level.
  */
 type CornerBake = {
   /**
@@ -301,10 +307,6 @@ type CornerBake = {
    * The normal of the corner in the frame of the scene.
    */
   readonly normal: Vector3
-  /**
-   * Whether the face is drawn from both sides, so the normal turned away still takes the light.
-   */
-  readonly doubleSided: boolean
   /**
    * The lights the profile bakes, with their position in the frame of the scene.
    */
@@ -353,33 +355,40 @@ function isBlocked(options: CornerBake, from: Vector3, distance: number): boolea
 /**
  * Bakes the colour of one corner from the lights.
  *
- * @param options What the bake of the corner reads.
+ * @param options What the bake of the corner reads, with the corner in {@link CornerBake.position} and its normal in
+ * {@link CornerBake.normal}.
+ * @param doubleSided Whether the face is drawn from both sides, so the normal turned away still takes the light.
  *
  * @returns The colour, with the ambient floor of the profile.
  */
-function bakeCornerOf(options: CornerBake): ArxColor {
+function bakeCornerOf(options: CornerBake, doubleSided: boolean): ArxColor {
   let red = 0
   let green = 0
   let blue = 0
 
   for (const { light, position } of options.lights) {
-    options.toLight.subVectors(position, options.position)
+    // the squared distance rejects the light before the square root and the divisions: a corner of a big level is out
+    // of the reach of most of its lights, and the full bake is half a second of this loop
+    const alongX = position.x - options.position.x
+    const alongY = position.y - options.position.y
+    const alongZ = position.z - options.position.z
+    const squaredX = alongX * alongX
+    const squaredY = alongY * alongY
+    const squaredZ = alongZ * alongZ
+    const distanceSquared = squaredX + squaredY + squaredZ
+    const reach = light.fallEnd * light.fallEnd
 
-    const distance = options.toLight.length()
-
-    if (distance === 0) {
+    if (distanceSquared === 0 || distanceSquared > reach) {
       continue
     }
 
-    if (distance > light.fallEnd) {
-      continue
-    }
+    const distance = Math.sqrt(distanceSquared)
 
-    options.toLight.divideScalar(distance)
+    options.toLight.set(alongX, alongY, alongZ).divideScalar(distance)
 
     let cosine = options.normal.dot(options.toLight)
 
-    if (options.doubleSided) {
+    if (doubleSided) {
       cosine = Math.abs(cosine)
     }
 
@@ -416,28 +425,6 @@ function bakeCornerOf(options: CornerBake): ArxColor {
 }
 
 /**
- * Bakes the palette of the level from its lights.
- *
- * @remarks
- * The palette is a flat list in the order of the polygons: a face owns three colours (one per corner) or four (the
- * fourth corner of a quad), and every corner reads the entry its `llfColorIdx` names. The bake computes the colour of
- * every corner from the lights of the LLF, so a geometry edit (a new tunnel, a deleted wall) gets a light of its own
- * instead of the placeholder of the step.
- *
- * The frame is the editor's: the FTS vertices are absolute and the LLF lights are scene relative, so the light is
- * `scenePosition + lightPosition` in the game's frame, and the bake mirrors both the way the mesh is mirrored.
- *
- * The `Arx` profile is the game-like one (the static lights, the factor of the game, the ambient floor of the game);
- * the `Realistic` one keeps the semidynamic lights out too, like the game's own palette, and with the true factor and
- * the occlusion test of its shadows it is the brighter, more physical one. The other modes are for checking.
- *
- * @param fts The scene of the level.
- * @param llf The lighting of the level: the lights and the palette.
- * @param options The profile of the bake and what it reads.
- *
- * @returns The colours of the palette, one for every entry of the lighting.
- */
-/**
  * How many corners a chunk of the asynchronous bake computes before it lets the page paint.
  *
  * @remarks
@@ -455,6 +442,98 @@ async function letThePagePaint(): Promise<void> {
   await new Promise<void>((resolve) => {
     setTimeout(resolve, 0)
   })
+}
+
+/**
+ * The scene of the level, and the corner a walk of the bake moves.
+ */
+type BakeContext = {
+  /**
+   * The position of the scene of the level, which the corners and the lights are relative to.
+   */
+  readonly scenePosition: ArxVector3
+  /**
+   * The corner every step of the walk writes before it bakes it.
+   */
+  readonly corner: CornerBake
+}
+
+/**
+ * Reads what a bake of the lights needs, once.
+ *
+ * @remarks
+ * The full bake and the bake of the corners a light reaches share this: the lights, the blockers, the factor and the
+ * floor of the profile. The modes that do not read the lights (`MaxBrightness`, `CompleteDarkness`, `TextureRainbow`,
+ * `Flat`) have no context: their palette is not the light of the level.
+ *
+ * @param fts The scene of the level.
+ * @param llf The lighting of the level.
+ * @param options The profile of the bake and what it reads.
+ *
+ * @returns What the bake of a corner reads, or `undefined` when the mode does not read the lights.
+ */
+function bakeContextOf(fts: ArxFTS, llf: ArxLLF, options: LightingOptions): BakeContext | undefined {
+  const modesWithoutLights: readonly LightingCalculatorMode[] = [
+    'MaxBrightness',
+    'CompleteDarkness',
+    'TextureRainbow',
+    'Flat',
+  ]
+
+  if (modesWithoutLights.includes(options.mode)) {
+    return undefined
+  }
+
+  const shadows = options.shadows ?? true
+  let blockers: Mesh[] = []
+  let factor = GLOBAL_LIGHT_FACTOR
+
+  if (shadows && options.occluders !== undefined && options.mode === 'Realistic') {
+    blockers = [...options.occluders]
+  }
+
+  if (options.mode === 'Realistic') {
+    factor = 1
+  }
+
+  const raycaster = new Raycaster()
+  raycaster.firstHitOnly = true
+
+  return {
+    scenePosition: fts.header.mScenePosition,
+    corner: {
+      position: new Vector3(),
+      normal: new Vector3(),
+      lights: collectLights(llf),
+      blockers,
+      raycaster,
+      factor,
+      ambient: ambientOf(options.mode, options.ambientFloor ?? 0),
+      toLight: new Vector3(),
+    },
+  }
+}
+
+/**
+ * Moves the corner of a bake to one corner of a face.
+ *
+ * @remarks
+ * The frame is the editor's: the FTS vertices are absolute and the scene position shifts them into the frame of the
+ * lights, and both the position and the normal are mirrored the way the mesh is.
+ *
+ * @param context The corner of the walk.
+ * @param polygon The face the corner belongs to.
+ * @param index The position of the corner in the face, from zero.
+ */
+function moveCornerOf(context: BakeContext, polygon: ArxPolygon, index: number): void {
+  const vertex = polygon.vertices[index]
+  const { scenePosition, corner } = context
+
+  corner.position.set(-vertex.x + scenePosition.x, -vertex.y + scenePosition.y, vertex.z - scenePosition.z)
+
+  const normal = normalOfCorner(polygon, index)
+
+  corner.normal.set(-normal.x, -normal.y, normal.z).normalize()
 }
 
 /**
@@ -497,54 +576,24 @@ function* bakeLlfColorsSteps(fts: ArxFTS, llf: ArxLLF, options: LightingOptions)
     })
   }
 
-  const scenePosition = fts.header.mScenePosition
-  const lights = collectLights(llf)
-  const ambient = ambientOf(options.mode, options.ambientFloor ?? 0)
-  const shadows = options.shadows ?? true
-  let blockers: Mesh[] = []
-
-  if (shadows && options.occluders !== undefined && options.mode === 'Realistic') {
-    blockers = [...options.occluders]
-  }
-
-  const raycaster = new Raycaster()
-  raycaster.firstHitOnly = true
-
+  const context = bakeContextOf(fts, llf, options)
   const colors: ArxColor[] = llf.colors.map(() => {
     return { r: 0, g: 0, b: 0, a: 255 }
   })
-  const cornerPosition = new Vector3()
-  const cornerNormal = new Vector3()
-  const toLight = new Vector3()
-  let factor = GLOBAL_LIGHT_FACTOR
 
-  if (options.mode === 'Realistic') {
-    factor = 1
+  if (context === undefined) {
+    return colors
   }
 
   for (const polygon of fts.polygons) {
     const doubleSided = (polygon.flags & ArxPolygonFlags.DoubleSided) !== 0
 
     for (let index = 0; index < colorCountOf(polygon); index = index + 1) {
-      const vertex = polygon.vertices[index]
-      const colorIndex = vertex.llfColorIdx
+      const colorIndex = polygon.vertices[index].llfColorIdx
 
       if (colorIndex !== undefined) {
-        const normal = normalOfCorner(polygon, index)
-
-        cornerPosition.set(-vertex.x + scenePosition.x, -vertex.y + scenePosition.y, vertex.z - scenePosition.z)
-        cornerNormal.set(-normal.x, -normal.y, normal.z).normalize()
-        colors[colorIndex] = bakeCornerOf({
-          position: cornerPosition,
-          normal: cornerNormal,
-          doubleSided,
-          lights,
-          blockers,
-          raycaster,
-          factor,
-          ambient,
-          toLight,
-        })
+        moveCornerOf(context, polygon, index)
+        colors[colorIndex] = bakeCornerOf(context.corner, doubleSided)
       }
 
       yield
@@ -609,4 +658,106 @@ export async function bakeLlfColorsInChunks(fts: ArxFTS, llf: ArxLLF, options: L
   }
 
   return step.value
+}
+
+/**
+ * Tells whether a corner is close enough to a light to take its light.
+ *
+ * @param corner The corner, in the frame of the scene.
+ * @param lights The lights, with their position in the frame of the scene.
+ *
+ * @returns True when at least one of them reaches the corner.
+ */
+function isReachedBy(
+  corner: Vector3,
+  lights: ReadonlyArray<{ readonly position: Vector3; readonly fallEnd: number }>,
+): boolean {
+  for (const light of lights) {
+    const dx = corner.x - light.position.x
+    const dy = corner.y - light.position.y
+    const dz = corner.z - light.position.z
+    const alongX = dx * dx
+    const alongY = dy * dy
+    const alongZ = dz * dz
+    const distanceSquared = alongX + alongY + alongZ
+    const reach = light.fallEnd * light.fallEnd
+
+    if (distanceSquared <= reach) {
+      return true
+    }
+  }
+
+  return false
+}
+
+/**
+ * Bakes the palette entries of the corners some lights reach.
+ *
+ * @remarks
+ * The light editor writes a light on every frame of a drag, and the palette has to follow it: the full bake would be
+ * half a second on a big level, so this one bakes only the corners the light **before** the edit and the light **after**
+ * it reach — the two spheres mark every entry whose colour the edit can change. The two states are needed: a light that
+ * shrinks or moves away has to give its old corners back to the other lights, and those corners are the ones the sphere
+ * of its old place holds.
+ *
+ * The colour of an entry is the one the full bake would write: the walk bakes it from **every** light of the level, not
+ * only from the changed one, and with the same math (see {@link bakeCornerOf}). The position of the light is the scene
+ * relative one of the LLF, the same the full bake reads.
+ *
+ * The modes that do not read the lights (`MaxBrightness`, `CompleteDarkness`, `TextureRainbow`, `Flat`) give an empty
+ * map: their palette is not the light of the level.
+ *
+ * @param fts The scene of the level.
+ * @param llf The lighting of the level: the lights and the palette.
+ * @param options The profile of the bake and what it reads.
+ * @param reach The lights whose corners are baked: the two states of every light an edit touched.
+ *
+ * @returns The new colour of every affected palette entry, by its index in the palette.
+ */
+export function bakeLlfColorsAround(
+  fts: ArxFTS,
+  llf: ArxLLF,
+  options: LightingOptions,
+  reach: readonly ArxLight[],
+): Map<number, ArxColor> {
+  const colors = new Map<number, ArxColor>()
+  const context = bakeContextOf(fts, llf, options)
+
+  if (context === undefined) {
+    return colors
+  }
+
+  const lights = reach
+    .filter((light) => {
+      return light.fallEnd > 0
+    })
+    .map((light) => {
+      return { position: arxVector3toVector3(light.position), fallEnd: light.fallEnd }
+    })
+
+  if (lights.length === 0) {
+    return colors
+  }
+
+  const { corner } = context
+
+  for (const polygon of fts.polygons) {
+    const doubleSided = (polygon.flags & ArxPolygonFlags.DoubleSided) !== 0
+
+    for (let index = 0; index < colorCountOf(polygon); index = index + 1) {
+      const colorIndex = polygon.vertices[index].llfColorIdx
+
+      if (colorIndex === undefined) {
+        continue
+      }
+
+      moveCornerOf(context, polygon, index)
+
+      if (isReachedBy(corner.position, lights)) {
+        colors.set(colorIndex, bakeCornerOf(corner, doubleSided))
+      }
+    }
+  }
+
+  return colors
 }

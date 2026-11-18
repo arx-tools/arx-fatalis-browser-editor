@@ -6,7 +6,7 @@ import { createSetLightRecord, type LightChange, type SetLightEdit } from '../..
 import { runStep } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { lightsRevision, touchLights } from '../../../modules/level/edit/lightEditing.ts'
-import { bakeLighting } from '../../../modules/level/edit/lighting.ts'
+import { refreshLightPalette, type LightPaletteChange } from '../../../modules/level/edit/lightPalette.ts'
 import { lightSelectionStore } from '../../../modules/selection/lightSelectionStore.ts'
 import WidgetHeading from '../../WidgetHeading.vue'
 import LightColorPicker from './LightColorPicker.vue'
@@ -121,9 +121,9 @@ function cloneLightOf(light: ArxLight): ArxLight {
  * Writes the fields to the selected lights, and tells the markers.
  *
  * @remarks
- * This is the live half of the edit: the fields of the draft go to every selected light on the frame of the input, and
- * the Light Inspector and the markers follow the revision. The history does not see it yet; {@link commit} writes the
- * step when the field is left.
+ * This is the live half of the edit: the fields of the draft go to every selected light on the frame of the input, the
+ * palette of the level is baked again where the light changed it, and the Light Inspector and the markers follow the
+ * revision. The history does not see it yet; {@link commit} writes the step when the field is left.
  */
 function writeLive(): void {
   const map = levelStore.map.value
@@ -134,12 +134,17 @@ function writeLive(): void {
   }
 
   const changes: LightChange[] = []
+  const paletteChanges: LightPaletteChange[] = []
 
   for (const index of current.indices) {
     const base = map.lights[index]
 
     if (base !== undefined) {
-      changes.push({ index, light: lightWithFieldsOf(base, fields) })
+      const light = lightWithFieldsOf(base, fields)
+
+      changes.push({ index, light })
+      // the light the map holds is the one before the write: it is what the palette baked, and the partial bake needs it
+      paletteChanges.push({ before: base, after: light })
     }
   }
 
@@ -148,16 +153,18 @@ function writeLive(): void {
   }
 
   map.setLights(changes)
+  refreshLightPalette(map, paletteChanges)
   dirty = true
   touchLights()
 }
 
 /**
- * Writes the step of the edit, and bakes the palette again.
+ * Writes the step of the edit.
  *
  * @remarks
  * The step is the difference of the two snapshots; a field that went back to where it was is not a step. The palette is
- * re-baked in full here until the partial bake of the live edit arrives (the light editor of the 245).
+ * not baked here: the live write has already moved the corners of the light, and the step bakes them again where it
+ * changed the light (on the undo and the redo too, see `refreshLightPaletteOf`), so the two agree.
  */
 function commit(): void {
   if (!dirty) {
@@ -205,9 +212,6 @@ function commit(): void {
 
   if (command !== undefined) {
     runStep(command)
-    bakeLighting().catch((error: unknown) => {
-      console.warn('[light-editor] the palette could not be baked again.', error)
-    })
   }
 }
 

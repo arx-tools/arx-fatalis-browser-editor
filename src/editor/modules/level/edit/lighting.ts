@@ -1,105 +1,40 @@
 import type { ArxColor } from 'arx-convert/types'
 import { shallowRef, watch, type ShallowRef } from 'vue'
 import { bakeLlfColorsInChunks } from '../../../../generator/lighting.ts'
-import type { LightingCalculatorMode } from '../../../../generator/types.ts'
-import { parseJson } from '../../persistedRef/functions.ts'
-import { persistedRef } from '../../persistedRef/persistedRef.ts'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { writeBakedColors } from './levelTextures/bakedColors.ts'
 import { lightingCacheVersion } from './lightingCache.ts'
 import { setFlatLight } from './lightingFlat.ts'
+import {
+  flatLightOfProfile,
+  flatLuminosity,
+  lightingProfile,
+  paletteBakeOptionsOf,
+  paletteKeyOf,
+} from './lightingProfile.ts'
 import { paintLevel, repaintLevelColors } from './levelTextures.ts'
 import { levelStore } from './levelStore.ts'
 
 /**
- * The profiles the lighting widget offers.
+ * The profiles of the lighting, and what a bake of the palette reads.
  *
  * @remarks
- * Both profiles bake the static lights, which is what the game's own palette holds: the `Arx` one is the look of the
- * game (a factor of 0.85 and the ambient floor of the palette), the `Realistic` one the true factor of 1, with its own
- * ambient floor and shadows. The torches are semidynamic lights, and the game lights them up at runtime, so neither
- * profile puts them into the palette (2026-11-16, the owner's decision). `TextureRainbow` is a check of the textures,
- * not a look for a level.
- *
- * The `Flat` profile is one grey on every corner, set by a slider of its own (0 is dark, 1 is the brightest, in steps
- * of 0.1): it covers the old max brightness and darkness in one control, and its light is the same whatever the lamps
- * of the level do.
+ * The profile is a fact of the author, not of the level: it stays in the browser, and the widget shows it. This module
+ * bakes with it; the refs and the options live in `lightingProfile.ts`, which the partial bake of a light edit reads
+ * without the paint of the level.
  */
-export type LightingProfile = Extract<LightingCalculatorMode, 'Arx' | 'Realistic' | 'TextureRainbow' | 'Flat'>
-
-/**
- * The profiles of the widget, in the order the select shows them.
- */
-export const LIGHTING_PROFILES: ReadonlyArray<{ readonly value: LightingProfile; readonly label: string }> =
-  Object.freeze([
-    Object.freeze({ value: 'Arx', label: 'Arx' }),
-    Object.freeze({ value: 'Flat', label: 'Flat' }),
-    Object.freeze({ value: 'Realistic', label: 'Realistic' }),
-    Object.freeze({ value: 'TextureRainbow', label: 'Texture Rainbow' }),
-  ])
-
-/**
- * The profile a level starts with.
- */
-export const DEFAULT_LIGHTING_PROFILE: LightingProfile = 'Flat'
-
-/**
- * Tells whether a value is a profile the widget knows.
- *
- * @param value The value of the storage or of the url.
- *
- * @returns True when it is one of the profiles.
- */
-export function isLightingProfile(value: unknown): value is LightingProfile {
-  return LIGHTING_PROFILES.some((profile) => {
-    return profile.value === value
-  })
-}
-
-/**
- * The profile of the lighting, in the local storage.
- *
- * @remarks
- * The profile is a fact of the author, not of the level (the same as the name of the export): it stays in the browser
- * between the maps. A stored value this build does not know falls back to the default one. The `Flat` one draws one
- * grey on every corner, and its slider sets how bright that grey is.
- */
-export const lightingProfile = persistedRef<LightingProfile>({
-  key: 'lightingProfile',
-  defaultValue: DEFAULT_LIGHTING_PROFILE,
-  persistInLocalStorage: true,
-  deserialize: (raw: string): LightingProfile | undefined => {
-    const value = parseJson(raw)
-
-    if (isLightingProfile(value)) {
-      return value
-    }
-
-    return undefined
-  },
-})
-
-/**
- * The light of the `Flat` profile, from 0 (dark) to 1 (the brightest).
- *
- * @remarks
- * The widget's slider moves it in steps of 0.1, and the bake of the flat profile reads it. It is a fact of the author,
- * like the profile: it stays in the browser.
- */
-export const flatLuminosity = persistedRef<number>({
-  key: 'flatLuminosity',
-  defaultValue: 0.7,
-  persistInLocalStorage: true,
-  deserialize: (raw: string): number | undefined => {
-    const value = parseJson(raw)
-
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      return Math.min(1, Math.max(0, value))
-    }
-
-    return undefined
-  },
-})
+export {
+  DEFAULT_LIGHTING_PROFILE,
+  LIGHTING_PROFILES,
+  flatLightOfProfile,
+  flatLuminosity,
+  isLightingProfile,
+  lightingProfile,
+  paletteBakeOptionsOf,
+  paletteKeyOf,
+  readsPalette,
+  type LightingProfile,
+} from './lightingProfile.ts'
 
 /**
  * Whether the palette of the level is being baked now.
@@ -137,38 +72,6 @@ type CachedPalette = {
  * pure function of the level and the profile, so it is kept until a step changes the level (the version).
  */
 const paletteCache = new WeakMap<ArxMap, Map<string, CachedPalette>>()
-
-/**
- * The light of the flat profile of the map, or `undefined` for the palette.
- *
- * @param profile Which profile bakes the map now.
- * @param luminosity The slider of the widget, 0 to 1.
- *
- * @returns The grey it draws with, or `undefined` when the palette does.
- */
-function flatLightOfProfile(profile: LightingProfile, luminosity: number): number | undefined {
-  if (profile === 'Flat') {
-    return luminosity
-  }
-
-  return undefined
-}
-
-/**
- * The key of a palette in the cache: the profile, and the luminosity of the flat one.
- *
- * @param profile Which profile bakes the map now.
- * @param luminosity The slider of the widget, 0 to 1.
- *
- * @returns The key the cache stores the palette under.
- */
-function paletteKeyOf(profile: LightingProfile, luminosity: number): string {
-  if (profile === 'Flat') {
-    return `Flat:${luminosity.toFixed(1)}`
-  }
-
-  return profile
-}
 
 /**
  * Reads a cached palette of a level and a profile, when it is still the palette of the level.
@@ -222,7 +125,8 @@ function rememberPaletteOf(map: ArxMap, key: string, colors: ArxColor[]): void {
  * made stale writes nothing: the newer bake owns the palette.
  *
  * The bake runs at the start of the widget: a map that arrives is baked with the profile, and a profile change bakes
- * the map on the screen. The bake after every **step** is the next slice of the lighting round.
+ * the map on the screen. A light edit does not come through here: it bakes only the corners its light changed (see
+ * `lightPalette.ts`).
  */
 export async function bakeLighting(): Promise<void> {
   const map = levelStore.map.value
@@ -254,13 +158,7 @@ export async function bakeLighting(): Promise<void> {
   isBakingLighting.value = true
 
   try {
-    const colors = await bakeLlfColorsInChunks(map.fts, map.llf, {
-      mode: profile,
-      flatLuminosity: luminosity,
-      occluders: map.solidMeshes,
-      ambientFloor: 23,
-      shadows: false,
-    })
+    const colors = await bakeLlfColorsInChunks(map.fts, map.llf, paletteBakeOptionsOf(map))
 
     // a newer profile or a newer map owns the palette: the colours of this bake are stale
     if (generation !== bakeGeneration) {
@@ -303,13 +201,7 @@ export async function bakeLoadedMap(map: ArxMap): Promise<void> {
   isBakingLighting.value = true
 
   try {
-    const colors = await bakeLlfColorsInChunks(map.fts, map.llf, {
-      mode: lightingProfile.value,
-      flatLuminosity: flatLuminosity.value,
-      occluders: map.solidMeshes,
-      ambientFloor: 23,
-      shadows: false,
-    })
+    const colors = await bakeLlfColorsInChunks(map.fts, map.llf, paletteBakeOptionsOf(map))
 
     if (generation !== bakeGeneration) {
       return

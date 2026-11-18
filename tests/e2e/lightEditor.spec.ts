@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { editorUrl, waitForLayoutSettled } from './support/editor.ts'
+import { editorUrl, nextFrames, screenshotDifference, waitForLayoutSettled } from './support/editor.ts'
 
 /**
  * Opens the Lighter preset, where the Light Editor and the Light Inspector sit under the controls.
@@ -75,4 +75,65 @@ test('the colour picker changes the colour of the light', async ({ page }) => {
 
   await expect(hex).not.toHaveText(before)
   await expect(page.getByRole('button', { name: /Undo/ })).toBeEnabled()
+})
+
+/**
+ * The palette of the level follows a light edit without leaving the field.
+ *
+ * @remarks
+ * The light editor writes the light on the frame of every input, and the palette of the `Arx` profile has to follow it:
+ * the surface of the level around the light changes colour on the picture, not after the field is left. The undo bakes
+ * the same corners back, so the picture of the level before the edit comes back exactly.
+ */
+test('the Light Editor bakes the palette live, and the undo takes it back', async ({ page }) => {
+  await page.setViewportSize({ width: 1631, height: 850 })
+
+  await page.goto(editorUrl())
+  await page.locator('header button[aria-label="Presets"]').click()
+  await page.locator('.preset-menu .preset-row', { hasText: 'Lighter' }).click()
+  await waitForLayoutSettled(page)
+
+  // the palette is what the Arx profile draws, and only the static lights are in it
+  const controls = page.locator('[data-widget-kind="lighting-controls"] select')
+
+  await expect(controls).toBeVisible({ timeout: 60_000 })
+  await controls.selectOption('Arx')
+
+  const inspector = page.locator('[data-widget-kind="light-inspector"]')
+
+  await expect(inspector.locator('.light').first()).toBeVisible({ timeout: 60_000 })
+  await inspector.locator('select.shape-filter').selectOption('star')
+
+  const row = inspector.locator('.light').first()
+
+  // the jump puts the light in the middle of the walkable view, so its surface is on the picture
+  await row.locator('.jump').click()
+  await nextFrames(page, 3)
+  await page.waitForTimeout(500)
+
+  const stage = page.locator('[data-widget-kind="3d-view"] canvas.stage')
+  const before = await stage.screenshot()
+  const intensity = page.locator('[data-widget-kind="light-editor"] input[aria-label="Intensity"]')
+
+  await expect(intensity).not.toHaveValue('')
+
+  await intensity.fill('20')
+  await intensity.press('Tab')
+  await nextFrames(page, 3)
+
+  const brighter = await stage.screenshot()
+  const lit = await screenshotDifference(page, before, brighter)
+
+  // the light is much brighter: the surface around it is lighter, not a few of its edges
+  expect(lit.differing).toBeGreaterThan(100)
+  expect(lit.secondSum).toBeGreaterThan(lit.firstSum)
+
+  await page.getByRole('button', { name: /Undo/ }).click()
+  await nextFrames(page, 3)
+
+  const undone = await stage.screenshot()
+  const back = await screenshotDifference(page, before, undone)
+
+  // the palette is the same as before the edit: a still camera draws the same picture
+  expect(back.differing).toBe(0)
 })

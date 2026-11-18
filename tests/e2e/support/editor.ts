@@ -643,3 +643,73 @@ export async function litPixels(view: Locator): Promise<number> {
     return count
   }, shot.toString('base64'))
 }
+
+/**
+ * The dotted reading of two screenshots: how many pixels differ, and how bright the two are together.
+ *
+ * @param page The page the screenshots were taken in: the browser decodes the images.
+ * @param first The picture of the level before the change.
+ * @param second The picture of it after the change.
+ *
+ * @returns The count of the pixels that differ, the brightness of both and the largest difference.
+ */
+export async function screenshotDifference(
+  page: Page,
+  first: Buffer,
+  second: Buffer,
+): Promise<{ differing: number; pixels: number; firstSum: number; secondSum: number; peak: number }> {
+  return await page.evaluate(
+    async ([one, other]) => {
+      const view = globalThis
+      async function imageOf(base64: string): Promise<ImageData> {
+        const image = new view.Image()
+
+        image.src = `data:image/png;base64,${base64}`
+        await image.decode()
+
+        const canvas = view.document.createElement('canvas')
+
+        canvas.width = image.width
+        canvas.height = image.height
+
+        const context = canvas.getContext('2d')
+
+        if (context === null) {
+          throw new Error('the browser gave no canvas to decode the screenshot')
+        }
+
+        context.drawImage(image, 0, 0)
+
+        return context.getImageData(0, 0, image.width, image.height)
+      }
+
+      const firstImage = await imageOf(one)
+      const secondImage = await imageOf(other)
+      let differing = 0
+      let firstSum = 0
+      let secondSum = 0
+      let peak = 0
+
+      for (let index = 0; index < firstImage.data.length; index = index + 4) {
+        const firstColor = firstImage.data[index] + firstImage.data[index + 1] + firstImage.data[index + 2]
+        const secondColor = secondImage.data[index] + secondImage.data[index + 1] + secondImage.data[index + 2]
+
+        firstSum = firstSum + firstColor
+        secondSum = secondSum + secondColor
+
+        const difference = Math.abs(firstColor - secondColor)
+
+        if (difference > 6) {
+          differing = differing + 1
+        }
+
+        if (difference > peak) {
+          peak = difference
+        }
+      }
+
+      return { differing, pixels: firstImage.data.length / 4, firstSum, secondSum, peak }
+    },
+    [first.toString('base64'), second.toString('base64')],
+  )
+}

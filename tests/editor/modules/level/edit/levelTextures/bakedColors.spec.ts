@@ -3,7 +3,10 @@ import { describe, it } from 'node:test'
 import { ArxPolygonFlags, type ArxColor, type ArxPolygon } from 'arx-convert/types'
 import { Color, SRGBColorSpace } from 'three'
 import { createBlankLevelFiles, FLAT_PRESET } from '../../../../../../src/editor/modules/level/blankLevel.ts'
-import { writeBakedColors } from '../../../../../../src/editor/modules/level/edit/levelTextures/bakedColors.ts'
+import {
+  writeBakedColors,
+  writeBakedCornerColors,
+} from '../../../../../../src/editor/modules/level/edit/levelTextures/bakedColors.ts'
 import { setFlatLight } from '../../../../../../src/editor/modules/level/edit/lightingFlat.ts'
 import { ArxMap } from '../../../../../../src/generator/ArxMap.ts'
 import { Settings } from '../../../../../../src/generator/Settings.ts'
@@ -160,5 +163,96 @@ void describe('writeBakedColors', () => {
     writeBakedColors(map)
 
     assert.deepEqual(firstColorsOf(map, 6), [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
+  })
+})
+
+void describe('writeBakedCornerColors', () => {
+  /**
+   * The palette of four corners of the tests, and the entries of the face.
+   *
+   * @param map The level to paint.
+   *
+   * @returns The palette, so a test can change one entry of it.
+   */
+  function paintPalette(map: ArxMap): ArxColor[] {
+    const palette: ArxColor[] = [
+      { r: 255, g: 0, b: 0, a: 255 },
+      { r: 0, g: 255, b: 0, a: 255 },
+      { r: 0, g: 0, b: 255, a: 255 },
+      { r: 255, g: 255, b: 255, a: 255 },
+    ]
+    const polygon = firstPolygonOf(map)
+
+    map.llf.colors = palette
+
+    for (const [index, vertex] of polygon.vertices.entries()) {
+      vertex.llfColorIdx = index
+    }
+
+    writeBakedColors(map)
+
+    return palette
+  }
+
+  void it('writes the corners of the entries it is given, and leaves the others alone', () => {
+    const map = flatMap()
+    const palette = paintPalette(map)
+    const changed: ArxColor = { r: 10, g: 20, b: 30, a: 255 }
+
+    palette[1] = changed
+
+    const written = writeBakedCornerColors(map, new Set([1]))
+    const values = firstColorsOf(map, 6)
+    // the attribute is a float32 array: the expected values go through one too
+    const linear = linearOf(changed).map((value) => {
+      return Math.fround(value)
+    })
+
+    assert.equal(written, true)
+    // the renderer walks the quad as a, b, c and c, b, d: the entry 1 is the second and the fifth corner
+    assert.deepEqual(values.slice(3, 6), linear)
+    assert.deepEqual(values.slice(12, 15), linear)
+    // the entries the writer was not told about keep the colour of the full write
+    assert.deepEqual(values.slice(0, 3), linearOf(palette[0] ?? { r: 0, g: 0, b: 0, a: 255 }))
+    assert.deepEqual(values.slice(6, 9), linearOf(palette[2] ?? { r: 0, g: 0, b: 0, a: 255 }))
+    assert.deepEqual(values.slice(15, 18), linearOf(palette[3] ?? { r: 0, g: 0, b: 0, a: 255 }))
+  })
+
+  void it('leaves a blended face white, whatever the palette says', () => {
+    const map = flatMap()
+    const palette = paintPalette(map)
+    const polygon = firstPolygonOf(map)
+
+    polygon.flags = ArxPolygonFlags.Quad | ArxPolygonFlags.Transparent
+    polygon.transval = 0.5
+    writeBakedColors(map)
+    palette[1] = { r: 10, g: 20, b: 30, a: 255 }
+
+    writeBakedCornerColors(map, new Set([1]))
+
+    assert.deepEqual(firstColorsOf(map, 6), [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
+  })
+
+  void it('does not write on the flat profile, which does not read the palette', () => {
+    const map = flatMap()
+    const palette = paintPalette(map)
+
+    setFlatLight(map, 0.5)
+    palette[1] = { r: 10, g: 20, b: 30, a: 255 }
+
+    assert.equal(writeBakedCornerColors(map, new Set([1])), false)
+
+    setFlatLight(map, undefined)
+  })
+
+  void it('gives up when the mesh has no colour attribute yet', () => {
+    const map = flatMap()
+    const palette = paintPalette(map)
+    const geometry = map.solidMeshes[0]?.geometry
+
+    geometry?.deleteAttribute('color')
+    palette[1] = { r: 10, g: 20, b: 30, a: 255 }
+
+    assert.equal(writeBakedCornerColors(map, new Set([1])), false)
   })
 })

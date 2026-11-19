@@ -44,6 +44,15 @@ const LIGHT_MARKER_TEXTURE_SIZE = 64
 const DISABLED_MARKER_COLOR = new Color(0.55, 0.55, 0.55)
 
 /**
+ * The same grey as {@link DISABLED_MARKER_COLOR}, as a css colour.
+ *
+ * @remarks
+ * The fixed views draw their dots on a 2D canvas, and not the sprites of the walkable view: the two must read the same,
+ * so the grey is written once and read both ways.
+ */
+export const DISABLED_MARKER_GREY = '#8c8c8c'
+
+/**
  * The opacity of a disabled marker.
  */
 const DISABLED_MARKER_OPACITY = 0.3

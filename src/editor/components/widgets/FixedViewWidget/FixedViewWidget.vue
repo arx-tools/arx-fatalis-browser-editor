@@ -33,7 +33,7 @@ import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import { hoverRoom, litRooms } from '../../../modules/rooms/roomStore.ts'
 import { pickRoom } from '../../../modules/rooms/roomSelection.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
-import { isLightDisabled } from '../shared/lightMarkers.ts'
+import { DISABLED_MARKER_GREY, isLightDisabled } from '../shared/lightMarkers.ts'
 import {
   createPolygonSelectionOverlay,
   pickPolygonAt,
@@ -150,12 +150,16 @@ let lightMarks: Array<{ position: Vector3; light: ArxLight }> = []
 const LIGHT_DOT_COLOR = '#ffd54a'
 
 /**
- * The side of a dot of a light, in pixels.
+ * The radius of a dot of a light, in pixels.
  */
-const LIGHT_DOT_SIZE = 3
+const LIGHT_DOT_RADIUS = 1.5
 
 /**
  * Draws the dots of the lights over the canvas, or clears them while the switch is off.
+ *
+ * @remarks
+ * A dot is a small **circle**: the square of the first round read as a pixel of the map at some zooms (2026-11-19, the
+ * owner). A light of a switched off layer is grey, so it stays findable without claiming it lights the level.
  *
  * @param target The view whose camera projects the lights.
  */
@@ -189,15 +193,8 @@ function drawLights(target: ViewScene<OrthographicCamera>): void {
 
   const halfWidth = width / 2
   const halfHeight = height / 2
-  const offset = Math.floor(LIGHT_DOT_SIZE / 2)
-
-  context.fillStyle = LIGHT_DOT_COLOR
 
   for (const mark of lightMarks) {
-    if (isLightDisabled(mark.light)) {
-      continue
-    }
-
     const point = mark.position.clone().project(target.camera)
 
     if (Math.abs(point.z) > 1) {
@@ -211,7 +208,17 @@ function drawLights(target: ViewScene<OrthographicCamera>): void {
       continue
     }
 
-    context.fillRect(x - offset, y - offset, LIGHT_DOT_SIZE, LIGHT_DOT_SIZE)
+    // a light the switches took out stays on the plan, grey: the author has to find it too (2026-11-19, the owner)
+    let colour = LIGHT_DOT_COLOR
+
+    if (isLightDisabled(mark.light)) {
+      colour = DISABLED_MARKER_GREY
+    }
+
+    context.fillStyle = colour
+    context.beginPath()
+    context.arc(x, y, LIGHT_DOT_RADIUS, 0, Math.PI * 2)
+    context.fill()
   }
 }
 

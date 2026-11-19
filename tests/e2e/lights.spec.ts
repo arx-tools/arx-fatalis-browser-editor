@@ -61,3 +61,42 @@ test('the fixed views draw a marker of every light while the switch is on', asyn
     })
     .toBe(0)
 })
+
+/**
+ * The dots of a fixed view follow the light switch on the blank level, without a data directory.
+ *
+ * @remarks
+ * The level the editor opens is a plane with one light of its own (2026-11-20, the owner): a test of the markers does not
+ * have to wait for the level of the game's files, and the dot is there the moment the level arrives. The switch is read
+ * by the view on a frame it asks for: a frame it never draws would leave the dot on the canvas (the bug of the frozen
+ * tabs), so the test is also the one that reads a switch of the fixed views.
+ */
+test('the dots of the blank level follow the switch of the lights', async ({ page }) => {
+  await page.setViewportSize({ width: 1631, height: 850 })
+  await seedLayout(page, editorLayout)
+  await page.goto('/?map=blank-flat')
+  await waitForLevel(page)
+
+  // the level brings one light, and the markers start off like every overlay
+  await expect
+    .poll(async () => {
+      return await lightPixels(page)
+    })
+    .toBe(0)
+
+  await page.keyboard.press('l')
+
+  await expect
+    .poll(async () => {
+      return await lightPixels(page)
+    })
+    .toBeGreaterThan(0)
+
+  await page.keyboard.press('l')
+
+  await expect
+    .poll(async () => {
+      return await lightPixels(page)
+    })
+    .toBe(0)
+})

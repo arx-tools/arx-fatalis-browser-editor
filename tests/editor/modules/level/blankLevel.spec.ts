@@ -91,6 +91,17 @@ void describe('createBlankLevelFiles', () => {
     assert.equal(map.lights.length, 0)
     assert.equal(map.meshes.length, 1)
   })
+
+  void it('lights the Flat preset with one light over the middle of the floor', () => {
+    const map = blankMap(FLAT_PRESET)
+
+    // the plane the editor opens with is a place to build in, and the light of the level is the first thing to see
+    // (2026-11-20, the owner); the game's Y axis points down, so the light hangs over the floor at a negative one
+    assert.equal(map.lights.length, 1)
+    assert.deepEqual(map.lights[0]?.position, { x: 0, y: -400, z: 0 })
+    // the file keeps the three channels of a light's colour: the alpha comes back as the reader normalises it
+    assert.deepEqual([map.lights[0]?.color.r, map.lights[0]?.color.g, map.lights[0]?.color.b], [255, 230, 190])
+  })
 })
 
 void describe('the presets of a new level', () => {

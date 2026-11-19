@@ -1,5 +1,5 @@
 import { DLF, FTS, LLF } from 'arx-convert'
-import type { ArxDLF, ArxFTS, ArxLLF } from 'arx-convert/types'
+import { ArxLightFlags, type ArxDLF, type ArxFTS, type ArxLight, type ArxLLF } from 'arx-convert/types'
 import { getHeaderSize } from 'arx-header-size'
 import { BLANK_LEVEL_TEXTURE } from '../../../generator/assets.ts'
 import type { LevelFiles } from './source/levelSource.ts'
@@ -43,6 +43,16 @@ export type NewLevelPreset = {
    * How many tiles of {@link BLANK_LEVEL_TILE_SIZE} the floor has on a side.
    */
   readonly tiles: number
+  /**
+   * Whether the level comes with one light over the middle of the floor.
+   *
+   * @remarks
+   * The Flat preset brings a light (2026-11-20, the owner): it is the plane the editor opens with, a place to build in,
+   * and the light of a new level is the first thing its author wants to see. It is also what the tests of the fixed
+   * views need: a light without a data directory (the level of the game's files takes ten seconds to load, and a test
+   * of a yellow dot should not pay for it).
+   */
+  readonly lit?: boolean
 }
 
 /**
@@ -51,9 +61,9 @@ export type NewLevelPreset = {
 export const MINIMAL_PRESET: NewLevelPreset = { name: 'Minimal', tiles: 1 }
 
 /**
- * A floor of 11×11 tiles (a 1100×1100 square): more to walk on and to build at.
+ * A floor of 11×11 tiles (a 1100×1100 square): more to walk on and to build at, and one light over its middle.
  */
-export const FLAT_PRESET: NewLevelPreset = { name: 'Flat', tiles: 11 }
+export const FLAT_PRESET: NewLevelPreset = { name: 'Flat', tiles: 11, lit: true }
 
 /**
  * The ways a new level can start, in the order a picker shows them.
@@ -226,20 +236,48 @@ function blankDescription(preset: NewLevelPreset): ArxDLF {
 }
 
 /**
- * The lighting of a blank level: it has none yet, the lighting round brings the first lamp.
+ * The light a lit preset brings: a warm one over the middle of the floor.
  *
- * @param preset The preset of the new level: its floor says how many polygons the level has.
+ * @remarks
+ * The game's Y axis points down, so the floor is at 0 and the light hangs over it at a negative Y. The numbers are the
+ * ones of a torch of the game's own levels (a warm white, a soft falloff), so a blank level does not look like a studio.
+ */
+const BLANK_LIGHT: ArxLight = {
+  position: { x: 0, y: -400, z: 0 },
+  color: { r: 255, g: 230, b: 190, a: 255 },
+  fallStart: 100,
+  fallEnd: 900,
+  intensity: 1,
+  exFlicker: { r: 0, g: 0, b: 0, a: 255 },
+  exRadius: 0,
+  exFrequency: 0,
+  exSize: 0,
+  exSpeed: 0,
+  exFlareSize: 0,
+  flags: ArxLightFlags.None,
+}
+
+/**
+ * The lighting of a blank level: none, or the one light of a lit preset.
  *
- * @returns The LLF with no light.
+ * @param preset The preset of the new level: its floor says how many polygons the level has, and whether it is lit.
+ *
+ * @returns The LLF with no light, or with the light over the middle of the floor.
  */
 function blankLighting(preset: NewLevelPreset): ArxLLF {
+  let lights: ArxLight[] = []
+
+  if (preset.lit === true) {
+    lights = [BLANK_LIGHT]
+  }
+
   return {
     header: {
       lastModifiedBy: 'arx-fatalis-browser-editor',
       lastModifiedAt: 0,
       numberOfPolygonsInFTS: preset.tiles * preset.tiles,
     },
-    lights: [],
+    lights,
     colors: [],
   }
 }

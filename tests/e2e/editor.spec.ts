@@ -1,5 +1,13 @@
 import { expect, test } from '@playwright/test'
-import { editorUrl } from './support/editor.ts'
+import {
+  editorUrl,
+  layoutWithSelectionInspector,
+  lockPointer,
+  readPose,
+  seedLayout,
+  waitForLevel,
+  writePose,
+} from './support/editor.ts'
 
 /**
  * The smoke test of the shell: the editor opens in a real browser, the dock is built and the browser
@@ -72,4 +80,50 @@ test('the header keeps the title and the version on a narrow window', async ({ p
   await expect(brand.locator('.source')).toBeVisible()
   await expect(brand.locator('.support')).toBeVisible()
   await expect(brand.locator('.dot').first()).toBeVisible()
+})
+
+/**
+ * The pointer lock walks the camera with the keys, and the movement stops when they are released.
+ *
+ * @remarks
+ * The walk is a chain of animation frames of its own (`frameLoop.ts`): a request for a frame that replaces a pending
+ * one would cancel that chain, and the camera would stand still under the lock (2026-11-19, the owner: the keys worked
+ * up to the release of the fix of the frozen views). The test is the one the unit tests of the camera controls can not
+ * be: they call `update` by hand, and the broken part was the loop that calls it.
+ */
+test('the pointer lock walks the camera with the keys', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'the pointer lock of the walkable view needs chromium here')
+  test.setTimeout(120_000)
+
+  await seedLayout(page, layoutWithSelectionInspector())
+  await page.goto(editorUrl())
+
+  const view = page.locator('[data-widget-kind="3d-view"] canvas').first()
+
+  await expect(view).toBeVisible()
+  await waitForLevel(page)
+
+  const spawn = await readPose(page)
+
+  await lockPointer(page, view)
+  await writePose(page, spawn)
+
+  const before = await readPose(page)
+
+  // the walk forward: the keys, and the frames the locked loop draws
+  await page.keyboard.down('w')
+  await page.waitForTimeout(600)
+  await page.keyboard.up('w')
+  await page.waitForTimeout(200)
+
+  const walked = await readPose(page)
+
+  expect([walked.x, walked.z]).not.toEqual([before.x, before.z])
+
+  // the keys are up: the camera stands still again
+  await page.waitForTimeout(300)
+
+  const rested = await readPose(page)
+
+  expect([rested.x, rested.z]).toEqual([walked.x, walked.z])
 })

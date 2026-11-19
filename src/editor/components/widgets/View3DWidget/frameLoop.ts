@@ -97,7 +97,19 @@ export function createFrameLoop(context: FrameLoopContext): FrameLoop {
   /**
    * The frame the loop waits for, or `0` when none is asked for.
    */
+  /**
+   * The frame of the locked loop: the chain that walks the camera while the pointer is locked.
+   */
   let frame = 0
+
+  /**
+   * The frame of a one-shot request of an idle view.
+   *
+   * @remarks
+   * The two are apart on purpose: a one-shot request replaces its own pending frame, and it must not touch the chain of
+   * the loop, which is the movement of the camera (2026-11-19, the owner: the walk stopped under the lock).
+   */
+  let redrawFrame = 0
 
   /**
    * The timestamp of the last frame of the locked loop, in milliseconds, or `0` before the first one.
@@ -188,15 +200,20 @@ export function createFrameLoop(context: FrameLoopContext): FrameLoop {
   function requestRender(): void {
     redrawNeeded = true
 
+    // the locked loop draws it on its next frame: the camera moves every frame, so there is no frame to ask for
+    if (looping) {
+      return
+    }
+
     // a frame already asked for is cancelled and asked again: a browser that freezes a tab in the background may drop
     // the callback it owes, and the id would stay set forever, which would leave the view on the picture of the load
     // (2026-11-19, the owner: the dots of a fixed view kept the state of the load)
-    if (frame !== 0) {
-      cancelAnimationFrame(frame)
+    if (redrawFrame !== 0) {
+      cancelAnimationFrame(redrawFrame)
     }
 
-    frame = requestAnimationFrame((now) => {
-      frame = 0
+    redrawFrame = requestAnimationFrame((now) => {
+      redrawFrame = 0
       redrawNeeded = false
       drawFrame(now)
     })
@@ -258,6 +275,13 @@ export function createFrameLoop(context: FrameLoopContext): FrameLoop {
 
     looping = true
     lastFrameAt = 0
+
+    // the loop draws the frame a request of an idle view may have asked for
+    if (redrawFrame !== 0) {
+      cancelAnimationFrame(redrawFrame)
+      redrawFrame = 0
+    }
+
     frame = requestAnimationFrame(animate)
   }
 
@@ -296,9 +320,14 @@ export function createFrameLoop(context: FrameLoopContext): FrameLoop {
         cancelAnimationFrame(frame)
         frame = 0
       }
+
+      if (redrawFrame !== 0) {
+        cancelAnimationFrame(redrawFrame)
+        redrawFrame = 0
+      }
     },
     get isRunning(): boolean {
-      return frame !== 0
+      return frame !== 0 || redrawFrame !== 0
     },
   }
 }

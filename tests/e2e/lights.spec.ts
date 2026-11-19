@@ -100,3 +100,61 @@ test('the dots of the blank level follow the switch of the lights', async ({ pag
     })
     .toBe(0)
 })
+
+/**
+ * A dropped animation frame does not leave the dots of a fixed view on the picture of their last draw.
+ *
+ * @remarks
+ * The browser owes a callback for every frame a view asks for, and a native dialog (the data dir picker) or a frozen tab
+ * can lose one: the view would keep the state it drew last, and a switch would change the level and not the dots
+ * (2026-11-19, the owner: level 0 from the picker kept its dots after the lights were switched off). The test drops the
+ * callbacks of a window of time, and expects the view to ask again by itself.
+ */
+test('the dots of a fixed view come back after the frames a dialog dropped', async ({ page }) => {
+  await page.setViewportSize({ width: 1631, height: 850 })
+  await seedLayout(page, editorLayout)
+  await page.goto('/?map=blank-flat')
+  await waitForLevel(page)
+
+  await page.keyboard.press('l')
+
+  await expect
+    .poll(async () => {
+      return await lightPixels(page)
+    })
+    .toBeGreaterThan(0)
+
+  // the frames asked for in this window never come: the callback of each one is dropped
+  await page.evaluate(() => {
+    const raf = globalThis.requestAnimationFrame
+    const dropper: { until: number } = { until: performance.now() + 1200 }
+
+    Object.defineProperty(globalThis, 'requestAnimationFrame', {
+      configurable: true,
+      writable: true,
+      value: (callback: FrameRequestCallback): number => {
+        if (performance.now() < dropper.until) {
+          // the browser takes the frame and never runs it
+          return raf(() => {
+            return undefined
+          })
+        }
+
+        return raf(callback)
+      },
+    })
+  })
+
+  // the switch asks for a frame while they are dropped
+  await page.keyboard.press('l')
+
+  // the watchdog of the view asks again after the window, and the dots follow the switch
+  await expect
+    .poll(
+      async () => {
+        return await lightPixels(page)
+      },
+      { timeout: 10_000 },
+    )
+    .toBe(0)
+})

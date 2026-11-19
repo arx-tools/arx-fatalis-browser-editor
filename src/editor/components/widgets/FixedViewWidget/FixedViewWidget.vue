@@ -115,6 +115,21 @@ let bounds: CameraBounds | undefined
 let scenePosition: ArxVector3 | undefined
 let observer: ResizeObserver | undefined
 let frame = 0
+
+/**
+ * How long a requested frame may stay undone before the view asks for it again, in milliseconds.
+ *
+ * @remarks
+ * The browser owes a callback for every `requestAnimationFrame`, and a native dialog (the data dir picker) or a frozen
+ * tab can lose one. A view that only draws on a change would keep the picture of its load for good: the watchdog is the
+ * way back, and it is short enough that nobody notices it.
+ */
+const FRAME_WATCHDOG_IN_MS = 250
+
+/**
+ * The timer of the watchdog of the requested frame, when one is waiting.
+ */
+let watchdog: ReturnType<typeof setTimeout> | undefined
 let stopWatching: (() => void) | undefined
 let stopWatchingCamera: (() => void) | undefined
 let stopWatchingWireframe: (() => void) | undefined
@@ -240,18 +255,40 @@ let selectionOverlay: PolygonSelectionOverlay | undefined
  * widget is resized, so there is no render loop.
  *
  * The frame that is already asked for is **cancelled and asked again**, and a frame is not skipped because one is
- * pending: a browser that freezes a tab in the background may drop the callback it owes, and the id would stay set
- * forever — the view would draw the state it had at the load and never follow a switch again (2026-11-19, the owner:
- * the dots of a view kept the state of the load). A request of a frame costs a cancel and a request, and the frame it
- * replaces draws the same state.
+ * pending: a browser may drop the callback it owes (a frozen tab, and a native dialog like the data dir picker of the
+ * editor), and the id would stay set forever — the view would draw the state it had at the load and never follow a
+ * switch again (2026-11-19, the owner: the dots of a view kept the state of the load).
+ *
+ * A request also sets a **watchdog**: a callback that never comes would leave the last state on the canvas, and a view
+ * that waits for the next change would wait forever. The watchdog asks for a frame again, and it goes away when the
+ * frame is drawn.
  */
 function requestRender(): void {
   if (frame !== 0) {
     cancelAnimationFrame(frame)
   }
 
+  if (watchdog !== undefined) {
+    clearTimeout(watchdog)
+  }
+
+  watchdog = setTimeout(() => {
+    watchdog = undefined
+    frame = 0
+
+    // the widget may be gone by the time a dropped frame is noticed: a view without a scene asks for nothing
+    if (view !== undefined) {
+      requestRender()
+    }
+  }, FRAME_WATCHDOG_IN_MS)
+
   frame = requestAnimationFrame(() => {
     frame = 0
+
+    if (watchdog !== undefined) {
+      clearTimeout(watchdog)
+      watchdog = undefined
+    }
 
     if (view !== undefined) {
       const target = view
@@ -817,6 +854,11 @@ onBeforeUnmount(() => {
   if (frame !== 0) {
     cancelAnimationFrame(frame)
     frame = 0
+  }
+
+  if (watchdog !== undefined) {
+    clearTimeout(watchdog)
+    watchdog = undefined
   }
 
   if (view !== undefined) {

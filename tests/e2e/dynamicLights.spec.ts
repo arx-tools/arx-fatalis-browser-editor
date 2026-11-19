@@ -46,6 +46,37 @@ function stageOf(page: Page): Locator {
 }
 
 /**
+ * The colours of the dots on the marker overlay of the top view.
+ *
+ * @param page The page of the editor.
+ *
+ * @returns Every colour the overlay paints, as `r,g,b`, without the pixels of an alpha of zero.
+ */
+async function dotColoursOf(page: Page): Promise<string[]> {
+  return await page.locator('[data-widget-kind="top-view"] canvas.lights').evaluate((node) => {
+    const canvas = node as HTMLCanvasElement
+    const context = canvas.getContext('2d')
+
+    if (context === null) {
+      return []
+    }
+
+    const { data } = context.getImageData(0, 0, canvas.width, canvas.height)
+    const colours = new Set<string>()
+
+    for (let index = 0; index < data.length; index = index + 4) {
+      if ((data[index + 3] ?? 0) === 0) {
+        continue
+      }
+
+      colours.add(`${String(data[index])},${String(data[index + 1])},${String(data[index + 2])}`)
+    }
+
+    return [...colours]
+  })
+}
+
+/**
  * The number of lit pixels on the marker overlay of the top view.
  *
  * @param page The page of the editor.
@@ -161,7 +192,9 @@ test('the dynamic light switch stays in the browser', async ({ page }) => {
   await expect(page.locator('#static-lights')).toHaveAttribute('aria-pressed', 'false')
 })
 
-test('the small views draw the marker shapes, and hide the lights of a switched off layer', async ({ page }) => {
+test('the small views draw the yellow dots of the lights, and hide the lights of a switched off layer', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1631, height: 850 })
   await openTorch(page, { flatZero: false })
   await page.waitForTimeout(800)
@@ -178,6 +211,14 @@ test('the small views draw the marker shapes, and hide the lights of a switched 
       return await markerPixelsOf(page)
     })
     .toBeGreaterThan(0)
+
+  // the plan draws one colour for every light: the fixed yellow of the dots, and not the colour of the light
+  // (2026-11-19, the owner: the coloured shapes read as a smudge on a plan)
+  await expect
+    .poll(async () => {
+      return await dotColoursOf(page)
+    })
+    .toEqual(['255,213,74'])
 
   // static off: every light of the layer is disabled, so nothing is drawn
   await statics.click()

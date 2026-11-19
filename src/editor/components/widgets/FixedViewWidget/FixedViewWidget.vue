@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { OrthographicCamera, Vector2, type Mesh, type Vector3 } from 'three'
-import type { ArxColor, ArxLight, ArxPolygon, ArxVector3 } from 'arx-convert/types'
+import type { ArxLight, ArxPolygon, ArxVector3 } from 'arx-convert/types'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { cameraStore } from '../camera/cameraStore.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
@@ -33,13 +33,7 @@ import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import { hoverRoom, litRooms } from '../../../modules/rooms/roomStore.ts'
 import { pickRoom } from '../../../modules/rooms/roomSelection.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
-import {
-  drawLightMarkerShape,
-  FIXED_VIEW_MARKER_SIZE,
-  isLightDisabled,
-  lightMarkerShapeOf,
-  type LightMarkerShape,
-} from '../shared/lightMarkers.ts'
+import { isLightDisabled } from '../shared/lightMarkers.ts'
 import {
   createPolygonSelectionOverlay,
   pickPolygonAt,
@@ -136,18 +130,32 @@ let stopWatchingGroups: (() => void) | undefined
 let stopWatchingLights: (() => void) | undefined
 
 /**
- * The markers of the lights of the level: their place in the space of the meshes, their shape and colour, and the light
- * they belong to.
+ * The lights of the level: their place in the space of the meshes, and the light itself.
  *
  * @remarks
- * The fixed views draw the same markers as the walkable view, at one small size (2026-11-18, the owner): the shapes are
- * a 2D overlay over the canvas, and not sprites of the scene. A light whose layer is switched off is left out: the small
- * views show the level, and a disabled light draws nothing.
+ * The fixed views draw a **fixed yellow dot** for every light (2026-11-19, the owner: the coloured shapes of the walkable
+ * view read as a smudge on a plan, and the dots are what the views had before). The dots are a 2D overlay over the
+ * canvas, and not sprites of the scene. A light whose layer is switched off is left out: the small views show the level,
+ * and a disabled light draws nothing.
  */
-let lightMarks: Array<{ position: Vector3; color: ArxColor; shape: LightMarkerShape; light: ArxLight }> = []
+let lightMarks: Array<{ position: Vector3; light: ArxLight }> = []
 
 /**
- * Draws the markers of the lights over the canvas, or clears them while the switch is off.
+ * The colour of the dot of a light, in the fixed views.
+ *
+ * @remarks
+ * One colour for every light: the plan of the level says where the lights are, and the shape and the colour of a light
+ * are the business of the walkable view and of the Light Inspector (2026-11-19, the owner).
+ */
+const LIGHT_DOT_COLOR = '#ffd54a'
+
+/**
+ * The side of a dot of a light, in pixels.
+ */
+const LIGHT_DOT_SIZE = 3
+
+/**
+ * Draws the dots of the lights over the canvas, or clears them while the switch is off.
  *
  * @param target The view whose camera projects the lights.
  */
@@ -181,8 +189,9 @@ function drawLights(target: ViewScene<OrthographicCamera>): void {
 
   const halfWidth = width / 2
   const halfHeight = height / 2
-  const size = FIXED_VIEW_MARKER_SIZE
-  const offset = size / 2
+  const offset = Math.floor(LIGHT_DOT_SIZE / 2)
+
+  context.fillStyle = LIGHT_DOT_COLOR
 
   for (const mark of lightMarks) {
     if (isLightDisabled(mark.light)) {
@@ -202,10 +211,7 @@ function drawLights(target: ViewScene<OrthographicCamera>): void {
       continue
     }
 
-    context.save()
-    context.translate(x - offset, y - offset)
-    drawLightMarkerShape(context, mark.shape, size, mark.color)
-    context.restore()
+    context.fillRect(x - offset, y - offset, LIGHT_DOT_SIZE, LIGHT_DOT_SIZE)
   }
 }
 
@@ -522,14 +528,9 @@ function showMap(map: ArxMap): void {
   portalLines = attachPortalLines(view.scene, map.fts.portals, arxVector3toVector3(map.scenePosition))
   portalLines.setVisible(isMeshVisible.value && isPortalsVisible.value)
 
-  // the lights of the LLF: the fixed views draw the shape of every light, in the overlay above the canvas
+  // the lights of the LLF: the fixed views draw a dot for every light, in the overlay above the canvas
   lightMarks = map.lights.map((light) => {
-    return {
-      position: arxVector3toVector3(light.position),
-      color: light.color,
-      shape: lightMarkerShapeOf(light),
-      light,
-    }
+    return { position: arxVector3toVector3(light.position), light }
   })
 
   // the fill of the selection, in the space of the same meshes

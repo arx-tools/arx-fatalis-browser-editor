@@ -35,15 +35,6 @@ const LIGHT_MARKER_MIN_SIZE = 6
 const LIGHT_MARKER_TEXTURE_SIZE = 64
 
 /**
- * How big a marker is in a fixed view, in CSS pixels.
- *
- * @remarks
- * The small views draw the same shapes as the walkable one, at one size: a light's `fallStart` is not readable in a plan
- * of the whole level, and a fixed size keeps the rows of the lights apart.
- */
-export const FIXED_VIEW_MARKER_SIZE = 10
-
-/**
  * The grey a marker takes when the light of its group is switched off.
  *
  * @remarks

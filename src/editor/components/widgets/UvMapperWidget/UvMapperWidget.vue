@@ -392,10 +392,15 @@ function draw(): void {
 
 /**
  * Turns the model write into a frame, so a drag of the pointer does not re-render the views on every event.
+ *
+ * @remarks
+ * A frame that is already asked for is cancelled and asked again: a browser that freezes a tab in the background may
+ * drop the callback it owes, and the id would stay set forever, which would stop the views from following the mapper
+ * (see the same guard in the fixed view).
  */
 function requestRedraw(): void {
   if (redrawFrame !== 0) {
-    return
+    cancelAnimationFrame(redrawFrame)
   }
 
   redrawFrame = requestAnimationFrame(() => {

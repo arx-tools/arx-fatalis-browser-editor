@@ -238,10 +238,16 @@ let selectionOverlay: PolygonSelectionOverlay | undefined
  * @remarks
  * Nothing of this widget moves by itself: the scene is redrawn when the level arrives and when the
  * widget is resized, so there is no render loop.
+ *
+ * The frame that is already asked for is **cancelled and asked again**, and a frame is not skipped because one is
+ * pending: a browser that freezes a tab in the background may drop the callback it owes, and the id would stay set
+ * forever — the view would draw the state it had at the load and never follow a switch again (2026-11-19, the owner:
+ * the dots of a view kept the state of the load). A request of a frame costs a cancel and a request, and the frame it
+ * replaces draws the same state.
  */
 function requestRender(): void {
   if (frame !== 0) {
-    return
+    cancelAnimationFrame(frame)
   }
 
   frame = requestAnimationFrame(() => {

@@ -188,9 +188,11 @@ export function createFrameLoop(context: FrameLoopContext): FrameLoop {
   function requestRender(): void {
     redrawNeeded = true
 
+    // a frame already asked for is cancelled and asked again: a browser that freezes a tab in the background may drop
+    // the callback it owes, and the id would stay set forever, which would leave the view on the picture of the load
+    // (2026-11-19, the owner: the dots of a fixed view kept the state of the load)
     if (frame !== 0) {
-      // the locked loop draws it, on its next frame
-      return
+      cancelAnimationFrame(frame)
     }
 
     frame = requestAnimationFrame((now) => {

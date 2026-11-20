@@ -33,6 +33,25 @@ export const roomNames: ShallowRef<ReadonlyMap<number, string>> = shallowRef(new
 let activeMapId: string | undefined
 
 /**
+ * The fingerprint of the file the names belong to, for the write of a change.
+ *
+ * @remarks
+ * A level number opens more than one file (the final release, a demo), and the names are the room ids of **that** file:
+ * the fingerprint is what tells the write which version of the level it names, the way the history and the groups are
+ * keyed. The names of a level whose file is not known yet (it is still loading) are not written.
+ */
+let activeFingerprint: string | undefined
+
+/**
+ * Whether the storage keeps names of this level on another version of its file.
+ *
+ * @remarks
+ * A level that opens from another version starts without the names it had: the note of the inspector says why, and that
+ * the other names are kept for their own version.
+ */
+export const roomNamesOnAnotherVersion = shallowRef(false)
+
+/**
  * The name of a room, when the author gave one.
  *
  * @param room The id of the room.
@@ -55,13 +74,15 @@ export function nameOf(room: number): string {
 }
 
 /**
- * Writes the names of the level that just opened, and remembers the level.
+ * Writes the names of the level that just opened, and remembers the level and its file.
  *
  * @param id The value of the map the names belong to.
+ * @param fingerprint The fingerprint of the file the names belong to, or `undefined` while the file is not open.
  * @param names The names of the level.
  */
-export function setRoomNamesOf(id: string, names: ReadonlyMap<number, string>): void {
+export function setRoomNamesOf(id: string, fingerprint: string | undefined, names: ReadonlyMap<number, string>): void {
   activeMapId = id
+  activeFingerprint = fingerprint
   roomNames.value = names
 }
 
@@ -69,7 +90,7 @@ export function setRoomNamesOf(id: string, names: ReadonlyMap<number, string>): 
  * Writes the names of the open level down, so a reload and the export find them.
  */
 function saveRoomNames(): void {
-  if (activeMapId === undefined) {
+  if (activeMapId === undefined || activeFingerprint === undefined) {
     return
   }
 
@@ -79,7 +100,10 @@ function saveRoomNames(): void {
     names[String(room)] = name
   }
 
-  writeRoomNamesOf(activeMapId, names)
+  writeRoomNamesOf(activeMapId, activeFingerprint, names)
+
+  // the storage has the names of this file now: the note of the other version has nothing to say
+  roomNamesOnAnotherVersion.value = false
 }
 
 /**

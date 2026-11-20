@@ -6,6 +6,7 @@ import {
   deleteFaceGroups,
   faceGroupRows,
   faceIndicesOfGroup,
+  groupsOnAnotherVersion,
   renameFaceGroup,
   setFaceGroupVisibility,
   type FaceGroupRow,
@@ -228,6 +229,9 @@ function removeGroup(row: FaceGroupRow): void {
       </template>
     </WidgetHeading>
     <p class="selection">{{ selectionLabel }}</p>
+    <p v-if="groupsOnAnotherVersion" class="version-note" role="status">
+      Groups of another version of this level are kept, and not shown.
+    </p>
     <ul ref="groupList" class="groups" tabindex="0" @pointerdown="focusList">
       <li
         v-for="row in rows"
@@ -338,6 +342,16 @@ function removeGroup(row: FaceGroupRow): void {
     opacity: 0.45;
     cursor: default;
   }
+}
+
+// the note of a level whose groups belong to another version of its file: the list under it is empty, and the note says
+// where the groups went
+.version-note {
+  margin: 0;
+  padding: 0 6px;
+  color: $text-muted;
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 // what the selection is: the input of the button above

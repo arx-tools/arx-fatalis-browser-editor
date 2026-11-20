@@ -12,7 +12,13 @@ import {
 } from '../../../modules/rooms/roomList.ts'
 import { deleteRooms } from '../../../modules/rooms/roomDeletion.ts'
 import { createRoomWithSelection, moveSelectionToRoom } from '../../../modules/rooms/roomMapper.ts'
-import { nameOf, renameRoomAsStep, roomNameOf, UNNAMED_ROOM } from '../../../modules/rooms/roomNames.ts'
+import {
+  nameOf,
+  renameRoomAsStep,
+  roomNameOf,
+  roomNamesOnAnotherVersion,
+  UNNAMED_ROOM,
+} from '../../../modules/rooms/roomNames.ts'
 import { portalRevision } from '../../../modules/rooms/portalSync.ts'
 import { pickRoom, roomsOfFaces } from '../../../modules/rooms/roomSelection.ts'
 import { clearRoomHover, hoveredRoom, hoverRoom, selectedRooms, selectRoom } from '../../../modules/rooms/roomStore.ts'
@@ -562,6 +568,9 @@ function removeRowRoom(room: number): void {
       </template>
     </WidgetHeading>
     <p class="selection">{{ selectionLabel }}</p>
+    <p v-if="roomNamesOnAnotherVersion" class="version-note" role="status">
+      Room names of another version of this level are kept, and not shown.
+    </p>
     <label v-if="rows.length > 0" class="search">
       <Search :size="12" class="icon" />
       <input
@@ -733,6 +742,16 @@ function removeRowRoom(room: number): void {
     color: $border;
     cursor: default;
   }
+}
+
+// the note of a level whose names belong to another version of its file: the list under it says the rooms without their
+// names, and the note says where the names went
+.version-note {
+  margin: 0;
+  padding: 0 6px;
+  color: $text-muted;
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 // what the selection is in: the line the three moves speak about

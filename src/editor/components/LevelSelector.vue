@@ -16,6 +16,7 @@ import {
   zipSettingsOf,
 } from '../modules/level/source/maps.ts'
 import { createZipLevelSource } from '../modules/level/source/zipSource.ts'
+import { loadRoomNamesOf } from '../modules/rooms/roomNamesStart.ts'
 
 // the file input is the level's way in: the browser does not let a script choose a file, so the button only presses
 // the input, and the input is out of the way because the button is what the user sees
@@ -73,7 +74,11 @@ async function loadZip(event: Event): Promise<void> {
   currentMapManifest.value = zipManifestOf(source)
   currentMapSettings.value = zipSettingsOf(source)
   adoptHistoryOf(currentMapId.value, source)
-  adoptEditorFilesOf(currentMapId.value, source)
+  adoptEditorFilesOf(currentMapId.value, source, levelStore.map.value?.fingerprint)
+
+  // the names of the level are the room ids of its file: they are read before the stored steps come back, so a rename of
+  // the history writes them under the version of the file this level was loaded as
+  loadRoomNamesOf(currentMapId.value, levelStore.map.value, currentMapManifest.value?.roomNames)
 
   // the steps the archive carries come back on the level the same way they do on a reload, and then the camera goes
   // where the zip was last left, or to the spawn of its player

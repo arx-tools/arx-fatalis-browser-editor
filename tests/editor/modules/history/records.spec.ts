@@ -1073,6 +1073,7 @@ void describe('commandOf a room delete', () => {
 
     setRoomNamesOf(
       'arx:8',
+      '1a2b3c4d:2f',
       new Map([
         [1, 'The yard'],
         [2, 'The hall'],

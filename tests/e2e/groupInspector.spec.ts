@@ -854,3 +854,88 @@ test('a group is red in the fill, and taking it apart puts the yellow back', asy
 
   expect(same.differing).toBe(0)
 })
+
+/**
+ * The groups of another version of the level are kept, and not applied.
+ *
+ * @remarks
+ * A level number opens more than one file (the final release, a demo), and the faces of a group are the indices of the
+ * file it was made on: the storage keys the groups by the fingerprint of that file. A level that opens from another file
+ * starts without the groups of the first one, the inspector says why, and the groups stay with their own version (a
+ * visit back to it finds them again).
+ */
+test('the groups of another version of the level are kept, and not applied', async ({ page }) => {
+  await seedLayout(page, groupsLayout())
+  await page.goto('/?map=blank-flat')
+  const faces = await waitForLevel(page)
+  await waitForLayoutSettled(page)
+
+  await pickFirstRoom(page)
+  await groupTheSelection(page)
+
+  const rows = groupInspector(page).locator('li.group')
+
+  await expect(rows).toHaveCount(1)
+  await expect(rows.first()).toContainText('group 1')
+
+  // the storage keys the groups by the fingerprint of the file the level was loaded from
+  const fingerprint = await page.evaluate(() => {
+    const parsed = JSON.parse(localStorage.getItem('faceGroups') ?? '{}') as {
+      maps?: Record<string, { versions?: Record<string, unknown> }>
+    }
+
+    return Object.keys(parsed.maps?.['blank:flat']?.versions ?? {})[0] ?? ''
+  })
+
+  expect(fingerprint).toMatch(/^[0-9a-f]{8}:[0-9a-f]+$/u)
+
+  // the same level opens from another file: the group is on another fingerprint, and it is not applied
+  await page.evaluate((used) => {
+    const parsed = JSON.parse(localStorage.getItem('faceGroups') ?? '{}') as {
+      maps: Record<string, { versions: Record<string, unknown> }>
+    }
+    const { versions } = parsed.maps['blank:flat']
+
+    parsed.maps['blank:flat'].versions = { 'deadbeef:1': versions[used] }
+    localStorage.setItem('faceGroups', JSON.stringify(parsed))
+  }, fingerprint)
+
+  await page.reload()
+  await waitForLevel(page)
+  await waitForLayoutSettled(page)
+
+  await expect(groupInspector(page).locator('li.group')).toHaveCount(0)
+  await expect(groupInspector(page).locator('.version-note')).toHaveText(
+    'Groups of another version of this level are kept, and not shown.',
+  )
+
+  // the group of the other version is on the storage all along
+  const kept = await page.evaluate(() => {
+    const parsed = JSON.parse(localStorage.getItem('faceGroups') ?? '{}') as {
+      maps?: Record<string, { versions?: Record<string, unknown> }>
+    }
+
+    return Object.keys(parsed.maps?.['blank:flat']?.versions ?? {})
+  })
+
+  expect(kept).toEqual(['deadbeef:1'])
+
+  // a visit back to the version the group was made on finds it again
+  await page.evaluate((used) => {
+    const parsed = JSON.parse(localStorage.getItem('faceGroups') ?? '{}') as {
+      maps: Record<string, { versions: Record<string, unknown> }>
+    }
+    const { versions } = parsed.maps['blank:flat']
+
+    parsed.maps['blank:flat'].versions = { [used]: versions['deadbeef:1'] }
+    localStorage.setItem('faceGroups', JSON.stringify(parsed))
+  }, fingerprint)
+
+  await page.reload()
+  await waitForLevel(page)
+  await waitForLayoutSettled(page)
+
+  await expect(groupInspector(page).locator('li.group')).toHaveCount(1)
+  await expect(groupInspector(page).locator('li.group').first()).toContainText(`${String(faces)} faces`)
+  await expect(groupInspector(page).locator('.version-note')).toHaveCount(0)
+})

@@ -60,7 +60,7 @@ import {
 } from './modules/level/source/maps.ts'
 import { migrateLegacyPose } from './modules/level/source/maps/mapPoses.ts'
 import { startFaceGroups } from './modules/groups/groupStore.ts'
-import { startRoomNames } from './modules/rooms/roomNamesStart.ts'
+import { loadRoomNamesOf, startRoomNames } from './modules/rooms/roomNamesStart.ts'
 import { startRoomSelection } from './modules/rooms/roomSelection.ts'
 import { startCurrentRoom } from './modules/rooms/roomUnderCrosshair.ts'
 import { startPoseTracking } from './modules/level/source/maps/poseTracking.ts'
@@ -193,7 +193,7 @@ onMounted(async () => {
           currentMapManifest.value = zipManifestOf(source)
           currentMapSettings.value = zipSettingsOf(source)
           adoptHistoryOf(currentMapId.value, source)
-          adoptEditorFilesOf(currentMapId.value, source)
+          adoptEditorFilesOf(currentMapId.value, source, levelStore.map.value?.fingerprint)
         }
       } else if (isOriginalLevelSource(source)) {
         currentMapId.value = `arx:${String(source.level)}`
@@ -218,6 +218,10 @@ onMounted(async () => {
             // the store keeps the error of the load, the walkable view shows it
           })
       }
+
+      // the names of the level are the room ids of its file, and they are read before the stored steps come back, so a
+      // rename of the history writes them under the version of the file this level was loaded as
+      loadRoomNamesOf(currentMapId.value, levelStore.map.value, currentMapManifest.value?.roomNames)
 
       // a reload keeps the steps of the level: they were written down, and they come back once the level is on the
       // screen and painted (the map of the url goes through `openMap`, which restores them the same way)

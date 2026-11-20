@@ -906,3 +906,93 @@ test('Delete takes the picked rooms out, and the undo puts them back with their 
     })
     .toBe(portalsBefore)
 })
+
+/**
+ * The names of another version of the level are kept, and not applied.
+ *
+ * @remarks
+ * A level number opens more than one file (the final release, a demo), and a room id is only the same room in the same
+ * file: the storage keys the names by the fingerprint of that file. A level that opens from another file starts without
+ * the names of the first one, the inspector says why, and the names stay with their own version (a visit back to it
+ * finds them again). The stored steps of the level go with their own file too, so the test drops them: a step of the
+ * names is metadata, and its fingerprint is the one of the version it was made on.
+ */
+test('the names of another version of the level are kept, and not applied', async ({ page }) => {
+  test.setTimeout(120_000)
+  await seedLayout(page, roomsLayout)
+  await page.goto('/?map=blank-flat')
+  await waitForLevel(page)
+
+  const roomInspector = page.locator('[data-widget-kind="room-inspector"]')
+  const row = roomInspector.locator('li.room').first()
+
+  await row.dblclick()
+
+  const field = row.locator('.rename')
+
+  await field.fill('Hall')
+  await field.press('Enter')
+  await expect(row).toContainText('Hall')
+
+  // the storage keys the names by the fingerprint of the file the level was loaded from
+  const fingerprint = await page.evaluate(() => {
+    const parsed = JSON.parse(localStorage.getItem('roomNames') ?? '{}') as {
+      maps?: Record<string, { versions?: Record<string, unknown> }>
+    }
+
+    return Object.keys(parsed.maps?.['blank:flat']?.versions ?? {})[0] ?? ''
+  })
+
+  expect(fingerprint).toMatch(/^[0-9a-f]{8}:[0-9a-f]+$/u)
+
+  // the level opens from another file: the names are on another fingerprint, and they are not applied
+  await page.evaluate((used) => {
+    const parsed = JSON.parse(localStorage.getItem('roomNames') ?? '{}') as {
+      maps: Record<string, { versions: Record<string, unknown> }>
+    }
+    const { versions } = parsed.maps['blank:flat']
+
+    parsed.maps['blank:flat'].versions = { 'deadbeef:1': versions[used] }
+    localStorage.setItem('roomNames', JSON.stringify(parsed))
+    localStorage.removeItem('mapHistory:blank:flat')
+  }, fingerprint)
+
+  await page.reload()
+  await waitForLevel(page)
+
+  const after = roomInspector.locator('li.room').first()
+
+  await expect(after).not.toContainText('Hall')
+  await expect(after).toContainText('room 1')
+  await expect(roomInspector.locator('.version-note')).toHaveText(
+    'Room names of another version of this level are kept, and not shown.',
+  )
+
+  // the names of the other version are on the storage all along
+  const kept = await page.evaluate(() => {
+    const parsed = JSON.parse(localStorage.getItem('roomNames') ?? '{}') as {
+      maps?: Record<string, { versions?: Record<string, unknown> }>
+    }
+
+    return Object.keys(parsed.maps?.['blank:flat']?.versions ?? {})
+  })
+
+  expect(kept).toEqual(['deadbeef:1'])
+
+  // a visit back to the version the names were made on finds them again
+  await page.evaluate((used) => {
+    const parsed = JSON.parse(localStorage.getItem('roomNames') ?? '{}') as {
+      maps: Record<string, { versions: Record<string, unknown> }>
+    }
+    const { versions } = parsed.maps['blank:flat']
+
+    parsed.maps['blank:flat'].versions = { [used]: versions['deadbeef:1'] }
+    localStorage.setItem('roomNames', JSON.stringify(parsed))
+  }, fingerprint)
+
+  await page.reload()
+  await waitForLevel(page)
+
+  await expect(roomInspector.locator('li.room').first()).toContainText('Hall')
+  await expect(roomInspector.locator('.version-note')).toHaveCount(0)
+})

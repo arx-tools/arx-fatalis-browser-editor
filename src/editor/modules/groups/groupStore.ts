@@ -24,11 +24,14 @@ import {
 } from '../level/source/maps.ts'
 import { selectionStore } from '../selection/selectionStore.ts'
 import {
+  groupsOfVersion,
+  hasGroupsOfAnotherVersion,
   readStoredGroups,
+  withGroupsOfVersion,
   writeStoredGroups,
   type StoredFaceGroup,
   type StoredGroups,
-  type StoredMapGroups,
+  type StoredVersionGroups,
 } from './groupStorage.ts'
 
 /**
@@ -196,6 +199,15 @@ function withoutOverlapsOf(groups: readonly FaceGroup[], present: ReadonlySet<Ar
  * The groups of the levels the author grouped faces on, by the value of the map.
  */
 const storedGroups = shallowRef<StoredGroups>({})
+
+/**
+ * Whether the storage keeps groups of this level on another version of its file.
+ *
+ * @remarks
+ * The groups of a level are the indices of the file they were made on, so a level that opens from another version starts
+ * without them: the note of the widget says why, and that the other groups are kept for their own version.
+ */
+export const groupsOnAnotherVersion = shallowRef(false)
 
 /**
  * Whether {@link activeFaceGroups} belongs to the map on the screen.
@@ -566,16 +578,63 @@ export function faceIndicesOfGroup(groupId: number): number[] {
 }
 
 /**
- * Writes one level's entry into the storage, and into the ref the sections read.
+ * Writes the groups of one file of a level into the storage, and into the ref the sections read.
  *
  * @param mapId The level the entry belongs to.
- * @param entry The groups of the level.
+ * @param fingerprint The fingerprint of the file the groups belong to.
+ * @param entry The groups of that file.
  */
-function writeEntry(mapId: string, entry: StoredMapGroups): void {
-  const next = { ...storedGroups.value, [mapId]: entry }
+function writeGroupsOf(mapId: string, fingerprint: string, entry: StoredVersionGroups): void {
+  const map = storedGroups.value[mapId]
+  const next = {
+    ...storedGroups.value,
+    [mapId]: withGroupsOfVersion(map, titleOfMap(mapId), fingerprint, entry),
+  }
 
   storedGroups.value = next
   writeStoredGroups(next)
+}
+
+/**
+ * The one stored version of a level that is not open.
+ *
+ * @remarks
+ * The widget lists the groups of the level on the screen, so a group of another level is only reached by the older paths
+ * of the store. Such a level has no fingerprint at hand here: its single stored file is addressed, and a level with more
+ * than one is left alone (the note of the storage says the versions are apart).
+ *
+ * @param mapId The level the groups live on.
+ *
+ * @returns The fingerprint and the groups, or `undefined` when the level has none, or more than one.
+ */
+function soleVersionOf(
+  mapId: string,
+): { readonly fingerprint: string; readonly entry: StoredVersionGroups } | undefined {
+  const versions = storedGroups.value[mapId]?.versions
+
+  if (versions === undefined) {
+    return undefined
+  }
+
+  const fingerprints = Object.keys(versions)
+
+  if (fingerprints.length !== 1) {
+    return undefined
+  }
+
+  const fingerprint = fingerprints[0]
+
+  if (fingerprint === undefined) {
+    return undefined
+  }
+
+  const entry = versions[fingerprint]
+
+  if (entry === undefined) {
+    return undefined
+  }
+
+  return { fingerprint, entry }
 }
 
 /**
@@ -614,7 +673,10 @@ function saveOpenLevel(): void {
     }
   })
 
-  writeEntry(activeMapId, { title: titleOfMap(activeMapId), nextId: nextGroupId, groups })
+  writeGroupsOf(activeMapId, activeMap.fingerprint, { nextId: nextGroupId, groups })
+
+  // the storage has the groups of this file now: the note of the other version has nothing to say
+  groupsOnAnotherVersion.value = false
 }
 
 /**
@@ -860,13 +922,13 @@ export function renameFaceGroup(mapId: string, groupId: number, name: string): v
     return
   }
 
-  const entry = storedGroups.value[mapId]
+  const stored = soleVersionOf(mapId)
 
-  if (entry === undefined) {
+  if (stored === undefined) {
     return
   }
 
-  const groups = entry.groups.map((group) => {
+  const groups = stored.entry.groups.map((group) => {
     if (group.id !== groupId) {
       return group
     }
@@ -874,7 +936,7 @@ export function renameFaceGroup(mapId: string, groupId: number, name: string): v
     return { ...group, name: trimmed }
   })
 
-  writeEntry(mapId, { ...entry, groups })
+  writeGroupsOf(mapId, stored.fingerprint, { ...stored.entry, groups })
 }
 
 /**
@@ -914,13 +976,13 @@ export function setFaceGroupVisibility(mapId: string, groupId: number, visible: 
     return
   }
 
-  const entry = storedGroups.value[mapId]
+  const stored = soleVersionOf(mapId)
 
-  if (entry === undefined) {
+  if (stored === undefined) {
     return
   }
 
-  const groups = entry.groups.map((group) => {
+  const groups = stored.entry.groups.map((group) => {
     if (group.id !== groupId) {
       return group
     }
@@ -928,7 +990,7 @@ export function setFaceGroupVisibility(mapId: string, groupId: number, visible: 
     return { ...group, visible }
   })
 
-  writeEntry(mapId, { ...entry, groups })
+  writeGroupsOf(mapId, stored.fingerprint, { ...stored.entry, groups })
 }
 
 /**
@@ -971,17 +1033,17 @@ export function deleteFaceGroups(mapId: string, groupIds: readonly number[]): vo
     return
   }
 
-  const entry = storedGroups.value[mapId]
+  const stored = soleVersionOf(mapId)
 
-  if (entry === undefined) {
+  if (stored === undefined) {
     return
   }
 
-  const groups = entry.groups.filter((group) => {
+  const groups = stored.entry.groups.filter((group) => {
     return !ids.has(group.id)
   })
 
-  writeEntry(mapId, { ...entry, groups })
+  writeGroupsOf(mapId, stored.fingerprint, { ...stored.entry, groups })
 }
 
 /**
@@ -1007,10 +1069,14 @@ export function groupOrUngroupTheSelection(): void {
 }
 
 /**
- * Puts the groups of a level into the ref, resolved against the map of that level.
+ * Puts the groups of a file of a level into the ref, resolved against the map of that level.
+ *
+ * @remarks
+ * The groups carry indices of the file they were made on, so only the groups of the file that is open are applied: the
+ * groups of another version of the level stay in the storage (see {@link groupsOnAnotherVersion}).
  *
  * @param id The value of the map.
- * @param map The map the groups belong to.
+ * @param map The map the groups belong to; its fingerprint picks the version of the level.
  */
 function loadGroupsOf(id: string, map: ArxMap): void {
   activeMapId = id
@@ -1018,7 +1084,14 @@ function loadGroupsOf(id: string, map: ArxMap): void {
 
   // the storage is the source of the level that opens (a zip seeds it before the level is whole); the ref is the cache
   // of the levels of the session, and this level joins it for the sections of the others
-  const entry = readStoredGroups()[id]
+  const stored = readStoredGroups()[id]
+  const entry = groupsOfVersion(stored, map.fingerprint)
+
+  groupsOnAnotherVersion.value = entry === undefined && hasGroupsOfAnotherVersion(stored, map.fingerprint)
+
+  if (stored !== undefined) {
+    storedGroups.value = { ...storedGroups.value, [id]: stored }
+  }
 
   if (entry === undefined) {
     activeFaceGroups.value = []
@@ -1029,7 +1102,6 @@ function loadGroupsOf(id: string, map: ArxMap): void {
     return
   }
 
-  storedGroups.value = { ...storedGroups.value, [id]: entry }
   nextGroupId = entry.nextId
 
   const groups: FaceGroup[] = entry.groups.map((group) => {
@@ -1075,6 +1147,7 @@ export function startFaceGroups(): void {
     activeMap = map
     activeMapId = currentMapId.value
     activeFaceGroups.value = []
+    groupsOnAnotherVersion.value = false
     refreshPresentPolygons()
   })
 

@@ -11,16 +11,18 @@ const GROUPS_KEY = 'faceGroups'
  *
  * @remarks
  * A build does not guess at a shape it does not know: a value of another version is dropped, and the groups with it. The
- * number is bumped when a stored value would be read wrong by an older or a newer build.
+ * number is bumped when a stored value would be read wrong by an older or a newer build. Version 2 keys the groups of a
+ * level by the fingerprint of the file they were made on, so the groups of the final release and of a demo of the same
+ * level number stay apart.
  */
-const STORAGE_VERSION = 1
+const STORAGE_VERSION = 2
 
 /**
  * One group of faces, as the storage keeps it.
  *
  * @remarks
  * The faces are the **indices** of the level they were grouped on, the way the history stores them: the value only lines
- * up with the map it was written from, which is why the key of the level is part of the storage.
+ * up with the map it was written from, which is why the fingerprint of the file is part of the storage.
  */
 export type StoredFaceGroup = {
   /**
@@ -43,7 +45,26 @@ export type StoredFaceGroup = {
 }
 
 /**
- * The groups of one level.
+ * The groups of one file of a level.
+ *
+ * @remarks
+ * A level of the game lives in more than one version beside each other (the final release, and e.g. a demo), and the
+ * same map value opens whichever file the editor has: the fingerprint of the file is what tells the groups of the two
+ * apart, the way it tells the stored history of the two apart.
+ */
+export type StoredVersionGroups = {
+  /**
+   * The id the next group of the level takes.
+   */
+  readonly nextId: number
+  /**
+   * The groups of the level, in the order they were made.
+   */
+  readonly groups: readonly StoredFaceGroup[]
+}
+
+/**
+ * The groups of one level, by the fingerprint of every file it was opened as.
  */
 export type StoredMapGroups = {
   /**
@@ -55,13 +76,13 @@ export type StoredMapGroups = {
    */
   readonly title: string
   /**
-   * The id the next group of the level takes.
+   * The groups of every file of the level, by the fingerprint of the file.
+   *
+   * @remarks
+   * The groups of the other files are kept, not dropped: the author may switch between the versions of a level, and the
+   * groups of the one the next visit opens are the groups that visit left there.
    */
-  readonly nextId: number
-  /**
-   * The groups of the level, in the order they were made.
-   */
-  readonly groups: readonly StoredFaceGroup[]
+  readonly versions: Readonly<Record<string, StoredVersionGroups>>
 }
 
 /**
@@ -138,22 +159,18 @@ function storedFaceGroupOf(value: unknown): StoredFaceGroup | undefined {
 }
 
 /**
- * Reads the groups of one level, skipping the groups this build does not know.
+ * Reads the groups of one file, skipping the groups this build does not know.
  *
  * @param value The value the storage held.
  *
- * @returns The groups of the level, or `undefined` when the value is not a level of this build.
+ * @returns The groups of that file, or `undefined` when the value is not one of this build.
  */
-function storedMapGroupsOf(value: unknown): StoredMapGroups | undefined {
+function storedVersionGroupsOf(value: unknown): StoredVersionGroups | undefined {
   if (!isRecord(value)) {
     return undefined
   }
 
-  const { title, nextId, groups } = value
-
-  if (typeof title !== 'string') {
-    return undefined
-  }
+  const { nextId, groups } = value
 
   if (typeof nextId !== 'number' || !Number.isSafeInteger(nextId) || nextId < 1) {
     return undefined
@@ -178,7 +195,96 @@ function storedMapGroupsOf(value: unknown): StoredMapGroups | undefined {
   }
 
   // a value that lost its next id to an older build gets one after its last group
-  return { title, nextId: Math.max(nextId, highest + 1), groups: known }
+  return { nextId: Math.max(nextId, highest + 1), groups: known }
+}
+
+/**
+ * Reads the groups of one level, with the groups of every file it was opened as.
+ *
+ * @param value The value the storage held.
+ *
+ * @returns The level, or `undefined` when the value is not a level of this build.
+ */
+function storedMapGroupsOf(value: unknown): StoredMapGroups | undefined {
+  if (!isRecord(value)) {
+    return undefined
+  }
+
+  const { title, versions } = value
+
+  if (typeof title !== 'string' || !isRecord(versions)) {
+    return undefined
+  }
+
+  const known: Record<string, StoredVersionGroups> = {}
+
+  for (const [fingerprint, entry] of Object.entries(versions)) {
+    if (fingerprint.trim() === '') {
+      continue
+    }
+
+    const stored = storedVersionGroupsOf(entry)
+
+    if (stored !== undefined) {
+      known[fingerprint] = stored
+    }
+  }
+
+  return { title, versions: known }
+}
+
+/**
+ * Reads the groups of a file of a level.
+ *
+ * @param map The groups of the level, or `undefined` when the storage has none.
+ * @param fingerprint The fingerprint of the file the level was loaded from.
+ *
+ * @returns The groups of that file, or `undefined` when the level was not grouped on this file.
+ */
+export function groupsOfVersion(
+  map: StoredMapGroups | undefined,
+  fingerprint: string,
+): StoredVersionGroups | undefined {
+  return map?.versions[fingerprint]
+}
+
+/**
+ * Tells whether a level has stored groups on a file other than the one that is open.
+ *
+ * @param map The groups of the level, or `undefined` when the storage has none.
+ * @param fingerprint The fingerprint of the file the level was loaded from.
+ *
+ * @returns True when the storage keeps the groups of another version of the level.
+ */
+export function hasGroupsOfAnotherVersion(map: StoredMapGroups | undefined, fingerprint: string): boolean {
+  if (map === undefined) {
+    return false
+  }
+
+  return Object.keys(map.versions).some((key) => {
+    return key !== fingerprint
+  })
+}
+
+/**
+ * Puts the groups of one file into a level, keeping the groups of its other files.
+ *
+ * @param map The groups of the level, or `undefined` when the storage has none.
+ * @param title The name of the level, the way the header writes it.
+ * @param fingerprint The fingerprint of the file the groups belong to.
+ * @param entry The groups of that file.
+ *
+ * @returns The level, with the groups of that file set.
+ */
+export function withGroupsOfVersion(
+  map: StoredMapGroups | undefined,
+  title: string,
+  fingerprint: string,
+  entry: StoredVersionGroups,
+): StoredMapGroups {
+  const versions: Record<string, StoredVersionGroups> = { ...map?.versions, [fingerprint]: entry }
+
+  return { title, versions }
 }
 
 /**
@@ -263,21 +369,45 @@ export function writeStoredGroups(
 }
 
 /**
- * Writes the groups of one level, keeping the ones of the others.
+ * What a zip carries of the groups of its level, and where it belongs.
+ */
+export type FaceGroupSeed = {
+  /**
+   * The value of the map.
+   */
+  readonly id: string
+  /**
+   * The fingerprint of the file of the level the zip carries.
+   */
+  readonly fingerprint: string
+  /**
+   * The name of the level, the way the header writes it.
+   */
+  readonly title: string
+  /**
+   * The groups of the file.
+   */
+  readonly version: StoredVersionGroups
+}
+
+/**
+ * Writes the groups of one file of a level, keeping the groups of its other files.
  *
  * @remarks
  * The editor seeds the storage with what a zip carried, so the store of the groups finds them when the level is whole.
  *
- * @param id The value of the map.
- * @param entry The groups of the level.
+ * @param seed The groups the zip carried, and where they belong.
  * @param storage The storage to write, the `localStorage` of the page by default.
  */
 export function seedFaceGroupsOf(
-  id: string,
-  entry: StoredMapGroups,
+  seed: FaceGroupSeed,
   storage: StorageLike | undefined = getLocalStorage(undefined),
 ): void {
-  const maps = { ...readStoredGroups(storage), [id]: entry }
+  const maps = readStoredGroups(storage)
+  const next = {
+    ...maps,
+    [seed.id]: withGroupsOfVersion(maps[seed.id], seed.title, seed.fingerprint, seed.version),
+  }
 
-  writeStoredGroups(maps, storage)
+  writeStoredGroups(next, storage)
 }

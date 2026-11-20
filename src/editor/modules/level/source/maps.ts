@@ -13,6 +13,7 @@ import { levelStore } from '../edit/levelStore.ts'
 import type { EditorGroup } from '../../editorFiles.ts'
 import { seedFaceGroupsOf } from '../../groups/groupStorage.ts'
 import { seedRoomNamesOf, type StoredRoomNames } from '../../rooms/roomNamesStorage.ts'
+import { loadRoomNamesOf } from '../../rooms/roomNamesStart.ts'
 import type { LevelManifest } from '../../../../generator/manifest.ts'
 import type { EditorSettings } from './editorSettings.ts'
 import { clearDataDirScan, readDataFile, scanLevelNumbers } from './dataDir.ts'
@@ -382,15 +383,19 @@ export function zipGroupsOf(source: LevelSource): readonly EditorGroup[] | undef
  * Seeds the browser with the names and the groups a zip carried, so the level opens with them.
  *
  * @remarks
- * The two stores read the browser when their level is whole: the names when the map and its manifest are set, the groups
- * when the steps of the level are replayed. The archive is read before that, so its files are the state the level opens
- * with; a name the author types afterwards wins over the file, and the next export writes the newer one.
+ * The two stores read the browser when their level is whole: the names when the level opens, the groups when the steps
+ * of the level are replayed. The archive is read before that, so its files are the state the level opens with; a name the
+ * author types afterwards wins over the file, and the next export writes the newer one.
+ *
+ * The files of the archive hold the indices and the room ids of the level the archive carries, so they are seeded under
+ * the fingerprint of that level: a zip of another version of the same level number keeps its own names and groups.
  *
  * @param id The value of the map.
  * @param source The source the map came from.
+ * @param fingerprint The fingerprint of the loaded level, or `undefined` when it did not load.
  */
-export function adoptEditorFilesOf(id: string, source: LevelSource): void {
-  if (!isZipLevelSource(source)) {
+export function adoptEditorFilesOf(id: string, source: LevelSource, fingerprint: string | undefined): void {
+  if (fingerprint === undefined || !isZipLevelSource(source)) {
     return
   }
 
@@ -398,7 +403,7 @@ export function adoptEditorFilesOf(id: string, source: LevelSource): void {
   const rooms = source.rooms() ?? source.manifest()?.roomNames
 
   if (rooms !== undefined) {
-    seedRoomNamesOf(id, rooms)
+    seedRoomNamesOf(id, fingerprint, rooms)
   }
 
   const groups = source.groups()
@@ -413,7 +418,7 @@ export function adoptEditorFilesOf(id: string, source: LevelSource): void {
     highest = Math.max(highest, group.id)
   }
 
-  seedFaceGroupsOf(id, { title: source.label, nextId: highest + 1, groups })
+  seedFaceGroupsOf({ id, fingerprint, title: source.label, version: { nextId: highest + 1, groups } })
 }
 
 /**
@@ -805,7 +810,11 @@ export async function openMap(id: string): Promise<void> {
   currentMapManifest.value = zipManifestOf(source)
   currentMapSettings.value = zipSettingsOf(source)
   adoptHistoryOf(id, source)
-  adoptEditorFilesOf(id, source)
+  adoptEditorFilesOf(id, source, levelStore.map.value?.fingerprint)
+
+  // the names of the level are the room ids of the file it came from: they are read before the stored steps are
+  // replayed, so a rename of the history writes them under the version of the file this level was loaded as
+  loadRoomNamesOf(id, levelStore.map.value, currentMapManifest.value?.roomNames)
 
   // the address bar keeps the map of the screen, and a map picked from the list is not the zip of the url any more: the
   // zip of a previous link must not come back on a reload. The map is written here too, not only by the watcher of

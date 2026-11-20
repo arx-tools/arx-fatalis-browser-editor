@@ -11,6 +11,7 @@ import type { KeyComboInput, KeyboardMode } from './functions.ts'
 export type KeyboardActionId =
   | 'clearSelection'
   | 'closeDialog'
+  | 'copySelection'
   | 'createFaceGroup'
   | 'deleteSelectedPolygons'
   | 'moveBackward'
@@ -19,6 +20,7 @@ export type KeyboardActionId =
   | 'moveRight'
   | 'moveSlower'
   | 'openCameraDialog'
+  | 'pasteSelection'
   | 'toggleAnchors'
   | 'toggleCameraInfo'
   | 'toggleCameraLight'
@@ -169,6 +171,20 @@ export const keyboardActions: readonly KeyboardAction[] = [
     label: 'Clear the selection',
     group: 'selection',
     keys: [{ code: 'KeyC' }],
+    modes: ['editor', 'pointerLocked'],
+  },
+  {
+    id: 'copySelection',
+    label: 'Copy the selected faces',
+    group: 'selection',
+    keys: [{ key: 'c', mods: ['primary'] }],
+    modes: ['editor', 'pointerLocked'],
+  },
+  {
+    id: 'pasteSelection',
+    label: 'Paste the copied faces',
+    group: 'selection',
+    keys: [{ key: 'v', mods: ['primary'] }],
     modes: ['editor', 'pointerLocked'],
   },
   {

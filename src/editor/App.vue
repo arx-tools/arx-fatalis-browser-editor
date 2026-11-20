@@ -13,6 +13,7 @@ import { startDynamicLights } from './modules/level/edit/dynamicLights.ts'
 import { startLevelEditing } from './modules/level/edit/editing.ts'
 import { startPortalGeneration } from './modules/rooms/portalSync.ts'
 import { startSelection } from './modules/selection/selectionStore.ts'
+import { startClipboard } from './modules/selection/clipboard.ts'
 import { startDeleteSelection } from './modules/selection/deleteSelection.ts'
 import { startLevelTextures } from './modules/level/edit/levelTextures.ts'
 import { prepareLoadedMap, startLighting } from './modules/level/edit/lighting.ts'
@@ -127,6 +128,7 @@ onMounted(async () => {
   startSelection()
   startLevelEditing()
   startDeleteSelection()
+  startClipboard()
   startPortalGeneration()
   startMapHistoryPersistence()
   startLevelTextures()

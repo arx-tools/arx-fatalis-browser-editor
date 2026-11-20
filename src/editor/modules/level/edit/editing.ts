@@ -204,7 +204,7 @@ export function undoLastStep(): void {
   history.undo()
   bumpLightingCacheVersion()
 
-  if (step?.record.kind === 'deleteFaces') {
+  if (step?.record.kind === 'deleteFaces' || step?.record.kind === 'pasteFaces') {
     selectionStore.clear()
   }
 }
@@ -218,7 +218,7 @@ export function redoLastStep(): void {
   history.redo()
   bumpLightingCacheVersion()
 
-  if (step?.record.kind === 'deleteFaces') {
+  if (step?.record.kind === 'deleteFaces' || step?.record.kind === 'pasteFaces') {
     selectionStore.clear()
   }
 }

@@ -19,6 +19,7 @@ import {
   createBuildTunnelRecord,
   createDeleteFacesRecord,
   createDeleteRoomsRecord,
+  createPasteFacesRecord,
   createSetTextureRecord,
   createSetUvRecord,
   createRotateFacesRecord,
@@ -360,7 +361,39 @@ void describe('createSetLightRecord', () => {
   })
 })
 
+void describe('createPasteFacesRecord', () => {
+  void it('copies the polygons, so a later edit of the source does not reach the record', () => {
+    const polygon = triangle(3)
+    const record = createPasteFacesRecord([polygon])
+
+    polygon.vertices[0].x = 42
+
+    assert.equal(record.polygons[0]?.vertices[0].x, 3)
+    assert.equal(record.version, HISTORY_RECORD_VERSION)
+    assert.equal(record.kind, 'pasteFaces')
+  })
+})
+
 void describe('commandOf', () => {
+  void it('puts the faces of the paste at the end on apply, and takes them out on revert', () => {
+    const { level, polygons } = fakeLevel(2)
+    const record = createPasteFacesRecord([triangle(9)])
+    const command = commandOf(record, level)
+
+    assert.notEqual(command, undefined)
+    assert.equal(command?.label, 'Paste face')
+
+    command?.apply()
+    assert.equal(polygons.length, 3)
+    assert.equal(polygons.at(-1)?.area, 9)
+
+    // the level got a copy, not the object the record holds
+    assert.notEqual(polygons.at(-1), record.polygons[0])
+
+    command?.revert()
+    assert.equal(polygons.length, 2)
+  })
+
   void it('takes the faces out on apply, and puts them back on revert', () => {
     const { level, polygons } = fakeLevel(3)
     const command = commandOf(createDeleteFacesRecord([1]), level)

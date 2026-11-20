@@ -38,6 +38,29 @@ export type DeleteFacesRecord = {
 }
 
 /**
+ * The step that pastes the faces of the clipboard into the level.
+ */
+export type PasteFacesRecord = {
+  /**
+   * The version of the shape of this record, see {@link HISTORY_RECORD_VERSION}.
+   */
+  readonly version: number
+  /**
+   * What the step does, which names its payload.
+   */
+  readonly kind: 'pasteFaces'
+  /**
+   * The faces to put at the end of the level, as the clipboard holds them.
+   *
+   * @remarks
+   * The polygons are in the record, unlike the delete, which writes only the indices: the clipboard may hold faces of
+   * another level, and then no index of this level names them. The command copies them again before it puts them in,
+   * so a later edit of the pasted faces does not reach the record (or the clipboard).
+   */
+  readonly polygons: readonly ArxPolygon[]
+}
+
+/**
  * The texture a face draws with after a step of {@link SetTextureRecord}.
  */
 export type TextureReference = {
@@ -556,6 +579,7 @@ export type HistoryRecord =
   | DeleteFaceGroupsRecord
   | DeleteFacesRecord
   | DeleteRoomsRecord
+  | PasteFacesRecord
   | RenameFaceGroupRecord
   | RotateFacesRecord
   | ScaleFacesRecord
@@ -698,6 +722,27 @@ export function createDeleteFacesRecord(faces: Iterable<number>): DeleteFacesRec
   })
 
   return { version: HISTORY_RECORD_VERSION, kind: 'deleteFaces', faces: unique }
+}
+
+/**
+ * Builds the record of a paste, the way a step writes it down.
+ *
+ * @remarks
+ * The polygons are copied: the record is the pasted state, and a later edit of the clipboard (or of the faces in the
+ * level) must not move it.
+ *
+ * @param polygons The faces the clipboard holds.
+ *
+ * @returns The record of the step.
+ */
+export function createPasteFacesRecord(polygons: readonly ArxPolygon[]): PasteFacesRecord {
+  return {
+    version: HISTORY_RECORD_VERSION,
+    kind: 'pasteFaces',
+    polygons: polygons.map((polygon) => {
+      return structuredClone(polygon)
+    }),
+  }
 }
 
 /**
@@ -1205,6 +1250,10 @@ export function labelOf(record: HistoryRecord): string {
 
   if (record.kind === 'scaleFaces') {
     return `Scale ${String(record.faces.length)} face(s)`
+  }
+
+  if (record.kind === 'pasteFaces') {
+    return `Paste ${String(record.polygons.length)} face(s)`
   }
 
   return `Delete ${String(record.faces.length)} face(s)`

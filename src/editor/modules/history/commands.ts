@@ -11,6 +11,7 @@ import {
   type DeleteRoomsRecord,
   type HistoryRecord,
   type MutableLevel,
+  type PasteFacesRecord,
   type RotateFacesRecord,
   type ScaleFacesRecord,
   type SetLightRecord,
@@ -459,6 +460,42 @@ function scaleFacesCommandOf(record: ScaleFacesRecord, level: MutableLevel): His
  *
  * @returns The command, or undefined when the record can not be read by this build.
  */
+/**
+ * Builds the command of a paste.
+ *
+ * @remarks
+ * The step puts the polygons of the record at the end of the level, and the undo takes them out again. The polygons
+ * are copied on every apply, so the record (and the clipboard it came from) keeps the state of the paste: a later edit
+ * of the pasted faces moves the level, not the record, and the redo puts the faces back as they were copied.
+ *
+ * @param record The record of the step.
+ * @param level The level the step changes.
+ *
+ * @returns The command of the step.
+ */
+function pasteFacesCommandOf(record: PasteFacesRecord, level: MutableLevel): HistoryCommand {
+  let inserted: ArxPolygon[] = []
+  let label = `Paste ${String(record.polygons.length)} faces`
+
+  if (record.polygons.length === 1) {
+    label = 'Paste face'
+  }
+
+  return {
+    label,
+    record,
+    apply: (): void => {
+      inserted = record.polygons.map((polygon) => {
+        return structuredClone(polygon)
+      })
+      addPolygonsAtTheEndOf(level, inserted)
+    },
+    revert: (): void => {
+      level.removePolygons(inserted)
+    },
+  }
+}
+
 export function commandOf(record: HistoryRecord, level: MutableLevel): HistoryCommand | undefined {
   if (record.version !== HISTORY_RECORD_VERSION) {
     return undefined
@@ -500,6 +537,10 @@ export function commandOf(record: HistoryRecord, level: MutableLevel): HistoryCo
 
   if (record.kind === 'scaleFaces') {
     return scaleFacesCommandOf(record, level)
+  }
+
+  if (record.kind === 'pasteFaces') {
+    return pasteFacesCommandOf(record, level)
   }
 
   if (record.kind !== 'deleteFaces') {

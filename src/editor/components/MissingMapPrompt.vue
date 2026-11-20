@@ -60,14 +60,13 @@ function connect(): void {
  * Puts the question away and starts a blank level.
  *
  * @remarks
- * The blank level starts at its own pose: the pose of the url belongs to the level of the link, and the camera of that
- * level would land the author at a place that means nothing on a plane (the url's pose is only the one of the map it
- * names, so a blank map under it opens on the spawn, or where that blank map was left).
+ * The blank level starts on its **spawn**: the pose of the url belongs to the level of the link, and the pose stored for
+ * the blank map belongs to a map of an earlier visit. The author asked for a new start, so neither follows it.
  */
 function startBlank(): void {
   mapNeedingDataDir.value = undefined
   requestedMapId.value = undefined
-  openMap(DEFAULT_MAP_ID).catch(() => {
+  openMap(DEFAULT_MAP_ID, { atSpawn: true }).catch(() => {
     // the store keeps the error of the load, the walkable view shows it
   })
 }

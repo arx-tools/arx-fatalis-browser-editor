@@ -311,6 +311,15 @@ export type PoseForOpenQuery = {
    * Whether this is the first map of the visit.
    */
   readonly isFirstOpen: boolean
+  /**
+   * Whether the map opens on its spawn, whatever the url or the storage says.
+   *
+   * @remarks
+   * The author may ask for a blank map from the notice of a link that needs the data dir: that is a **new** start, not
+   * the view of a map the editor kept, so the camera goes to the spawn of the blank level even when the blank map was
+   * left at another place before (and the url carries the pose of the level of the link).
+   */
+  readonly atSpawn?: boolean
 }
 
 /**
@@ -331,6 +340,11 @@ export type PoseForOpenQuery = {
  */
 export function poseForOpenOf(query: PoseForOpenQuery): StoredPose | undefined {
   const { id, key, urlPose, urlMapId, storedPoses, archivePose, isFirstOpen } = query
+
+  // a new start is the spawn: the pose of the url belongs to the link, and the stored one to a map the editor kept
+  if (query.atSpawn === true) {
+    return undefined
+  }
 
   if (isFirstOpen && urlPose !== undefined && (urlMapId === undefined || urlMapId === id)) {
     return urlPose

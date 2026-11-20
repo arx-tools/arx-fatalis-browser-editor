@@ -133,6 +133,50 @@ test('a level with steps of a visit before says that the edits are safe, and off
   await expect(notice.locator('.notice-dismiss')).toHaveText('Reconnect later and start a blank map')
 })
 
+test('the blank map of the notice starts on its spawn, not on the pose of the link', async ({ page }) => {
+  await seedLayout(page, editorLayout)
+
+  // the blank map was left at the coordinates the link carries, and the level of the link has steps
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      'mapPoses',
+      JSON.stringify({ 'blank:flat': { position: [1000, 2000, 3000], rotation: [10, 45, 0] } }),
+    )
+    localStorage.setItem(
+      'mapHistory:arx:11',
+      JSON.stringify({
+        version: 2,
+        fingerprint: 'x',
+        records: [{ version: 1, kind: 'deleteFaces', faces: [0] }],
+        position: 1,
+      }),
+    )
+  })
+
+  await page.goto('/?map=arx-fatalis-level-11&position=1000,2000,3000&rotation=10,45,0')
+
+  const notice = page.locator('.MissingMapPrompt')
+
+  await expect(notice).toBeVisible()
+  await expect(notice).toContainText('Found unsaved changes on the previously edited level Arx: Level 11')
+
+  await notice.locator('.notice-dismiss').click()
+  await expect(notice).toHaveCount(0)
+  await page.locator('.LoadingOverlay').waitFor({ state: 'detached', timeout: 120_000 })
+
+  // the new start is the spawn of the blank level: neither the pose of the link nor the one of the blank map follows it
+  await expect
+    .poll(() => {
+      return new URL(page.url()).searchParams.get('position')
+    })
+    .toBe('550,-180,550')
+  await expect
+    .poll(() => {
+      return new URL(page.url()).searchParams.get('rotation')
+    })
+    .toBe('0,180,0')
+})
+
 test('the steps of a level of the link are not overwritten by the answer of the notice', async ({ page }) => {
   await seedLayout(page, editorLayout)
 

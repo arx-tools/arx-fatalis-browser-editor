@@ -474,8 +474,9 @@ export function poseOfMap(id: string): StoredPose | undefined {
  * the map that went away, and a view that mounts later would take them as this map's own.
  *
  * @param id The value of the map that opened.
+ * @param atSpawn Whether the map opens on its spawn, whatever the url or the storage says.
  */
-export function moveCameraToPoseOfOpen(id: string): void {
+export function moveCameraToPoseOfOpen(id: string, atSpawn = false): void {
   const key = poseKeyOf(id, customMaps.value)
   const pose = poseForOpenOf({
     id,
@@ -485,6 +486,7 @@ export function moveCameraToPoseOfOpen(id: string): void {
     storedPoses: readMapPoses(),
     archivePose: currentMapSettings.value?.camera,
     isFirstOpen,
+    atSpawn,
   })
 
   isFirstOpen = false
@@ -761,6 +763,20 @@ function sourceOf(id: string): LevelSource | undefined {
 }
 
 /**
+ * How a map opens.
+ */
+export type OpenMapOptions = {
+  /**
+   * Whether the map opens on its spawn, instead of the pose of the url or the one the map was left at.
+   *
+   * @remarks
+   * The author asks for a blank map from the notice of a link that needs the data dir: that is a new start, so the
+   * camera of the link (or of the blank map of an earlier visit) does not follow it.
+   */
+  readonly atSpawn?: boolean
+}
+
+/**
  * Opens a map of the list, in place.
  *
  * @remarks
@@ -770,10 +786,11 @@ function sourceOf(id: string): LevelSource | undefined {
  * at, see {@link moveCameraToPoseOfOpen}.
  *
  * @param id The value of the map, like `arx:8`.
+ * @param options How the map opens, the pose of the url by default.
  *
  * @returns A promise that settles when the map is on the screen and painted.
  */
-export async function openMap(id: string): Promise<void> {
+export async function openMap(id: string, options: OpenMapOptions = {}): Promise<void> {
   const source = sourceOf(id)
 
   if (source === undefined) {
@@ -841,7 +858,7 @@ export async function openMap(id: string): Promise<void> {
   // tick also lets the walkable view rebuild itself around the new map first
   await nextTick()
 
-  moveCameraToPoseOfOpen(id)
+  moveCameraToPoseOfOpen(id, options.atSpawn ?? false)
 
   // the level is whole: the map is on the screen and its steps are on it, so the sidecars of the level (the groups of the
   // faces) can line up with it

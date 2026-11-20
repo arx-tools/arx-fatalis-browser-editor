@@ -237,6 +237,21 @@ void describe('poseForOpenOf', () => {
     assert.equal(taken, undefined)
   })
 
+  void it('opens on the spawn when the author asked for a new start', () => {
+    const taken = poseForOpenOf({
+      id: 'blank:flat',
+      key: 'blank:flat',
+      urlPose: pose,
+      urlMapId: 'arx:11',
+      storedPoses: { 'blank:flat': pose },
+      archivePose: pose,
+      isFirstOpen: true,
+      atSpawn: true,
+    })
+
+    assert.equal(taken, undefined)
+  })
+
   void it('never takes the pose of the url after the first open', () => {
     const taken = poseForOpenOf({
       id: 'arx:11',

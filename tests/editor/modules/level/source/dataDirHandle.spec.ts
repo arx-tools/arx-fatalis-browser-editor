@@ -77,6 +77,44 @@ void describe('levelNumbersInDirectory', () => {
   void it('gives nothing for a folder without levels', async () => {
     assert.equal(await levelNumbersInDirectory(fakeDirectoryHandle({ folder: {} })), undefined)
   })
+
+  void it('finds a level whose scene is under game and its other files under graph', async () => {
+    // the extracted demo of the game keeps the scene of a level in game/graph/levels and the dlf and the llf in
+    // graph/levels: the two shapes of the data directory have one file of the level each
+    const split = fakeDirectoryHandle({
+      folder: {
+        graph: {
+          folder: {
+            levels: {
+              folder: {
+                level12: {
+                  folder: {
+                    'level12.dlf': { file: 'dlf' },
+                    'level12.llf': { file: 'llf' },
+                  },
+                },
+              },
+            },
+          },
+        },
+        game: {
+          folder: {
+            graph: {
+              folder: {
+                levels: {
+                  folder: {
+                    level12: { folder: { 'fast.fts': { file: 'fts' } } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    })
+
+    assert.deepEqual(await levelNumbersInDirectory(split), [12])
+  })
 })
 
 void describe('permissionOf', () => {

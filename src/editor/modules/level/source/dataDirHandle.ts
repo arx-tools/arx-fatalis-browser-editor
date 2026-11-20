@@ -458,17 +458,51 @@ export async function textureNamesInDirectory(root: FileSystemDirectoryHandle): 
 }
 
 /**
+ * Finds a file of a level folder, in either shape of the data directory.
+ *
+ * @remarks
+ * The scene of a level may sit under `game/graph/levels` while the dlf and the llf are under `graph/levels` (the
+ * extracted demo is like that), so the file is tried in both shapes, the same way the reading of a file is.
+ *
+ * @param root The data directory.
+ * @param name The name of the level folder, like `level8`.
+ * @param fileName The name of the file inside it, like `fast.fts`.
+ *
+ * @returns The file, or `undefined` when neither shape has it.
+ */
+async function levelFileInDirectory(
+  root: FileSystemDirectoryHandle,
+  name: string,
+  fileName: string,
+): Promise<File | undefined> {
+  for (const prefix of DATA_DIR_PREFIXES) {
+    const file = await fileInDirectory(root, `${prefix}graph/levels/${name}/${fileName}`)
+
+    if (file !== undefined) {
+      return file
+    }
+  }
+
+  return undefined
+}
+
+/**
  * Lists the level folders of a data directory.
  *
  * @remarks
  * A level is the folder with the three files of it: the scene (`fast.fts`), the dlf and the llf. The walk reads the
- * folder of the levels once, and asks for the three files of a folder only when it looks like a level (`level8`).
+ * folders of the levels once, and asks for the three files of a folder only when it looks like a level (`level8`). A
+ * file is looked for in both shapes of the data directory, so a folder whose scene is under `game/graph/levels` and
+ * whose other two files are under `graph/levels` is a level too.
  *
  * @param root The data directory.
  *
  * @returns The numbers of the levels, in order, or `undefined` when the folder has no levels.
  */
 export async function levelNumbersInDirectory(root: FileSystemDirectoryHandle): Promise<number[] | undefined> {
+  const names = new Set<string>()
+  let hasLevelsFolder = false
+
   for (const prefix of DATA_DIR_PREFIXES) {
     const levels = await directoryInDirectory(root, `${prefix}graph/levels`)
 
@@ -476,34 +510,42 @@ export async function levelNumbersInDirectory(root: FileSystemDirectoryHandle): 
       continue
     }
 
-    const numbers: number[] = []
+    hasLevelsFolder = true
 
     for await (const [name, entry] of levels.entries()) {
-      const match = /^level(?<level>\d+)$/iu.exec(name)
-      const number = match?.groups?.level
-
-      if (number === undefined || entry.kind !== 'directory') {
+      if (entry.kind !== 'directory' || !/^level\d+$/iu.test(name)) {
         continue
       }
 
-      const level = Number(number)
-      const folder = `${prefix}graph/levels/${name}`
-
-      const [fts, dlf, llf] = await Promise.all([
-        fileInDirectory(root, `${folder}/fast.fts`),
-        fileInDirectory(root, `${folder}/level${String(level)}.dlf`),
-        fileInDirectory(root, `${folder}/level${String(level)}.llf`),
-      ])
-
-      if (fts !== undefined && dlf !== undefined && llf !== undefined) {
-        numbers.push(level)
-      }
+      names.add(name)
     }
-
-    return numbers.toSorted((left, right) => {
-      return left - right
-    })
   }
 
-  return undefined
+  if (!hasLevelsFolder) {
+    return undefined
+  }
+
+  const numbers = new Set<number>()
+
+  for (const name of names) {
+    const level = Number(/^level(?<level>\d+)$/iu.exec(name)?.groups?.level)
+
+    if (!Number.isSafeInteger(level)) {
+      continue
+    }
+
+    const [fts, dlf, llf] = await Promise.all([
+      levelFileInDirectory(root, name, 'fast.fts'),
+      levelFileInDirectory(root, name, `level${String(level)}.dlf`),
+      levelFileInDirectory(root, name, `level${String(level)}.llf`),
+    ])
+
+    if (fts !== undefined && dlf !== undefined && llf !== undefined) {
+      numbers.add(level)
+    }
+  }
+
+  return [...numbers].toSorted((left, right) => {
+    return left - right
+  })
 }

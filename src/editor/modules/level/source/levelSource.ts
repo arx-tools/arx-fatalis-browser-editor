@@ -3,7 +3,7 @@ import { Settings } from '../../../../generator/Settings.ts'
 import { getUrlAdapter, readUrlValue, type UrlAdapter } from '../../persistedRef/url.ts'
 import { createBlankLevelFiles, FLAT_PRESET, type NewLevelPreset } from '../blankLevel.ts'
 import { levelSeed } from '../seed.ts'
-import { dataDirFromUrl, readDataFile } from './dataDir.ts'
+import { dataDirFromUrl, hasDataDir, readDataFile } from './dataDir.ts'
 import { IS_DEVELOPMENT } from './dataDir/url.ts'
 import { createZipUrlLevelSource } from './zipSource.ts'
 
@@ -248,11 +248,22 @@ export async function fetchLevelFiles(
  *
  * @throws When the folder has no such level: a level named by the url is not silently a blank one.
  */
-export async function fetchDataDirLevelFiles(
-  dataDir: string,
+/**
+ * Reads the three files of a level from the data directory of the session.
+ *
+ * @param level The number of the level.
+ * @param fetchImpl The fetch to use; the tests pass a fake one.
+ * @param dataDir The folder the url names, or `undefined` when it names none.
+ *
+ * @returns The three files, or `undefined` when the data directory has none of them.
+ *
+ * @throws When the data directory has some of the three files but not all of them.
+ */
+async function levelFilesOfDataDir(
   level: number,
-  fetchImpl: typeof fetch = fetch,
-): Promise<LevelFiles> {
+  fetchImpl: typeof fetch,
+  dataDir: string | undefined,
+): Promise<LevelFiles | undefined> {
   const names = levelFileNames(level)
   const folder = `graph/levels/level${String(level)}`
   const [dlf, fts, llf] = await Promise.all([
@@ -261,11 +272,45 @@ export async function fetchDataDirLevelFiles(
     readDataFile(`${folder}/${names.llf}`, fetchImpl, undefined, dataDir),
   ])
 
+  if (dlf === undefined && fts === undefined && llf === undefined) {
+    return undefined
+  }
+
   if (dlf === undefined || fts === undefined || llf === undefined) {
-    throw new Error(`The data directory ${dataDir} has no level ${String(level)}.`)
+    throw new Error(`The data directory has no complete level ${String(level)}.`)
   }
 
   return { dlf, fts, llf }
+}
+
+/**
+ * Reads the three files of a level from the data directory of the session.
+ *
+ * @remarks
+ * The folder picked in the header (or the remembered handle of the browser) comes first: its files are on the page
+ * already, and the level it holds opens without the url. The folder the url names is the fallback. See
+ * {@link readDataFile}: the two are read the same way the textures are.
+ *
+ * @param dataDir The folder the url names, or `undefined` when it names none.
+ * @param level The number of the level.
+ * @param fetchImpl The fetch to use; the tests pass a fake one.
+ *
+ * @returns The three files, ready for the generator.
+ *
+ * @throws When the folder has no such level: a level named by the url is not silently a blank one.
+ */
+export async function fetchDataDirLevelFiles(
+  dataDir: string,
+  level: number,
+  fetchImpl: typeof fetch = fetch,
+): Promise<LevelFiles> {
+  const files = await levelFilesOfDataDir(level, fetchImpl, dataDir)
+
+  if (files === undefined) {
+    throw new Error(`The data directory ${dataDir} has no level ${String(level)}.`)
+  }
+
+  return files
 }
 
 /**
@@ -312,21 +357,30 @@ export function createOriginalLevelSource(
     label: `Level ${String(level)}`,
     level,
     load: async (fetchImpl: typeof fetch = fetch): Promise<LevelFiles> => {
-      // the data directory of the url is the game's own folder: the files are read from there, no network
-      if (dataDir === undefined) {
-        // the level of the game is not downloaded: without the folder of the game it is not a level of this editor, and
-        // the notice over the editor asks for the folder. The development build keeps the download, because the tests
-        // and the probes open a level of the game without a folder (2026-11-12, the owner)
-        if (!isDev) {
-          throw new Error(
-            'The level of the game needs the Arx data dir: set the folder of the game, and the level opens.',
-          )
-        }
+      // the folder picked in the header and the remembered handle come first, then the data directory of the url: a
+      // level of the picked folder opens without the url (see `readDataFile`)
+      const files = await levelFilesOfDataDir(level, fetchImpl, dataDir)
 
-        return await fetchLevelFiles(level, fetchImpl)
+      if (files !== undefined) {
+        return files
       }
 
-      return await fetchDataDirLevelFiles(dataDir, level, fetchImpl)
+      // a data directory the editor has (the picked folder, or the folder of the url) that does not hold the level is
+      // a level the editor can not open, and the view says so
+      if (dataDir !== undefined || hasDataDir()) {
+        throw new Error(`The data directory has no level ${String(level)}.`)
+      }
+
+      // no data directory at all: the level of the game is not downloaded in a build of the site (the notice over the
+      // editor asks for the folder). The development build keeps the download, because the tests and the probes open a
+      // level of the game without a folder (2026-11-12, the owner)
+      if (!isDev) {
+        throw new Error(
+          'The level of the game needs the Arx data dir: set the folder of the game, and the level opens.',
+        )
+      }
+
+      return await fetchLevelFiles(level, fetchImpl)
     },
   }
 }

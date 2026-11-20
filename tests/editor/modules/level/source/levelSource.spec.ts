@@ -13,7 +13,11 @@ import {
   ZIP_URL_PARAMETER,
   zipUrlFromUrl,
 } from '../../../../../src/editor/modules/level/source/levelSource.ts'
-import { clearPickedDataDir, DATA_DIR_PARAMETER } from '../../../../../src/editor/modules/level/source/dataDir.ts'
+import {
+  clearPickedDataDir,
+  DATA_DIR_PARAMETER,
+  setPickedDataDir,
+} from '../../../../../src/editor/modules/level/source/dataDir.ts'
 import { isZipLevelSource } from '../../../../../src/editor/modules/level/source/zipSource.ts'
 import type { UrlAdapter } from '../../../../../src/editor/modules/persistedRef/url.ts'
 
@@ -264,6 +268,61 @@ void describe('the level of a data directory', () => {
       })(),
       /has no level 8/u,
     )
+  })
+})
+
+void describe('the level of the folder picked in the header', () => {
+  void it('opens the level of the picked folder without the url', async () => {
+    await setPickedDataDir(
+      [
+        { path: 'graph/levels/level8/fast.fts', file: new File(['fts'], 'fast.fts') },
+        { path: 'graph/levels/level8/level8.dlf', file: new File(['dlf'], 'level8.dlf') },
+        { path: 'graph/levels/level8/level8.llf', file: new File(['llf'], 'level8.llf') },
+      ],
+      'arx-data',
+    )
+
+    const calls: string[] = []
+
+    async function fetchImpl(input: string | URL | Request): Promise<Response> {
+      if (typeof input === 'string') {
+        calls.push(input)
+      }
+
+      await Promise.resolve()
+
+      return new Response(null, { status: 404 })
+    }
+
+    const source = createOriginalLevelSource(8, urlOf(''), false)
+    const files = await source.load(fetchImpl)
+
+    assert.equal(new TextDecoder().decode(files.fts), 'fts')
+    // the folder of the page is the level: nothing is downloaded for it
+    assert.deepEqual(calls, [])
+
+    clearPickedDataDir()
+  })
+
+  void it('reads the scene of a demo level from game/graph/levels too', async () => {
+    // the extracted demo keeps the scene in game/graph/levels and the other two files in graph/levels
+    await setPickedDataDir(
+      [
+        { path: 'game/graph/levels/level8/fast.fts', file: new File(['fts'], 'fast.fts') },
+        { path: 'graph/levels/level8/level8.dlf', file: new File(['dlf'], 'level8.dlf') },
+        { path: 'graph/levels/level8/level8.llf', file: new File(['llf'], 'level8.llf') },
+      ],
+      'demo-data',
+    )
+
+    const source = createOriginalLevelSource(8, urlOf(''), false)
+    const files = await source.load()
+
+    assert.equal(new TextDecoder().decode(files.fts), 'fts')
+    assert.equal(new TextDecoder().decode(files.dlf), 'dlf')
+    assert.equal(new TextDecoder().decode(files.llf), 'llf')
+
+    clearPickedDataDir()
   })
 })
 

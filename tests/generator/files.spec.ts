@@ -41,10 +41,12 @@ void describe('unpackArxFile', () => {
   })
 
   void it('keeps an uncompressed fts as it is', () => {
-    // the FTS header marks the whole file uncompressed when the size at byte 264 is zero
+    // the FTS header marks the whole file uncompressed when the size at byte 264 is zero (the feature came with the
+    // 0.141 layout: the older header has no size field)
     const packed = new ArrayBuffer(280)
     const view = new DataView(packed)
     view.setInt32(256, 0, true)
+    view.setFloat32(260, 0.141, true)
     view.setInt32(264, 0, true)
 
     const unpacked = unpackArxFile(packed, 'fts')

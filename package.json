@@ -37,8 +37,8 @@
   "homepage": "https://github.com/arx-tools/arx-fatalis-browser-editor#readme",
   "dependencies": {
     "@lumino/widgets": "^2.10.0",
-    "arx-convert": "^15.0.0",
-    "arx-header-size": "^3.2.1",
+    "arx-convert": "^15.1.0",
+    "arx-header-size": "^3.3.0",
     "color-rgba": "^3.0.0",
     "floating-vue": "^5.4.0",
     "jszip": "^3.10.1",

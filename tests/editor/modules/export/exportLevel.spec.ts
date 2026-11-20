@@ -13,6 +13,7 @@ import {
   buildExportManifest,
   buildExportFts,
   buildExportLlf,
+  reindexedPolygonsOf,
   renumberedRoomNamesOf,
   exportLevelFiles,
   exportLevelZip,
@@ -94,6 +95,48 @@ function lightOf(flags: number): ArxLight {
     flags,
   }
 }
+
+void describe('reindexedPolygonsOf', () => {
+  void it('puts the colours of the polygons in the order the export writes them', () => {
+    const [quad, triangle] = reindexedPolygonsOf([polygonOf(10, true), polygonOf(3, false)])
+
+    assert.deepEqual(
+      quad?.vertices.map((vertex) => {
+        return vertex.llfColorIdx
+      }),
+      [0, 1, 2, 3],
+    )
+    // the fourth vertex of a triangle has no colour of its own: it takes the first one
+    assert.deepEqual(
+      triangle?.vertices.map((vertex) => {
+        return vertex.llfColorIdx
+      }),
+      [4, 5, 6, 4],
+    )
+  })
+
+  void it('does not touch the polygons of the level', () => {
+    const source = polygonOf(10, true)
+
+    reindexedPolygonsOf([source])
+
+    assert.equal(source.vertices[0]?.llfColorIdx, 10)
+  })
+
+  void it('keeps the light of a face on the palette the export writes', () => {
+    const llf: ArxLLF = {
+      header: { lastModifiedBy: '', lastModifiedAt: 0, numberOfPolygonsInFTS: 1 },
+      lights: [],
+      colors: [colorOf(1), colorOf(2), colorOf(3), colorOf(4), colorOf(5)],
+    }
+    const source = polygonOf(1, true)
+    const copy = reindexedPolygonsOf([source])[0]
+    const exported = buildExportLlf(llf, [source])
+
+    // the copy points at the same colour in the rebuilt palette the game reads
+    assert.deepEqual(exported.colors[copy?.vertices[0]?.llfColorIdx ?? 0], llf.colors[1])
+  })
+})
 
 void describe('buildExportLlf', () => {
   void it('rebuilds the palette in the order of the polygons of the screen', () => {

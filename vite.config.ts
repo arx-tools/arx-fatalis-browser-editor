@@ -720,6 +720,9 @@ export default defineConfig(async () => {
       // a quiet move to the next one would hide the collision the port is there to avoid
       port: Number(process.env.DEV_PORT ?? 5556),
       strictPort: true,
+      // the hot module replacement is off: the page is refreshed for a new feature, and a module the HMR keeps
+      // stale (the export that wrote the old palette) costs more than the refresh
+      hmr: false,
     },
     clearScreen: false,
     define: {

@@ -12,6 +12,7 @@ import { getCellCoords, isQuad, MAP_WIDTH_IN_CELLS } from 'arx-convert/utils'
 import { getHeaderSize } from 'arx-header-size'
 import JSZip from 'jszip'
 import type { ArxMap } from '../../../generator/ArxMap.ts'
+import { bakeLlfColors, bakeLlfColorsInChunks } from '../../../generator/lighting.ts'
 import {
   MANIFEST_NAME,
   type LevelManifest,
@@ -30,6 +31,7 @@ import {
 } from '../editorFiles.ts'
 import type { HistorySnapshot } from '../history/mapHistory.ts'
 import { syncGeneratedPortals } from '../level/edit/generatedPortals.ts'
+import { paletteBakeOptionsOf } from '../level/edit/lightingProfile.ts'
 import { editorSettingsJsonOf, SETTINGS_PATH, SOURCE_FOLDER } from '../level/source/editorSettings.ts'
 import type { StoredPose } from '../level/source/maps/mapPoses.ts'
 import type { LevelFiles } from '../level/source/levelSource.ts'
@@ -119,47 +121,41 @@ function colorCountOf(polygon: ArxPolygon): number {
 }
 
 /**
- * Rebuilds the place of the colours in the vertices for the palette the export writes.
+ * Puts the polygons in the order `FTS.save` writes them.
  *
  * @remarks
- * The palette of the exported LLF is built in the **order of the screen** (see {@link buildExportLlf}), so a polygon
- * whose colours were taken from the middle of the palette of the level can not keep its `llfColorIdx`: the game reads
- * the colour of a face by the index of its first vertex, and that index has to point into the rebuilt palette. The
- * vertices are copied, so the level of the editor keeps its own indices.
+ * The FTS stores its polygons **by cell**, and `FTS.load` gives every polygon its `llfColorIdx` as it reads them: the
+ * index is **not** in the file, it is the running count of the polygons the loader has seen. The palette of the LLF has
+ * to be built in this same order, or the game reads the colour of another face — the first cells usually match the map,
+ * so a level can look right until the first cell where the two orders part.
  *
- * The faces of a paste take their colours from the palette of the level they came from; without this step, a paste
- * followed by an export reads the colours of other faces in the game (the lights of the level look wrong, and the
- * faces of the paste are dark).
+ * `FTS.save` walks the polygons in their order, pushes each into its cell, and then writes the cells in the order of
+ * the grid; a sort by the cell, stable inside a cell, is the same order.
  *
- * @param polygons The polygons of the screen, in the order the export writes them.
+ * @param polygons The polygons of the scene.
  *
- * @returns The same polygons with the vertices' `llfColorIdx` pointing into the rebuilt palette.
+ * @returns The same polygons, in the order the FTS file writes them.
  */
-export function reindexedPolygonsOf(polygons: readonly ArxPolygon[]): ArxPolygon[] {
-  const reindexed: ArxPolygon[] = []
-  let base = 0
+export function cellOrderedPolygonsOf(polygons: readonly ArxPolygon[]): ArxPolygon[] {
+  return polygons
+    .map((polygon, index) => {
+      const [cellX, cellY] = getCellCoords(polygon.vertices)
+      const row = cellY * MAP_WIDTH_IN_CELLS
 
-  for (const polygon of polygons) {
-    const count = colorCountOf(polygon)
-    let fourth = base
+      return { polygon, cell: row + cellX, index }
+    })
+    .toSorted((one, other) => {
+      const byCell = one.cell - other.cell
 
-    // the fourth vertex of a triangle has no colour of its own: it takes the first one, which the game does not read
-    if (count === 4) {
-      fourth = base + 3
-    }
+      if (byCell !== 0) {
+        return byCell
+      }
 
-    const vertices: ArxPolygon['vertices'] = [
-      { ...polygon.vertices[0], llfColorIdx: base },
-      { ...polygon.vertices[1], llfColorIdx: base + 1 },
-      { ...polygon.vertices[2], llfColorIdx: base + 2 },
-      { ...polygon.vertices[3], llfColorIdx: fourth },
-    ]
-
-    reindexed.push({ ...polygon, vertices })
-    base = base + count
-  }
-
-  return reindexed
+      return one.index - other.index
+    })
+    .map((entry) => {
+      return entry.polygon
+    })
 }
 
 /**
@@ -305,20 +301,18 @@ function isExportedLight(light: ArxLight, withStaticLights: boolean, withDynamic
  * Rebuilds the lighting of a level from the palette it was loaded with.
  *
  * @remarks
- * The palette of the LLF is a flat list **in the order of the polygons**: a polygon owns three colours (one per corner)
- * or four (the fourth corner of a quad), and the loader works out where a polygon starts (`llfColorIdx` on its first
- * vertex). An edit moves the polygons, so the list is rebuilt in the order of the screen from the colours the vertices
- * already point at — the **light** of a face is kept, it is not baked again.
- *
- * The FTS has to take the polygons from {@link reindexedPolygonsOf}: the rebuilt palette is in the order of the screen,
- * and the vertices' `llfColorIdx` have to follow it, or the game reads the colours of other faces.
+ * The palette of the LLF is a flat list **in the order of the polygons of the file**: a polygon owns three colours (one
+ * per corner) or four (the fourth corner of a quad). The FTS does **not** store the index of the first colour:
+ * `FTS.load` gives every polygon its `llfColorIdx` as it reads the polygons, in the order `FTS.save` wrote them (the
+ * cells of the grid, see {@link cellOrderedPolygonsOf}). The list is rebuilt in that same order from the colours the
+ * vertices already point at — the **light** of a face is kept, it is not baked again.
  *
  * The switches of the light layer decide what the file keeps: the lights of a layer that is off are left out, and a level
  * without its static light gets a black palette, so the game draws what the editor showed. The palette keeps its length
  * in every case: the corners point into it by their index.
  *
  * @param llf The lighting as it was loaded.
- * @param polygons The polygons of the screen.
+ * @param polygons The polygons of the file, in the order `FTS.save` writes them (see {@link cellOrderedPolygonsOf}).
  * @param lights Which layers of the light take part in the export; both are on when it is left out.
  *
  * @returns The lighting of the file to write.
@@ -352,6 +346,62 @@ export function buildExportLlf(llf: ArxLLF, polygons: readonly ArxPolygon[], lig
   }
 
   return { ...llf, header, lights: exportedLights, colors }
+}
+
+/**
+ * Bakes the palette of the files from the final scene of the level.
+ *
+ * @remarks
+ * The palette of the editor is the light of the level, and a geometry step bakes the corners it moved. A step that
+ * moved faces without baking them (a drag that ended in another path, or a step the replay of the history could not
+ * follow) leaves the palette of those faces at the light of the place they came from: the game then lights a copied
+ * block brightly in a dark room, or darkly in a lit one. The export is the last look at the level, so the palette is
+ * baked again from the scene the files hold — the same bake the editor runs when the level is opened.
+ *
+ * The bake reads the profile of the widget, so the file shows the light the editor showed. The palette is a copy: the
+ * level of the editor keeps its own.
+ *
+ * @param map The level to bake.
+ * @param polygons The polygons of the scene, in the order the export writes them.
+ * @param options Which layers of the light the export writes.
+ *
+ * @returns The colours of the palette, by the index of the level.
+ */
+function freshPaletteOf(map: ArxMap, polygons: readonly ArxPolygon[], options: ExportLights): ArxColor[] {
+  // a level without its static light gets a black palette from `buildExportLlf`, so the bake would be thrown away
+  if (options.staticLights === false) {
+    return map.llf.colors
+  }
+
+  // the bake reads the polygons of the scene and the scene position, not the room lists: the level's own header is
+  // enough, and the polygons are the ones of the screen
+  const scene: ArxFTS = { ...map.fts, polygons: [...polygons] }
+
+  return bakeLlfColors(scene, map.llf, paletteBakeOptionsOf(map))
+}
+
+/**
+ * The same bake as {@link freshPaletteOf}, in chunks, so the page can paint while the export runs.
+ *
+ * @param map The level to bake.
+ * @param polygons The polygons of the scene, in the order the export writes them.
+ * @param options Which layers of the light the export writes.
+ *
+ * @returns The colours of the palette, when the bake is done.
+ */
+async function freshPaletteInChunksOf(
+  map: ArxMap,
+  polygons: readonly ArxPolygon[],
+  options: ExportLights,
+): Promise<ArxColor[]> {
+  // a level without its static light gets a black palette from `buildExportLlf`, so the bake would be thrown away
+  if (options.staticLights === false) {
+    return map.llf.colors
+  }
+
+  const scene: ArxFTS = { ...map.fts, polygons: [...polygons] }
+
+  return await bakeLlfColorsInChunks(scene, map.llf, paletteBakeOptionsOf(map))
 }
 
 /**
@@ -473,6 +523,10 @@ export function buildExportDlf(dlf: ArxDLF, polygonCount: number, levelIndex?: n
  * from the file itself (`getHeaderSize`), the same call the loader makes. The description has a fixed header, and the
  * lighting has none: the whole file is compressed.
  *
+ * The palette of the lighting is **baked again** from the scene the files hold ({@link freshPaletteOf}): a step that
+ * moved faces and did not bake their colours leaves the palette at the light of the old place, and the game would light
+ * the copied block with it. The palette of the editor is not touched.
+ *
  * @param map The map to write.
  * @param options The values of the dialog, when the caller has them.
  *
@@ -485,12 +539,12 @@ export function exportLevelFiles(map: ArxMap, options: ExportOptions = {}): Leve
   // if the watch of the editor has not run since the last step of the rooms
   syncGeneratedPortals(map)
   // the faces a group hides are not in the level that is written: they are out of the mesh, and the export leaves them out
-  const source = map.visiblePolygons
-  // the palette is rebuilt in the order of the screen: the scene has to index it that way
-  const polygons = reindexedPolygonsOf(source)
-  const scene = FTS.save(buildExportFts(map.fts, polygons))
-  const lighting = LLF.save(buildExportLlf(map.llf, source, options))
-  const description = DLF.save(buildExportDlf(map.dlf, polygons.length, options.levelIndex))
+  // the polygons go in the order the FTS file writes them: the loader gives the palette its indices in that order
+  const source = cellOrderedPolygonsOf(map.visiblePolygons)
+  const scene = FTS.save(buildExportFts(map.fts, source))
+  const colors = freshPaletteOf(map, source, options)
+  const lighting = LLF.save(buildExportLlf({ ...map.llf, colors }, source, options))
+  const description = DLF.save(buildExportDlf(map.dlf, source.length, options.levelIndex))
 
   return {
     dlf: packLevelFile(description, getHeaderSize(description, 'dlf').total),
@@ -758,15 +812,14 @@ export async function exportLevelZip(
   // the portals of a flat level come from its rooms: the file is written with the portals of the rooms it has now
   syncGeneratedPortals(map)
   // the faces a group hides are not in the level that is written: they are out of the mesh, and the export leaves them out
-  const source = map.visiblePolygons
-  // the palette is rebuilt in the order of the screen: the scene has to index it that way
-  const polygons = reindexedPolygonsOf(source)
+  // the polygons go in the order the FTS file writes them: the loader gives the palette its indices in that order
+  const source = cellOrderedPolygonsOf(map.visiblePolygons)
 
   onProgress?.(EXPORT_PROGRESS.start)
   await nextPaint()
 
   // the scene: the file itself, then the compressed body (the long step)
-  const scene = FTS.save(buildExportFts(map.fts, polygons))
+  const scene = FTS.save(buildExportFts(map.fts, source))
 
   onProgress?.(EXPORT_PROGRESS.sceneBuilt)
   await nextPaint()
@@ -776,8 +829,9 @@ export async function exportLevelZip(
   onProgress?.(EXPORT_PROGRESS.scenePacked)
   await nextPaint()
 
-  // the lighting, the whole file compressed
-  const llf = packWholeFile(LLF.save(buildExportLlf(map.llf, source, options)))
+  // the lighting: the palette is baked again from the scene the files hold, then the whole file compressed
+  const colors = await freshPaletteInChunksOf(map, source, options)
+  const llf = packWholeFile(LLF.save(buildExportLlf({ ...map.llf, colors }, source, options)))
 
   onProgress?.(EXPORT_PROGRESS.lightingPacked)
   await nextPaint()
@@ -786,7 +840,7 @@ export async function exportLevelZip(
   const levelIndex = options.levelIndex ?? map.dlf.header.levelIdx
 
   // the description: the entities of the level, the count of the polygons it names and the index it takes
-  const description = DLF.save(buildExportDlf(map.dlf, polygons.length, levelIndex))
+  const description = DLF.save(buildExportDlf(map.dlf, source.length, levelIndex))
   const dlf = packLevelFile(description, getHeaderSize(description, 'dlf').total)
 
   onProgress?.(EXPORT_PROGRESS.descriptionPacked)

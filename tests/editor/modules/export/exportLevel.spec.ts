@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { DLF, FTS, LLF } from 'arx-convert'
+import { isQuad } from 'arx-convert/utils'
 import { ArxLightFlags, type ArxColor, type ArxLight, type ArxLLF, type ArxPolygon } from 'arx-convert/types'
 import JSZip from 'jszip'
 import { createBlankLevelFiles, FLAT_PRESET } from '../../../../src/editor/modules/level/blankLevel.ts'
 import { syncGeneratedPortals } from '../../../../src/editor/modules/level/edit/generatedPortals.ts'
+import { lightingProfile, paletteBakeOptionsOf } from '../../../../src/editor/modules/level/edit/lightingProfile.ts'
 import { EDITOR_GROUPS_PATH, EDITOR_ROOMS_PATH } from '../../../../src/editor/modules/editorFiles.ts'
 import { SETTINGS_PATH, SOURCE_FOLDER } from '../../../../src/editor/modules/level/source/editorSettings.ts'
 import type { StoredPose } from '../../../../src/editor/modules/level/source/maps/mapPoses.ts'
@@ -13,7 +15,7 @@ import {
   buildExportManifest,
   buildExportFts,
   buildExportLlf,
-  reindexedPolygonsOf,
+  cellOrderedPolygonsOf,
   renumberedRoomNamesOf,
   exportLevelFiles,
   exportLevelZip,
@@ -21,6 +23,7 @@ import {
 } from '../../../../src/editor/modules/export/exportLevel.ts'
 import { ArxMap } from '../../../../src/generator/ArxMap.ts'
 import { unpackArxFile } from '../../../../src/generator/files.ts'
+import { bakeLlfColors } from '../../../../src/generator/lighting.ts'
 import { Settings } from '../../../../src/generator/Settings.ts'
 
 /**
@@ -95,48 +98,6 @@ function lightOf(flags: number): ArxLight {
     flags,
   }
 }
-
-void describe('reindexedPolygonsOf', () => {
-  void it('puts the colours of the polygons in the order the export writes them', () => {
-    const [quad, triangle] = reindexedPolygonsOf([polygonOf(10, true), polygonOf(3, false)])
-
-    assert.deepEqual(
-      quad?.vertices.map((vertex) => {
-        return vertex.llfColorIdx
-      }),
-      [0, 1, 2, 3],
-    )
-    // the fourth vertex of a triangle has no colour of its own: it takes the first one
-    assert.deepEqual(
-      triangle?.vertices.map((vertex) => {
-        return vertex.llfColorIdx
-      }),
-      [4, 5, 6, 4],
-    )
-  })
-
-  void it('does not touch the polygons of the level', () => {
-    const source = polygonOf(10, true)
-
-    reindexedPolygonsOf([source])
-
-    assert.equal(source.vertices[0]?.llfColorIdx, 10)
-  })
-
-  void it('keeps the light of a face on the palette the export writes', () => {
-    const llf: ArxLLF = {
-      header: { lastModifiedBy: '', lastModifiedAt: 0, numberOfPolygonsInFTS: 1 },
-      lights: [],
-      colors: [colorOf(1), colorOf(2), colorOf(3), colorOf(4), colorOf(5)],
-    }
-    const source = polygonOf(1, true)
-    const copy = reindexedPolygonsOf([source])[0]
-    const exported = buildExportLlf(llf, [source])
-
-    // the copy points at the same colour in the rebuilt palette the game reads
-    assert.deepEqual(exported.colors[copy?.vertices[0]?.llfColorIdx ?? 0], llf.colors[1])
-  })
-})
 
 void describe('buildExportLlf', () => {
   void it('rebuilds the palette in the order of the polygons of the screen', () => {
@@ -555,6 +516,110 @@ void describe('exportLevelFiles', () => {
     assert.equal(lighting.header.numberOfPolygonsInFTS, 120)
   })
 
+  void it('bakes the palette of the files from the scene they hold', () => {
+    const map = flatMap()
+
+    // the editor's palette is stale: the white of a place the face was copied from, not the light of the place it moved
+    // to. The face goes under a blue light and nothing bakes it in the editor.
+    map.llf.colors = [0, 1, 2, 3].map(() => {
+      return { r: 255, g: 255, b: 255, a: 255 }
+    })
+    map.llf.lights = [
+      {
+        ...lightOf(ArxLightFlags.None),
+        position: { x: -250, y: -20, z: -550 },
+        color: { r: 0, g: 0, b: 255, a: 255 },
+      },
+    ]
+    map.translatePolygons([0], { x: 300, y: 0, z: 0 })
+
+    const before = lightingProfile.value
+    lightingProfile.value = 'Arx'
+
+    try {
+      const files = exportLevelFiles(map)
+      const exported = LLF.load(unpackArxFile(files.llf, 'llf'))
+      // the reference is the same bake on the final scene: the palette of the editor must not be copied as it is
+      const baked = bakeLlfColors(
+        { ...map.fts, polygons: [...map.visiblePolygons] },
+        map.llf,
+        paletteBakeOptionsOf(map),
+      )
+      const reference = buildExportLlf({ ...map.llf, colors: baked }, cellOrderedPolygonsOf(map.visiblePolygons))
+
+      // the alpha of a colour is a byte of the file and a fraction in the reader: the light is its three channels
+      assert.deepEqual(
+        exported.colors.map((color) => {
+          return [color.r, color.g, color.b]
+        }),
+        reference.colors.map((color) => {
+          return [color.r, color.g, color.b]
+        }),
+      )
+    } finally {
+      lightingProfile.value = before
+    }
+  })
+
+  void it('writes the palette in the order the FTS file writes the polygons', () => {
+    const map = flatMap()
+
+    // a palette block of its own for every face, so a colour tells which face it belongs to
+    let at = 0
+
+    for (const polygon of map.polygons) {
+      let count = 3
+
+      if (isQuad(polygon)) {
+        count = 4
+      }
+
+      for (let vertex = 0; vertex < count; vertex = vertex + 1) {
+        polygon.vertices[vertex].llfColorIdx = at + vertex
+      }
+
+      at = at + count
+    }
+
+    map.llf.colors = Array.from({ length: at }, () => {
+      return { r: 255, g: 255, b: 255, a: 255 }
+    })
+
+    // the first face of the map goes to a cell the file writes last, under a blue light
+    map.translatePolygons([0], { x: 5000, y: 0, z: 5000 })
+    map.llf.lights = [
+      {
+        ...lightOf(ArxLightFlags.None),
+        position: { x: 5000 - 550, y: -20, z: 5000 - 550 },
+        color: { r: 0, g: 0, b: 255, a: 255 },
+      },
+    ]
+
+    const before = lightingProfile.value
+    lightingProfile.value = 'Arx'
+
+    try {
+      const files = exportLevelFiles(map)
+      const scene = FTS.load(unpackArxFile(files.fts, 'fts'))
+      const lighting = LLF.load(unpackArxFile(files.llf, 'llf'))
+      const moved = scene.polygons.find((polygon) => {
+        return (polygon.vertices[0]?.x ?? 0) > 4000
+      })
+
+      assert.notEqual(moved, undefined)
+
+      // the loader numbers the palette in the order it reads the file: the face must find its own colour there
+      const base = moved?.vertices[0]?.llfColorIdx ?? 0
+      const color = lighting.colors[base]
+
+      assert.notEqual(color, undefined)
+      assert.ok((color?.b ?? 0) > (color?.r ?? 0))
+      assert.ok((color?.b ?? 0) > 100)
+    } finally {
+      lightingProfile.value = before
+    }
+  })
+
   void it('writes the three packed files of the edited level', () => {
     const map = flatMap()
 
@@ -597,6 +662,53 @@ void describe('exportLevelZip', () => {
     })
 
     assert.deepEqual(steps, [0, 10, 70, 80, 90, 100])
+  })
+
+  void it('bakes the palette of the archive from the scene it holds', async () => {
+    const map = flatMap()
+
+    map.llf.colors = [0, 1, 2, 3].map(() => {
+      return { r: 255, g: 255, b: 255, a: 255 }
+    })
+    map.llf.lights = [
+      {
+        ...lightOf(ArxLightFlags.None),
+        position: { x: -250, y: -20, z: -550 },
+        color: { r: 0, g: 0, b: 255, a: 255 },
+      },
+    ]
+    map.translatePolygons([0], { x: 300, y: 0, z: 0 })
+
+    const before = lightingProfile.value
+    lightingProfile.value = 'Arx'
+
+    try {
+      const level = map.dlf.header.levelIdx
+      const { data } = await exportLevelZip(map)
+      const archive = await JSZip.loadAsync(data)
+      const lighting = await archive.file(levelFilePath(level, 'llf'))?.async('arraybuffer')
+
+      assert.notEqual(lighting, undefined)
+
+      const exported = LLF.load(unpackArxFile(lighting as ArrayBuffer, 'llf'))
+      const baked = bakeLlfColors(
+        { ...map.fts, polygons: [...map.visiblePolygons] },
+        map.llf,
+        paletteBakeOptionsOf(map),
+      )
+      const reference = buildExportLlf({ ...map.llf, colors: baked }, cellOrderedPolygonsOf(map.visiblePolygons))
+
+      assert.deepEqual(
+        exported.colors.map((color) => {
+          return [color.r, color.g, color.b]
+        }),
+        reference.colors.map((color) => {
+          return [color.r, color.g, color.b]
+        }),
+      )
+    } finally {
+      lightingProfile.value = before
+    }
   })
 
   void it('zips the files under the paths of the game', async () => {

@@ -134,12 +134,12 @@ let stopWatching: (() => void) | undefined
 let stopWatchingCamera: (() => void) | undefined
 let stopWatchingWireframe: (() => void) | undefined
 let stopWatchingMesh: (() => void) | undefined
+let stopWatchingEdit: (() => void) | undefined
+let stopWatchingRoomRevision: (() => void) | undefined
 let stopWatchingPortals: (() => void) | undefined
 let stopWatchingPortalRevision: (() => void) | undefined
 let stopWatchingRooms: (() => void) | undefined
 let stopWatchingRoom: (() => void) | undefined
-let stopWatchingEdit: (() => void) | undefined
-let stopWatchingRoomRevision: (() => void) | undefined
 let stopWatchingSelection: (() => void) | undefined
 let stopWatchingGroups: (() => void) | undefined
 let stopWatchingLights: (() => void) | undefined
@@ -630,17 +630,11 @@ function hideMap(): void {
   portalLines = undefined
   selectionOverlay?.dispose()
   selectionOverlay = undefined
-  stopWatchingSelection?.()
-  stopWatchingSelection = undefined
-  stopWatchingGroups?.()
-  stopWatchingGroups = undefined
-  stopWatchingLights?.()
-  stopWatchingLights = undefined
+  // the watches of the selection, the groups, the switches and the edits are the widget's, and not the map's: they are
+  // registered once, in the mount, and their callbacks read the map on every change. Stopping them here left the view
+  // following the level it drew first, and the second level of a session (the picker of the data dir, a reload of the
+  // same map) took the switches with it (2026-11-20, the owner: the dots of a fixed view kept the state of the load)
   lightMarks = []
-  stopWatchingEdit?.()
-  stopWatchingEdit = undefined
-  stopWatchingRoomRevision?.()
-  stopWatchingRoomRevision = undefined
   player = undefined
   bounds = undefined
   marker.value = { x: 0, y: 0, visible: false, clamped: false, degrees: 0, arrow: false }
@@ -827,6 +821,10 @@ onBeforeUnmount(() => {
   stopWatchingGroups = undefined
   stopWatchingLights?.()
   stopWatchingLights = undefined
+  stopWatchingEdit?.()
+  stopWatchingEdit = undefined
+  stopWatchingRoomRevision?.()
+  stopWatchingRoomRevision = undefined
 
   if (host.value !== null) {
     host.value.removeEventListener('wheel', pointer.onWheel)

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
-import { editorUrl, seedLayout, waitForLevel } from './support/editor.ts'
+import { editorUrl, seedLayout, statOf, waitForLevel } from './support/editor.ts'
 
 /**
  * The markers of the lights in a fixed view: the overlay canvas is a 2D canvas over the scene, and the markers are its
@@ -156,5 +156,49 @@ test('the dots of a fixed view come back after the frames a dialog dropped', asy
       },
       { timeout: 10_000 },
     )
+    .toBe(0)
+})
+
+/**
+ * The dots of a fixed view follow the switches after the level was loaded a second time.
+ *
+ * @remarks
+ * `hideMap` runs on every change of the level, and it used to stop the watches of the widget with the map: the view kept
+ * the picture of the level it drew first, and the lights, the rooms and the selection of the second level did not reach
+ * it (2026-11-20, the owner: the data dir picker loads the level a second time, and the dots of the fixed views stayed
+ * as they were). The test changes the level on the screen, and expects the lights to work on the level that follows.
+ */
+test('the dots of a fixed view follow the switches after a second level', async ({ page }) => {
+  await page.setViewportSize({ width: 1631, height: 850 })
+  await seedLayout(page, editorLayout)
+  await page.goto('/?map=blank-minimal')
+  await waitForLevel(page)
+
+  // the second level of the session: the plane with the light of its own
+  await page.getByRole('combobox', { name: /The maps the editor can open/u }).selectOption('blank:flat')
+
+  await expect
+    .poll(
+      async () => {
+        return await statOf(page, 'Total faces')
+      },
+      { timeout: 30_000 },
+    )
+    .toBe(121)
+
+  await page.keyboard.press('l')
+
+  await expect
+    .poll(async () => {
+      return await lightPixels(page)
+    })
+    .toBeGreaterThan(0)
+
+  await page.keyboard.press('l')
+
+  await expect
+    .poll(async () => {
+      return await lightPixels(page)
+    })
     .toBe(0)
 })

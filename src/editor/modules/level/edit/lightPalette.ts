@@ -56,6 +56,74 @@ function spheresOf(changed: readonly LightPaletteChange[]): LightSphere[] {
 }
 
 /**
+ * Bakes the light of the faces that moved, with the profile of the level.
+ *
+ * @remarks
+ * A face that moves (a paste, a translate, a rotate, a scale) takes the light of its new place: the corners it owns are
+ * baked again and only those are written, so a move stays cheap on a big level. A profile that does not read the lights
+ * (the flat and the rainbow) needs nothing.
+ *
+ * @param map The level the faces belong to.
+ * @param faces The indices of the faces that moved.
+ */
+export function refreshLightPaletteOfFaces(map: ArxMap, faces: readonly number[]): void {
+  const options = paletteBakeOptionsOf(map)
+
+  if (!readsPalette(options.mode)) {
+    return
+  }
+
+  const corners = bakedCornersOf(map)
+
+  if (corners === undefined) {
+    return
+  }
+
+  const wanted = new Set<number>()
+
+  for (const index of faces) {
+    const polygon = map.polygons[index]
+
+    if (polygon === undefined) {
+      continue
+    }
+
+    for (const vertex of polygon.vertices) {
+      if (vertex.llfColorIdx !== undefined) {
+        wanted.add(vertex.llfColorIdx)
+      }
+    }
+  }
+
+  const reached: number[] = []
+
+  for (let entry = 0; entry < corners.count; entry = entry + 1) {
+    if (wanted.has(corners.paletteIndexes[entry] ?? -1)) {
+      reached.push(entry)
+    }
+  }
+
+  if (reached.length === 0) {
+    return
+  }
+
+  const colors = bakeLlfColorsAt(map.llf, options, corners, reached)
+
+  if (colors.size === 0) {
+    return
+  }
+
+  for (const [index, color] of colors) {
+    if (index < map.llf.colors.length) {
+      map.llf.colors[index] = color
+    }
+  }
+
+  bumpLightingCacheVersion()
+  writeBakedCornerColors(map, corners, reached)
+}
+
+/**
  * Bakes the palette again where the lights an edit touched have changed it.
  *
  * @remarks
@@ -72,6 +140,7 @@ function spheresOf(changed: readonly LightPaletteChange[]): LightSphere[] {
  * @param map The level the lights belong to.
  * @param changed The lights the edit touched, with the two states of each.
  */
+
 export function refreshLightPalette(map: ArxMap, changed: readonly LightPaletteChange[]): void {
   const options = paletteBakeOptionsOf(map)
 

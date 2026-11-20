@@ -58,6 +58,15 @@ export type PasteFacesRecord = {
    * so a later edit of the pasted faces does not reach the record (or the clipboard).
    */
   readonly polygons: readonly ArxPolygon[]
+  /**
+   * The colours of the corners, in the order of the polygons: three or four per face.
+   *
+   * @remarks
+   * The pasted faces get their own colours (a block appended to the palette), so a light rebake can move them with the
+   * faces. The field is optional: a record written before the colours existed reads its colours from the palette of the
+   * level, at the indices the polygons name.
+   */
+  readonly colors?: readonly ArxColor[]
 }
 
 /**
@@ -604,6 +613,10 @@ export type MutableLevel = {
    */
   readonly polygons: readonly ArxPolygon[]
   /**
+   * The lighting of the level: the palette the faces read their colour from.
+   */
+  readonly llf: { readonly colors: ArxColor[] }
+  /**
    * The portals of the level, as the FTS keeps them.
    */
   readonly portals: readonly ArxPortal[]
@@ -732,15 +745,30 @@ export function createDeleteFacesRecord(faces: Iterable<number>): DeleteFacesRec
  * level) must not move it.
  *
  * @param polygons The faces the clipboard holds.
+ * @param colors The colours of the corners, when the clipboard has them.
  *
  * @returns The record of the step.
  */
-export function createPasteFacesRecord(polygons: readonly ArxPolygon[]): PasteFacesRecord {
-  return {
+export function createPasteFacesRecord(
+  polygons: readonly ArxPolygon[],
+  colors?: readonly ArxColor[],
+): PasteFacesRecord {
+  const record: PasteFacesRecord = {
     version: HISTORY_RECORD_VERSION,
     kind: 'pasteFaces',
     polygons: polygons.map((polygon) => {
       return structuredClone(polygon)
+    }),
+  }
+
+  if (colors === undefined) {
+    return record
+  }
+
+  return {
+    ...record,
+    colors: colors.map((color) => {
+      return { ...color }
     }),
   }
 }

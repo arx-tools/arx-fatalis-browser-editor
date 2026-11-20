@@ -1,4 +1,5 @@
-import type { ArxPolygon } from 'arx-convert/types'
+import type { ArxColor, ArxPolygon } from 'arx-convert/types'
+import { isQuad } from 'arx-convert/utils'
 import type { FaceRoom, FaceTexture } from '../../../generator/ArxMap.ts'
 import type { PolygonInsertion } from '../../../generator/arxMap/removal.ts'
 import { forgetRoomNames, renameRoom } from '../rooms/roomNames.ts'
@@ -461,6 +462,37 @@ function scaleFacesCommandOf(record: ScaleFacesRecord, level: MutableLevel): His
  * @returns The command, or undefined when the record can not be read by this build.
  */
 /**
+ * The colours a pasted face takes from the palette of the level.
+ *
+ * @remarks
+ * A record written before the colours travelled in it has no block of its own: the faces name the palette entries of
+ * the level, and the paste takes those (the colours of the place they came from).
+ *
+ * @param polygons The faces of the record.
+ * @param palette The palette of the level.
+ *
+ * @returns The colours of the corners, in the order of the polygons.
+ */
+function coloursOf(polygons: readonly ArxPolygon[], palette: readonly ArxColor[]): ArxColor[] {
+  const colours: ArxColor[] = []
+
+  for (const polygon of polygons) {
+    const base = polygon.vertices[0]?.llfColorIdx ?? 0
+    let count = 3
+
+    if (isQuad(polygon)) {
+      count = 4
+    }
+
+    for (let vertex = 0; vertex < count; vertex = vertex + 1) {
+      colours.push({ ...(palette[base + vertex] ?? { r: 255, g: 255, b: 255, a: 255 }) })
+    }
+  }
+
+  return colours
+}
+
+/**
  * Builds the command of a paste.
  *
  * @remarks
@@ -475,6 +507,7 @@ function scaleFacesCommandOf(record: ScaleFacesRecord, level: MutableLevel): His
  */
 function pasteFacesCommandOf(record: PasteFacesRecord, level: MutableLevel): HistoryCommand {
   let inserted: ArxPolygon[] = []
+  let appended = 0
   let label = `Paste ${String(record.polygons.length)} faces`
 
   if (record.polygons.length === 1) {
@@ -485,13 +518,49 @@ function pasteFacesCommandOf(record: PasteFacesRecord, level: MutableLevel): His
     label,
     record,
     apply: (): void => {
+      const start = level.llf.colors.length
+      let colours: readonly ArxColor[]
+
+      if (record.colors === undefined) {
+        colours = coloursOf(record.polygons, level.llf.colors)
+      } else {
+        colours = record.colors
+      }
+
+      let offset = 0
+
+      level.addLightingColors(colours)
+      appended = colours.length
+
       inserted = record.polygons.map((polygon) => {
-        return structuredClone(polygon)
+        const copy = structuredClone(polygon)
+        let count = 3
+
+        if (isQuad(copy)) {
+          count = 4
+        }
+
+        for (let vertex = 0; vertex < copy.vertices.length; vertex = vertex + 1) {
+          let colourIndex = start + offset
+
+          // the fourth vertex of a triangle has no colour of its own: it takes the first one, which the game does not read
+          if (vertex < count) {
+            colourIndex = colourIndex + vertex
+          }
+
+          copy.vertices[vertex].llfColorIdx = colourIndex
+        }
+
+        offset = offset + count
+
+        return copy
       })
+
       addPolygonsAtTheEndOf(level, inserted)
     },
     revert: (): void => {
       level.removePolygons(inserted)
+      level.removeLightingColors(appended)
     },
   }
 }

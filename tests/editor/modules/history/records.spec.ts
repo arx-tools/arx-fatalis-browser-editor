@@ -94,6 +94,7 @@ function fakeLevel(count: number): {
     lights,
     level: {
       polygons,
+      llf: { colors: lighting },
       portals,
       setPortals: (next: readonly ArxPortal[]): void => {
         portals.splice(0, portals.length, ...next)
@@ -372,6 +373,24 @@ void describe('createPasteFacesRecord', () => {
     assert.equal(record.version, HISTORY_RECORD_VERSION)
     assert.equal(record.kind, 'pasteFaces')
   })
+
+  void it('keeps the colours of the corners when the clipboard has them', () => {
+    const record = createPasteFacesRecord(
+      [triangle(1)],
+      [
+        { r: 10, g: 0, b: 0, a: 255 },
+        { r: 11, g: 0, b: 0, a: 255 },
+        { r: 12, g: 0, b: 0, a: 255 },
+      ],
+    )
+
+    assert.deepEqual(
+      record.colors?.map((color) => {
+        return color.r
+      }),
+      [10, 11, 12],
+    )
+  })
 })
 
 void describe('commandOf', () => {
@@ -391,6 +410,28 @@ void describe('commandOf', () => {
     assert.notEqual(polygons.at(-1), record.polygons[0])
 
     command?.revert()
+    assert.equal(polygons.length, 2)
+  })
+
+  void it('moves the colours of the pasted faces into a block of their own', () => {
+    const { level, polygons, lighting } = fakeLevel(2)
+    const record = createPasteFacesRecord(
+      [triangle(9)],
+      [
+        { r: 10, g: 0, b: 0, a: 255 },
+        { r: 11, g: 0, b: 0, a: 255 },
+        { r: 12, g: 0, b: 0, a: 255 },
+      ],
+    )
+    const command = commandOf(record, level)
+
+    command?.apply()
+    assert.equal(lighting.length, 4)
+    // the copy points at the block appended to the palette, not at the entries of the source
+    assert.equal(polygons.at(-1)?.vertices[0]?.llfColorIdx, 1)
+
+    command?.revert()
+    assert.equal(lighting.length, 1)
     assert.equal(polygons.length, 2)
   })
 

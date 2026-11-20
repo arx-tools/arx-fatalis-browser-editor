@@ -8,7 +8,7 @@ import { createDeleteFacesRecord, type SetLightRecord } from '../../history/reco
 import { onKeyboardAction } from '../../keyboard/keyboard.ts'
 import { bumpPortalRevision } from '../../rooms/portalSync.ts'
 import { selectionStore } from '../../selection/selectionStore.ts'
-import { refreshLightPalette, type LightPaletteChange } from './lightPalette.ts'
+import { refreshLightPalette, refreshLightPaletteOfFaces, type LightPaletteChange } from './lightPalette.ts'
 import { bumpLightingCacheVersion } from './lightingCache.ts'
 import { touchLights } from './lightEditing.ts'
 import { levelStore } from './levelStore.ts'
@@ -65,6 +65,19 @@ export function bumpTextureRevision(): void {
 }
 
 /**
+ * Bakes the light of the faces that moved, with the profile of the level.
+ *
+ * @param faces The indices of the faces that moved.
+ */
+function refreshLightPaletteOfFacesOf(faces: readonly number[]): void {
+  const map = levelStore.map.value
+
+  if (map !== undefined) {
+    refreshLightPaletteOfFaces(map, faces)
+  }
+}
+
+/**
  * Bakes the palette of the level again where a light edit changed the light of its corners.
  *
  * @remarks
@@ -112,8 +125,9 @@ function withRevision(command: HistoryCommand): HistoryCommand {
    * Tells the views, and the paint when the step touched a material.
    *
    * @param step The step that ran.
+   * @param applied Whether the step ran forward: the colours of a paste are baked on the apply, not on the undo.
    */
-  function bump(step: HistoryCommand): void {
+  function bump(step: HistoryCommand, applied: boolean): void {
     bumpLevelRevision()
     bumpLightingCacheVersion()
 
@@ -122,16 +136,65 @@ function withRevision(command: HistoryCommand): HistoryCommand {
       textureRevision.value = textureRevision.value + 1
     }
 
-    // a tunnel brings its portals and takes them out with itself: the outline and the room warnings follow them
-    if (step.record.kind === 'buildTunnel') {
-      bumpPortalRevision()
-    }
+    switch (step.record.kind) {
+      // a tunnel brings its portals and takes them out with itself: the outline and the room warnings follow them
+      case 'buildTunnel': {
+        bumpPortalRevision()
+        break
+      }
 
-    // a light edit moves the markers and their shapes with the fields of the light, and the palette of the level with
-    // the light itself (the undo and the redo take the palette back the same way the live edit moved it)
-    else if (step.record.kind === 'setLight') {
-      touchLights()
-      refreshLightPaletteOf(step.record)
+      // a light edit moves the markers and their shapes with the fields of the light, and the palette of the level with
+      // the light itself (the undo and the redo take the palette back the same way the live edit moved it)
+      case 'setLight': {
+        touchLights()
+        refreshLightPaletteOf(step.record)
+        break
+      }
+
+      // a face that moves takes the light of its new place: the corners it owns are baked again, so a pasted or a
+      // dragged face does not keep the colour of the place it came from
+      case 'rotateFaces':
+      case 'scaleFaces':
+      case 'translateFaces': {
+        refreshLightPaletteOfFacesOf(step.record.faces)
+        break
+      }
+
+      // the pasted faces get their own colours when they go in: their bake happens on the apply, not on the undo
+      case 'pasteFaces': {
+        if (!applied) {
+          break
+        }
+
+        const map = levelStore.map.value
+
+        if (map === undefined) {
+          break
+        }
+
+        const count = step.record.polygons.length
+
+        refreshLightPaletteOfFaces(
+          map,
+          Array.from({ length: count }, (_, position) => {
+            return map.polygons.length - count + position
+          }),
+        )
+        break
+      }
+
+      // the steps that keep the colours of their faces: a group, a room, a texture or a uv changes no light
+      case 'createFaceGroup':
+      case 'deleteFaceGroups':
+      case 'deleteFaces':
+      case 'deleteRooms':
+      case 'renameFaceGroup':
+      case 'setRoom':
+      case 'setRoomName':
+      case 'setTexture':
+      case 'setUv': {
+        break
+      }
     }
   }
 
@@ -140,11 +203,11 @@ function withRevision(command: HistoryCommand): HistoryCommand {
     record: command.record,
     apply: (): void => {
       command.apply()
-      bump(command)
+      bump(command, true)
     },
     revert: (): void => {
       command.revert()
-      bump(command)
+      bump(command, false)
     },
   }
 }

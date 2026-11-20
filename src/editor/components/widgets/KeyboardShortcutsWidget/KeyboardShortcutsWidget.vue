@@ -206,6 +206,10 @@ const sections = computed<readonly HelpSection[]>(() => {
         { keys: [{ kind: 'text', text: 'Shift' }, leftButton], action: 'Add to selection' },
         { keys: [removeKey, leftButton], action: 'Remove from selection' },
         { keys: [{ kind: 'text', text: 'C' }], action: 'Clear selection' },
+        // the copy and the paste of the faces: `primary` is Ctrl everywhere and the Cmd of the mac (the row above the
+        // delete, the order of the keyboard section of the ticket)
+        { keys: [primaryKey, { kind: 'text', text: 'C' }], action: 'Copy face(s)' },
+        { keys: [primaryKey, { kind: 'text', text: 'V' }], action: 'Paste face(s)' },
         { keys: [{ kind: 'text', text: 'Delete' }], action: 'Delete face(s), room(s) or group(s)' },
       ],
     },

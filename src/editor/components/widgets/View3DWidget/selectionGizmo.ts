@@ -14,7 +14,8 @@ import { bumpLevelRevision, levelRevision, runStep } from '../../../modules/leve
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import { rotateVisible, scaleVisible, transformVisible } from '../shared/editModes.ts'
-import { rotationSnapDegrees, rotationSnapFor } from '../shared/snapping.ts'
+import { rotationSnapDegrees, rotationSnapFor, snapModifierHeld, vertexSnapEnabled } from '../shared/snapping.ts'
+import { createVertexSnap, type VertexSnap } from './vertexSnap.ts'
 import { selectionCenterOf } from './selectionCenter.ts'
 
 /**
@@ -160,46 +161,15 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
 
   // the step of the turn is a setting: 15 degrees by default, 45 while Shift is held. The gizmo reads it on every
   // press, so a change of the setting (or the key) needs no rebuild of the controls.
-  let shiftHeld = false
-
   /**
    * Writes the snap the gizmo uses now.
    */
   function applyRotationSnap(): void {
-    controls.setRotationSnap(MathUtils.degToRad(rotationSnapFor(shiftHeld)))
-  }
-
-  /**
-   * Follows the Shift key, the coarse step of a turn.
-   *
-   * @param event The key event of the window.
-   */
-  function onShiftChange(event: KeyboardEvent): void {
-    if (event.shiftKey === shiftHeld) {
-      return
-    }
-
-    shiftHeld = event.shiftKey
-    applyRotationSnap()
-  }
-
-  /**
-   * Drops the coarse step when the window loses the keys: a release outside the page would leave it on.
-   */
-  function onWindowBlur(): void {
-    if (!shiftHeld) {
-      return
-    }
-
-    shiftHeld = false
-    applyRotationSnap()
+    controls.setRotationSnap(MathUtils.degToRad(rotationSnapFor(snapModifierHeld.value)))
   }
 
   applyRotationSnap()
-  const stopSnapSetting = watch(rotationSnapDegrees, applyRotationSnap)
-  globalThis.addEventListener('keydown', onShiftChange)
-  globalThis.addEventListener('keyup', onShiftChange)
-  window.addEventListener('blur', onWindowBlur)
+  const stopSnapSetting = watch([rotationSnapDegrees, snapModifierHeld], applyRotationSnap)
 
   options.scene.add(helper)
   options.scene.add(proxy)
@@ -227,6 +197,10 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
    * The scale the model has taken since the press.
    */
   let appliedScale: ArxVector3 = { x: 1, y: 1, z: 1 }
+  /**
+   * The snap of the translate drag, when it is on. The vertices are collected at the first frame that needs them.
+   */
+  let vertexSnap: VertexSnap | undefined
 
   /**
    * The gizmo the switches of the edit modes ask for, or `undefined` when neither is on.
@@ -302,6 +276,42 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
     }
 
     options.onRender()
+  }
+
+  /**
+   * Whether the translate drag snaps to the vertices: the magnet, or Shift for the length of the drag.
+   *
+   * @returns True when the corner of the selection should take the nearest vertex.
+   */
+  function isSnapActive(): boolean {
+    return vertexSnapEnabled.value || snapModifierHeld.value
+  }
+
+  /**
+   * Builds the snap of the drag from the level the selection is on.
+   *
+   * @remarks
+   * It is built on the first frame that needs it, not at the press: a drag that started before the magnet or Shift was
+   * on has to snap too, and a drag that never snaps pays nothing for the vertices of the level.
+   */
+  function startVertexSnap(): void {
+    if (map === undefined || faces.length === 0) {
+      return
+    }
+
+    vertexSnap = createVertexSnap(map, faces, {
+      camera: options.camera,
+      canvas: options.canvas,
+      scene: options.scene,
+    })
+  }
+
+  /**
+   * Frees the snap and its marker.
+   */
+  function stopVertexSnap(): void {
+    vertexSnap?.dispose()
+    vertexSnap = undefined
   }
 
   /**
@@ -400,14 +410,30 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
       z: proxy.position.z - startWorld.z,
     }
     const total = arxVector3toVector3(world)
-    const step = { x: total.x - applied.x, y: total.y - applied.y, z: total.z - applied.z }
+
+    if (vertexSnap === undefined && isSnapActive()) {
+      startVertexSnap()
+    }
+
+    let correction = { x: 0, y: 0, z: 0 }
+
+    if (vertexSnap !== undefined && isSnapActive()) {
+      correction = vertexSnap.snap(total, controls.axis).correction
+    } else {
+      vertexSnap?.hide()
+    }
+
+    // the model follows the raw travel of the proxy plus the correction of this frame, so letting the snap go takes the
+    // correction back instead of leaving the selection at the last snapped place
+    const snapped = { x: total.x + correction.x, y: total.y + correction.y, z: total.z + correction.z }
+    const step = { x: snapped.x - applied.x, y: snapped.y - applied.y, z: snapped.z - applied.z }
 
     if (step.x === 0 && step.y === 0 && step.z === 0) {
       return
     }
 
     map.translatePolygons(faces, step)
-    applied = total
+    applied = snapped
     lastPress = performance.now()
     bumpLevelRevision()
   }
@@ -509,6 +535,7 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
     }
 
     dragging = false
+    stopVertexSnap()
 
     if (map === undefined) {
       return
@@ -569,9 +596,7 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
     dispose: (): void => {
       stop()
       stopSnapSetting()
-      globalThis.removeEventListener('keydown', onShiftChange)
-      globalThis.removeEventListener('keyup', onShiftChange)
-      window.removeEventListener('blur', onWindowBlur)
+      stopVertexSnap()
       controls.removeEventListener('change', options.onRender)
       controls.removeEventListener('objectChange', onObjectChange)
       controls.removeEventListener('mouseDown', onMouseDown)

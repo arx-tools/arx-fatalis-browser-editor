@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
+import { Magnet } from 'lucide-vue-next'
 import { PerspectiveCamera, type Group, type Mesh } from 'three'
 import Crosshair from '../../Crosshair.vue'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
@@ -24,6 +25,7 @@ import { litRooms } from '../../../modules/rooms/roomStore.ts'
 import { currentRoom } from '../../../modules/rooms/roomUnderCrosshair.ts'
 import { cameraStore } from '../camera/cameraStore.ts'
 import { renderPerformanceStore } from '../shared/renderPerformance.ts'
+import { transformVisible } from '../shared/editModes.ts'
 import {
   isLightsVisible,
   isMeshVisible,
@@ -31,6 +33,7 @@ import {
   isRoomColorsVisible,
   isWireframeVisible,
 } from '../shared/levelDisplay.ts'
+import { snapModifierHeld, vertexSnapEnabled } from '../shared/snapping.ts'
 import { addPreviewLights, attachWireframe, viewMeshesOf, type LevelWireframe } from '../shared/levelScene.ts'
 import { disposeSpikeEntityModel, loadSpikeEntityModel } from '../../../modules/level/entities/entitySpike.ts'
 import {
@@ -808,6 +811,28 @@ onBeforeUnmount(() => {
     view = undefined
   }
 })
+
+/**
+ * Whether the snap of the translate gizmo is on now: the magnet, or Shift for the length of the drag.
+ *
+ * @remarks
+ * The icon follows both: a Shift press lights it up **on the key event**, before the pointer moves, so the author sees
+ * the key is held when the magnet itself is off.
+ */
+const snapActive = computed(() => {
+  return vertexSnapEnabled.value || snapModifierHeld.value
+})
+
+/**
+ * Flips the magnet of the translate gizmo.
+ *
+ * @remarks
+ * The switch is a preference of the editor: it stays in the browser, and Shift turns the snap on for a drag without
+ * moving it, so a single drag can snap and the next one can go free.
+ */
+function toggleVertexSnap(): void {
+  vertexSnapEnabled.value = !vertexSnapEnabled.value
+}
 </script>
 
 <template>
@@ -815,6 +840,18 @@ onBeforeUnmount(() => {
     <canvas ref="canvas" class="stage"></canvas>
     <!-- the crosshair marks the middle of the level: while the level loads, the status text is there -->
     <Crosshair v-if="status === '' && hasLevel" />
+    <button
+      v-if="transformVisible"
+      class="snap-toggle"
+      type="button"
+      :aria-pressed="snapActive"
+      :data-shifted="snapModifierHeld"
+      aria-label="Snap the selection to vertices"
+      :title="snapModifierHeld ? 'Snapping to the vertices while Shift is held' : 'Snap to vertices (hold Shift)'"
+      @click="toggleVertexSnap"
+    >
+      <Magnet :size="15" />
+    </button>
     <div class="gizmo" aria-hidden="true">
       <canvas ref="gizmoCanvas"></canvas>
     </div>
@@ -842,6 +879,40 @@ onBeforeUnmount(() => {
     display: block;
     width: 100%;
     height: 100%;
+  }
+
+  // the magnet of the translate gizmo: a small switch in the corner of the view, above the canvas, so the pointer can
+  // reach it while the camera is not locked
+  .snap-toggle {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    color: $text-muted;
+    background: rgba($surface-app, 0.72);
+    border: 1px solid $border-dark;
+    border-radius: 4px;
+    cursor: pointer;
+
+    &[aria-pressed='true'] {
+      color: $accent;
+      background: rgba($accent, 0.18);
+      border-color: $interactive;
+    }
+
+    // the temporary state of Shift reads as a ring: the fill is the switch the author left on, the ring is the key
+    &[data-shifted='true'] {
+      box-shadow: 0 0 0 1px $accent;
+    }
+
+    &:hover {
+      color: $text;
+    }
   }
 
   // the compass sits in a translucent disc, so the thin triad reads on a light level and on the dark

@@ -8,6 +8,7 @@ import LoadingOverlay from './components/LoadingOverlay.vue'
 import MissingMapPrompt from './components/MissingMapPrompt.vue'
 import { startEditModes } from './components/widgets/shared/editModes.ts'
 import { startLevelDisplay } from './components/widgets/shared/levelDisplay.ts'
+import { startSnapModifier } from './components/widgets/shared/snapping.ts'
 import { startHelpPopup } from './modules/help/helpPopup.ts'
 import { startDynamicLights } from './modules/level/edit/dynamicLights.ts'
 import { startLevelEditing } from './modules/level/edit/editing.ts'
@@ -144,6 +145,7 @@ onMounted(async () => {
   // the pose the old build kept as one value goes under the map of the last visit, before the first map reads its own
   migrateLegacyPose()
   startPoseTracking()
+  startSnapModifier()
 
   /**
    * Whether the map of the url was not in the list of the maps, so the address bar has to keep it.

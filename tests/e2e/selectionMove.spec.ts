@@ -79,6 +79,42 @@ test('the gizmo moves the selected face, and the undo takes it back', async ({ p
   await expect(undo).toBeEnabled()
 })
 
+test('the magnet of the translate gizmo is on the view, and it stays off until it is pressed', async ({ page }) => {
+  test.setTimeout(120_000)
+  await seedLayout(page, layoutWithSelectionInspector())
+  // the blank level needs no data dir: the magnet is on the view of any level, and the test is about the switch
+  await page.goto('/?map=blank-flat')
+
+  await waitForLevel(page)
+
+  const magnet = page.locator('[data-widget-kind="3d-view"] .snap-toggle')
+
+  await expect(magnet).toBeVisible()
+  await expect(magnet).toHaveAttribute('aria-pressed', 'false')
+
+  // Shift lights the magnet up on the key itself: no mouse move, no click, the button is the confirmation of the key
+  await page.keyboard.down('Shift')
+  await expect(magnet).toHaveAttribute('aria-pressed', 'true')
+  await expect(magnet).toHaveAttribute('data-shifted', 'true')
+
+  await page.keyboard.up('Shift')
+  await expect(magnet).toHaveAttribute('aria-pressed', 'false')
+  await expect(magnet).toHaveAttribute('data-shifted', 'false')
+
+  await magnet.click()
+  await expect(magnet).toHaveAttribute('aria-pressed', 'true')
+
+  // the switch the author left on stays on when the key goes: the ring of Shift is a state of its own
+  await page.keyboard.down('Shift')
+  await expect(magnet).toHaveAttribute('aria-pressed', 'true')
+  await page.keyboard.up('Shift')
+  await expect(magnet).toHaveAttribute('aria-pressed', 'true')
+
+  await page.reload()
+  await waitForLevel(page)
+  await expect(page.locator('[data-widget-kind="3d-view"] .snap-toggle')).toHaveAttribute('aria-pressed', 'true')
+})
+
 /**
  * `1` puts the gizmo away, and the selection stays: the key is an edit mode, not a way to drop the faces.
  *

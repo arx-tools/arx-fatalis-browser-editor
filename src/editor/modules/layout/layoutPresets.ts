@@ -54,12 +54,13 @@ const UNDO_ROW_HEIGHT = 60
 const EDITOR_UNDO_ROW_HEIGHT = 50
 
 /**
- * The height of the Edit Settings widget of the `Editor` preset, in pixels.
+ * The height of the Translate Snapping Settings widget of the `Editor` preset, in pixels.
  *
  * @remarks
- * The owner's plate (2026-11-21): the settings row is 350 by 120, the three rows of the snapping and the threshold.
+ * The owner's plate (2026-11-21): the settings row is 350 by 170, the master switch and the three snap types with
+ * enough air for the power buttons and the threshold (the widget's old name was Edit Settings).
  */
-const EDIT_SETTINGS_HEIGHT = 120
+const EDIT_SETTINGS_HEIGHT = 170
 
 /**
  * The height of the plan view of the `Editor` preset, in pixels.

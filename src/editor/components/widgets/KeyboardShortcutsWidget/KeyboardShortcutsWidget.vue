@@ -188,6 +188,9 @@ const sections = computed<readonly HelpSection[]>(() => {
         { keys: [{ kind: 'text', text: '1' }], action: 'Transform', toggle: 'transform' },
         { keys: [{ kind: 'text', text: '2' }], action: 'Rotate', toggle: 'rotate' },
         { keys: [{ kind: 'text', text: '3' }], action: 'Scale', toggle: 'scale' },
+        // the temporary switch of the snapping: Shift turns it on for the length of a drag, the magnet is the same
+        // switch (2026-11-21, the owner)
+        { keys: [{ kind: 'text', text: 'Shift' }], action: 'Snapping' },
       ],
     },
     {

@@ -119,7 +119,7 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
   },
   {
     kind: WIDGET_KINDS.editSettings,
-    label: 'Edit Settings',
+    label: 'Translate Snapping Settings',
     contentSized: true,
     group: 'controls',
     create: (): Widget => {

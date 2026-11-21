@@ -847,7 +847,10 @@ function toggleVertexSnap(): void {
       :aria-pressed="snapActive"
       :data-shifted="snapModifierHeld"
       aria-label="Snap the selection"
-      :title="snapModifierHeld ? 'Snapping while Shift is held' : 'Snap the selection (hold Shift)'"
+      v-tooltip="{
+        content: snapModifierHeld ? 'Snapping while Shift is held' : 'Snap the selection (hold Shift)',
+        placement: 'left',
+      }"
       @click="toggleVertexSnap"
     >
       <Magnet :size="15" />

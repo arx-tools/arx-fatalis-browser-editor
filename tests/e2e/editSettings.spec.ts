@@ -32,14 +32,21 @@ test('the edit settings widget writes the snapping, and keeps it across a reload
   await expect(widget).toBeVisible()
 
   // the defaults: the snap is off, every kind of it is on, and the threshold is the 20 pixels the owner asked for
-  await expect(snapping).not.toBeChecked()
-  await expect(vertex).toBeChecked()
-  await expect(edge).toBeChecked()
-  await expect(face).toBeChecked()
+  await expect(snapping).toHaveAttribute('aria-pressed', 'false')
+  await expect(vertex).toHaveAttribute('aria-pressed', 'true')
+  await expect(edge).toHaveAttribute('aria-pressed', 'true')
+  await expect(face).toHaveAttribute('aria-pressed', 'true')
   await expect(threshold).toHaveValue('20')
 
+  // the kinds are disabled while the master switch is off: the buttons stay as they were set, but do nothing
+  await expect(vertex).toBeDisabled()
+  await expect(edge).toBeDisabled()
+  await expect(face).toBeDisabled()
+
   // the master switch is the magnet of the 3D view: turning it on here lights the magnet up
-  await snapping.check()
+  await snapping.click()
+  await expect(snapping).toHaveAttribute('aria-pressed', 'true')
+  await expect(vertex).toBeEnabled()
   await expect(magnet).toHaveAttribute('aria-pressed', 'true')
   await expect
     .poll(async () => {
@@ -49,7 +56,8 @@ test('the edit settings widget writes the snapping, and keeps it across a reload
     })
     .toBe('true')
 
-  await edge.uncheck()
+  await edge.click()
+  await expect(edge).toHaveAttribute('aria-pressed', 'false')
   await expect
     .poll(async () => {
       return await page.evaluate(() => {
@@ -86,10 +94,11 @@ test('the edit settings widget writes the snapping, and keeps it across a reload
 
   const again = page.locator(`[data-widget-kind="${WIDGET_KINDS.editSettings}"]`)
 
-  await expect(again.getByLabel('Snapping')).toBeChecked()
-  await expect(again.getByLabel('Snap to vertex')).toBeChecked()
-  await expect(again.getByLabel('Snap to edge')).not.toBeChecked()
-  await expect(again.getByLabel('Snap to face')).toBeChecked()
+  await expect(again.getByLabel('Snapping')).toHaveAttribute('aria-pressed', 'true')
+  await expect(again.getByLabel('Snap to vertex')).toHaveAttribute('aria-pressed', 'true')
+  await expect(again.getByLabel('Snap to edge')).toHaveAttribute('aria-pressed', 'false')
+  await expect(again.getByLabel('Snap to face')).toHaveAttribute('aria-pressed', 'true')
+  await expect(again.getByLabel('Snap to vertex')).toBeEnabled()
   await expect(again.getByLabel('Snap threshold in pixels')).toHaveValue('35')
   await expect(page.locator('[data-widget-kind="3d-view"] .snap-toggle')).toHaveAttribute('aria-pressed', 'true')
 })

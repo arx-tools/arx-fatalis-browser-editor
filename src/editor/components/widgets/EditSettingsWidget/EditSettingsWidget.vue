@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { Power } from 'lucide-vue-next'
+import { computed, ref, watch } from 'vue'
 import {
   snapEdgeEnabled,
   snapEnabled,
@@ -9,7 +10,7 @@ import {
 } from '../shared/snapping.ts'
 
 /**
- * The master switch of the snapping, bound to the checkbox.
+ * The master switch of the snapping, bound to the power button.
  *
  * @remarks
  * It is the same state the magnet of the 3D view writes: the two are one switch, so the author can turn the snap on
@@ -61,25 +62,89 @@ const plane = computed<boolean>({
 })
 
 /**
- * The farthest a snap may take the selection, in pixels of the canvas, bound to the number field.
+ * The text of the tooltip of the master switch: what the next click does.
+ */
+const snappingTooltip = computed<string>(() => {
+  if (enabled.value) {
+    return 'Turn the snapping off'
+  }
+
+  return 'Turn the snapping on'
+})
+
+/**
+ * The farthest a snap may take the selection, as the text of the field.
  *
  * @remarks
- * The stored value is a whole number between 1 and 80: a snap farther than a few tens of pixels is not a snap any more,
- * and the stored form of the setting has to stay one the next build can read (the `deserialize` of the ref checks it
- * too). The field writes on every input, so the drag of the next frame uses the number on the screen.
+ * The field is a text input and not a number one: the spinners of the number field of firefox are ugly (the owner,
+ * 2026-11-21, the same reason the camera form is text), and the value is a whole number between 1 and 80, written out
+ * by this ref. The ref below is the one the snaps read.
  */
-const threshold = computed<number>({
-  get: (): number => {
-    return snapThresholdPx.value
-  },
-  set: (value: number): void => {
-    if (!Number.isFinite(value)) {
-      return
-    }
+const thresholdText = ref<string>(String(snapThresholdPx.value))
 
-    snapThresholdPx.value = Math.min(80, Math.max(1, Math.round(value)))
-  },
+/**
+ * The farthest a snap may take the selection, in pixels, between the allowed ends.
+ *
+ * @param value The number to clamp.
+ *
+ * @returns The value inside the range.
+ */
+function clamped(value: number): number {
+  return Math.min(80, Math.max(1, value))
+}
+
+watch(snapThresholdPx, (value) => {
+  thresholdText.value = String(value)
 })
+
+/**
+ * Writes the number of the field, and shows the value the ref took.
+ *
+ * @remarks
+ * A number out of the range is clamped as it is typed, and the field shows the clamped value: the stored setting is
+ * always one the next build can read (the `deserialize` of the ref checks it too). An empty or half typed field keeps
+ * its text and does not touch the setting; the blur puts the number back.
+ *
+ * @param event The input event of the field.
+ */
+function onThresholdInput(event: Event): void {
+  const field = event.target as HTMLInputElement
+  const raw = field.value
+  const parsed = Number.parseInt(raw, 10)
+
+  if (!Number.isFinite(parsed)) {
+    thresholdText.value = raw
+
+    return
+  }
+
+  snapThresholdPx.value = clamped(parsed)
+
+  if (parsed === snapThresholdPx.value) {
+    thresholdText.value = raw
+
+    return
+  }
+
+  thresholdText.value = String(snapThresholdPx.value)
+}
+
+/**
+ * Steps the threshold with the arrows of the keyboard, the way the camera form does.
+ *
+ * @param direction The step: up is one more, down is one less.
+ */
+function stepThreshold(direction: 1 | -1): void {
+  snapThresholdPx.value = clamped(snapThresholdPx.value + direction)
+  thresholdText.value = String(snapThresholdPx.value)
+}
+
+/**
+ * Puts the number of the setting back into the field, when the focus leaves it.
+ */
+function onThresholdBlur(): void {
+  thresholdText.value = String(snapThresholdPx.value)
+}
 </script>
 
 <template>
@@ -87,28 +152,68 @@ const threshold = computed<number>({
     <div class="field">
       <span class="caption">Snapping</span>
       <div class="row">
-        <label class="check">
-          <input v-model="enabled" type="checkbox" aria-label="Snapping" />
-          <span>On</span>
-        </label>
+        <button
+          class="power"
+          :class="{ 'is-on': enabled }"
+          type="button"
+          :aria-pressed="enabled"
+          aria-label="Snapping"
+          v-tooltip="{ content: snappingTooltip }"
+          @click="enabled = !enabled"
+        >
+          <Power :size="14" aria-hidden="true" />
+        </button>
       </div>
     </div>
 
-    <div class="field">
+    <div class="field types-field" :class="{ 'is-disabled': !enabled }">
       <span class="caption">Snap to</span>
-      <div class="row types">
-        <label class="check">
-          <input v-model="vertex" type="checkbox" aria-label="Snap to vertex" />
-          <span>Vertex</span>
-        </label>
-        <label class="check">
-          <input v-model="edge" type="checkbox" aria-label="Snap to edge" />
-          <span>Edge</span>
-        </label>
-        <label class="check">
-          <input v-model="plane" type="checkbox" aria-label="Snap to face" />
-          <span>Face</span>
-        </label>
+      <div class="types">
+        <div class="type-row">
+          <span class="type-label">Vertex</span>
+          <button
+            class="power"
+            :class="{ 'is-on': vertex }"
+            type="button"
+            :disabled="!enabled"
+            :aria-pressed="vertex"
+            aria-label="Snap to vertex"
+            v-tooltip="'Snap a corner to a vertex of the level'"
+            @click="vertex = !vertex"
+          >
+            <Power :size="12" aria-hidden="true" />
+          </button>
+        </div>
+        <div class="type-row">
+          <span class="type-label">Edge</span>
+          <button
+            class="power"
+            :class="{ 'is-on': edge }"
+            type="button"
+            :disabled="!enabled"
+            :aria-pressed="edge"
+            aria-label="Snap to edge"
+            v-tooltip="'Rail the edge of the selection on an edge of the level'"
+            @click="edge = !edge"
+          >
+            <Power :size="12" aria-hidden="true" />
+          </button>
+        </div>
+        <div class="type-row">
+          <span class="type-label">Face</span>
+          <button
+            class="power"
+            :class="{ 'is-on': plane }"
+            type="button"
+            :disabled="!enabled"
+            :aria-pressed="plane"
+            aria-label="Snap to face"
+            v-tooltip="'Land a corner on the plane of a face of the level'"
+            @click="plane = !plane"
+          >
+            <Power :size="12" aria-hidden="true" />
+          </button>
+        </div>
       </div>
     </div>
 
@@ -117,13 +222,18 @@ const threshold = computed<number>({
       <div class="row">
         <input
           id="snap-threshold"
-          v-model.number="threshold"
+          :value="thresholdText"
           class="threshold"
-          type="number"
-          min="1"
-          max="80"
-          step="1"
+          type="text"
+          inputmode="numeric"
+          autocomplete="off"
+          spellcheck="false"
           aria-label="Snap threshold in pixels"
+          v-tooltip="'How far a snap may take the selection, in pixels'"
+          @input="onThresholdInput"
+          @blur="onThresholdBlur"
+          @keydown.up.prevent="stepThreshold(1)"
+          @keydown.down.prevent="stepThreshold(-1)"
         />
         <span class="unit">px</span>
       </div>
@@ -136,7 +246,8 @@ const threshold = computed<number>({
 
 // The settings of the edit: the master switch of the snapping, the snaps it runs and the threshold they use. The widget
 // is content-sized and has no heading of its own: the dock says its name. The caption sits beside the control, the same
-// way the lighting widget does, so a short widget keeps its rows on one line each.
+// way the lighting widget does, so a short widget keeps its rows on one line each. The snap types are the power buttons
+// of the lighting widget (2026-11-21, the owner), in three rows under the caption.
 .EditSettingsWidget {
   display: grid;
   grid-template-columns: max-content;
@@ -170,20 +281,63 @@ const threshold = computed<number>({
     gap: 10px;
   }
 
-  .check {
+  // the three snap types: a column of label and power button rows, the labels on one width so the buttons line up
+  .types {
+    display: grid;
+    gap: 2px;
+  }
+
+  .type-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .type-label {
+    flex: none;
+    width: 40px;
+    color: $text;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .types-field.is-disabled .type-label {
+    opacity: 0.45;
+  }
+
+  // the power switch of the lighting widget: no plate of its own, a faint border and a grey icon while it is off, a
+  // lighter border and the accent while it is on, the grey of the panel under the pointer, and the dimmed look while
+  // the master switch keeps it disabled
+  .power {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    color: $text;
+    justify-content: center;
+    width: 26px;
+    height: 22px;
+    padding: 0;
+    border: 1px solid $border;
+    border-radius: 4px;
+    background: transparent;
+    color: $text-muted;
     cursor: pointer;
-    white-space: nowrap;
 
-    input {
-      width: 13px;
-      height: 13px;
-      margin: 0;
-      accent-color: $interactive;
-      cursor: pointer;
+    &:hover {
+      background: $surface-panel;
+    }
+
+    &:focus-visible {
+      border-color: $interactive;
+      outline: 1px solid $interactive;
+    }
+
+    &.is-on {
+      border-color: $border-strong;
+      color: $accent;
+    }
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
     }
   }
 

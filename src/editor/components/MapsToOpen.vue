@@ -167,7 +167,7 @@ watch(currentMapId, (id) => {
 <template>
   <div class="MapsToOpen">
     <span class="label">Maps ({{ mapCount }})</span>
-    <div class="list" :title="title">
+    <div class="list" v-tooltip="title">
       <!-- a map the list does not have (a level of a folder that is not there yet) has no row: the control shows only
            the empty box, the way it did before the group was written before the name. The prefix opens the list too: the
            whole box is a control, not a caption with a dead left half -->

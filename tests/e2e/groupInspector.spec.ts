@@ -160,6 +160,21 @@ async function groupTheSelection(page: Page): Promise<void> {
   await page.keyboard.press('ControlOrMeta+g')
 }
 
+/**
+ * Puts the pointer away from the widgets of the dock.
+ *
+ * @remarks
+ * The tooltips of the rows are DOM elements over the page, and a screenshot of the canvas takes the elements that stand
+ * over it along: a pointer left on a row would put the tooltip of that row into the picture and make two frames of the
+ * same level differ. The corner of the header is empty, so the pointer goes there before a screenshot.
+ *
+ * @param page The page to move the pointer on.
+ */
+async function pointerAway(page: Page): Promise<void> {
+  await page.mouse.move(2, 2)
+  await nextFrames(page, 2)
+}
+
 test.setTimeout(120_000)
 
 /**
@@ -667,6 +682,7 @@ test('the eye of a group takes its faces out of the mesh, and the delete puts th
   const view = page.locator('[data-widget-kind="3d-view"] canvas.stage')
 
   await nextFrames(page, 2)
+  await pointerAway(page)
 
   const before = await view.screenshot()
 
@@ -683,6 +699,7 @@ test('the eye of a group takes its faces out of the mesh, and the delete puts th
     .toContain('"visible":false')
 
   await nextFrames(page, 3)
+  await pointerAway(page)
 
   const hidden = await view.screenshot()
   const gone = await screenshotDifference(page, before, hidden)
@@ -696,6 +713,7 @@ test('the eye of a group takes its faces out of the mesh, and the delete puts th
 
   await expect(eye).toHaveAttribute('aria-pressed', 'true')
   await nextFrames(page, 3)
+  await pointerAway(page)
 
   const back = await view.screenshot()
   const same = await screenshotDifference(page, before, back)
@@ -711,6 +729,7 @@ test('the eye of a group takes its faces out of the mesh, and the delete puts th
 
   await expect(groups).toHaveCount(0)
   await nextFrames(page, 3)
+  await pointerAway(page)
 
   const restored = await view.screenshot()
   const again = await screenshotDifference(page, before, restored)

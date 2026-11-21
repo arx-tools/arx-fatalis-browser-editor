@@ -713,7 +713,13 @@ test('the name of a room is written on its row, with a double click', async ({ p
   await field.press('Enter')
 
   await expect(row).not.toContainText(longName)
-  await expect(row.locator('.name')).toHaveAttribute('title', 'Unnamed area')
+
+  // the tooltip of the row's name says what the area is: a room without a name is an unnamed area (the title attribute
+  // left the editor with the tooltip round, 2026-11-21). The pointer goes away and back: the field was under it, and
+  // firefox does not open the tooltip of the span that appears under a pointer that did not move.
+  await page.mouse.move(2, 2)
+  await row.locator('.name').hover()
+  await expect(page.locator('.v-popper--theme-tooltip .v-popper__inner')).toContainText('Unnamed area')
 })
 
 /**

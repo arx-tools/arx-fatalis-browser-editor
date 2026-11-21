@@ -606,7 +606,7 @@ function removeRowRoom(room: number): void {
         @mouseleave="hoverRoom(undefined)"
       >
         <span class="swatch" :style="{ backgroundColor: row.color }"></span>
-        <span class="name" :class="{ 'is-renaming': renaming === row.room }" :title="roomTitleOf(row.room)">
+        <span class="name" :class="{ 'is-renaming': renaming === row.room }" v-tooltip="roomTitleOf(row.room)">
           {{ roomLabelOf(row.room) }}
           <template v-if="renaming === row.room">
             ·
@@ -633,7 +633,7 @@ function removeRowRoom(room: number): void {
           class="edit"
           type="button"
           :aria-label="`Rename ${roomLabelOf(row.room)}`"
-          :title="`Rename ${roomLabelOf(row.room)}`"
+          v-tooltip="`Rename ${roomLabelOf(row.room)}`"
           @click.stop="startRename(row.room)"
           @dblclick.stop
         >
@@ -644,7 +644,7 @@ function removeRowRoom(room: number): void {
           class="trash"
           type="button"
           :aria-label="`Delete ${roomLabelOf(row.room)}`"
-          :title="`Delete ${roomLabelOf(row.room)}`"
+          v-tooltip="`Delete ${roomLabelOf(row.room)}`"
           @click.stop="removeRowRoom(row.room)"
         >
           <Trash2 :size="13" />
@@ -659,7 +659,7 @@ function removeRowRoom(room: number): void {
           type="button"
           class="move"
           :disabled="selected === 0"
-          title="Make a new room of the selected faces"
+          v-tooltip="'Make a new room of the selected faces'"
           @click="newRoom"
         >
           Put into a new room
@@ -675,7 +675,7 @@ function removeRowRoom(room: number): void {
             type="button"
             class="apply"
             :disabled="!canMove"
-            :title="moveTitle"
+            v-tooltip="moveTitle"
             aria-label="Move the selection to the room"
             @click="moveToTarget"
           >
@@ -683,7 +683,7 @@ function removeRowRoom(room: number): void {
           </button>
         </div>
         <span class="or">or</span>
-        <button type="button" class="move" :disabled="!canUnset" :title="unsetTitle" @click="removeRoom">
+        <button type="button" class="move" :disabled="!canUnset" v-tooltip="unsetTitle" @click="removeRoom">
           Unset room data
         </button>
       </div>

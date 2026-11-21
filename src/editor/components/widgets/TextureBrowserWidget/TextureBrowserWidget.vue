@@ -324,7 +324,7 @@ async function onDrop(event: DragEvent): Promise<void> {
         role="button"
         :tabindex="selected === 0 ? undefined : 0"
         :aria-disabled="selected === 0 ? 'true' : undefined"
-        :title="titleOf(entry)"
+        v-tooltip="titleOf(entry)"
         @click="paint(entry)"
         @keydown.enter.prevent="paint(entry)"
         @keydown.space.prevent="paint(entry)"

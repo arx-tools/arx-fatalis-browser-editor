@@ -104,7 +104,7 @@ const dynamicLights = computed<boolean>({
           :class="{ 'is-baking': isBakingLighting }"
           :size="14"
           aria-hidden="true"
-          title="Baking the light"
+          v-tooltip="'Baking the light'"
         />
       </div>
     </div>
@@ -136,7 +136,7 @@ const dynamicLights = computed<boolean>({
           type="button"
           :aria-pressed="staticLights"
           aria-label="Static lights"
-          title="Static lights"
+          v-tooltip="'Static lights'"
           @click="staticLights = !staticLights"
         >
           <Power :size="14" aria-hidden="true" />
@@ -154,7 +154,7 @@ const dynamicLights = computed<boolean>({
           type="button"
           :aria-pressed="dynamicLights"
           aria-label="Dynamic lights"
-          title="Dynamic lights"
+          v-tooltip="'Dynamic lights'"
           @click="dynamicLights = !dynamicLights"
         >
           <Power :size="14" aria-hidden="true" />

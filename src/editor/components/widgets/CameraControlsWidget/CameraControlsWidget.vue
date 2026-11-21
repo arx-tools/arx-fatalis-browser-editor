@@ -165,7 +165,7 @@ function onStep(name: CameraFieldName, direction: 1 | -1): void {
             :class="{ invalid: invalid[name] }"
             :disabled="readOnly || name === 'roll'"
             :aria-label="`${group.label} ${name}`"
-            :title="`${group.label} ${name}`"
+            v-tooltip="`${group.label} ${name}`"
             type="text"
             inputmode="decimal"
             autocomplete="off"

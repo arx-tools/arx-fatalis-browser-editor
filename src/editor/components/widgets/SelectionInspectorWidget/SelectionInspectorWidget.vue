@@ -212,7 +212,7 @@ function thumbOf(name: string): string | undefined {
                   <span class="count">{{ formatCount(group.faces) }} {{ group.faces === 1 ? 'face' : 'faces' }}</span>
                 </h3>
                 <ul class="textures">
-                  <li v-for="texture in group.textures" :key="texture.name" :title="texture.name">
+                  <li v-for="texture in group.textures" :key="texture.name" v-tooltip="texture.name">
                     <img v-if="thumbOf(texture.name) !== undefined" class="thumb" :src="thumbOf(texture.name)" alt="" />
                     <span v-else class="thumb placeholder" aria-hidden="true"></span>
                     <span class="name">{{ texture.name }}</span>

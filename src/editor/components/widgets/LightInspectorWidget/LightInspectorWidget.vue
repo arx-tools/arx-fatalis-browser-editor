@@ -219,17 +219,18 @@ function jumpTo(row: LightRow): void {
         :key="row.index"
         class="light"
         :class="{ 'is-selected': isSelected(row.index) }"
-        :title="`${lightShapeLabelOf(row.shape)} · ${lightPositionLabelOf(row.position)}`"
         @click="pick(row.index, $event)"
       >
         <span class="swatch" :style="{ backgroundColor: row.color }"></span>
         <span class="index">{{ lightIndexLabelOf(row.index) }}</span>
-        <span class="shape">{{ lightShapeLabelOf(row.shape) }}</span>
+        <span class="shape" v-tooltip="`${lightShapeLabelOf(row.shape)} · ${lightPositionLabelOf(row.position)}`">
+          {{ lightShapeLabelOf(row.shape) }}
+        </span>
         <button
           class="jump"
           type="button"
           :aria-label="`Jump to light ${row.index}`"
-          :title="`Jump to light ${row.index}`"
+          v-tooltip="`Jump to light ${row.index}`"
           @click.stop="jumpTo(row)"
         >
           <ScanSearch :size="14" />

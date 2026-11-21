@@ -221,7 +221,7 @@ function removeGroup(row: FaceGroupRow): void {
           type="button"
           :disabled="selected === 0"
           aria-label="Group the selected faces"
-          title="Group the selected faces"
+          v-tooltip="'Group the selected faces'"
           @click="createGroup"
         >
           <Plus :size="14" />
@@ -247,7 +247,7 @@ function removeGroup(row: FaceGroupRow): void {
           :class="{ 'is-visible': row.visible }"
           :aria-label="row.visible ? `Hide ${row.label}` : `Show ${row.label}`"
           :aria-pressed="row.visible"
-          :title="row.visible ? `Hide ${row.label}` : `Show ${row.label}`"
+          v-tooltip="row.visible ? `Hide ${row.label}` : `Show ${row.label}`"
           @click.stop="toggleVisibility(row)"
           @dblclick.stop
         >
@@ -268,13 +268,13 @@ function removeGroup(row: FaceGroupRow): void {
           @keydown.esc="cancelRename"
           @blur="commitRename"
         />
-        <span v-else class="name" :title="row.label">{{ row.label }}</span>
+        <span v-else class="name" v-tooltip="row.label">{{ row.label }}</span>
         <span class="count">{{ faceCountLabelOf(row.faceCount) }}</span>
         <button
           class="zoom"
           type="button"
           :aria-label="`Jump to ${row.label}`"
-          :title="`Jump to ${row.label}`"
+          v-tooltip="`Jump to ${row.label}`"
           @click.stop="jumpTo(row)"
           @dblclick.stop
         >
@@ -284,7 +284,7 @@ function removeGroup(row: FaceGroupRow): void {
           class="edit"
           type="button"
           :aria-label="`Rename ${row.label}`"
-          :title="`Rename ${row.label}`"
+          v-tooltip="`Rename ${row.label}`"
           @click.stop="startRename(row)"
           @dblclick.stop
         >
@@ -294,7 +294,7 @@ function removeGroup(row: FaceGroupRow): void {
           class="trash"
           type="button"
           :aria-label="`Delete ${row.label}`"
-          :title="`Delete ${row.label}`"
+          v-tooltip="`Delete ${row.label}`"
           @click.stop="removeGroup(row)"
         >
           <Trash2 :size="13" />

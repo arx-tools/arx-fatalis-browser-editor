@@ -506,7 +506,7 @@ async function reconnectDir(): Promise<void> {
           <template v-if="hasFolder">The <strong>Arx data dir</strong> is set to the following folder</template>
           <template v-else>{{ stateLabel }}</template>
         </span>
-        <span v-if="folderName !== undefined" class="state-name" :title="folderName">{{ folderName }}</span>
+        <span v-if="folderName !== undefined" class="state-name" v-tooltip="folderName">{{ folderName }}</span>
         <span v-if="stateNote !== undefined" class="state-note">({{ stateNote }})</span>
         <button v-if="needsPermission" class="reconnect" type="button" @click="reconnectDir">
           Reconnect the folder

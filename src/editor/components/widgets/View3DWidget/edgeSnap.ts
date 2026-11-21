@@ -1,5 +1,4 @@
 import type { ArxPolygon, ArxVector3 } from 'arx-convert/types'
-import { isQuad } from 'arx-convert/utils'
 import {
   BufferAttribute,
   BufferGeometry,
@@ -12,6 +11,7 @@ import {
 } from 'three'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
+import { polygonPerimeter } from '../../../../generator/polygons.ts'
 import { SNAP_THRESHOLD_PX, screenDistance, snapAxesOf, type ScreenPoint } from '../shared/snapping.ts'
 
 /**
@@ -149,22 +149,30 @@ function edgeKeyOf(a: ArxVector3, b: ArxVector3): string {
 /**
  * The edges of a polygon.
  *
+ * @remarks
+ * The corners of a quad come in the order the game stores them (`0, 1, 2, 3`), which is not the order of its outline:
+ * the perimeter goes `0-1-3-2` (see `polygonPerimeter`). Walking the corners one after the other would leave out the
+ * two side edges of every quad and invent the two diagonals instead, and a drag that has to rail on a side edge (an X
+ * drag on a floor, for one) would find no target at all.
+ *
  * @param polygon The face.
  *
- * @returns Its edges, in the order of its corners.
+ * @returns Its edges, in the order of its outline.
  */
 function edgesOf(polygon: ArxPolygon): GameEdge[] {
-  let count = 3
-
-  if (isQuad(polygon)) {
-    count = 4
-  }
-
+  const perimeter = polygonPerimeter(polygon)
   const edges: GameEdge[] = []
 
-  for (let vertex = 0; vertex < count; vertex = vertex + 1) {
-    const one = polygon.vertices[vertex]
-    const other = polygon.vertices[(vertex + 1) % count]
+  for (let index = 0; index < perimeter.length; index = index + 1) {
+    const from = perimeter[index]
+    const to = perimeter[(index + 1) % perimeter.length]
+
+    if (from === undefined || to === undefined) {
+      continue
+    }
+
+    const one = polygon.vertices[from]
+    const other = polygon.vertices[to]
 
     if (one === undefined || other === undefined) {
       continue

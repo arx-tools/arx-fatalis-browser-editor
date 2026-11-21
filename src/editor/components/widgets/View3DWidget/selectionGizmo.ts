@@ -14,6 +14,7 @@ import { bumpLevelRevision, levelRevision, runStep } from '../../../modules/leve
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import { rotateVisible, scaleVisible, transformVisible } from '../shared/editModes.ts'
+import { rotationSnapDegrees, rotationSnapFor } from '../shared/snapping.ts'
 import { selectionCenterOf } from './selectionCenter.ts'
 
 /**
@@ -25,16 +26,6 @@ import { selectionCenterOf } from './selectionCenter.ts'
  * moved nothing does not start the window, so the user can click the middle of the view to walk again.
  */
 const LOCK_GUARD_MS = 300
-
-/**
- * The angle a drag of the rotate gizmo snaps to, in degrees.
- *
- * @remarks
- * The rings of the gizmo are turned at a step of a quarter of a circle and the faces of a level follow the walls: 15
- * degrees gives the four quarters, the halves and the eighths in one drag, and a turn that is not a number of those is
- * rarely the one the author wanted (TODO 184; a free turn is a later question).
- */
-const ROTATION_SNAP_DEGREES = 15
 
 /**
  * The turn between the frame of the scene and the frame of the game.
@@ -166,7 +157,50 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
   controls.setMode('translate')
   // the proxy carries the frame of the game, so the gizmo of every mode turns with it
   controls.setSpace('local')
-  controls.setRotationSnap(MathUtils.degToRad(ROTATION_SNAP_DEGREES))
+
+  // the step of the turn is a setting: 15 degrees by default, 45 while Shift is held. The gizmo reads it on every
+  // press, so a change of the setting (or the key) needs no rebuild of the controls.
+  let shiftHeld = false
+
+  /**
+   * Writes the snap the gizmo uses now.
+   */
+  function applyRotationSnap(): void {
+    controls.setRotationSnap(MathUtils.degToRad(rotationSnapFor(shiftHeld)))
+  }
+
+  /**
+   * Follows the Shift key, the coarse step of a turn.
+   *
+   * @param event The key event of the window.
+   */
+  function onShiftChange(event: KeyboardEvent): void {
+    if (event.shiftKey === shiftHeld) {
+      return
+    }
+
+    shiftHeld = event.shiftKey
+    applyRotationSnap()
+  }
+
+  /**
+   * Drops the coarse step when the window loses the keys: a release outside the page would leave it on.
+   */
+  function onWindowBlur(): void {
+    if (!shiftHeld) {
+      return
+    }
+
+    shiftHeld = false
+    applyRotationSnap()
+  }
+
+  applyRotationSnap()
+  const stopSnapSetting = watch(rotationSnapDegrees, applyRotationSnap)
+  globalThis.addEventListener('keydown', onShiftChange)
+  globalThis.addEventListener('keyup', onShiftChange)
+  window.addEventListener('blur', onWindowBlur)
+
   options.scene.add(helper)
   options.scene.add(proxy)
 
@@ -534,6 +568,10 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
     },
     dispose: (): void => {
       stop()
+      stopSnapSetting()
+      globalThis.removeEventListener('keydown', onShiftChange)
+      globalThis.removeEventListener('keyup', onShiftChange)
+      window.removeEventListener('blur', onWindowBlur)
       controls.removeEventListener('change', options.onRender)
       controls.removeEventListener('objectChange', onObjectChange)
       controls.removeEventListener('mouseDown', onMouseDown)

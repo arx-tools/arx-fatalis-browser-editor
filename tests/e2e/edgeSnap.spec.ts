@@ -3,7 +3,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 import JSZip from 'jszip'
 import { createBlankLevelFiles, FLAT_PRESET } from '../../src/editor/modules/level/blankLevel.ts'
 import { exportLevelFiles } from '../../src/editor/modules/export/exportLevel.ts'
-import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
+import { testLayout } from '../support/layouts.ts'
 import { ArxMap } from '../../src/generator/ArxMap.ts'
 import { Settings } from '../../src/generator/Settings.ts'
 import {
@@ -219,7 +219,7 @@ test('the edge rail snaps the face of the hole onto the edge of the hole along X
   test.skip(browserName !== 'chromium', 'the pointer lock of the walkable view needs chromium here')
   test.setTimeout(120_000)
 
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
   await page.goto('/')
   await waitForLevel(page)
 

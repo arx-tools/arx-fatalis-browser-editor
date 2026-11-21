@@ -123,6 +123,14 @@ const definitions: readonly WidgetDefinition[] = [
     },
   },
   {
+    kind: 'edit-settings',
+    label: 'Edit Settings',
+    group: 'controls',
+    create: (): LuminoWidget => {
+      return new Widget()
+    },
+  },
+  {
     kind: 'undo-redo',
     label: 'Undo and Redo',
     group: 'controls',
@@ -313,12 +321,10 @@ void describe('the layout of the shell', () => {
     assert.equal(shell.selectedPreset.value, 'editor')
     assert.deepEqual([...shell.placedKinds.value].toSorted(), [
       '3d-view',
-      'camera-controls',
+      'edit-settings',
+      'front-view',
       'group-inspector',
-      'jump-to-location',
-      'map-statistics',
-      'polygon-inspector',
-      'selection-inspector',
+      'left-view',
       'top-view',
       'undo-redo',
     ])

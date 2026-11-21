@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
+import { testLayout } from '../support/layouts.ts'
 import { WIDGET_KINDS } from '../../src/editor/modules/layout/widgetKinds.ts'
 import type { LayoutNode } from '../../src/editor/modules/layout/layoutNode.ts'
 import {
@@ -168,7 +168,7 @@ test.setTimeout(120_000)
  */
 test('the editor preset carries the group inspector under the plan', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
   await page.goto('/?map=blank-flat')
   await waitForLevel(page)
   await waitForLayoutSettled(page)

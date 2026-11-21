@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
+import { testLayout } from '../support/layouts.ts'
 import { editorUrl, nextFrames, screenshotDifference, seedLayout, waitForLevel } from './support/editor.ts'
 
 /**
@@ -10,7 +10,7 @@ import { editorUrl, nextFrames, screenshotDifference, seedLayout, waitForLevel }
  * @param options.flatZero Whether the flat light goes to zero: only the dynamic layer can light the level then.
  */
 async function openTorch(page: Page, options: { flatZero?: boolean } = {}): Promise<void> {
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
   await page.goto(editorUrl())
   await waitForLevel(page)
 

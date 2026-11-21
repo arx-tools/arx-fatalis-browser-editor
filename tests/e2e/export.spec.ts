@@ -2,7 +2,8 @@ import { readFile } from 'node:fs/promises'
 import { expect, test } from '@playwright/test'
 import { LLF } from 'arx-convert'
 import JSZip from 'jszip'
-import { editorLayout, roomsLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
+import { roomsLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
+import { testLayout } from '../support/layouts.ts'
 import { unpackArxFile } from '../../src/generator/files.ts'
 import {
   E2E_LEVEL,
@@ -30,7 +31,7 @@ test.setTimeout(120_000)
 test('the export dialog writes the level under the fields of the dialog', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
 
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
 
   await page.goto(editorUrl())
   await waitForLevel(page)
@@ -146,7 +147,7 @@ test('the export dialog writes the level under the fields of the dialog', async 
 test('the export leaves the lights of a switched off layer out, and a static-off level dark', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
 
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
   await page.goto(editorUrl())
   await waitForLevel(page)
 
@@ -191,7 +192,7 @@ test('the export leaves the lights of a switched off layer out, and a static-off
 
 test('a level of a zip opens on the camera pose the export wrote', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
   // the view the level is left at: the link carries it, so the store of the camera has it from the load, and the export
   // reads the store (the form reaches it through a debounce, which a write just before a click can lose)
   await page.goto('/?map=blank-flat&position=120,-60,430&rotation=10,45,0')

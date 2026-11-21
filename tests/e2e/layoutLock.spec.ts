@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
+import { testLayout } from '../support/layouts.ts'
 import { editorUrl, seedLayout, waitForLayoutSettled, waitForLevel } from './support/editor.ts'
 
 /**
@@ -190,7 +190,7 @@ test('a lock survives a reload when the widget is alone in its column', async ({
 })
 
 test('a locked widget keeps its size, the others take the rest', async ({ page }) => {
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
   await page.goto(editorUrl())
   await waitForLevel(page)
 
@@ -211,7 +211,7 @@ test('a locked widget keeps its size, the others take the rest', async ({ page }
 })
 
 test('the lock is in the stored layout, so a reload keeps it', async ({ page }) => {
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
   await page.goto(editorUrl())
   await waitForLevel(page)
 
@@ -249,7 +249,7 @@ test('the lock is in the stored layout, so a reload keeps it', async ({ page }) 
 
 test('a locked widget shows its size on the plate, and an unlocked one shows none', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
   await page.goto(editorUrl())
   await waitForLevel(page)
 
@@ -286,7 +286,7 @@ test('a locked widget shows its size on the plate, and an unlocked one shows non
 test('a preset switched in the edit mode comes with the locks on the plates', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
   // the editor preset has the statistics the wait for the level reads; the switch below is the point of the test
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
   await page.goto(editorUrl())
   await waitForLevel(page)
 
@@ -312,7 +312,7 @@ test('a preset switched in the edit mode comes with the locks on the plates', as
 
 test('a smaller window squeezes the widgets, it does not cut them', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 850 })
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
   await page.goto(editorUrl())
   await waitForLevel(page)
 

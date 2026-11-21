@@ -1,10 +1,11 @@
 import type { Buffer } from 'node:buffer'
 import { expect, type Locator, type Page } from '@playwright/test'
-import { editorLayout, factoryPresets } from '../../../src/editor/modules/layout/layoutPresets.ts'
+import { factoryPresets } from '../../../src/editor/modules/layout/layoutPresets.ts'
 import { factorySignatureOf } from '../../../src/editor/modules/layout/layoutHistory.ts'
 import { layoutEquals, type LayoutNode } from '../../../src/editor/modules/layout/layoutNode.ts'
 import { WIDGET_KINDS } from '../../../src/editor/modules/layout/widgetKinds.ts'
 import { ORIGINAL_LEVEL_PARAMETER } from '../../../src/editor/modules/level/source/levelSource.ts'
+import { testLayout } from '../../support/layouts.ts'
 
 /**
  * Starts the page with the given layout on the dock.
@@ -214,7 +215,7 @@ export function renameKinds(layout: LayoutNode, renames: Readonly<Record<string,
  * @returns The tree to put into the storage.
  */
 export function layoutWithSelectionInspector(): LayoutNode {
-  return editorLayout
+  return testLayout
 }
 
 /**
@@ -228,7 +229,7 @@ export function layoutWithSelectionInspector(): LayoutNode {
  * @returns The tree to put into the storage.
  */
 export function layoutWithTheKeys(): LayoutNode {
-  return renameKinds(editorLayout, { [WIDGET_KINDS.polygonInspector]: WIDGET_KINDS.keyboardShortcuts })
+  return renameKinds(testLayout, { [WIDGET_KINDS.polygonInspector]: WIDGET_KINDS.keyboardShortcuts })
 }
 
 /**
@@ -241,7 +242,7 @@ export function layoutWithTheKeys(): LayoutNode {
  * @returns The tree to put into the storage.
  */
 export function painterLayout(): LayoutNode {
-  return renameKinds(editorLayout, { [WIDGET_KINDS.polygonInspector]: WIDGET_KINDS.textures })
+  return renameKinds(testLayout, { [WIDGET_KINDS.polygonInspector]: WIDGET_KINDS.textures })
 }
 
 /**
@@ -256,7 +257,7 @@ export function painterLayout(): LayoutNode {
  * @returns The tree to put into the storage.
  */
 export function uvLayout(): LayoutNode {
-  return renameKinds(editorLayout, {
+  return renameKinds(testLayout, {
     [WIDGET_KINDS.undoRedo]: WIDGET_KINDS.selectionInspector,
     [WIDGET_KINDS.selectionInspector]: WIDGET_KINDS.uvMapper,
   })

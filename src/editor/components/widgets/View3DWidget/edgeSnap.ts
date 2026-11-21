@@ -12,7 +12,7 @@ import {
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { polygonPerimeter } from '../../../../generator/polygons.ts'
-import { SNAP_THRESHOLD_PX, screenDistance, snapAxesOf, type ScreenPoint, type SnapAxis } from '../shared/snapping.ts'
+import { screenDistance, snapAxesOf, snapThresholdPx, type ScreenPoint, type SnapAxis } from '../shared/snapping.ts'
 
 /**
  * How far two edges may be from parallel and still rail, in degrees.
@@ -541,7 +541,7 @@ export function createEdgeSnap(map: ArxMap, faces: readonly number[], options: E
 
     const distance = screenDistance(screen, screenPoint)
 
-    if (!Number.isFinite(distance) || distance > SNAP_THRESHOLD_PX) {
+    if (!Number.isFinite(distance) || distance > snapThresholdPx.value) {
       return undefined
     }
 
@@ -570,7 +570,7 @@ export function createEdgeSnap(map: ArxMap, faces: readonly number[], options: E
       return undefined
     }
 
-    if (screenDistance(screen, movedScreen) > SNAP_THRESHOLD_PX) {
+    if (screenDistance(screen, movedScreen) > snapThresholdPx.value) {
       return undefined
     }
 

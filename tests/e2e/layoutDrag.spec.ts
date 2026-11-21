@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
+import { testLayout } from '../support/layouts.ts'
 import { editorUrl, seedLayout, waitForLayoutSettled, waitForLevel } from './support/editor.ts'
 
 /**
@@ -85,7 +85,7 @@ async function lockOf(page: Page, kind: string): Promise<{ width: number; height
  * @returns The box of the jump, which is what a drag is measured against.
  */
 async function openWithALockedJump(page: Page): Promise<Box> {
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
   await page.goto(editorUrl())
   await waitForLevel(page)
 

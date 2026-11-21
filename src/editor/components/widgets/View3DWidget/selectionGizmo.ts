@@ -14,7 +14,15 @@ import { bumpLevelRevision, levelRevision, runStep } from '../../../modules/leve
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import { rotateVisible, scaleVisible, transformVisible } from '../shared/editModes.ts'
-import { rotationSnapDegrees, rotationSnapFor, snapModifierHeld, vertexSnapEnabled } from '../shared/snapping.ts'
+import {
+  rotationSnapDegrees,
+  rotationSnapFor,
+  snapEdgeEnabled,
+  snapEnabled,
+  snapModifierHeld,
+  snapPlaneEnabled,
+  snapVertexEnabled,
+} from '../shared/snapping.ts'
 import { createEdgeSnap, type EdgeSnap, type EdgeSnapResult } from './edgeSnap.ts'
 import { createPlaneSnap, type PlaneSnap, type PlaneSnapResult } from './planeSnap.ts'
 import { createVertexSnap, type VertexSnap, type VertexSnapResult } from './vertexSnap.ts'
@@ -304,7 +312,7 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
    * @returns True when the corner of the selection should take the nearest vertex.
    */
   function isSnapActive(): boolean {
-    return vertexSnapEnabled.value || snapModifierHeld.value
+    return snapEnabled.value || snapModifierHeld.value
   }
 
   /**
@@ -380,15 +388,15 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
       z: total.z - snapStart.z,
     }
 
-    if (edgeSnap !== undefined && active) {
+    if (edgeSnap !== undefined && active && snapEdgeEnabled.value) {
       edge = edgeSnap.snap(sinceBuild, controls.axis)
     }
 
-    if (vertexSnap !== undefined && active) {
+    if (vertexSnap !== undefined && active && snapVertexEnabled.value) {
       vertex = vertexSnap.snap(sinceBuild, controls.axis)
     }
 
-    if (planeSnap !== undefined && active) {
+    if (planeSnap !== undefined && active && snapPlaneEnabled.value) {
       plane = planeSnap.snap(sinceBuild, controls.axis)
     }
 

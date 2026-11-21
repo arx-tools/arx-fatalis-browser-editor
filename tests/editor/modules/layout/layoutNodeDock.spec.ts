@@ -5,7 +5,7 @@ import { installDom } from '../../../support/dom.ts'
 installDom()
 
 const { DockLayout, DockPanel, Widget } = await import('@lumino/widgets')
-const { editorLayout } = await import('../../../../src/editor/modules/layout/layoutPresets.ts')
+const { testLayout } = await import('../../../support/layouts.ts')
 const { collectKinds, emptyLayout, flexSizes, layoutEquals, lockedBoxOf, lockWidgetTo, parseLayoutNode } =
   await import('../../../../src/editor/modules/layout/layoutNode.ts')
 const { toDockConfig, toLayoutNode } = await import('../../../../src/editor/modules/layout/dockConfig.ts')
@@ -63,7 +63,7 @@ function buildDock(kinds: string[]): {
   Widget.attach(dock, host)
 
   const widgets = makeWidgets(kinds)
-  const config = toDockConfig(editorLayout, (kind) => {
+  const config = toDockConfig(testLayout, (kind) => {
     return widgets.get(kind)
   })
 
@@ -75,7 +75,7 @@ function buildDock(kinds: string[]): {
 
 void describe('toLayoutNode', () => {
   void it('reads the dock back into the editor layout', () => {
-    const { dock } = buildDock(collectKinds(editorLayout))
+    const { dock } = buildDock(collectKinds(testLayout))
     const { layout } = dock
 
     assert.ok(layout instanceof DockLayout)
@@ -139,8 +139,8 @@ void describe('toLayoutNode', () => {
 
 void describe('toDockConfig', () => {
   void it('builds the editor layout from its tree', () => {
-    const widgets = makeWidgets(collectKinds(editorLayout))
-    const config = toDockConfig(editorLayout, (kind) => {
+    const widgets = makeWidgets(collectKinds(testLayout))
+    const config = toDockConfig(testLayout, (kind) => {
       return widgets.get(kind)
     })
 
@@ -148,7 +148,7 @@ void describe('toDockConfig', () => {
     assert.equal(config.main?.type, 'split-area')
 
     const { main } = config
-    const root = editorLayout as Extract<typeof editorLayout, { type: 'split' }>
+    const root = testLayout as Extract<typeof testLayout, { type: 'split' }>
 
     // the tree holds the size of every child, the config holds the weight of it: the ratios themselves here
     assert.deepEqual(
@@ -177,7 +177,7 @@ void describe('toDockConfig', () => {
 
   void it('gives null for a tree without a live widget', () => {
     assert.equal(
-      toDockConfig(editorLayout, () => {
+      toDockConfig(testLayout, () => {
         return undefined
       }),
       null,

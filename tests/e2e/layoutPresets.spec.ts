@@ -119,14 +119,14 @@ test('the default layout is the viewer, with the keys on the left and the plan o
   expect(numbers.top).toBe(jump.top + jump.height + 4)
 })
 
-test('the editor preset comes with the four sizes the owner measured', async ({ page }) => {
+test('the editor preset comes with the sizes the owner measured', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
   await page.goto(editorUrl())
 
   await page.locator('header button[aria-label="Presets"]').click()
   await page.locator('.preset-menu .preset-row', { hasText: 'Editor' }).click()
 
-  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(9)
+  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(7)
   await expect
     .poll(async () => {
       return await presetName(page)
@@ -135,58 +135,61 @@ test('the editor preset comes with the four sizes the owner measured', async ({ 
   await waitForLayoutSettled(page)
 
   const plan = await boxOf(page, 'top-view')
-  const groups = await boxOf(page, 'group-inspector')
-  const jump = await boxOf(page, 'jump-to-location')
-  const statistics = await boxOf(page, 'map-statistics')
-  const inspector = await boxOf(page, 'polygon-inspector')
+  const left = await boxOf(page, 'left-view')
+  const front = await boxOf(page, 'front-view')
+  const view = await boxOf(page, '3d-view')
   const undo = await boxOf(page, 'undo-redo')
-  const selection = await boxOf(page, 'selection-inspector')
+  const settings = await boxOf(page, 'edit-settings')
+  const groups = await boxOf(page, 'group-inspector')
 
-  expect(plan.width).toBe(360)
-  expect(plan.height).toBe(260)
-  expect(groups.width).toBe(360)
-  expect(groups.top).toBe(plan.top + plan.height + 4)
-  expect(jump.width).toBe(200)
-  expect(jump.height).toBe(50)
-  expect(statistics.width).toBe(350)
-  expect(statistics.height).toBe(200)
-  expect(inspector.width).toBe(350)
-  expect(inspector.height).toBe(180)
+  // the left column: the plan is locked to 350 x 300, the two elevations share the rest under it
+  expect(plan.width).toBe(350)
+  expect(plan.height).toBe(300)
+  expect(left.width).toBe(350)
+  expect(left.top).toBe(plan.top + plan.height + 4)
+  expect(left.height).toBeGreaterThan(100)
+  expect(front.width).toBe(350)
+  expect(front.top).toBe(left.top + left.height + 4)
+  expect(front.height).toBeGreaterThan(100)
+
+  // the middle is the walkable view alone, the whole height of the dock: no camera form and no jump
+  expect(view.top).toBe(plan.top)
+  expect(view.width).toBeGreaterThan(400)
+  expect(view.height).toBeGreaterThan(700)
+  await expect(page.locator('[data-widget-kind="camera-controls"]')).toHaveCount(0)
+  await expect(page.locator('[data-widget-kind="jump-to-location"]')).toHaveCount(0)
+
+  // the right column: the undo row to 50, the settings to 120, and the groups take what the locks leave
   expect(undo.width).toBe(350)
-  expect(undo.height).toBe(60)
+  expect(undo.height).toBe(50)
+  expect(settings.width).toBe(350)
+  expect(settings.height).toBe(120)
+  expect(settings.top).toBe(undo.top + undo.height + 4)
+  expect(groups.top).toBe(settings.top + settings.height + 4)
+  expect(groups.width).toBe(350)
+  expect(groups.height).toBeGreaterThan(400)
+  expect(await page.locator('[data-widget-kind="undo-redo"]').getAttribute('data-locked-height')).toBe('50')
+  expect(await page.locator('[data-widget-kind="edit-settings"]').getAttribute('data-locked-height')).toBe('120')
+  expect(await page.locator('[data-widget-kind="group-inspector"]').getAttribute('data-locked-height')).toBeNull()
 
-  // the four rows of the right column follow each other, and the selection inspector takes what the locks leave
-  expect(inspector.top).toBe(statistics.top + statistics.height + 4)
-  expect(undo.top).toBe(inspector.top + inspector.height + 4)
-  expect(selection.top).toBe(undo.top + undo.height + 4)
-  expect(await page.locator('[data-widget-kind="undo-redo"]').getAttribute('data-locked-height')).toBe('60')
-  expect(await page.locator('[data-widget-kind="selection-inspector"]').getAttribute('data-locked-height')).toBeNull()
-
-  // the key table left the editor with the room it took (2026-11-09): the selection inspector holds the row now
-  await expect(page.locator('[data-widget-kind="keyboard-shortcuts"]')).toHaveCount(0)
-
-  // the camera form is free too, and it fills what the jump leaves
-  const camera = await boxOf(page, 'camera-controls')
-
-  expect(camera.top).toBe(jump.top)
-  expect(camera.width).toBeGreaterThan(80)
-
-  // a taller window: the locks hold, the free widgets take the room, and the header keeps the name of the preset
+  // a taller window: the locks hold, and the widgets that are free take the room
   await page.setViewportSize({ width: 1631, height: 1100 })
   await waitForLayoutSettled(page)
 
   const planAfter = await boxOf(page, 'top-view')
-  const groupsAfter = await boxOf(page, 'group-inspector')
-  const statisticsAfter = await boxOf(page, 'map-statistics')
+  const leftAfter = await boxOf(page, 'left-view')
+  const viewAfter = await boxOf(page, '3d-view')
   const undoAfter = await boxOf(page, 'undo-redo')
-  const selectionAfter = await boxOf(page, 'selection-inspector')
+  const settingsAfter = await boxOf(page, 'edit-settings')
+  const groupsAfter = await boxOf(page, 'group-inspector')
 
   expect(await presetName(page)).toBe('Editor')
-  expect(planAfter.height).toBe(260)
+  expect(planAfter.height).toBe(300)
+  expect(undoAfter.height).toBe(50)
+  expect(settingsAfter.height).toBe(120)
+  expect(leftAfter.height).toBeGreaterThan(left.height)
+  expect(viewAfter.height).toBeGreaterThan(view.height)
   expect(groupsAfter.height).toBeGreaterThan(groups.height)
-  expect(statisticsAfter.height).toBe(200)
-  expect(undoAfter.height).toBe(60)
-  expect(selectionAfter.height).toBeGreaterThan(selection.height)
 })
 
 test('the rooms preset comes with the sizes the owner measured', async ({ page }) => {
@@ -311,8 +314,8 @@ test('every layout keeps its own history, and the steps of the menu take it back
   // the viewer has no free info widget: the keys take the left column and the right one is locked, so the walkable view
   // is the one that a step of the layout can move (2026-11-15)
   const keys = page.locator('[data-widget-kind="3d-view"]')
-  // the editor has no keys since 2026-11-09: its free widget for the step below is the selection inspector
-  const selection = page.locator('[data-widget-kind="selection-inspector"]')
+  // the editor has no keys: its free widget for the step below is the group inspector
+  const groups = page.locator('[data-widget-kind="group-inspector"]')
 
   /**
    * Opens the menu of the presets, when it is closed.
@@ -361,9 +364,9 @@ test('every layout keeps its own history, and the steps of the menu take it back
   await expect(page.locator('header button[aria-label="Presets"] .name')).toHaveText('Editor')
 
   // a step on the editor too, so both rows have one
-  await selection.locator('button[aria-label="Lock the widget"]').click()
+  await groups.locator('button[aria-label="Lock the widget"]').click()
 
-  await expect(selection).toHaveAttribute('data-locked-height', /.+/u)
+  await expect(groups).toHaveAttribute('data-locked-height', /.+/u)
 
   await menu.click()
   await viewerRow.locator('.choose').click()
@@ -377,7 +380,7 @@ test('every layout keeps its own history, and the steps of the menu take it back
   await editorRow.locator('.step').first().click()
 
   await expect(page.locator('header button[aria-label="Presets"] .name')).toHaveText('Editor')
-  await expect(selection).not.toHaveAttribute('data-locked-height', /.+/u)
+  await expect(groups).not.toHaveAttribute('data-locked-height', /.+/u)
 
   // the viewer is the one with the lock now, and the dock is back on it for the reload
   await openMenu()

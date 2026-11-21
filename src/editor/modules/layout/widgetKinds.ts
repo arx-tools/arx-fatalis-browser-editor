@@ -98,6 +98,10 @@ export const WIDGET_KINDS = {
    */
   undoRedo: 'undo-redo',
   /**
+   * The settings of the edit: the snapping and its threshold.
+   */
+  editSettings: 'edit-settings',
+  /**
    * The key table of the editor.
    */
   keyboardShortcuts: 'keyboard-shortcuts',

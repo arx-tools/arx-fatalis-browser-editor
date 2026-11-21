@@ -3,7 +3,7 @@ import { isQuad } from 'arx-convert/utils'
 import { BufferAttribute, BufferGeometry, Points, PointsMaterial, Vector3, type Camera, type Scene } from 'three'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
-import { nearestSnapPairs, SNAP_THRESHOLD_PX, snapAxesOf, type ScreenPoint, type SnapPair } from '../shared/snapping.ts'
+import { nearestSnapPairs, snapAxesOf, snapThresholdPx, type ScreenPoint, type SnapPair } from '../shared/snapping.ts'
 import { placeKeyOf, selectionCornersOf } from './selectionCorners.ts'
 
 /**
@@ -435,7 +435,7 @@ export function createVertexSnap(map: ArxMap, faces: readonly number[], options:
       const candidates = candidatesOf(corners, translation, grid)
       const targetProjection = targetsOnScreenOf(candidates)
 
-      const pairs = nearestSnapPairs(cornerProjection.screens, targetProjection.screens, SNAP_THRESHOLD_PX)
+      const pairs = nearestSnapPairs(cornerProjection.screens, targetProjection.screens, snapThresholdPx.value)
 
       if (pairs.length === 0) {
         hide()

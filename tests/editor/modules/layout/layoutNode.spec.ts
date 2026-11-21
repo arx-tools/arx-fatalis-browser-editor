@@ -106,33 +106,29 @@ function lockOfKind(tree: LayoutNode, kind: string): { width: number; height: nu
 }
 
 void describe('the editor preset', () => {
-  void it('puts the small views on the left, the walkable view in the middle and the numbers on the right', () => {
+  void it('puts the three small views on the left, the walkable view in the middle and the settings on the right', () => {
     const root = editorLayout as Extract<LayoutNode, { type: 'split' }>
 
     assert.equal(root.orientation, 'horizontal')
     assert.deepEqual(collectKinds(root), [
       'top-view',
-      'group-inspector',
-      'camera-controls',
-      'jump-to-location',
+      'left-view',
+      'front-view',
       '3d-view',
-      'map-statistics',
-      'polygon-inspector',
       'undo-redo',
-      'selection-inspector',
+      'edit-settings',
+      'group-inspector',
     ])
   })
 
   void it('locks the widgets to the sizes the owner measured off the plate', () => {
-    assert.deepEqual(lockOfKind(editorLayout, 'top-view'), { width: 360, height: 260 })
-    assert.deepEqual(lockOfKind(editorLayout, 'jump-to-location'), { width: 200, height: 50 })
-    assert.deepEqual(lockOfKind(editorLayout, 'map-statistics'), { width: 350, height: 200 })
-    assert.deepEqual(lockOfKind(editorLayout, 'polygon-inspector'), { width: 350, height: 180 })
-    assert.deepEqual(lockOfKind(editorLayout, 'undo-redo'), { width: 350, height: 60 })
+    assert.deepEqual(lockOfKind(editorLayout, 'top-view'), { width: 350, height: 300 })
+    assert.deepEqual(lockOfKind(editorLayout, 'undo-redo'), { width: 350, height: 50 })
+    assert.deepEqual(lockOfKind(editorLayout, 'edit-settings'), { width: 350, height: 120 })
   })
 
   void it('leaves the widgets the owner did not size free', () => {
-    const locks = ['camera-controls', '3d-view', 'group-inspector', 'selection-inspector'].map((kind) => {
+    const locks = ['left-view', 'front-view', '3d-view', 'group-inspector'].map((kind) => {
       return lockOfKind(editorLayout, kind)
     })
 
@@ -199,12 +195,10 @@ void describe('collectKinds', () => {
   void it('gives the kinds of the editor layout', () => {
     assert.deepEqual(collectKinds(editorLayout).toSorted(), [
       '3d-view',
-      'camera-controls',
+      'edit-settings',
+      'front-view',
       'group-inspector',
-      'jump-to-location',
-      'map-statistics',
-      'polygon-inspector',
-      'selection-inspector',
+      'left-view',
       'top-view',
       'undo-redo',
     ])

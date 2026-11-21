@@ -110,26 +110,81 @@ export function rotationSnapFor(shiftHeld: boolean): number {
 }
 
 /**
- * The distance, in the pixels of the canvas, a snap may take the selection.
+ * The distance, in the pixels of the canvas, a snap may take the selection, when the author did not set one.
  *
  * @remarks
  * A screen-space distance is the same gesture at every zoom: the author aims at a corner of the view, not at a number of
- * world units that grow with the distance of the camera. The three snaps of the translate drag (the vertex, the edge
- * rail and the plane) all read this one: it was 12, and the owner asked for 20 so the snap is easier to see (2026-11-21).
- * The settings widget (S4) makes it a value of the author.
+ * world units that grow with the distance of the camera. It was 12, and the owner asked for 20 so the snap is easier to
+ * see (2026-11-21); the settings widget lets the author change it.
  */
-export const SNAP_THRESHOLD_PX = 20
+export const DEFAULT_SNAP_THRESHOLD_PX = 20
 
 /**
- * Whether the translate gizmo snaps the selection to the vertices of the level.
+ * The farthest, in pixels of the canvas, a snap may take the selection.
+ *
+ * @remarks
+ * The three snaps of the translate drag (the vertex, the edge rail and the plane) read this one, and the Edit Settings
+ * widget writes it. A stored value this build can not use falls back to the default.
+ */
+export const snapThresholdPx = persistedRef<number>({
+  key: 'snapThresholdPx',
+  defaultValue: DEFAULT_SNAP_THRESHOLD_PX,
+  persistInLocalStorage: true,
+  deserialize: (raw: string): number | undefined => {
+    const value = parseJson(raw)
+
+    if (
+      typeof value === 'number' &&
+      Number.isFinite(value) &&
+      Number.isSafeInteger(value) &&
+      value >= 1 &&
+      value <= 80
+    ) {
+      return value
+    }
+
+    return undefined
+  },
+})
+
+/**
+ * Whether the translate gizmo snaps the selection at all.
  *
  * @remarks
  * The magnet of the 3D view is this switch, and it starts **off**: the snap is a help, not the rule. Holding Shift
- * turns it on for the length of a drag, the same way it takes the rotate gizmo to its coarse step.
+ * turns it on for the length of a drag, the same way it takes the rotate gizmo to its coarse step. The Edit Settings
+ * widget shows the same switch, and picks which of the snaps it runs.
  */
-export const vertexSnapEnabled = persistedRef<boolean>({
+export const snapEnabled = persistedRef<boolean>({
   key: 'vertexSnapEnabled',
   defaultValue: false,
+  persistInLocalStorage: true,
+})
+
+/**
+ * Whether the snap of a drag may take a corner to a vertex of the level.
+ */
+export const snapVertexEnabled = persistedRef<boolean>({
+  key: 'snapVertexEnabled',
+  defaultValue: true,
+  persistInLocalStorage: true,
+})
+
+/**
+ * Whether the snap of a drag may rail the edge of the selection on an edge of the level.
+ */
+export const snapEdgeEnabled = persistedRef<boolean>({
+  key: 'snapEdgeEnabled',
+  defaultValue: true,
+  persistInLocalStorage: true,
+})
+
+/**
+ * Whether the snap of a drag may land a corner on the plane of a face of the level.
+ */
+export const snapPlaneEnabled = persistedRef<boolean>({
+  key: 'snapPlaneEnabled',
+  defaultValue: true,
   persistInLocalStorage: true,
 })
 
@@ -221,7 +276,7 @@ export function screenDistance(from: ScreenPoint, to: ScreenPoint): number {
 export function nearestSnapPairs(
   corners: readonly ScreenPoint[],
   targets: readonly ScreenPoint[],
-  threshold = SNAP_THRESHOLD_PX,
+  threshold = snapThresholdPx.value,
 ): SnapPair[] {
   const pairs: SnapPair[] = []
 
@@ -260,7 +315,7 @@ export function nearestSnapPairs(
 export function nearestSnapPair(
   corners: readonly ScreenPoint[],
   targets: readonly ScreenPoint[],
-  threshold = SNAP_THRESHOLD_PX,
+  threshold = snapThresholdPx.value,
 ): SnapPair | undefined {
   return nearestSnapPairs(corners, targets, threshold).toSorted((one, other) => {
     return one.distance - other.distance

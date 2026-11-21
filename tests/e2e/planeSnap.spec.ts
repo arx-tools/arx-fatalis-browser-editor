@@ -3,7 +3,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 import JSZip from 'jszip'
 import { createBlankLevelFiles, FLAT_PRESET } from '../../src/editor/modules/level/blankLevel.ts'
 import { exportLevelFiles } from '../../src/editor/modules/export/exportLevel.ts'
-import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
+import { testLayout } from '../support/layouts.ts'
 import { ArxMap } from '../../src/generator/ArxMap.ts'
 import { Settings } from '../../src/generator/Settings.ts'
 import {
@@ -192,7 +192,7 @@ async function openThePit(page: Page): Promise<{
   readonly view: Locator
   readonly box: { readonly x: number; readonly y: number; readonly width: number; readonly height: number }
 }> {
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
   await page.goto('/')
   await waitForLevel(page)
 

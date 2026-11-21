@@ -6,6 +6,7 @@ import FixedViewWidget from './components/widgets/FixedViewWidget/FixedViewWidge
 import KeyboardShortcutsWidget from './components/widgets/KeyboardShortcutsWidget/KeyboardShortcutsWidget.vue'
 import JumpToLocationWidget from './components/widgets/JumpToLocationWidget/JumpToLocationWidget.vue'
 import LightingControlsWidget from './components/widgets/LightingControlsWidget/LightingControlsWidget.vue'
+import EditSettingsWidget from './components/widgets/EditSettingsWidget/EditSettingsWidget.vue'
 import PolygonInspectorWidget from './components/widgets/PolygonInspectorWidget/PolygonInspectorWidget.vue'
 import MapStatisticsWidget from './components/widgets/MapStatisticsWidget/MapStatisticsWidget.vue'
 import RenderPerformanceWidget from './components/widgets/RenderPerformanceWidget/RenderPerformanceWidget.vue'
@@ -114,6 +115,15 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
     group: 'controls',
     create: (): Widget => {
       return new VueWidget(LightingControlsWidget)
+    },
+  },
+  {
+    kind: WIDGET_KINDS.editSettings,
+    label: 'Edit Settings',
+    contentSized: true,
+    group: 'controls',
+    create: (): Widget => {
+      return new VueWidget(EditSettingsWidget)
     },
   },
   {

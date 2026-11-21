@@ -3,7 +3,7 @@ import { BufferAttribute, BufferGeometry, Line, LineBasicMaterial, Vector3, type
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { polygonPerimeter } from '../../../../generator/polygons.ts'
-import { SNAP_THRESHOLD_PX, screenDistance, snapAxesOf, type ScreenPoint } from '../shared/snapping.ts'
+import { screenDistance, snapAxesOf, snapThresholdPx, type ScreenPoint } from '../shared/snapping.ts'
 import { selectionCornersOf } from './selectionCorners.ts'
 
 /**
@@ -621,7 +621,7 @@ export function createPlaneSnap(map: ArxMap, faces: readonly number[], options: 
 
     const distance = distanceToPolygon(screen, screenPolygon)
 
-    if (distance > SNAP_THRESHOLD_PX) {
+    if (distance > snapThresholdPx.value) {
       return undefined
     }
 
@@ -659,7 +659,7 @@ export function createPlaneSnap(map: ArxMap, faces: readonly number[], options: 
 
     const jump = screenDistance(screen, landingScreen)
 
-    if (jump > SNAP_THRESHOLD_PX) {
+    if (jump > snapThresholdPx.value) {
       return undefined
     }
 

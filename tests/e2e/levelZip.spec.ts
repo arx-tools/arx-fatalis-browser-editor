@@ -3,7 +3,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { expect, test } from '@playwright/test'
 import JSZip from 'jszip'
 import { createBlankLevelFiles, MINIMAL_PRESET } from '../../src/editor/modules/level/blankLevel.ts'
-import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
+import { testLayout } from '../support/layouts.ts'
 import {
   clickCrosshair,
   lockPointer,
@@ -70,7 +70,7 @@ async function zipOfABlankLevel(): Promise<Buffer> {
 
 test('a level of a zip replaces the level on the screen', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
 
   // no level in the url: the editor opens the blank level, 121 faces of the flat preset
   await page.goto('/')
@@ -92,7 +92,7 @@ test('a level of a zip replaces the level on the screen', async ({ page }) => {
 })
 
 test('a zip without a level says what it is missing', async ({ page }) => {
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
   await page.goto('/')
   await waitForLevel(page)
 
@@ -113,7 +113,7 @@ test('a zip opens from the url, without the picker', async ({ page }, testInfo) 
 
   await writeFile(zipPath, await zipOfABlankLevel())
 
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
   await page.goto(`/?fromZip=${encodeURIComponent(zipPath)}`)
   await waitForLevel(page)
 
@@ -129,7 +129,7 @@ test('a zip opens from the url, without the picker', async ({ page }, testInfo) 
 })
 
 test('a zip of the url that is not there says what happened', async ({ page }) => {
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
   await page.goto(`/?fromZip=${encodeURIComponent('/no/such/level.zip')}`)
 
   // a zip that does not load is not a silent blank level: the walkable view carries the failure
@@ -137,7 +137,7 @@ test('a zip of the url that is not there says what happened', async ({ page }) =
 })
 
 test('the export of a level that came from a zip keeps the keys of that zip', async ({ page }) => {
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
   await page.goto('/?map=blank-flat')
   await waitForLevel(page)
 
@@ -184,7 +184,7 @@ test('a level of a zip comes back with the steps it was exported with', async ({
   test.skip(browserName !== 'chromium', 'the pointer lock of the walkable view needs chromium here')
   test.setTimeout(120_000)
 
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
   await page.goto('/?map=blank-flat')
   await waitForLevel(page)
 

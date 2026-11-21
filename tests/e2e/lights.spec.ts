@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
+import { testLayout } from '../support/layouts.ts'
 import { editorUrl, seedLayout, statOf, waitForLevel } from './support/editor.ts'
 
 /**
@@ -34,7 +34,7 @@ async function lightPixels(page: Page): Promise<number> {
 
 test('the fixed views draw a marker of every light while the switch is on', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
   await page.goto(editorUrl())
   await waitForLevel(page)
 
@@ -73,7 +73,7 @@ test('the fixed views draw a marker of every light while the switch is on', asyn
  */
 test('the dots of the blank level follow the switch of the lights', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
   await page.goto('/?map=blank-flat')
   await waitForLevel(page)
 
@@ -112,7 +112,7 @@ test('the dots of the blank level follow the switch of the lights', async ({ pag
  */
 test('the dots of a fixed view come back after the frames a dialog dropped', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
   await page.goto('/?map=blank-flat')
   await waitForLevel(page)
 
@@ -170,7 +170,7 @@ test('the dots of a fixed view come back after the frames a dialog dropped', asy
  */
 test('the dots of a fixed view follow the switches after a second level', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
   await page.goto('/?map=blank-minimal')
   await waitForLevel(page)
 

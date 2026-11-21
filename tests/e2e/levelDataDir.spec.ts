@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { createBlankLevelFiles, MINIMAL_PRESET } from '../../src/editor/modules/level/blankLevel.ts'
-import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
+import { testLayout } from '../support/layouts.ts'
 import { seedLayout, statOf, waitForLevel } from './support/editor.ts'
 
 /**
@@ -39,7 +39,7 @@ async function dataDirOfABlankLevel(root: string, level = 0): Promise<string> {
 test('a level opens from the data directory of the url', async ({ page }, testInfo) => {
   const dataDir = await dataDirOfABlankLevel(testInfo.outputPath('data'))
 
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
   await page.goto(`/?fromOriginalArxLevel=0&dataDir=${encodeURIComponent(dataDir)}`)
   await waitForLevel(page)
 
@@ -55,7 +55,7 @@ test('a level opens from the data directory of the url', async ({ page }, testIn
 })
 
 test('the map of the link says what it needs, and both ways out of the notice work', async ({ page }) => {
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
 
   // a link to a level of the game, without the folder it comes from: the blank level opens, and the view says why
   await page.goto('/?map=arx-fatalis-level-11')
@@ -108,7 +108,7 @@ test('the map of the link says what it needs, and both ways out of the notice wo
 })
 
 test('a level with steps of a visit before says that the edits are safe, and offers the folder', async ({ page }) => {
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
 
   // the steps of level 11, written down by a visit before
   await page.addInitScript(() => {
@@ -134,7 +134,7 @@ test('a level with steps of a visit before says that the edits are safe, and off
 })
 
 test('the blank map of the notice starts on its spawn, not on the pose of the link', async ({ page }) => {
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
 
   // the blank map was left at the coordinates the link carries, and the level of the link has steps
   await page.addInitScript(() => {
@@ -178,7 +178,7 @@ test('the blank map of the notice starts on its spawn, not on the pose of the li
 })
 
 test('the steps of a level of the link are not overwritten by the answer of the notice', async ({ page }) => {
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
 
   // the steps of level 11, written down by a visit before: the notice waits, and no level is on the screen
   const steps = JSON.stringify({
@@ -217,7 +217,7 @@ test('the dialog closes itself after the folder is seen, and a hand-opened one s
 
   const dataDir = await dataDirOfABlankLevel(testInfo.outputPath('data'))
 
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
   await page.goto(`/?fromOriginalArxLevel=0&dataDir=${encodeURIComponent(dataDir)}`)
   await waitForLevel(page)
 
@@ -248,7 +248,7 @@ test('the level of the link opens when the folder arrives later, in the dialog',
 
   const dataDir = await dataDirOfABlankLevel(testInfo.outputPath('data'), 11)
 
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
   await page.goto('/?map=arx-fatalis-level-11')
 
   const notice = page.locator('.MissingMapPrompt')
@@ -271,7 +271,7 @@ test('the level of the link opens when the folder arrives later, in the dialog',
 test('a data directory without the level says what happened', async ({ page }, testInfo) => {
   const dataDir = await dataDirOfABlankLevel(testInfo.outputPath('empty'))
 
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
 
   // the folder has the level 0, the url asks for the level 8: a level named in a data directory is not silently a blank
   await page.goto(`/?fromOriginalArxLevel=8&dataDir=${encodeURIComponent(dataDir)}`)
@@ -280,7 +280,7 @@ test('a data directory without the level says what happened', async ({ page }, t
 })
 
 test('the button of the header shows the state of the data directory', async ({ page }) => {
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
 
   // no folder at all: the level of the url has nothing to load from, and the button carries that state
   await page.goto('/?fromOriginalArxLevel=0')
@@ -331,7 +331,7 @@ test('the data directory of the header opens the level of the url', async ({ pag
 
   const dataDir = await dataDirOfABlankLevel(testInfo.outputPath('header-data'))
 
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
 
   // the url names the level, but the folder it names is not there: the walkable view says so
   await page.goto(`/?fromOriginalArxLevel=0&dataDir=${encodeURIComponent('/no/such/folder')}`)

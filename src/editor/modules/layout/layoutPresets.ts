@@ -45,6 +45,31 @@ const THIN_ROW_HEIGHT = 50
 const UNDO_ROW_HEIGHT = 60
 
 /**
+ * The height of the undo and redo row of the `Editor` preset, in pixels.
+ *
+ * @remarks
+ * The owner's plate (2026-11-21): the row under the group inspector, 350 wide and 50 high, with the two steps of the
+ * history a click away from the settings.
+ */
+const EDITOR_UNDO_ROW_HEIGHT = 50
+
+/**
+ * The height of the Edit Settings widget of the `Editor` preset, in pixels.
+ *
+ * @remarks
+ * The owner's plate (2026-11-21): the settings row is 350 by 120, the three rows of the snapping and the threshold.
+ */
+const EDIT_SETTINGS_HEIGHT = 120
+
+/**
+ * The height of the plan view of the `Editor` preset, in pixels.
+ *
+ * @remarks
+ * The owner's plate (2026-11-21): the plan is 350 by 300, and the two elevations take the rest of the column under it.
+ */
+const EDITOR_TOP_VIEW_HEIGHT = 300
+
+/**
  * The height of the lighting controls of the `Lighter` preset, in pixels.
  *
  * @remarks
@@ -89,62 +114,44 @@ function fixed(px: number): ChildSize {
 }
 
 /**
- * The layout for the level work: the small views on the left, the walkable view in the middle with the
- * camera above it, and the numbers on the right.
+ * The layout for the level work: the three small views on the left, the walkable view in the middle and the settings
+ * and the groups on the right.
  *
  * @remarks
- * The left column is locked to 360 wide, and its first view (the plan) to 260 high: the group inspector takes the rest
- * under it (2026-11-16, the owner: the left and front elevations made room for the groups; the plan is 360 x 260 since
- * 2026-11-17). The middle column holds the
- * thin row above the walkable view, with the jump of the row locked to 200 wide
- * and the row to 50 high, so the camera form takes the rest of the row. The right column is locked to 350 wide: the
- * statistics to 200, the polygon inspector to 180 and the undo and redo row to 60 high, and the selection inspector
- * takes what is left (2026-11-09, the owner: the list of the selected textures has to fit beside the numbers).
+ * The owner arranged this one in the editor (2026-11-21, the plate of the layout): the left column is locked to 350
+ * wide, and the plan to 300 high, with the left and front elevations sharing the rest under it. The middle column is
+ * the **walkable view alone**: the camera form is not in this layout (the pose of the view is on its HUD), so no
+ * widget of the middle is locked and it takes what the two columns leave. The right column is locked to 350 wide:
+ * the undo and redo row to 50 and the **Edit Settings** to 120, and the group inspector takes what the two locks
+ * leave.
  *
- * The locks are the sizes the owner read off the badge of the plate in the edit mode (2026-11-01): they are the
- * widgets he wants where he put them, and the rest of the layout stays flexible around them. The jump was 290 wide in
- * the first round and the owner took it down to 200 the same day.
+ * The locks are the sizes the owner read off the badge of the plate in the edit mode (2026-11-01, and the plate of
+ * 2026-11-21 for this arrangement).
  */
 export const editorLayout: LayoutNode = {
   type: 'split',
   orientation: 'horizontal',
-  sizes: [fixed(360), auto(1), fixed(350)],
+  sizes: [fixed(350), auto(1), fixed(350)],
   children: [
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: [fixed(260), auto(1)],
+      sizes: [fixed(EDITOR_TOP_VIEW_HEIGHT), auto(0.5), auto(0.5)],
       children: [
         { type: 'widget', kind: WIDGET_KINDS.topView },
-        { type: 'widget', kind: WIDGET_KINDS.groupInspector },
+        { type: 'widget', kind: WIDGET_KINDS.leftView },
+        { type: 'widget', kind: WIDGET_KINDS.frontView },
       ],
     },
+    { type: 'widget', kind: WIDGET_KINDS.view3d },
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: [fixed(THIN_ROW_HEIGHT), auto(1)],
+      sizes: [fixed(EDITOR_UNDO_ROW_HEIGHT), fixed(EDIT_SETTINGS_HEIGHT), auto(1)],
       children: [
-        {
-          type: 'split',
-          orientation: 'horizontal',
-          sizes: [auto(1), fixed(200)],
-          children: [
-            { type: 'widget', kind: WIDGET_KINDS.cameraControls },
-            { type: 'widget', kind: WIDGET_KINDS.jumpToLocation },
-          ],
-        },
-        { type: 'widget', kind: WIDGET_KINDS.view3d },
-      ],
-    },
-    {
-      type: 'split',
-      orientation: 'vertical',
-      sizes: [fixed(200), fixed(180), fixed(UNDO_ROW_HEIGHT), auto(1)],
-      children: [
-        { type: 'widget', kind: WIDGET_KINDS.mapStatistics },
-        { type: 'widget', kind: WIDGET_KINDS.polygonInspector },
         { type: 'widget', kind: WIDGET_KINDS.undoRedo },
-        { type: 'widget', kind: WIDGET_KINDS.selectionInspector },
+        { type: 'widget', kind: WIDGET_KINDS.editSettings },
+        { type: 'widget', kind: WIDGET_KINDS.groupInspector },
       ],
     },
   ],

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
+import { testLayout } from '../support/layouts.ts'
 import { WIDGET_KINDS } from '../../src/editor/modules/layout/widgetKinds.ts'
 import {
   clickCrosshair,
@@ -111,7 +111,7 @@ test('a light click takes the face selection away without shift', async ({ page,
   test.setTimeout(120_000)
 
   await page.setViewportSize({ width: 1631, height: 850 })
-  await seedLayout(page, renameKinds(editorLayout, { [WIDGET_KINDS.polygonInspector]: WIDGET_KINDS.lightInspector }))
+  await seedLayout(page, renameKinds(testLayout, { [WIDGET_KINDS.polygonInspector]: WIDGET_KINDS.lightInspector }))
   await page.goto(editorUrl())
   await waitForLevel(page)
   await waitForLayoutSettled(page)

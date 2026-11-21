@@ -10,7 +10,7 @@ import { installDom } from '../../../support/dom.ts'
 installDom()
 
 const { Widget } = await import('@lumino/widgets')
-const { editorLayout } = await import('../../../../src/editor/modules/layout/layoutPresets.ts')
+const { testLayout } = await import('../../../support/layouts.ts')
 const { lockWidgetTo, lockedBoxOf } = await import('../../../../src/editor/modules/layout/layoutNode.ts')
 const { createWidget } = await import('../../../../src/editor/modules/layout/widgetDefinition.ts')
 const { borderAxisOf, gapBetween, nodeBoxes } =
@@ -233,7 +233,7 @@ function makeBoard(locked: readonly string[] = []): DragBoard {
     handles.push(handle)
   }
 
-  return boardOf(editorLayout, widgets, handles, SPACING)
+  return boardOf(testLayout, widgets, handles, SPACING)
 }
 
 /**
@@ -303,19 +303,19 @@ void describe('gapBetween', () => {
 
 void describe('nodeBoxes', () => {
   void it('takes the box of a split from the boxes below it', () => {
-    const boxes = nodeBoxes(editorLayout, (kind) => {
+    const boxes = nodeBoxes(testLayout, (kind) => {
       return BOXES[kind]
     })
-    const middle = childAt(editorLayout, 1)
+    const middle = childAt(testLayout, 1)
 
     // the camera is 455 wide in whole pixels and the jump starts at 718, so the union is a pixel wider than the
     // planned 763: the boxes of the browser are the ones the drag reads
     assert.deepEqual(boxes.get(middle), { left: 258, top: 31, width: 764, height: 819 })
-    assert.deepEqual(boxes.get(editorLayout), DOCK)
+    assert.deepEqual(boxes.get(testLayout), DOCK)
   })
 
   void it('leaves out a widget that is not on the dock', () => {
-    const boxes = nodeBoxes(editorLayout, (kind) => {
+    const boxes = nodeBoxes(testLayout, (kind) => {
       if (kind === 'top-view') {
         return BOXES[kind]
       }
@@ -323,11 +323,11 @@ void describe('nodeBoxes', () => {
       return undefined
     })
 
-    assert.deepEqual(boxes.get(editorLayout), BOXES['top-view'])
+    assert.deepEqual(boxes.get(testLayout), BOXES['top-view'])
   })
 
   void it('gives no box when nothing is on the dock', () => {
-    const boxes = nodeBoxes(editorLayout, () => {
+    const boxes = nodeBoxes(testLayout, () => {
       return undefined
     })
 
@@ -696,7 +696,7 @@ void describe('watchBorderDrag', () => {
   function watch(dock: TestDock): BorderDragWatcher {
     return watchBorderDrag(dock.host, {
       tree: () => {
-        return editorLayout
+        return testLayout
       },
       widgets: () => {
         return dock.widgets.values().toArray()

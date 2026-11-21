@@ -33,7 +33,7 @@ import {
   isRoomColorsVisible,
   isWireframeVisible,
 } from '../shared/levelDisplay.ts'
-import { snapModifierHeld, vertexSnapEnabled } from '../shared/snapping.ts'
+import { snapEnabled, snapModifierHeld } from '../shared/snapping.ts'
 import { addPreviewLights, attachWireframe, viewMeshesOf, type LevelWireframe } from '../shared/levelScene.ts'
 import { disposeSpikeEntityModel, loadSpikeEntityModel } from '../../../modules/level/entities/entitySpike.ts'
 import {
@@ -820,7 +820,7 @@ onBeforeUnmount(() => {
  * the key is held when the magnet itself is off.
  */
 const snapActive = computed(() => {
-  return vertexSnapEnabled.value || snapModifierHeld.value
+  return snapEnabled.value || snapModifierHeld.value
 })
 
 /**
@@ -831,7 +831,7 @@ const snapActive = computed(() => {
  * moving it, so a single drag can snap and the next one can go free.
  */
 function toggleVertexSnap(): void {
-  vertexSnapEnabled.value = !vertexSnapEnabled.value
+  snapEnabled.value = !snapEnabled.value
 }
 </script>
 
@@ -846,8 +846,8 @@ function toggleVertexSnap(): void {
       type="button"
       :aria-pressed="snapActive"
       :data-shifted="snapModifierHeld"
-      aria-label="Snap the selection to vertices"
-      :title="snapModifierHeld ? 'Snapping to the vertices while Shift is held' : 'Snap to vertices (hold Shift)'"
+      aria-label="Snap the selection"
+      :title="snapModifierHeld ? 'Snapping while Shift is held' : 'Snap the selection (hold Shift)'"
       @click="toggleVertexSnap"
     >
       <Magnet :size="15" />

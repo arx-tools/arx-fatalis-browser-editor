@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import type { TripleOf } from 'arx-convert/utils'
-import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
+import { testLayout } from '../support/layouts.ts'
 import {
   clickCrosshair,
   layoutWithTheKeys,
@@ -124,7 +124,7 @@ async function waitForPoseStored(page: Page, wanted: { position: TripleOf<number
 }
 
 test('a map switch goes back to the place each map was left at', async ({ page }) => {
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
   await page.goto('/?map=blank-flat')
   await waitForLevel(page)
 
@@ -158,7 +158,7 @@ test('a map switch goes back to the place each map was left at', async ({ page }
 })
 
 test('the map and the pose of the last visit come back without a link', async ({ page }) => {
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
   await page.goto('/?map=blank-minimal')
   await waitForLevel(page)
 
@@ -193,7 +193,7 @@ test('the map and the pose of the last visit come back without a link', async ({
 })
 
 test('a link carries the pose of the map it names, and only that one', async ({ page }) => {
-  await seedLayout(page, editorLayout)
+  await seedLayout(page, testLayout)
 
   // the link is the pair: the map and its pose
   await page.goto('/?map=blank-flat&position=100,200,300&rotation=0,90,0')

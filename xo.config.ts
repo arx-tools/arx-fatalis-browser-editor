@@ -26,6 +26,12 @@ const xoConfig: XoConfigItem[] = [
     ignores: ['src/generator/flat-colors.json'],
   },
   {
+    // the storybook of the building blocks: the stories are dev tooling, and the typecheck covers them (the app
+    // project includes them). The lint's type-aware parser does not resolve the framework's `Meta`/`StoryObj` types
+    // (it reports error typed values on the meta), and the config of the storybook lives outside every tsconfig.
+    ignores: ['.storybook/**', '**/*.stories.ts'],
+  },
+  {
     // the vue block below sets its own parser, and the browser environment does not come along with
     // it, so the dom globals the components use are named here; the two build values are compile
     // time constants the vite config injects (`define`), their type side is in `src/editor/vite-env.d.ts`

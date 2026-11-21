@@ -44,10 +44,18 @@ shared [`@arx-tools/config`](https://github.com/arx-tools/config) package (20.1)
 | `npm run test:e2e:ui` | the same, in the playwright ui                              |
 | `npm run build`       | typecheck and build into `dist/`                            |
 | `npm run preview`     | serves the build of `dist/`                                 |
+| `npm run storybook`   | the Storybook of the UI building blocks (port 6006)         |
+| `npm run build-storybook` | the static build of the Storybook (into `storybook-static/`) |
 
 The two test runners do not overlap: `tests/editor` and `tests/generator` are the unit tests of the
 modules (`node:test`, no browser), `tests/e2e` is the playwright suite of the whole page (the dock, the
 layout editor, the widgets). Both are part of the gate.
+
+The `.vue` components can not be unit tested (`node --test` has no Vite transform), so the **Storybook**
+is where a building block is seen and tried alone: `npm run storybook` serves the stories at
+http://localhost:6006. The stories live next to the components (`src/editor/components/*.stories.ts`), and
+the palette and the global style come from `.storybook/preview.ts`. It is a development tool, not part of
+the gate.
 
 The browser tests need the engines once, per machine:
 

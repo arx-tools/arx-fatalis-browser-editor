@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { Power } from 'lucide-vue-next'
 import { computed, ref, watch } from 'vue'
+import FieldLabel from '../../FieldLabel.vue'
+import PowerButton from '../../PowerButton.vue'
 import {
   snapEdgeEnabled,
   snapEnabled,
@@ -149,76 +150,56 @@ function onThresholdBlur(): void {
 
 <template>
   <div class="EditSettingsWidget">
-    <div class="field">
-      <span class="caption">Snapping</span>
+    <FieldLabel class="field" inline label="Snapping">
       <div class="row">
-        <button
-          class="power"
-          :class="{ 'is-on': enabled }"
-          type="button"
-          :aria-pressed="enabled"
-          aria-label="Snapping"
-          v-tooltip="{ content: snappingTooltip }"
-          @click="enabled = !enabled"
-        >
-          <Power :size="14" aria-hidden="true" />
-        </button>
+        <PowerButton
+          :pressed="enabled"
+          label="Snapping"
+          :tooltip="snappingTooltip"
+          @update:pressed="enabled = $event"
+        />
       </div>
-    </div>
+    </FieldLabel>
 
-    <div class="field types-field" :class="{ 'is-disabled': !enabled }">
-      <span class="caption">Snap to</span>
+    <FieldLabel class="field types-field" inline label="Snap to" :class="{ 'is-disabled': !enabled }">
       <div class="types">
         <div class="type-row">
           <span class="type-label">Vertex</span>
-          <button
-            class="power"
-            :class="{ 'is-on': vertex }"
-            type="button"
+          <PowerButton
+            :pressed="vertex"
+            label="Snap to vertex"
+            tooltip="Snap a corner to a vertex of the level"
             :disabled="!enabled"
-            :aria-pressed="vertex"
-            aria-label="Snap to vertex"
-            v-tooltip="'Snap a corner to a vertex of the level'"
-            @click="vertex = !vertex"
-          >
-            <Power :size="12" aria-hidden="true" />
-          </button>
+            :icon-size="12"
+            @update:pressed="vertex = $event"
+          />
         </div>
         <div class="type-row">
           <span class="type-label">Edge</span>
-          <button
-            class="power"
-            :class="{ 'is-on': edge }"
-            type="button"
+          <PowerButton
+            :pressed="edge"
+            label="Snap to edge"
+            tooltip="Rail the edge of the selection on an edge of the level"
             :disabled="!enabled"
-            :aria-pressed="edge"
-            aria-label="Snap to edge"
-            v-tooltip="'Rail the edge of the selection on an edge of the level'"
-            @click="edge = !edge"
-          >
-            <Power :size="12" aria-hidden="true" />
-          </button>
+            :icon-size="12"
+            @update:pressed="edge = $event"
+          />
         </div>
         <div class="type-row">
           <span class="type-label">Face</span>
-          <button
-            class="power"
-            :class="{ 'is-on': plane }"
-            type="button"
+          <PowerButton
+            :pressed="plane"
+            label="Snap to face"
+            tooltip="Land a corner on the plane of a face of the level"
             :disabled="!enabled"
-            :aria-pressed="plane"
-            aria-label="Snap to face"
-            v-tooltip="'Land a corner on the plane of a face of the level'"
-            @click="plane = !plane"
-          >
-            <Power :size="12" aria-hidden="true" />
-          </button>
+            :icon-size="12"
+            @update:pressed="plane = $event"
+          />
         </div>
       </div>
-    </div>
+    </FieldLabel>
 
-    <div class="field">
-      <label class="caption" for="snap-threshold">Threshold</label>
+    <FieldLabel class="field" inline label="Threshold" for="snap-threshold">
       <div class="row">
         <input
           id="snap-threshold"
@@ -237,7 +218,7 @@ function onThresholdBlur(): void {
         />
         <span class="unit">px</span>
       </div>
-    </div>
+    </FieldLabel>
   </div>
 </template>
 
@@ -258,22 +239,6 @@ function onThresholdBlur(): void {
   padding: 2px 4px;
   overflow: auto;
   font-size: 13px;
-
-  .field {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 0;
-  }
-
-  .caption {
-    flex: none;
-    width: 72px;
-    color: $text-muted;
-    font-size: 10px;
-    line-height: 1;
-    white-space: nowrap;
-  }
 
   .row {
     display: flex;
@@ -303,42 +268,6 @@ function onThresholdBlur(): void {
 
   .types-field.is-disabled .type-label {
     opacity: 0.45;
-  }
-
-  // the power switch of the lighting widget: no plate of its own, a faint border and a grey icon while it is off, a
-  // lighter border and the accent while it is on, the grey of the panel under the pointer, and the dimmed look while
-  // the master switch keeps it disabled
-  .power {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 26px;
-    height: 22px;
-    padding: 0;
-    border: 1px solid $border;
-    border-radius: 4px;
-    background: transparent;
-    color: $text-muted;
-    cursor: pointer;
-
-    &:hover {
-      background: $surface-panel;
-    }
-
-    &:focus-visible {
-      border-color: $interactive;
-      outline: 1px solid $interactive;
-    }
-
-    &.is-on {
-      border-color: $border-strong;
-      color: $accent;
-    }
-
-    &:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
-    }
   }
 
   .threshold {

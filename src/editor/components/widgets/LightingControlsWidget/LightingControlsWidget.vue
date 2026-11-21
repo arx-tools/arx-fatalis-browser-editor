@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { LoaderCircle, Power } from 'lucide-vue-next'
+import { LoaderCircle } from 'lucide-vue-next'
 import { computed } from 'vue'
+import FieldLabel from '../../FieldLabel.vue'
+import PowerButton from '../../PowerButton.vue'
 import { isDynamicLightsVisible, isStaticLightsVisible } from '../../../modules/level/edit/dynamicLights.ts'
 import {
   flatLuminosity,
@@ -91,8 +93,7 @@ const dynamicLights = computed<boolean>({
 
 <template>
   <div class="LightingControlsWidget">
-    <div class="field">
-      <label class="caption" for="lighting-profile">Lighting Profile</label>
+    <FieldLabel class="field" inline label="Lighting Profile" for="lighting-profile">
       <div class="row">
         <select id="lighting-profile" v-model="profile" aria-label="Lighting profile">
           <option v-for="option in LIGHTING_PROFILES" :key="option.value" :value="option.value">
@@ -107,10 +108,9 @@ const dynamicLights = computed<boolean>({
           v-tooltip="'Baking the light'"
         />
       </div>
-    </div>
+    </FieldLabel>
 
-    <div v-if="isFlat" class="field flat-field">
-      <label class="caption" for="flat-luminosity">Luminosity</label>
+    <FieldLabel v-if="isFlat" class="field flat-field" inline label="Luminosity" for="flat-luminosity">
       <div class="row">
         <input
           id="flat-luminosity"
@@ -124,43 +124,29 @@ const dynamicLights = computed<boolean>({
         />
         <span class="value">{{ luminosityPercentage }}%</span>
       </div>
-    </div>
+    </FieldLabel>
 
-    <div class="field">
-      <label class="caption" for="static-lights">Static lights</label>
+    <FieldLabel class="field" inline label="Static lights" for="static-lights">
       <div class="row">
-        <button
+        <PowerButton
           id="static-lights"
-          class="power"
-          :class="{ 'is-on': staticLights }"
-          type="button"
-          :aria-pressed="staticLights"
-          aria-label="Static lights"
-          v-tooltip="'Static lights'"
-          @click="staticLights = !staticLights"
-        >
-          <Power :size="14" aria-hidden="true" />
-        </button>
+          :pressed="staticLights"
+          label="Static lights"
+          @update:pressed="staticLights = $event"
+        />
       </div>
-    </div>
+    </FieldLabel>
 
-    <div class="field">
-      <label class="caption" for="dynamic-lights">Dynamic lights</label>
+    <FieldLabel class="field" inline label="Dynamic lights" for="dynamic-lights">
       <div class="row">
-        <button
+        <PowerButton
           id="dynamic-lights"
-          class="power"
-          :class="{ 'is-on': dynamicLights }"
-          type="button"
-          :aria-pressed="dynamicLights"
-          aria-label="Dynamic lights"
-          v-tooltip="'Dynamic lights'"
-          @click="dynamicLights = !dynamicLights"
-        >
-          <Power :size="14" aria-hidden="true" />
-        </button>
+          :pressed="dynamicLights"
+          label="Dynamic lights"
+          @update:pressed="dynamicLights = $event"
+        />
       </div>
-    </div>
+    </FieldLabel>
   </div>
 </template>
 
@@ -183,22 +169,6 @@ const dynamicLights = computed<boolean>({
   padding: 2px 4px;
   overflow: auto;
   font-size: 13px;
-
-  .field {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 0;
-  }
-
-  .caption {
-    flex: none;
-    width: 72px;
-    color: $text-muted;
-    font-size: 10px;
-    line-height: 1;
-    white-space: nowrap;
-  }
 
   .row {
     position: relative;
@@ -239,37 +209,6 @@ const dynamicLights = computed<boolean>({
     margin: 0;
     accent-color: $interactive;
     cursor: pointer;
-  }
-
-  // the switch of a light layer: a power icon like the icon buttons of the header (2026-11-18, the owner): no plate of
-  // its own, the dark background of the panel shows through; a faint border and a grey icon while the layer is off, a
-  // lighter border and the accent while it is on, and the grey of the panel under the pointer.
-  .power {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 26px;
-    height: 22px;
-    padding: 0;
-    border: 1px solid $border;
-    border-radius: 4px;
-    background: transparent;
-    color: $text-muted;
-    cursor: pointer;
-
-    &:hover {
-      background: $surface-panel;
-    }
-
-    &:focus-visible {
-      border-color: $interactive;
-      outline: 1px solid $interactive;
-    }
-
-    &.is-on {
-      border-color: $border-strong;
-      color: $accent;
-    }
   }
 
   // the readout of the slider: it shares the row with the range, so its field has one width for every value (0% is

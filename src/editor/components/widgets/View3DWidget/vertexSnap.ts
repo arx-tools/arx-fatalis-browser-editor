@@ -4,6 +4,7 @@ import { BufferAttribute, BufferGeometry, Points, PointsMaterial, Vector3, type 
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { nearestSnapPairs, SNAP_THRESHOLD_PX, snapAxesOf, type ScreenPoint, type SnapPair } from '../shared/snapping.ts'
+import { placeKeyOf, selectionCornersOf } from './selectionCorners.ts'
 
 /**
  * How far the vertices of the level are collected into one cell of the grid of the snap, in the units of the level.
@@ -101,64 +102,6 @@ export type VertexSnap = {
  */
 function cellKeyOf(position: ArxVector3): string {
   return `${String(Math.floor(position.x / CELL_SIZE))},${String(Math.floor(position.y / CELL_SIZE))},${String(Math.floor(position.z / CELL_SIZE))}`
-}
-
-/**
- * A key that tells two vertices at the same place apart, without the cost of a float string.
- *
- * @param position The position in the coordinates of the level.
- *
- * @returns The key of the place, at a tenth of a unit.
- */
-function placeKeyOf(position: ArxVector3): string {
-  return `${String(Math.round(position.x * 10))},${String(Math.round(position.y * 10))},${String(Math.round(position.z * 10))}`
-}
-
-/**
- * Reads the corners of the selected faces, without the repeats.
- *
- * @param map The level of the selection.
- * @param faces The indices of the selected faces.
- *
- * @returns The positions of the corners, in the coordinates of the level.
- */
-function cornersOf(map: ArxMap, faces: readonly number[]): ArxVector3[] {
-  const corners: ArxVector3[] = []
-  const seen = new Set<string>()
-
-  for (const index of faces) {
-    const polygon = map.polygons[index]
-
-    if (polygon === undefined) {
-      continue
-    }
-
-    let count = 3
-
-    if (isQuad(polygon)) {
-      count = 4
-    }
-
-    for (let vertex = 0; vertex < count; vertex = vertex + 1) {
-      const source = polygon.vertices[vertex]
-
-      if (source === undefined) {
-        continue
-      }
-
-      const position = { x: source.x, y: source.y, z: source.z }
-      const key = placeKeyOf(position)
-
-      if (seen.has(key)) {
-        continue
-      }
-
-      seen.add(key)
-      corners.push(position)
-    }
-  }
-
-  return corners
 }
 
 /**
@@ -332,7 +275,7 @@ export type VertexSnapOptions = {
  */
 export function createVertexSnap(map: ArxMap, faces: readonly number[], options: VertexSnapOptions): VertexSnap {
   const { camera, canvas, scene } = options
-  const corners = cornersOf(map, faces)
+  const corners = selectionCornersOf(map, faces)
   const { grid } = targetsOf(map, faces)
   const markerGeometry = new BufferGeometry()
   const markerAttribute = new BufferAttribute(new Float32Array(Math.max(1, corners.length) * 3), 3)

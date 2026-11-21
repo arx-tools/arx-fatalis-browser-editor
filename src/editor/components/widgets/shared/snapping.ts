@@ -110,13 +110,15 @@ export function rotationSnapFor(shiftHeld: boolean): number {
 }
 
 /**
- * The distance, in the pixels of the canvas, a corner has to come to a vertex to snap to it.
+ * The distance, in the pixels of the canvas, a snap may take the selection.
  *
  * @remarks
  * A screen-space distance is the same gesture at every zoom: the author aims at a corner of the view, not at a number of
- * world units that grow with the distance of the camera.
+ * world units that grow with the distance of the camera. The three snaps of the translate drag (the vertex, the edge
+ * rail and the plane) all read this one: it was 12, and the owner asked for 20 so the snap is easier to see (2026-11-21).
+ * The settings widget (S4) makes it a value of the author.
  */
-export const SNAP_THRESHOLD_PX = 12
+export const SNAP_THRESHOLD_PX = 20
 
 /**
  * Whether the translate gizmo snaps the selection to the vertices of the level.

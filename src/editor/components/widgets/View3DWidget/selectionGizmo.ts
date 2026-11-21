@@ -16,6 +16,7 @@ import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import { rotateVisible, scaleVisible, transformVisible } from '../shared/editModes.ts'
 import { rotationSnapDegrees, rotationSnapFor, snapModifierHeld, vertexSnapEnabled } from '../shared/snapping.ts'
 import { createEdgeSnap, type EdgeSnap, type EdgeSnapResult } from './edgeSnap.ts'
+import { createPlaneSnap, type PlaneSnap, type PlaneSnapResult } from './planeSnap.ts'
 import { createVertexSnap, type VertexSnap, type VertexSnapResult } from './vertexSnap.ts'
 import { selectionCenterOf } from './selectionCenter.ts'
 
@@ -206,6 +207,20 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
    * The edge rail of the translate drag: the face under a corner, and its edge along the drag.
    */
   let edgeSnap: EdgeSnap | undefined
+  /**
+   * The plane snap of the translate drag: the face a corner of the selection lands on.
+   */
+  let planeSnap: PlaneSnap | undefined
+  /**
+   * The move the model had taken when the snaps were built.
+   *
+   * @remarks
+   * The snaps read the corners and the targets from the level **as it is when they are built**. A drag that starts
+   * without the magnet builds them later, and the selection has already moved by then: the snaps have to see that
+   * move taken out of the translation, or their sources would be one move ahead of the model and the snap would land
+   * beside the plane (the case of 2026-11-21, Shift in the middle of a drag).
+   */
+  let snapStart: ArxVector3 = { x: 0, y: 0, z: 0 }
 
   /**
    * The gizmo the switches of the edit modes ask for, or `undefined` when neither is on.
@@ -293,12 +308,61 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
   }
 
   /**
+   * Puts the markers of the snaps away, except the one that won the frame.
+   *
+   * @param winner The snap whose marker stays, or `undefined` for none of them.
+   */
+  function hideSnapsExcept(winner: 'edge' | 'vertex' | 'plane' | undefined): void {
+    if (winner !== 'edge') {
+      edgeSnap?.hide()
+    }
+
+    if (winner !== 'vertex') {
+      vertexSnap?.hide()
+    }
+
+    if (winner !== 'plane') {
+      planeSnap?.hide()
+    }
+  }
+
+  /**
+   * Tells whether a snap would pull the selection against the drag.
+   *
+   * @remarks
+   * A snap is there to bring the selection to a target the author is dragging it to: once the drag has gone past the
+   * target, the correction points back, and holding the selection would fight the drag (a face lifted past a floor
+   * stayed on it while the pointer kept going). Such a target is let go at once, so the selection passes it.
+   *
+   * @param correction The move the snap asks for, on the axes of the drag.
+   * @param movement The translation of the drag since the snaps were built.
+   *
+   * @returns True when the correction runs against the drag.
+   */
+  function opposes(correction: ArxVector3, movement: ArxVector3): boolean {
+    const x = correction.x * movement.x
+    const y = correction.y * movement.y
+    const z = correction.z * movement.z
+    const dot = x + y + z
+    const length = Math.abs(movement.x) + Math.abs(movement.y) + Math.abs(movement.z)
+
+    // a drag that has not moved yet has no direction: every target is ahead of it
+    if (length < 1e-6) {
+      return false
+    }
+
+    return dot < 0
+  }
+
+  /**
    * Reads the correction of the snaps of a translate frame.
    *
    * @remarks
    * The edge rail wins when it has a target: the side of the selection rides on the edge of the level, and the vertex of
    * a corner would pull it off the rail on every frame (the zig-zag of a drag along the edge). The vertex is the target
-   * when no edge is near, which is the precise snap of a corner. The marker of the one that lost is put away.
+   * when no edge is near, which is the precise snap of a corner. The plane snap is the last of the three: it lands a
+   * corner on a face, which is the loose target of a drag towards a surface, and the two precise ones go before it. The
+   * marker of the one that lost is put away.
    *
    * @param total The raw translation of the drag, in the coordinates of the level.
    *
@@ -308,45 +372,62 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
     const active = isSnapActive()
     let vertex: VertexSnapResult | undefined
     let edge: EdgeSnapResult | undefined
+    let plane: PlaneSnapResult | undefined
+    // the snaps were built from the level as it stood at `snapStart`: the move since then is the translation they read
+    const sinceBuild: ArxVector3 = {
+      x: total.x - snapStart.x,
+      y: total.y - snapStart.y,
+      z: total.z - snapStart.z,
+    }
 
     if (edgeSnap !== undefined && active) {
-      edge = edgeSnap.snap(total, controls.axis)
+      edge = edgeSnap.snap(sinceBuild, controls.axis)
     }
 
     if (vertexSnap !== undefined && active) {
-      vertex = vertexSnap.snap(total, controls.axis)
+      vertex = vertexSnap.snap(sinceBuild, controls.axis)
     }
 
-    if (edge?.target !== undefined) {
-      vertexSnap?.hide()
+    if (planeSnap !== undefined && active) {
+      plane = planeSnap.snap(sinceBuild, controls.axis)
+    }
+
+    if (edge?.target !== undefined && !opposes(edge.correction, sinceBuild)) {
+      hideSnapsExcept('edge')
 
       return edge.correction
     }
 
-    if (vertex?.target !== undefined) {
-      edgeSnap?.hide()
+    if (vertex?.target !== undefined && !opposes(vertex.correction, sinceBuild)) {
+      hideSnapsExcept('vertex')
 
       return vertex.correction
     }
 
-    vertexSnap?.hide()
-    edgeSnap?.hide()
+    if (plane?.target !== undefined && !opposes(plane.correction, sinceBuild)) {
+      hideSnapsExcept('plane')
+
+      return plane.correction
+    }
+
+    hideSnapsExcept(undefined)
 
     return { x: 0, y: 0, z: 0 }
   }
 
   /**
-   * Builds the snap of the drag from the level the selection is on.
+   * Builds the snaps of the drag from the level the selection is on.
    *
    * @remarks
-   * It is built on the first frame that needs it, not at the press: a drag that started before the magnet or Shift was
-   * on has to snap too, and a drag that never snaps pays nothing for the vertices of the level.
+   * They are built on the first frame that needs them, not at the press: a drag that started before the magnet or Shift
+   * was on has to snap too, and a drag that never snaps pays nothing for the targets of the level.
    */
-  function startVertexSnap(): void {
+  function startSnaps(): void {
     if (map === undefined || faces.length === 0) {
       return
     }
 
+    snapStart = { x: applied.x, y: applied.y, z: applied.z }
     vertexSnap = createVertexSnap(map, faces, {
       camera: options.camera,
       canvas: options.canvas,
@@ -357,16 +438,23 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
       canvas: options.canvas,
       scene: options.scene,
     })
+    planeSnap = createPlaneSnap(map, faces, {
+      camera: options.camera,
+      canvas: options.canvas,
+      scene: options.scene,
+    })
   }
 
   /**
-   * Frees the snap and its marker.
+   * Frees the snaps and their markers.
    */
-  function stopVertexSnap(): void {
+  function stopSnaps(): void {
     vertexSnap?.dispose()
     vertexSnap = undefined
     edgeSnap?.dispose()
     edgeSnap = undefined
+    planeSnap?.dispose()
+    planeSnap = undefined
   }
 
   /**
@@ -459,7 +547,7 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
     const total = arxVector3toVector3(world)
 
     if (vertexSnap === undefined && isSnapActive()) {
-      startVertexSnap()
+      startSnaps()
     }
 
     const correction = snapCorrectionOf(total)
@@ -596,7 +684,7 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
     }
 
     dragging = false
-    stopVertexSnap()
+    stopSnaps()
 
     if (map === undefined) {
       return
@@ -657,7 +745,7 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
     dispose: (): void => {
       stop()
       stopSnapSetting()
-      stopVertexSnap()
+      stopSnaps()
       controls.removeEventListener('change', options.onRender)
       controls.removeEventListener('objectChange', onObjectChange)
       controls.removeEventListener('mouseDown', onMouseDown)

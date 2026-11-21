@@ -12,7 +12,7 @@ import {
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { polygonPerimeter } from '../../../../generator/polygons.ts'
-import { SNAP_THRESHOLD_PX, screenDistance, snapAxesOf, type ScreenPoint } from '../shared/snapping.ts'
+import { SNAP_THRESHOLD_PX, screenDistance, snapAxesOf, type ScreenPoint, type SnapAxis } from '../shared/snapping.ts'
 
 /**
  * How far two edges may be from parallel and still rail, in degrees.
@@ -55,6 +55,36 @@ type TargetEdge = GameEdge & {
    * The second end in the scene.
    */
   readonly worldB: Vector3
+}
+
+/**
+ * A target edge a frame of the drag can rail on, with the move that rails it.
+ */
+type EdgeCandidate = {
+  /**
+   * The edge the selection rails on.
+   */
+  readonly target: TargetEdge
+  /**
+   * The closest point of the target to the probe.
+   */
+  readonly point: ArxVector3
+  /**
+   * The probe that looks for the target.
+   */
+  readonly probe: ArxVector3
+  /**
+   * How far the probe and the closest point were on the canvas.
+   */
+  readonly distance: number
+  /**
+   * How far the closest point is along the drag axis.
+   */
+  readonly along: number
+  /**
+   * The offset that railed the probe, on the axes of the drag only.
+   */
+  readonly correction: ArxVector3
 }
 
 /**
@@ -460,6 +490,100 @@ export function createEdgeSnap(map: ArxMap, faces: readonly number[], options: E
     line.visible = false
   }
 
+  /**
+   * Reads a target edge as a candidate of the rail for one probe.
+   *
+   * @remarks
+   * The candidate passes when the two edges run parallel, the target is within the screen threshold of the probe, and
+   * the move the rail asks for stays on the axes of the drag and is small on the canvas. The last two are what keep a
+   * lift from being pulled onto a far edge of the floor: the face must not move across the drag, and the snap must not
+   * undo the drag.
+   *
+   * @param probe The point of the source edge the frame looks from.
+   * @param screen The probe on the canvas.
+   * @param target The target edge to test.
+   * @param direction The unit direction of the source edge.
+   * @param parallel The cosine of the angle two edges still count as parallel at.
+   * @param dragDirection The unit direction of the axis of the drag.
+   * @param axes The axes of the drag.
+   *
+   * @returns The candidate, or `undefined` when the target is not a rail of the probe.
+   */
+  function candidateOf(
+    probe: ArxVector3,
+    screen: ScreenPoint,
+    target: TargetEdge,
+    direction: ArxVector3,
+    parallel: number,
+    dragDirection: ArxVector3,
+    axes: readonly SnapAxis[],
+  ): EdgeCandidate | undefined {
+    const targetDirection = directionOf(target)
+
+    if (targetDirection === undefined) {
+      return undefined
+    }
+
+    const dotX = direction.x * targetDirection.x
+    const dotY = direction.y * targetDirection.y
+    const dotZ = direction.z * targetDirection.z
+
+    if (Math.abs(dotX + dotY + dotZ) < parallel) {
+      return undefined
+    }
+
+    const point = closestPointOf(probe, target.a, target.b)
+    const screenPoint = screenOf(arxVector3toVector3(point).sub(offset))
+
+    if (screenPoint === undefined) {
+      return undefined
+    }
+
+    const distance = screenDistance(screen, screenPoint)
+
+    if (!Number.isFinite(distance) || distance > SNAP_THRESHOLD_PX) {
+      return undefined
+    }
+
+    // the correction only moves the selection along the horizontal axes of the drag: an edge rail that also pulled it
+    // across them would move the face in a direction the author did not drag, and the vertical axis belongs to the plane
+    // snap (a Y lift that lands the face on a far edge was the case of 2026-11-21)
+    const correction: ArxVector3 = { x: 0, y: 0, z: 0 }
+
+    for (const snapped of axes) {
+      if (snapped !== 'y') {
+        correction[snapped] = point[snapped] - probe[snapped]
+      }
+    }
+
+    // a snap that moves the selection far on the canvas is not a snap: it would undo the drag (the floor edge a lift
+    // runs into was one), so the jump is capped like the one of the plane snap
+    const movedScreen = screenOf(
+      arxVector3toVector3({
+        x: probe.x + correction.x,
+        y: probe.y + correction.y,
+        z: probe.z + correction.z,
+      }).sub(offset),
+    )
+
+    if (movedScreen === undefined) {
+      return undefined
+    }
+
+    if (screenDistance(screen, movedScreen) > SNAP_THRESHOLD_PX) {
+      return undefined
+    }
+
+    // the edge the drag is moving towards wins over the one it is sliding along: the sliding edge has a correction
+    // across the drag, so its along part is zero, and it would hide the crossing edge forever
+    const alongX = (point.x - probe.x) * dragDirection.x
+    const alongY = (point.y - probe.y) * dragDirection.y
+    const alongZ = (point.z - probe.z) * dragDirection.z
+    const along = Math.abs(alongX + alongY + alongZ)
+
+    return { target, point, probe, distance, along, correction }
+  }
+
   return {
     snap: (translation: ArxVector3, axis: string | null | undefined): EdgeSnapResult => {
       const axes = snapAxesOf(axis)
@@ -473,6 +597,18 @@ export function createEdgeSnap(map: ArxMap, faces: readonly number[], options: E
 
       camera.updateMatrixWorld()
 
+      // the rail aligns edges in the plan: a vertical-only drag has nothing for it to correct, and the snap it would
+      // add would pull the face back down on every edge the lift sweeps past (the case of 2026-11-21)
+      const horizontal = axes.filter((candidate) => {
+        return candidate !== 'y'
+      })
+
+      if (horizontal.length === 0) {
+        hide()
+
+        return { correction }
+      }
+
       const parallel = Math.cos(MathUtils.degToRad(PARALLEL_TOLERANCE_DEGREES))
       const dragAxis = axes[0]
 
@@ -483,15 +619,7 @@ export function createEdgeSnap(map: ArxMap, faces: readonly number[], options: E
       }
 
       const dragDirection = axisDirectionOf(dragAxis)
-      let best:
-        | {
-            readonly target: TargetEdge
-            readonly point: ArxVector3
-            readonly probe: ArxVector3
-            readonly distance: number
-            readonly along: number
-          }
-        | undefined
+      let best: EdgeCandidate | undefined
 
       for (const source of sources) {
         const current: GameEdge = {
@@ -531,46 +659,18 @@ export function createEdgeSnap(map: ArxMap, faces: readonly number[], options: E
             }
 
             for (const target of list) {
-              const targetDirection = directionOf(target)
+              const candidate = candidateOf(probe, screen, target, direction, parallel, dragDirection, axes)
 
-              if (targetDirection === undefined) {
+              if (candidate === undefined) {
                 continue
               }
-
-              const dotX = direction.x * targetDirection.x
-              const dotY = direction.y * targetDirection.y
-              const dotZ = direction.z * targetDirection.z
-
-              if (Math.abs(dotX + dotY + dotZ) < parallel) {
-                continue
-              }
-
-              const point = closestPointOf(probe, target.a, target.b)
-              const screenPoint = screenOf(arxVector3toVector3(point).sub(offset))
-
-              if (screenPoint === undefined) {
-                continue
-              }
-
-              const distance = screenDistance(screen, screenPoint)
-
-              if (!Number.isFinite(distance) || distance > SNAP_THRESHOLD_PX) {
-                continue
-              }
-
-              // the edge the drag is moving towards wins over the one it is sliding along: the sliding edge has a
-              // correction across the drag, so its along part is zero, and it would hide the crossing edge forever
-              const alongX = (point.x - probe.x) * dragDirection.x
-              const alongY = (point.y - probe.y) * dragDirection.y
-              const alongZ = (point.z - probe.z) * dragDirection.z
-              const along = Math.abs(alongX + alongY + alongZ)
 
               if (
                 best === undefined ||
-                along > best.along + 1e-6 ||
-                (Math.abs(along - best.along) <= 1e-6 && distance < best.distance)
+                candidate.along > best.along + 1e-6 ||
+                (Math.abs(candidate.along - best.along) <= 1e-6 && candidate.distance < best.distance)
               ) {
-                best = { target, point, probe, distance, along }
+                best = candidate
               }
             }
           }
@@ -583,11 +683,9 @@ export function createEdgeSnap(map: ArxMap, faces: readonly number[], options: E
         return { correction }
       }
 
-      // the shortest vector between the two parallel lines: the drag along the target is the author's, the crossing is
-      // the snap
-      correction.x = best.point.x - best.probe.x
-      correction.y = best.point.y - best.probe.y
-      correction.z = best.point.z - best.probe.z
+      correction.x = best.correction.x
+      correction.y = best.correction.y
+      correction.z = best.correction.z
 
       const worldA = arxVector3toVector3(best.target.a).sub(offset)
       const worldB = arxVector3toVector3(best.target.b).sub(offset)

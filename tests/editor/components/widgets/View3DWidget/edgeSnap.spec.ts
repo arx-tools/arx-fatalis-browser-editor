@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ArxPolygon } from 'arx-convert/types'
 import { OrthographicCamera, PerspectiveCamera, Scene } from 'three'
+import { setCameraPose } from '../../../../../src/editor/components/widgets/camera/cameraPose.ts'
 import { createEdgeSnap } from '../../../../../src/editor/components/widgets/View3DWidget/edgeSnap.ts'
 import { createBlankLevelFiles, FLAT_PRESET } from '../../../../../src/editor/modules/level/blankLevel.ts'
 import { ArxMap } from '../../../../../src/generator/ArxMap.ts'
@@ -123,6 +124,56 @@ void describe('createEdgeSnap', () => {
     assert.ok(Math.abs(result.correction.x + 5) < 0.01, `the X correction was ${String(result.correction.x)}`)
     assert.ok(Math.abs(result.correction.y) < 0.01, `the Y correction was ${String(result.correction.y)}`)
     assert.ok(Math.abs(result.correction.z) < 0.01, `the Z correction was ${String(result.correction.z)}`)
+
+    snap.dispose()
+  })
+
+  void it('does not rail a lift onto a far edge of the floor', () => {
+    // the map of the owner (2026-11-21): the face in the hole, and the floor around it. The camera is the one the map
+    // was exported with, so the lift of the face brings its front edge onto the far edge of the hole on the canvas.
+    const files = createBlankLevelFiles(FLAT_PRESET)
+    const map = new ArxMap(files.dlf, files.fts, files.llf, new Settings({ seed: '1' }))
+    const selected = structuredClone(map.polygons[0])
+    const floor = structuredClone(map.polygons[0])
+
+    selected.vertices = [
+      { x: 588, y: 0, z: 356, u: 0, v: 0 },
+      { x: 688, y: 0, z: 356, u: 1, v: 0 },
+      { x: 588, y: 0, z: 456, u: 0, v: 1 },
+      { x: 688, y: 0, z: 456, u: 1, v: 1 },
+    ]
+    // the floor over the hole, with its far edge at z = 300
+    floor.vertices = [
+      { x: 500, y: 0, z: 200, u: 0, v: 0 },
+      { x: 700, y: 0, z: 200, u: 1, v: 0 },
+      { x: 500, y: 0, z: 300, u: 0, v: 1 },
+      { x: 700, y: 0, z: 300, u: 1, v: 1 },
+    ]
+
+    ;(map as unknown as { polygons: ArxPolygon[] }).polygons = [selected, floor]
+
+    const camera = new PerspectiveCamera(75, 913 / 765, 0.1, 10_000)
+
+    setCameraPose(
+      camera,
+      { x: 550, y: 0, z: 550 },
+      {
+        position: { x: 715.68, y: -389.28, z: 628.5 },
+        angle: { pitch: 54.3, yaw: 166.24 },
+      },
+    )
+    camera.updateMatrixWorld()
+
+    const canvas = { clientWidth: 913, clientHeight: 765 } as unknown as HTMLCanvasElement
+    const scene = new Scene()
+    const snap = createEdgeSnap(map, [0], { camera, canvas, scene })
+
+    // the face lifted 55 units: its front edge is on the far edge of the hole on the canvas, but the rail would move it
+    // 55 units back down and 56 units across the level, so it is not a snap (the drag of the owner found exactly this)
+    const lifted = snap.snap({ x: 0, y: -55, z: 0 }, 'Y')
+
+    assert.equal(lifted.target, undefined)
+    assert.deepEqual(lifted.correction, { x: 0, y: 0, z: 0 })
 
     snap.dispose()
   })

@@ -347,7 +347,7 @@ test('the pencil of a group opens its name', async ({ page }) => {
 
   const row = groupInspector(page).locator('li.group').first()
 
-  await row.locator('.edit').click()
+  await row.locator('button[aria-label^="Rename "]').click()
 
   const field = row.locator('.rename')
 
@@ -408,7 +408,7 @@ test('the group operations are steps of the history', async ({ page }) => {
   await expect(row).toContainText('Floor')
 
   // the delete is a step, and its undo brings the group back with its name
-  await row.locator('.trash').click()
+  await row.locator('button[aria-label^="Delete "]').click()
   await expect(rows).toHaveCount(0)
 
   await page.keyboard.press('ControlOrMeta+z')
@@ -451,7 +451,7 @@ test('the trash takes the group out, the faces stay', async ({ page }) => {
 
   await expect(row).toBeVisible()
 
-  await row.locator('.trash').click()
+  await row.locator('button[aria-label^="Delete "]').click()
 
   await expect(groupInspector(page).locator('li.group')).toHaveCount(0)
   expect(await statOf(page, 'Total faces')).toBe(faces)
@@ -665,7 +665,7 @@ test('the eye of a group takes its faces out of the mesh, and the delete puts th
   await expect(groups).toHaveCount(1)
 
   const row = groups.first()
-  const eye = row.locator('button.eye')
+  const eye = row.locator('button[aria-pressed]')
 
   await expect(eye).toHaveAttribute('aria-pressed', 'true')
   await expect(row).toContainText(`${String(faces)} faces`)
@@ -725,7 +725,7 @@ test('the eye of a group takes its faces out of the mesh, and the delete puts th
   await eye.click()
   await expect(eye).toHaveAttribute('aria-pressed', 'false')
 
-  await row.locator('button.trash').click()
+  await row.locator('button[aria-label^="Delete "]').click()
 
   await expect(groups).toHaveCount(0)
   await nextFrames(page, 3)
@@ -808,7 +808,7 @@ test('the magnifier of a group goes to it, and picks its faces', async ({ page }
   const start = [before.x, before.z]
 
   await page.keyboard.press('c')
-  await row.locator('button.zoom').click()
+  await row.locator('button[aria-label^="Jump to "]').click()
 
   await expect
     .poll(async () => {

@@ -8,6 +8,7 @@ import { lightSelectionStore } from '../../../modules/selection/lightSelectionSt
 import { selectionModeOf, selectionStore } from '../../../modules/selection/selectionStore.ts'
 import type { LightMarkerShape } from '../shared/lightMarkers.ts'
 import ColorSwatch from '../../ColorSwatch.vue'
+import InspectorRow from '../../InspectorRow.vue'
 import EmptyMessage from '../../EmptyMessage.vue'
 import SearchField from '../../SearchField.vue'
 import WidgetHeading from '../../WidgetHeading.vue'
@@ -172,14 +173,14 @@ function jumpTo(row: LightRow): void {
       </select>
     </div>
     <ul class="lights">
-      <li
+      <InspectorRow
         v-for="row in shown"
         :key="row.index"
         class="light"
         :class="{ 'is-selected': isSelected(row.index) }"
         @click="pick(row.index, $event)"
       >
-        <ColorSwatch :color="row.color" :radius="3" border="dark" />
+        <ColorSwatch :color="row.color" :radius="3" border="line" />
         <span class="index">{{ lightIndexLabelOf(row.index) }}</span>
         <span class="shape" v-tooltip="`${lightShapeLabelOf(row.shape)} · ${lightPositionLabelOf(row.position)}`">
           {{ lightShapeLabelOf(row.shape) }}
@@ -193,7 +194,7 @@ function jumpTo(row: LightRow): void {
         >
           <ScanSearch :size="14" />
         </button>
-      </li>
+      </InspectorRow>
     </ul>
     <EmptyMessage v-if="rows.length > 0 && shown.length === 0">No light matches the search</EmptyMessage>
     <EmptyMessage v-else-if="rows.length === 0">The level has no lights</EmptyMessage>
@@ -252,21 +253,9 @@ function jumpTo(row: LightRow): void {
     list-style: none;
 
     .light {
-      display: flex;
-      align-items: center;
-      gap: 8px;
       padding: 4px 6px;
       border-radius: 3px;
-      cursor: pointer;
       user-select: none;
-
-      &:nth-child(even) {
-        background: rgba($text-strong, 0.03);
-      }
-
-      &:hover {
-        background: $surface-panel;
-      }
 
       &.is-selected {
         background: rgba($accent, 0.15);
@@ -305,13 +294,6 @@ function jumpTo(row: LightRow): void {
         }
       }
     }
-  }
-
-  .empty {
-    flex: none;
-    margin: 4px 0 0;
-    color: $text-dim;
-    font-size: 11px;
   }
 }
 </style>

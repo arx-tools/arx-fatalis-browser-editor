@@ -22,9 +22,9 @@ withDefaults(
      */
     readonly radius?: number
     /**
-     * The border of the patch: the dark edge of a row, the strong edge of the light editor, or none.
+     * The border of the patch: the line of a row, the strong edge of the light editor, or none.
      */
-    readonly border?: 'none' | 'dark' | 'strong'
+    readonly border?: 'none' | 'line' | 'strong'
   }>(),
   {
     size: 10,
@@ -56,8 +56,8 @@ withDefaults(
   display: inline-block;
   box-sizing: border-box;
 
-  &.is-bordered-dark {
-    border: 1px solid $border-dark;
+  &.is-bordered-line {
+    border: 1px solid $border;
   }
 
   &.is-bordered-strong {

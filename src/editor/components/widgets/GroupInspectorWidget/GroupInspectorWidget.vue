@@ -17,6 +17,8 @@ import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { faceCountLabelOf } from '../../../modules/rooms/roomList.ts'
 import { lightSelectionStore } from '../../../modules/selection/lightSelectionStore.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
+import InspectorRow from '../../InspectorRow.vue'
+import RowActionButton from '../../RowActionButton.vue'
 import WidgetHeading from '../../WidgetHeading.vue'
 import { cameraStore } from '../camera/cameraStore.ts'
 import { faceGroupExtentOf, faceGroupJumpPoseOf } from './groupInspector.ts'
@@ -233,7 +235,7 @@ function removeGroup(row: FaceGroupRow): void {
       Groups of another version of this level are kept, and not shown.
     </p>
     <ul ref="groupList" class="groups" tabindex="0" @pointerdown="focusList">
-      <li
+      <InspectorRow
         v-for="row in rows"
         :key="row.id"
         class="group"
@@ -241,19 +243,15 @@ function removeGroup(row: FaceGroupRow): void {
         @click="pick(row, $event)"
         @dblclick="startRename(row)"
       >
-        <button
-          class="eye"
-          type="button"
-          :class="{ 'is-visible': row.visible }"
-          :aria-label="row.visible ? `Hide ${row.label}` : `Show ${row.label}`"
-          :aria-pressed="row.visible"
-          v-tooltip="row.visible ? `Hide ${row.label}` : `Show ${row.label}`"
+        <RowActionButton
+          :label="row.visible ? `Hide ${row.label}` : `Show ${row.label}`"
+          :pressed="row.visible"
           @click.stop="toggleVisibility(row)"
           @dblclick.stop
         >
           <Eye v-if="row.visible" :size="14" />
           <EyeOff v-else :size="14" />
-        </button>
+        </RowActionButton>
         <input
           v-if="renaming === row.id"
           :ref="captureNameField"
@@ -270,36 +268,16 @@ function removeGroup(row: FaceGroupRow): void {
         />
         <span v-else class="name" v-tooltip="row.label">{{ row.label }}</span>
         <span class="count">{{ faceCountLabelOf(row.faceCount) }}</span>
-        <button
-          class="zoom"
-          type="button"
-          :aria-label="`Jump to ${row.label}`"
-          v-tooltip="`Jump to ${row.label}`"
-          @click.stop="jumpTo(row)"
-          @dblclick.stop
-        >
+        <RowActionButton :label="`Jump to ${row.label}`" muted @click.stop="jumpTo(row)" @dblclick.stop>
           <ScanSearch :size="13" />
-        </button>
-        <button
-          class="edit"
-          type="button"
-          :aria-label="`Rename ${row.label}`"
-          v-tooltip="`Rename ${row.label}`"
-          @click.stop="startRename(row)"
-          @dblclick.stop
-        >
+        </RowActionButton>
+        <RowActionButton :label="`Rename ${row.label}`" muted @click.stop="startRename(row)" @dblclick.stop>
           <Pencil :size="13" />
-        </button>
-        <button
-          class="trash"
-          type="button"
-          :aria-label="`Delete ${row.label}`"
-          v-tooltip="`Delete ${row.label}`"
-          @click.stop="removeGroup(row)"
-        >
+        </RowActionButton>
+        <RowActionButton :label="`Delete ${row.label}`" muted danger @click.stop="removeGroup(row)">
           <Trash2 :size="13" />
-        </button>
-      </li>
+        </RowActionButton>
+      </InspectorRow>
     </ul>
   </div>
 </template>
@@ -385,21 +363,7 @@ function removeGroup(row: FaceGroupRow): void {
 // the header of a section: the name of the level, the way the header of the editor writes it (`Blank: Flat Plane`), so
 // the two read the same and the author knows which level the groups under it belong to
 .group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 3px 6px;
   color: $text-muted;
-  cursor: pointer;
-
-  // the faint stripe of the information lists
-  &:nth-child(even) {
-    background: rgba($text-strong, 0.03);
-  }
-
-  &:hover {
-    background: $surface-panel;
-  }
 
   &.is-selected {
     color: $text;
@@ -408,35 +372,6 @@ function removeGroup(row: FaceGroupRow): void {
 }
 
 // the eye of the row: orange while the group is drawn, a crossed eye while its faces are out of the mesh
-.eye {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  color: $text-subtle;
-  background: none;
-  border: 0;
-  border-radius: 3px;
-  cursor: pointer;
-
-  &.is-visible {
-    color: $accent;
-  }
-
-  &:hover:not(:disabled) {
-    color: $text;
-    background: $surface-panel;
-  }
-
-  &:disabled {
-    opacity: 0.4;
-    cursor: default;
-  }
-}
-
 .name {
   flex: 1;
   min-width: 0;
@@ -470,49 +405,5 @@ function removeGroup(row: FaceGroupRow): void {
 }
 
 // the pencil of a row: a rename without the double click, quiet until the row is under the pointer
-.zoom,
-.edit {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  color: $text-subtle;
-  background: none;
-  border: 0;
-  border-radius: 3px;
-  opacity: 0.6;
-  cursor: pointer;
-
-  &:hover {
-    color: $text;
-    background: $surface-panel;
-    opacity: 1;
-  }
-}
-
 // the trash of a row: quiet until the row is under the pointer, then the colour of a delete
-.trash {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  color: $text-subtle;
-  background: none;
-  border: 0;
-  border-radius: 3px;
-  opacity: 0.6;
-  cursor: pointer;
-
-  &:hover {
-    color: $danger-bright;
-    background: $surface-panel;
-    opacity: 1;
-  }
-}
 </style>

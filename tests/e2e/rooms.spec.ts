@@ -771,7 +771,7 @@ test('a room rename is a step of the history, and the name stays in the browser'
   await expect(reloaded).toContainText('Hall')
 
   // the delete takes the room with its name, and the undo brings both back
-  await reloaded.locator('.trash').click()
+  await reloaded.locator('button[aria-label^="Delete "]').click()
 
   await expect
     .poll(async () => {
@@ -814,7 +814,7 @@ test('the trash takes a room out, and the faces stay', async ({ page }) => {
     })
     .toBe(1)
 
-  await rows.first().locator('.trash').click()
+  await rows.first().locator('button[aria-label^="Delete "]').click()
 
   await expect
     .poll(async () => {
@@ -840,7 +840,7 @@ test('the pencil of a room opens its name', async ({ page }) => {
 
   const row = page.locator('[data-widget-kind="room-inspector"] li.room').first()
 
-  await row.locator('.edit').click()
+  await row.locator('button[aria-label^="Rename "]').click()
 
   const field = row.locator('.rename')
 

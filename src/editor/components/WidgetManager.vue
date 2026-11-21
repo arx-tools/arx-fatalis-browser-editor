@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Check, ChevronDown, LockKeyhole, LockKeyholeOpen, Redo2, Settings, Undo2 } from 'lucide-vue-next'
 import type { PresetId } from '../modules/layout/layoutPresets.ts'
 import { useEditorShell } from '../modules/shell/editorShellContext.ts'
+import ToggleButton from './ToggleButton.vue'
 import WidgetPicker from './WidgetPicker.vue'
 
 const shell = useEditorShell()
@@ -195,29 +196,27 @@ onBeforeUnmount(() => {
 <template>
   <div ref="root" class="WidgetManager">
     <span class="label">Layout</span>
-    <button
+    <ToggleButton
       class="lock"
-      type="button"
-      :aria-pressed="isEditing"
-      v-tooltip="isEditing ? 'Lock the layout' : 'Unlock the layout'"
-      :aria-label="isEditing ? 'Lock the layout' : 'Unlock the layout'"
-      @click="toggleEditing"
+      tone="ok"
+      :pressed="isEditing"
+      :label="isEditing ? 'Lock the layout' : 'Unlock the layout'"
+      @update:pressed="toggleEditing"
     >
-      <LockKeyholeOpen v-if="isEditing" :size="14" />
-      <LockKeyhole v-else :size="14" />
-    </button>
-    <button
+      <template #on><LockKeyholeOpen :size="14" /></template>
+      <template #off><LockKeyhole :size="14" /></template>
+    </ToggleButton>
+    <ToggleButton
       class="plus"
-      :class="{ 'is-open': isPickerOpen }"
-      type="button"
+      tone="quiet"
+      :pressed="isPickerOpen"
+      label="Add a widget"
       aria-haspopup="menu"
       :aria-expanded="isPickerOpen"
-      v-tooltip="'Add a widget'"
-      aria-label="Add a widget"
-      @click="togglePicker"
+      @update:pressed="togglePicker"
     >
       <Settings :size="14" />
-    </button>
+    </ToggleButton>
     <!-- the divider between the tools of the widgets and the presets: the quiet dot of the header, so the two groups of
          the right side read as two (2026-11-14, the owner) -->
     <span class="dot" aria-hidden="true"></span>
@@ -422,49 +421,12 @@ onBeforeUnmount(() => {
     }
   }
 
-  // the icon buttons of the group: every button that hangs directly on the manager looks like this, so a
-  // renamed one keeps its look
-  & > button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 26px;
-    height: 22px;
-    padding: 0;
-    color: $text-icon;
-    background: transparent;
-    border: 1px solid $border;
-    border-radius: 4px;
-    cursor: pointer;
-
-    &:hover {
-      background: $surface-panel;
-    }
-  }
-
   // the popup hangs from here: a zero sized box at the middle of the gear (the left comes from the script)
   .picker-anchor {
     position: absolute;
     top: 100%;
     width: 0;
     height: 0;
-  }
-
-  // the plus is lit while its popup is open: it says which button the list belongs to
-  .plus.is-open {
-    color: $text-strong;
-    background: $surface-raised;
-    border-color: $border-strong;
-  }
-
-  .lock {
-    color: $ok;
-
-    &[aria-pressed='true'] {
-      color: $accent;
-      background: $surface-raised;
-      border-color: $border-strong;
-    }
   }
 }
 </style>

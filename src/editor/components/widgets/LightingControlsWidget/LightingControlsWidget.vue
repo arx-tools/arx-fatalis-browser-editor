@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { LoaderCircle } from 'lucide-vue-next'
+import { LoaderCircle, Power } from 'lucide-vue-next'
 import { computed } from 'vue'
 import FieldLabel from '../../FieldLabel.vue'
-import PowerButton from '../../PowerButton.vue'
+import ToggleButton from '../../ToggleButton.vue'
 import { isDynamicLightsVisible, isStaticLightsVisible } from '../../../modules/level/edit/dynamicLights.ts'
 import {
   flatLuminosity,
@@ -128,23 +128,27 @@ const dynamicLights = computed<boolean>({
 
     <FieldLabel class="field" inline label="Static lights" for="static-lights">
       <div class="row">
-        <PowerButton
+        <ToggleButton
           id="static-lights"
           :pressed="staticLights"
           label="Static lights"
           @update:pressed="staticLights = $event"
-        />
+        >
+          <Power :size="14" aria-hidden="true" />
+        </ToggleButton>
       </div>
     </FieldLabel>
 
     <FieldLabel class="field" inline label="Dynamic lights" for="dynamic-lights">
       <div class="row">
-        <PowerButton
+        <ToggleButton
           id="dynamic-lights"
           :pressed="dynamicLights"
           label="Dynamic lights"
           @update:pressed="dynamicLights = $event"
-        />
+        >
+          <Power :size="14" aria-hidden="true" />
+        </ToggleButton>
       </div>
     </FieldLabel>
   </div>

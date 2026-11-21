@@ -1,8 +1,6 @@
 <script setup lang="ts">
-import { Power } from 'lucide-vue-next'
-
 /**
- * The power switch of a setting: the icon button that the lighting controls and the snapping settings share.
+ * The switch of a setting: the icon button that the lighting controls and the snapping settings share.
  *
  * @remarks
  * The two widgets had the same button twice: the box, the off and on look, the pressed state, the disabled look and the
@@ -10,7 +8,8 @@ import { Power } from 'lucide-vue-next'
  * stored setting stays the one the widget owns (the same rule as {@link FieldLabel}: the bindings are the widget's).
  *
  * The tooltip is the *next* action when the widget says one, and the label otherwise: the label names the switch for the
- * screen reader, the tooltip says what a click does.
+ * screen reader, the tooltip says what a click does. The icon is the slot, so the same switch carries the power of a
+ * light layer, the snapping, or any other mark of a setting (2026-11-21, the owner).
  */
 const props = withDefaults(
   defineProps<{
@@ -31,14 +30,14 @@ const props = withDefaults(
      */
     readonly disabled?: boolean
     /**
-     * The size of the icon, in pixels: the rows of the snapping settings are smaller than the lighting switches.
+     * The colour pair of the switch: the accent of a setting, the green of a lock, or the quiet grey of a tool.
      */
-    readonly iconSize?: number
+    readonly tone?: 'accent' | 'ok' | 'quiet'
   }>(),
   {
     tooltip: undefined,
     disabled: false,
-    iconSize: 14,
+    tone: 'accent',
   },
 )
 
@@ -59,8 +58,8 @@ function toggle(): void {
 
 <template>
   <button
-    class="PowerButton"
-    :class="{ 'is-on': pressed }"
+    class="ToggleButton"
+    :class="[`tone-${tone}`, { 'is-on': pressed }]"
     type="button"
     :disabled="disabled"
     :aria-pressed="pressed"
@@ -68,7 +67,8 @@ function toggle(): void {
     v-tooltip="tooltip ?? label"
     @click="toggle"
   >
-    <Power :size="iconSize" aria-hidden="true" />
+    <slot v-if="pressed" name="on"><slot /></slot>
+    <slot v-else name="off"><slot /></slot>
   </button>
 </template>
 
@@ -79,7 +79,7 @@ function toggle(): void {
 // through; a faint border and a grey icon while it is off, a lighter border and the accent while it is on, and the grey
 // of the panel under the pointer. A disabled switch keeps its state visible and dims itself: the kinds of the snap stay
 // where the author left them while the master is off.
-.PowerButton {
+.ToggleButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -103,7 +103,31 @@ function toggle(): void {
 
   &.is-on {
     border-color: $border-strong;
+  }
+
+  &.tone-accent.is-on {
     color: $accent;
+  }
+
+  // the lock of the layout: green while the layout is locked, the accent (and the raised plate) while the edit mode is
+  // on
+  &.tone-ok {
+    color: $ok;
+  }
+
+  &.tone-ok.is-on {
+    color: $accent;
+    background: $surface-raised;
+  }
+
+  // the tools of the header: the quiet icon, and the strong one with the raised plate while the popup is open
+  &.tone-quiet {
+    color: $text-icon;
+  }
+
+  &.tone-quiet.is-on {
+    color: $text-strong;
+    background: $surface-raised;
   }
 
   &:disabled {

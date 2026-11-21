@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { Power } from 'lucide-vue-next'
 import FieldLabel from '../../FieldLabel.vue'
 import NumberField from '../../NumberField.vue'
-import PowerButton from '../../PowerButton.vue'
+import ToggleButton from '../../ToggleButton.vue'
 import {
   snapEdgeEnabled,
   snapEnabled,
@@ -151,12 +152,9 @@ function onThresholdBlur(): void {
   <div class="EditSettingsWidget">
     <FieldLabel class="field" inline label="Snapping">
       <div class="row">
-        <PowerButton
-          :pressed="enabled"
-          label="Snapping"
-          :tooltip="snappingTooltip"
-          @update:pressed="enabled = $event"
-        />
+        <ToggleButton :pressed="enabled" label="Snapping" :tooltip="snappingTooltip" @update:pressed="enabled = $event">
+          <Power :size="14" aria-hidden="true" />
+        </ToggleButton>
       </div>
     </FieldLabel>
 
@@ -164,36 +162,39 @@ function onThresholdBlur(): void {
       <div class="types">
         <div class="type-row">
           <span class="type-label">Vertex</span>
-          <PowerButton
+          <ToggleButton
             :pressed="vertex"
             label="Snap to vertex"
             tooltip="Snap a corner to a vertex of the level"
             :disabled="!enabled"
-            :icon-size="12"
             @update:pressed="vertex = $event"
-          />
+          >
+            <Power :size="12" aria-hidden="true" />
+          </ToggleButton>
         </div>
         <div class="type-row">
           <span class="type-label">Edge</span>
-          <PowerButton
+          <ToggleButton
             :pressed="edge"
             label="Snap to edge"
             tooltip="Rail the edge of the selection on an edge of the level"
             :disabled="!enabled"
-            :icon-size="12"
             @update:pressed="edge = $event"
-          />
+          >
+            <Power :size="12" aria-hidden="true" />
+          </ToggleButton>
         </div>
         <div class="type-row">
           <span class="type-label">Face</span>
-          <PowerButton
+          <ToggleButton
             :pressed="plane"
             label="Snap to face"
             tooltip="Land a corner on the plane of a face of the level"
             :disabled="!enabled"
-            :icon-size="12"
             @update:pressed="plane = $event"
-          />
+          >
+            <Power :size="12" aria-hidden="true" />
+          </ToggleButton>
         </div>
       </div>
     </FieldLabel>

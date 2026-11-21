@@ -26,12 +26,12 @@ type Story = StoryObj<typeof meta>
 export const Row: Story = {}
 
 /**
- * The patch of the light list: the dark edge around it.
+ * The patch with the line of a row: the edge separates the colour from the panel.
  */
 export const Bordered: Story = {
   args: {
     radius: 3,
-    border: 'dark',
+    border: 'line',
   },
 }
 

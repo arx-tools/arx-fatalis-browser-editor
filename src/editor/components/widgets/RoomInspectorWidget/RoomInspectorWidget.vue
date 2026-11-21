@@ -27,6 +27,8 @@ import { selectionModeOf, selectionStore } from '../../../modules/selection/sele
 import ColorSwatch from '../../ColorSwatch.vue'
 import EmptyMessage from '../../EmptyMessage.vue'
 import SearchField from '../../SearchField.vue'
+import InspectorRow from '../../InspectorRow.vue'
+import RowActionButton from '../../RowActionButton.vue'
 import WidgetHeading from '../../WidgetHeading.vue'
 import { isMeshVisible, isRoomColorsVisible, toggleRoomColors } from '../shared/levelDisplay.ts'
 import { roomProblemsOf, type RoomProblem } from './roomInspector.ts'
@@ -542,7 +544,7 @@ function removeRowRoom(room: number): void {
     </p>
     <SearchField v-if="rows.length > 0" v-model="query" placeholder="Search rooms" label="Search rooms" />
     <ul ref="roomList" class="rooms" tabindex="0" @pointerdown="focusList">
-      <li
+      <InspectorRow
         v-for="row in shown"
         :key="row.room"
         class="room"
@@ -578,28 +580,25 @@ function removeRowRoom(room: number): void {
           <template v-else-if="roomNameOf(row.room) !== undefined"> · {{ nameOf(row.room) }}</template>
         </span>
         <span class="count">{{ faceCountLabelOf(row.faceCount) }}</span>
-        <button
+        <RowActionButton
           v-if="row.room !== NO_ROOM"
-          class="edit"
-          type="button"
-          :aria-label="`Rename ${roomLabelOf(row.room)}`"
-          v-tooltip="`Rename ${roomLabelOf(row.room)}`"
+          :label="`Rename ${roomLabelOf(row.room)}`"
+          muted
           @click.stop="startRename(row.room)"
           @dblclick.stop
         >
           <Pencil :size="13" />
-        </button>
-        <button
+        </RowActionButton>
+        <RowActionButton
           v-if="row.room !== NO_ROOM"
-          class="trash"
-          type="button"
-          :aria-label="`Delete ${roomLabelOf(row.room)}`"
-          v-tooltip="`Delete ${roomLabelOf(row.room)}`"
+          :label="`Delete ${roomLabelOf(row.room)}`"
+          muted
+          danger
           @click.stop="removeRowRoom(row.room)"
         >
           <Trash2 :size="13" />
-        </button>
-      </li>
+        </RowActionButton>
+      </InspectorRow>
     </ul>
     <EmptyMessage v-if="rows.length > 0 && shown.length === 0">No room matches the search</EmptyMessage>
     <section class="manage">
@@ -734,22 +733,10 @@ function removeRowRoom(room: number): void {
 }
 
 .room {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 3px 6px;
   color: $text-muted;
-  cursor: pointer;
-
-  // a very faint stripe, the same as the information lists of the other widgets: a long list of rooms is easier to
-  // follow when the rows alternate, and the pick and the hover stay readable over it
-  &:nth-child(even) {
-    background: rgba($text-strong, 0.03);
-  }
 
   // the pointer of the author and the room under the crosshair of the walkable view read the same way: one row gets
   // the hover wash while the camera points at its room
-  &:hover,
   &.is-hovered {
     background: $surface-panel;
   }
@@ -806,51 +793,7 @@ function removeRowRoom(room: number): void {
 }
 
 // the pencil of a row: a rename without the double click, quiet until the row is under the pointer
-.edit {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  color: $text-subtle;
-  background: none;
-  border: 0;
-  border-radius: 3px;
-  opacity: 0.6;
-  cursor: pointer;
-
-  &:hover {
-    color: $text;
-    background: $surface-panel;
-    opacity: 1;
-  }
-}
-
 // the trash of a row: quiet until the row is under the pointer, then the colour of a delete
-.trash {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  color: $text-subtle;
-  background: none;
-  border: 0;
-  border-radius: 3px;
-  opacity: 0.6;
-  cursor: pointer;
-
-  &:hover {
-    color: $danger-bright;
-    background: $surface-panel;
-    opacity: 1;
-  }
-}
-
 // the search found no room: the list keeps its place, the line stands in it
 // the three things the selection can become, one under the other: a new room, the room of the dropdown, or none. A
 // quiet `or` between them says it is one choice, and the dropdown keeps the other two one click away

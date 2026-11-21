@@ -8,6 +8,7 @@ import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { lightsRevision, touchLights } from '../../../modules/level/edit/lightEditing.ts'
 import { refreshLightPalette, type LightPaletteChange } from '../../../modules/level/edit/lightPalette.ts'
 import { lightSelectionStore } from '../../../modules/selection/lightSelectionStore.ts'
+import Notice from '../../Notice.vue'
 import NumberField from '../../NumberField.vue'
 import WidgetHeading from '../../WidgetHeading.vue'
 import LightColorPicker from './LightColorPicker.vue'
@@ -444,8 +445,10 @@ function toggleFlag(bit: number, event: Event): void {
 <template>
   <div class="LightEditorWidget">
     <WidgetHeading :label="props.label" />
-    <p v-if="selection.kind === 'empty'" class="message">Select a light to edit.</p>
-    <p v-else-if="selection.kind === 'mismatch'" class="message is-mismatch">{{ mismatchMessage }}</p>
+    <Notice v-if="selection.kind === 'empty'" class="message">Select a light to edit.</Notice>
+    <Notice v-else-if="selection.kind === 'mismatch'" class="message is-mismatch">
+      {{ mismatchMessage }}
+    </Notice>
     <div v-else class="fields">
       <div class="field">
         <span class="caption">Colour</span>
@@ -587,7 +590,6 @@ function toggleFlag(bit: number, event: Event): void {
   }
 
   .message.is-mismatch {
-    color: $text-dim;
     line-height: 1.4;
   }
 

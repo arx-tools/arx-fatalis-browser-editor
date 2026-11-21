@@ -16,6 +16,7 @@ import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import { bitmapOf, entryOfName, loadBitmap } from '../../../modules/textures/textureCatalog.ts'
 import type { TextureEntry } from '../../../modules/textures/textureEntry.ts'
+import Notice from '../../Notice.vue'
 import NumberField from '../../NumberField.vue'
 import {
   DEFAULT_ZOOM,
@@ -806,7 +807,7 @@ watch(
       </div>
     </div>
 
-    <p v-if="shown === undefined || pictureMissing" class="hint">{{ notice }}</p>
+    <Notice v-if="shown === undefined || pictureMissing" class="hint">{{ notice }}</Notice>
     <div v-else class="fields">
       <div class="corner-pick" @keydown.esc.stop="onCornerEscape()">
         <button
@@ -1092,7 +1093,6 @@ watch(
 .hint {
   margin: 0;
   padding: 6px 2px;
-  color: $text-dim;
   font-size: 11px;
   line-height: 1.4;
   text-align: center;

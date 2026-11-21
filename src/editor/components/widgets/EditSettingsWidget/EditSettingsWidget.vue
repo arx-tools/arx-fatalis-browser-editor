@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import FieldLabel from '../../FieldLabel.vue'
+import NumberField from '../../NumberField.vue'
 import PowerButton from '../../PowerButton.vue'
 import {
   snapEdgeEnabled,
@@ -106,11 +107,9 @@ watch(snapThresholdPx, (value) => {
  * always one the next build can read (the `deserialize` of the ref checks it too). An empty or half typed field keeps
  * its text and does not touch the setting; the blur puts the number back.
  *
- * @param event The input event of the field.
+ * @param raw The text of the field.
  */
-function onThresholdInput(event: Event): void {
-  const field = event.target as HTMLInputElement
-  const raw = field.value
+function onThresholdInput(raw: string): void {
   const parsed = Number.parseInt(raw, 10)
 
   if (!Number.isFinite(parsed)) {
@@ -201,20 +200,17 @@ function onThresholdBlur(): void {
 
     <FieldLabel class="field" inline label="Threshold" for="snap-threshold">
       <div class="row">
-        <input
+        <NumberField
           id="snap-threshold"
-          :value="thresholdText"
+          :model-value="thresholdText"
           class="threshold"
-          type="text"
+          label="Snap threshold in pixels"
           inputmode="numeric"
-          autocomplete="off"
-          spellcheck="false"
-          aria-label="Snap threshold in pixels"
+          step
           v-tooltip="'How far a snap may take the selection, in pixels'"
-          @input="onThresholdInput"
+          @update:model-value="onThresholdInput"
           @blur="onThresholdBlur"
-          @keydown.up.prevent="stepThreshold(1)"
-          @keydown.down.prevent="stepThreshold(-1)"
+          @step="stepThreshold"
         />
         <span class="unit">px</span>
       </div>

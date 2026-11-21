@@ -43,6 +43,40 @@ test('the Light Editor writes the intensity of a light, and the undo takes it ba
   await expect(intensity).toHaveValue(before)
 })
 
+/**
+ * A number field keeps the value of the light while the text is not a number, and shows the red edge.
+ *
+ * @remarks
+ * A half cleared field must not blank the light of the level (2026-11-21, the owner): the text stays as it is typed, the
+ * light keeps the value it had, and the edge of the field says the text is not a number. Leaving the field puts the
+ * number back, the way the camera form does.
+ */
+test('a number field keeps the value when the text is not a number, and shows the red edge', async ({ page }) => {
+  await openLighter(page)
+  await pickFirstLight(page)
+
+  const editor = page.locator('[data-widget-kind="light-editor"]')
+  const intensity = editor.locator('input[aria-label="Intensity"]')
+
+  await expect(intensity).not.toHaveValue('')
+
+  const before = await intensity.inputValue()
+
+  // a text that is not a number: the red edge, and the text stays as typed
+  await intensity.fill('abc')
+  await expect(intensity).toHaveClass(/invalid/)
+  await expect(intensity).toHaveValue('abc')
+
+  // an emptied field is not a number either: the same edge, and the light keeps its value under the text
+  await intensity.fill('')
+  await expect(intensity).toHaveClass(/invalid/)
+
+  // leaving the field puts the number of the light back, and the edge goes
+  await intensity.blur()
+  await expect(intensity).toHaveValue(before)
+  await expect(intensity).not.toHaveClass(/invalid/)
+})
+
 test('a selection of different lights is refused with its reasons', async ({ page }) => {
   await openLighter(page)
 

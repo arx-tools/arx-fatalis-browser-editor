@@ -16,6 +16,7 @@ import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import { bitmapOf, entryOfName, loadBitmap } from '../../../modules/textures/textureCatalog.ts'
 import type { TextureEntry } from '../../../modules/textures/textureEntry.ts'
+import NumberField from '../../NumberField.vue'
 import {
   DEFAULT_ZOOM,
   mismatchMessageOf,
@@ -431,7 +432,23 @@ function reframe(): void {
 
 const fields = useUvMapperFields({ corners, active, shown, reframe, requestRedraw })
 
-const { fieldU, fieldV, onFieldInput, onFieldFocus, onFieldBlur, onFieldEnter } = fields
+const { fieldU, fieldV, invalidU, invalidV, onFieldInput, onFieldFocus, onFieldBlur, onFieldEnter } = fields
+
+/**
+ * Writes the text of a field, and applies it to the corner when it is a number the uv can take.
+ *
+ * @param axis The field that was typed in.
+ * @param value The text of the field.
+ */
+function onUvFieldValue(axis: 'u' | 'v', value: string): void {
+  if (axis === 'u') {
+    fieldU.value = value
+  } else {
+    fieldV.value = value
+  }
+
+  onFieldInput(axis)
+}
 
 const drag = useUvMapperDrag({
   canvas,
@@ -827,32 +844,26 @@ watch(
       </div>
       <label class="field">
         <span class="axis">U</span>
-        <input
-          v-model="fieldU"
-          type="text"
-          inputmode="decimal"
-          autocomplete="off"
-          spellcheck="false"
-          aria-label="U of the corner"
+        <NumberField
+          :model-value="fieldU"
+          :invalid="invalidU"
+          label="U of the corner"
           :disabled="shown === undefined"
+          @update:model-value="onUvFieldValue('u', $event)"
           @focus="onFieldFocus()"
-          @input="onFieldInput('u')"
           @blur="onFieldBlur"
           @keydown.enter.prevent="onFieldEnter"
         />
       </label>
       <label class="field">
         <span class="axis">V</span>
-        <input
-          v-model="fieldV"
-          type="text"
-          inputmode="decimal"
-          autocomplete="off"
-          spellcheck="false"
-          aria-label="V of the corner"
+        <NumberField
+          :model-value="fieldV"
+          :invalid="invalidV"
+          label="V of the corner"
           :disabled="shown === undefined"
+          @update:model-value="onUvFieldValue('v', $event)"
           @focus="onFieldFocus()"
-          @input="onFieldInput('v')"
           @blur="onFieldBlur"
           @keydown.enter.prevent="onFieldEnter"
         />

@@ -8,6 +8,7 @@ import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { lightsRevision, touchLights } from '../../../modules/level/edit/lightEditing.ts'
 import { refreshLightPalette, type LightPaletteChange } from '../../../modules/level/edit/lightPalette.ts'
 import { lightSelectionStore } from '../../../modules/selection/lightSelectionStore.ts'
+import NumberField from '../../NumberField.vue'
 import WidgetHeading from '../../WidgetHeading.vue'
 import LightColorPicker from './LightColorPicker.vue'
 import {
@@ -51,6 +52,69 @@ const BLANK_LIGHT: ArxLight = {
  * The fields the author edits.
  */
 const fields = reactive<LightFields>(fieldsOfLight(BLANK_LIGHT))
+
+/**
+ * The numeric fields of the widget, with the step of their arrows and the lowest value they take.
+ *
+ * @remarks
+ * The fields were `type="number"` inputs until 2026-11-21: the spinner of the number input is wide in firefox, and the
+ * editor writes every number in the same {@link NumberField}. The step is the one the native arrows had; the lowest value
+ * is the `min` of the old inputs (the two falloff radii and the intensity never go below zero).
+ */
+const NUMBER_FIELDS = [
+  { name: 'intensity', step: 0.01, min: 0 },
+  { name: 'fallStart', step: 1, min: 0 },
+  { name: 'fallEnd', step: 1, min: 0 },
+  { name: 'exRadius', step: 1, min: undefined },
+  { name: 'exFrequency', step: 0.01, min: undefined },
+  { name: 'exSize', step: 0.01, min: undefined },
+  { name: 'exSpeed', step: 0.01, min: undefined },
+  { name: 'exFlareSize', step: 1, min: undefined },
+] as const
+
+/**
+ * The name of one numeric field.
+ */
+type NumberFieldName = (typeof NUMBER_FIELDS)[number]['name']
+
+/**
+ * The text of every number field, the way the author typed it.
+ *
+ * @remarks
+ * The field shows the text and not the number, so a half typed value is not formatted under the hand. The text goes back
+ * to the number when the field is left; a text that is not a number keeps the value the light had, and the field shows
+ * the red edge (2026-11-21, the owner).
+ */
+const numberTexts = reactive<Record<NumberFieldName, string>>({
+  intensity: String(fields.intensity),
+  fallStart: String(fields.fallStart),
+  fallEnd: String(fields.fallEnd),
+  exRadius: String(fields.exRadius),
+  exFrequency: String(fields.exFrequency),
+  exSize: String(fields.exSize),
+  exSpeed: String(fields.exSpeed),
+  exFlareSize: String(fields.exFlareSize),
+})
+
+/**
+ * Whether the text of a number field is not a number the light can take.
+ */
+const invalidNumberFields = reactive<Partial<Record<NumberFieldName, boolean>>>({})
+
+/**
+ * The step and the lowest value of a numeric field.
+ *
+ * @param name The field to look up.
+ *
+ * @returns The entry of the field.
+ */
+function numberFieldOf(name: NumberFieldName): (typeof NUMBER_FIELDS)[number] {
+  return (
+    NUMBER_FIELDS.find((field) => {
+      return field.name === name
+    }) ?? NUMBER_FIELDS[0]
+  )
+}
 
 /**
  * The lights of the selection at the last load or commit, so the step has its two snapshots.
@@ -216,6 +280,73 @@ function commit(): void {
 }
 
 /**
+ * Writes the text of a number field, and the value when the text is a number the light can take.
+ *
+ * @remarks
+ * A text that is empty, not a number, or below the lowest value keeps the value the light had, and the field shows the
+ * red edge: a half cleared field must not blank the light of the level (2026-11-21, the owner).
+ *
+ * @param name The field that was typed in.
+ * @param raw The text of the field.
+ */
+function onNumberInput(name: NumberFieldName, raw: string): void {
+  numberTexts[name] = raw
+
+  const parsed = Number(raw)
+  const field = numberFieldOf(name)
+  const valid = raw.trim() !== '' && Number.isFinite(parsed) && (field.min === undefined || parsed >= field.min)
+
+  if (!valid) {
+    invalidNumberFields[name] = true
+
+    return
+  }
+
+  invalidNumberFields[name] = false
+  fields[name] = parsed
+  writeLive()
+}
+
+/**
+ * Steps a numeric field with the arrows, and writes the step.
+ *
+ * @param name The field to step.
+ * @param direction `1` steps up, `-1` steps down.
+ */
+function onNumberStep(name: NumberFieldName, direction: 1 | -1): void {
+  const field = numberFieldOf(name)
+  let current = fields[name]
+
+  if (!Number.isFinite(current)) {
+    current = 0
+  }
+
+  const stepSize = direction * field.step
+  let next = Number((current + stepSize).toFixed(6))
+
+  if (field.min !== undefined) {
+    next = Math.max(field.min, next)
+  }
+
+  fields[name] = next
+  numberTexts[name] = String(next)
+  invalidNumberFields[name] = false
+  writeLive()
+  commit()
+}
+
+/**
+ * Leaves a numeric field: the text goes back to the value of the light, and the edit becomes a step.
+ *
+ * @param name The field that lost the focus.
+ */
+function onNumberBlur(name: NumberFieldName): void {
+  numberTexts[name] = String(fields[name])
+  invalidNumberFields[name] = false
+  commit()
+}
+
+/**
  * Loads the fields and the snapshots of a ready selection.
  *
  * @param current The selection the widget edits.
@@ -228,6 +359,12 @@ function load(current: Extract<LightSelection, { kind: 'ready' }>): void {
   }
 
   Object.assign(fields, fieldsOfLight(current.light))
+
+  for (const field of NUMBER_FIELDS) {
+    numberTexts[field.name] = String(fields[field.name])
+    invalidNumberFields[field.name] = false
+  }
+
   before = []
 
   for (const index of current.indices) {
@@ -316,38 +453,38 @@ function toggleFlag(bit: number, event: Event): void {
       </div>
       <div class="row">
         <span class="caption">Intensity</span>
-        <input
-          v-model.number="fields.intensity"
-          type="number"
-          min="0"
-          step="0.01"
-          aria-label="Intensity"
-          @input="writeLive"
-          @change="commit"
+        <NumberField
+          :model-value="numberTexts.intensity"
+          :invalid="invalidNumberFields.intensity"
+          label="Intensity"
+          step
+          @update:model-value="onNumberInput('intensity', $event)"
+          @blur="onNumberBlur('intensity')"
+          @step="onNumberStep('intensity', $event)"
         />
       </div>
       <div class="row">
         <span class="caption">Fall start</span>
-        <input
-          v-model.number="fields.fallStart"
-          type="number"
-          min="0"
-          step="1"
-          aria-label="Fall start"
-          @input="writeLive"
-          @change="commit"
+        <NumberField
+          :model-value="numberTexts.fallStart"
+          :invalid="invalidNumberFields.fallStart"
+          label="Fall start"
+          step
+          @update:model-value="onNumberInput('fallStart', $event)"
+          @blur="onNumberBlur('fallStart')"
+          @step="onNumberStep('fallStart', $event)"
         />
       </div>
       <div class="row">
         <span class="caption">Fall end</span>
-        <input
-          v-model.number="fields.fallEnd"
-          type="number"
-          min="0"
-          step="1"
-          aria-label="Fall end"
-          @input="writeLive"
-          @change="commit"
+        <NumberField
+          :model-value="numberTexts.fallEnd"
+          :invalid="invalidNumberFields.fallEnd"
+          label="Fall end"
+          step
+          @update:model-value="onNumberInput('fallEnd', $event)"
+          @blur="onNumberBlur('fallEnd')"
+          @step="onNumberStep('fallEnd', $event)"
         />
       </div>
       <div class="flags">
@@ -364,57 +501,62 @@ function toggleFlag(bit: number, event: Event): void {
         </div>
         <div class="row">
           <span class="caption">exRadius</span>
-          <input
-            v-model.number="fields.exRadius"
-            type="number"
-            step="1"
-            aria-label="exRadius"
-            @input="writeLive"
-            @change="commit"
+          <NumberField
+            :model-value="numberTexts.exRadius"
+            :invalid="invalidNumberFields.exRadius"
+            label="exRadius"
+            step
+            @update:model-value="onNumberInput('exRadius', $event)"
+            @blur="onNumberBlur('exRadius')"
+            @step="onNumberStep('exRadius', $event)"
           />
         </div>
         <div class="row">
           <span class="caption">exFrequency</span>
-          <input
-            v-model.number="fields.exFrequency"
-            type="number"
-            step="0.01"
-            aria-label="exFrequency"
-            @input="writeLive"
-            @change="commit"
+          <NumberField
+            :model-value="numberTexts.exFrequency"
+            :invalid="invalidNumberFields.exFrequency"
+            label="exFrequency"
+            step
+            @update:model-value="onNumberInput('exFrequency', $event)"
+            @blur="onNumberBlur('exFrequency')"
+            @step="onNumberStep('exFrequency', $event)"
           />
         </div>
         <div class="row">
           <span class="caption">exSize</span>
-          <input
-            v-model.number="fields.exSize"
-            type="number"
-            step="0.01"
-            aria-label="exSize"
-            @input="writeLive"
-            @change="commit"
+          <NumberField
+            :model-value="numberTexts.exSize"
+            :invalid="invalidNumberFields.exSize"
+            label="exSize"
+            step
+            @update:model-value="onNumberInput('exSize', $event)"
+            @blur="onNumberBlur('exSize')"
+            @step="onNumberStep('exSize', $event)"
           />
         </div>
         <div class="row">
           <span class="caption">exSpeed</span>
-          <input
-            v-model.number="fields.exSpeed"
-            type="number"
-            step="0.01"
-            aria-label="exSpeed"
-            @input="writeLive"
-            @change="commit"
+          <NumberField
+            :model-value="numberTexts.exSpeed"
+            :invalid="invalidNumberFields.exSpeed"
+            label="exSpeed"
+            step
+            @update:model-value="onNumberInput('exSpeed', $event)"
+            @blur="onNumberBlur('exSpeed')"
+            @step="onNumberStep('exSpeed', $event)"
           />
         </div>
         <div class="row">
           <span class="caption">exFlareSize</span>
-          <input
-            v-model.number="fields.exFlareSize"
-            type="number"
-            step="1"
-            aria-label="exFlareSize"
-            @input="writeLive"
-            @change="commit"
+          <NumberField
+            :model-value="numberTexts.exFlareSize"
+            :invalid="invalidNumberFields.exFlareSize"
+            label="exFlareSize"
+            step
+            @update:model-value="onNumberInput('exFlareSize', $event)"
+            @blur="onNumberBlur('exFlareSize')"
+            @step="onNumberStep('exFlareSize', $event)"
           />
         </div>
         <div class="flags">
@@ -489,7 +631,7 @@ function toggleFlag(bit: number, event: Event): void {
     margin-top: 0;
   }
 
-  input[type='number'] {
+  .NumberField {
     width: 100%;
     height: 22px;
     padding: 0 6px;
@@ -501,7 +643,7 @@ function toggleFlag(bit: number, event: Event): void {
     border-radius: 4px;
   }
 
-  input[type='number']:focus-visible {
+  .NumberField:focus-visible {
     border-color: $interactive;
     outline: 1px solid $interactive;
   }

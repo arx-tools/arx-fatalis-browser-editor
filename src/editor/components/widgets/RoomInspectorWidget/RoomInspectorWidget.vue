@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Check, Eye, EyeOff, Pencil, Search, Trash2, X } from 'lucide-vue-next'
+import { Check, Eye, EyeOff, Pencil, Trash2 } from 'lucide-vue-next'
 import { computed, nextTick, shallowRef, useTemplateRef, watch } from 'vue'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
@@ -24,6 +24,9 @@ import { pickRoom, roomsOfFaces } from '../../../modules/rooms/roomSelection.ts'
 import { clearRoomHover, hoveredRoom, hoverRoom, selectedRooms, selectRoom } from '../../../modules/rooms/roomStore.ts'
 import { currentRoom } from '../../../modules/rooms/roomUnderCrosshair.ts'
 import { selectionModeOf, selectionStore } from '../../../modules/selection/selectionStore.ts'
+import ColorSwatch from '../../ColorSwatch.vue'
+import EmptyMessage from '../../EmptyMessage.vue'
+import SearchField from '../../SearchField.vue'
 import WidgetHeading from '../../WidgetHeading.vue'
 import { isMeshVisible, isRoomColorsVisible, toggleRoomColors } from '../shared/levelDisplay.ts'
 import { roomProblemsOf, type RoomProblem } from './roomInspector.ts'
@@ -89,11 +92,6 @@ const selectionRooms = shallowRef<ReadonlySet<number>>(new Set())
  * read and renamed, so the filter is worth having there, and the mapper's list is gone with it).
  */
 const query = shallowRef('')
-
-/**
- * The search field, so the clear button can put the focus back on it.
- */
-const searchField = useTemplateRef<HTMLInputElement>('searchField')
 
 /**
  * The list of the rooms, so a click in it can take the focus (the `Delete` of the inspector acts on the picked rows).
@@ -355,35 +353,6 @@ function isPicked(room: number): boolean {
 }
 
 /**
- * Empties the search field, and leaves the focus on it.
- *
- * @remarks
- * The clear button is the end of the field: the pointer is already there, and the next word is typed right away.
- */
-function clearSearch(): void {
-  query.value = ''
-  searchField.value?.focus()
-}
-
-/**
- * Selects the whole text of the search field when it takes the focus.
- *
- * @remarks
- * A filter is typed over: the author wants the next word to replace the one that is there, and a click that leaves the
- * caret in the middle of the word makes that a delete of half of it. The selection puts the whole word in the field,
- * ready to be typed over (2026-11-12, the owner).
- *
- * @param event The focus of the field.
- */
-function selectAllOf(event: FocusEvent): void {
-  const field = event.currentTarget
-
-  if (field instanceof HTMLInputElement) {
-    field.select()
-  }
-}
-
-/**
  * The room of the row being renamed, and the text of the field.
  *
  * @remarks
@@ -571,26 +540,7 @@ function removeRowRoom(room: number): void {
     <p v-if="roomNamesOnAnotherVersion" class="version-note" role="status">
       Room names of another version of this level are kept, and not shown.
     </p>
-    <label v-if="rows.length > 0" class="search">
-      <Search :size="12" class="icon" />
-      <input
-        ref="searchField"
-        v-model="query"
-        type="search"
-        placeholder="Search rooms"
-        aria-label="Search rooms"
-        @focus="selectAllOf"
-      />
-      <button
-        v-if="query !== ''"
-        class="clear"
-        type="button"
-        aria-label="Empty the search"
-        @click.prevent="clearSearch"
-      >
-        <X :size="12" />
-      </button>
-    </label>
+    <SearchField v-if="rows.length > 0" v-model="query" placeholder="Search rooms" label="Search rooms" />
     <ul ref="roomList" class="rooms" tabindex="0" @pointerdown="focusList">
       <li
         v-for="row in shown"
@@ -605,7 +555,7 @@ function removeRowRoom(room: number): void {
         @mouseenter="hoverRoom(row.room)"
         @mouseleave="hoverRoom(undefined)"
       >
-        <span class="swatch" :style="{ backgroundColor: row.color }"></span>
+        <ColorSwatch :color="row.color" />
         <span class="name" :class="{ 'is-renaming': renaming === row.room }" v-tooltip="roomTitleOf(row.room)">
           {{ roomLabelOf(row.room) }}
           <template v-if="renaming === row.room">
@@ -651,7 +601,7 @@ function removeRowRoom(room: number): void {
         </button>
       </li>
     </ul>
-    <p v-if="rows.length > 0 && shown.length === 0" class="empty">No room matches the search</p>
+    <EmptyMessage v-if="rows.length > 0 && shown.length === 0">No room matches the search</EmptyMessage>
     <section class="manage">
       <h3 class="title">Manage selection</h3>
       <div class="moves">
@@ -765,62 +715,6 @@ function removeRowRoom(room: number): void {
 }
 
 // the search field: the glass on the left, the clear button on the right, the frame of the filter of the texture list
-.search {
-  position: relative;
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-
-  .icon {
-    position: absolute;
-    left: 6px;
-    color: $text-subtle;
-    pointer-events: none;
-  }
-
-  // the browser draws its own clear button for a search field, and it would sit next to the one of the widget: the one
-  // of the widget is the button of every browser
-  input::-webkit-search-cancel-button,
-  input::-webkit-search-decoration {
-    appearance: none;
-  }
-
-  // the clear button of the field: the quiet grey of an icon, the bright text under the pointer
-  .clear {
-    position: absolute;
-    right: 4px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    color: $text-subtle;
-    background: none;
-    border: 0;
-    cursor: pointer;
-
-    &:hover {
-      color: $text;
-    }
-  }
-
-  input {
-    box-sizing: border-box;
-    width: 100%;
-    // the room of the two icons of the field: the glass on the left, the clear button on the right
-    padding: 3px 22px 3px 22px;
-    color: $text;
-    font: inherit;
-    background: $surface-panel;
-    border: 1px solid $border-dark;
-    border-radius: 4px;
-
-    &:focus {
-      border-color: $interactive;
-      outline: 1px solid $interactive;
-    }
-  }
-}
-
 .rooms {
   flex: 1;
   min-height: 0;
@@ -888,13 +782,6 @@ function removeRowRoom(room: number): void {
 }
 
 // the colour square: the same one the room map paints the room with, so the row and the view read together
-.swatch {
-  flex: none;
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-}
-
 .name {
   flex: 1;
   min-width: 0;
@@ -965,13 +852,6 @@ function removeRowRoom(room: number): void {
 }
 
 // the search found no room: the list keeps its place, the line stands in it
-.empty {
-  margin: 0;
-  padding: 0 6px;
-  color: $text-subtle;
-  font-size: 12px;
-}
-
 // the three things the selection can become, one under the other: a new room, the room of the dropdown, or none. A
 // quiet `or` between them says it is one choice, and the dropdown keeps the other two one click away
 .moves {

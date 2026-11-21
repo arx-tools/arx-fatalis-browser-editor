@@ -60,7 +60,7 @@ test('a click on a texture paints the selected faces, and the history takes it b
 
   // and the tiles are idle while nothing is selected: there is no face to paint
   await expect(tile.first()).toBeDisabled()
-  await expect(inspector.locator('.empty')).toBeVisible()
+  await expect(inspector.locator('.EmptyMessage')).toBeVisible()
 
   // take the face under the crosshair: the lock click turns the camera, so the aim is written back first
   const spawn = await readPose(page)

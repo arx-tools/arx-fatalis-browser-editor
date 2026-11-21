@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { ScanSearch, Search, X } from 'lucide-vue-next'
-import { computed, shallowRef, useTemplateRef, watch } from 'vue'
+import { ScanSearch } from 'lucide-vue-next'
+import { computed, shallowRef, watch } from 'vue'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { cameraStore } from '../camera/cameraStore.ts'
 import { lightsRevision } from '../../../modules/level/edit/lightEditing.ts'
 import { lightSelectionStore } from '../../../modules/selection/lightSelectionStore.ts'
 import { selectionModeOf, selectionStore } from '../../../modules/selection/selectionStore.ts'
 import type { LightMarkerShape } from '../shared/lightMarkers.ts'
+import ColorSwatch from '../../ColorSwatch.vue'
+import EmptyMessage from '../../EmptyMessage.vue'
+import SearchField from '../../SearchField.vue'
 import WidgetHeading from '../../WidgetHeading.vue'
 import {
   filteredLightRows,
@@ -35,11 +38,6 @@ const query = shallowRef('')
  * The shape the list shows, or `all` for every shape.
  */
 const shape = shallowRef<'all' | LightMarkerShape>('all')
-
-/**
- * The search field, so the clear button can put the focus back on it.
- */
-const searchField = useTemplateRef<HTMLInputElement>('searchField')
 
 /**
  * The shapes of the filter, in the order the marker draws them.
@@ -132,27 +130,6 @@ function pick(index: number, event: MouseEvent): void {
 }
 
 /**
- * Empties the search field, and leaves the focus on it.
- */
-function clearSearch(): void {
-  query.value = ''
-  searchField.value?.focus()
-}
-
-/**
- * Selects the whole text of the search field when it takes the focus.
- *
- * @param event The focus of the field.
- */
-function selectAllOf(event: FocusEvent): void {
-  const field = event.currentTarget
-
-  if (field instanceof HTMLInputElement) {
-    field.select()
-  }
-}
-
-/**
  * Tells whether a light of the list is selected.
  *
  * @param index The index of the light in `map.lights`.
@@ -189,26 +166,7 @@ function jumpTo(row: LightRow): void {
     <WidgetHeading :label="props.label" />
     <p class="selection">{{ selectionLabel }}</p>
     <div class="filters">
-      <label class="search">
-        <Search :size="12" class="icon" />
-        <input
-          ref="searchField"
-          v-model="query"
-          type="search"
-          placeholder="Search lights"
-          aria-label="Search lights"
-          @focus="selectAllOf"
-        />
-        <button
-          v-if="query !== ''"
-          class="clear"
-          type="button"
-          aria-label="Empty the search"
-          @click.prevent="clearSearch"
-        >
-          <X :size="12" />
-        </button>
-      </label>
+      <SearchField v-model="query" placeholder="Search lights" label="Search lights" />
       <select v-model="shape" class="shape-filter" aria-label="Filter the lights by shape">
         <option v-for="entry in shapes" :key="entry.value" :value="entry.value">{{ entry.label }}</option>
       </select>
@@ -221,7 +179,7 @@ function jumpTo(row: LightRow): void {
         :class="{ 'is-selected': isSelected(row.index) }"
         @click="pick(row.index, $event)"
       >
-        <span class="swatch" :style="{ backgroundColor: row.color }"></span>
+        <ColorSwatch :color="row.color" :radius="3" border="dark" />
         <span class="index">{{ lightIndexLabelOf(row.index) }}</span>
         <span class="shape" v-tooltip="`${lightShapeLabelOf(row.shape)} · ${lightPositionLabelOf(row.position)}`">
           {{ lightShapeLabelOf(row.shape) }}
@@ -237,8 +195,8 @@ function jumpTo(row: LightRow): void {
         </button>
       </li>
     </ul>
-    <p v-if="rows.length > 0 && shown.length === 0" class="empty">No light matches the search</p>
-    <p v-else-if="rows.length === 0" class="empty">The level has no lights</p>
+    <EmptyMessage v-if="rows.length > 0 && shown.length === 0">No light matches the search</EmptyMessage>
+    <EmptyMessage v-else-if="rows.length === 0">The level has no lights</EmptyMessage>
   </div>
 </template>
 
@@ -268,40 +226,10 @@ function jumpTo(row: LightRow): void {
     flex: none;
     gap: 6px;
 
-    .search {
-      display: flex;
+    // the field takes the room the shape filter leaves
+    .SearchField {
       flex: 1;
-      align-items: center;
-      gap: 4px;
       min-width: 0;
-      padding: 2px 6px;
-      border: 1px solid $border-dark;
-      border-radius: 3px;
-      background: $surface-panel;
-
-      .icon {
-        flex: none;
-        color: $text-muted;
-      }
-
-      input {
-        flex: 1;
-        min-width: 0;
-        border: 0;
-        background: transparent;
-        color: $text;
-        font: inherit;
-        outline: none;
-      }
-
-      .clear {
-        flex: none;
-        padding: 0;
-        border: 0;
-        background: transparent;
-        color: $text-muted;
-        cursor: pointer;
-      }
     }
 
     .shape-filter {

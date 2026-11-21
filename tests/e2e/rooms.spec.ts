@@ -160,7 +160,7 @@ test('the room inspector lists the rooms with the colour of the map, and the sea
   await expect(first).toContainText('room 1')
   await expect(first).toContainText(/faces?/u)
 
-  const swatch = await first.locator('.swatch').evaluate((element) => {
+  const swatch = await first.locator('.ColorSwatch').evaluate((element) => {
     return getComputedStyle(element).backgroundColor
   })
 
@@ -184,7 +184,7 @@ test('the room inspector lists the rooms with the colour of the map, and the sea
   await search.fill('no such room')
 
   await expect(rows).toHaveCount(0)
-  await expect(roomInspector.locator('.empty')).toContainText('No room matches the search')
+  await expect(roomInspector.locator('.EmptyMessage')).toContainText('No room matches the search')
 
   // the clear button empties the field, and the list comes back
   await roomInspector.getByRole('button', { name: 'Empty the search' }).click()

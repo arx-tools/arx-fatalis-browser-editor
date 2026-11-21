@@ -4,6 +4,7 @@ import { WIDGET_KINDS } from '../../../modules/layout/widgetKinds.ts'
 import { widgetPresence } from '../../../modules/layout/widgetPresence.ts'
 import { cameraStore } from '../camera/cameraStore.ts'
 import FieldLabel from '../../FieldLabel.vue'
+import NumberField from '../../NumberField.vue'
 import {
   cameraFieldGroups,
   cameraFieldLabels,
@@ -77,10 +78,10 @@ onBeforeUnmount(() => {
  * snaps back to on blur.
  *
  * @param name The field that changed.
- * @param event The input event of that field.
+ * @param value The text of the field.
  */
-function onInput(name: CameraFieldName, event: Event): void {
-  fields[name] = (event.target as HTMLInputElement).value
+function onInput(name: CameraFieldName, value: string): void {
+  fields[name] = value
 
   const pose = parsePose(fields)
 
@@ -159,22 +160,19 @@ function onStep(name: CameraFieldName, direction: 1 | -1): void {
           :label="cameraFieldLabels[name]"
           :for="`camera-${name}`"
         >
-          <input
+          <NumberField
             :id="`camera-${name}`"
-            :value="fields[name]"
-            :class="{ invalid: invalid[name] }"
+            :model-value="fields[name]"
+            :invalid="invalid[name]"
             :disabled="readOnly || name === 'roll'"
-            :aria-label="`${group.label} ${name}`"
-            v-tooltip="`${group.label} ${name}`"
-            type="text"
+            :label="`${group.label} ${name}`"
             inputmode="decimal"
-            autocomplete="off"
-            spellcheck="false"
-            @input="onInput(name, $event)"
+            step
+            v-tooltip="`${group.label} ${name}`"
+            @update:model-value="onInput(name, $event)"
             @focus="onFocus(name, $event)"
             @blur="onBlur(name)"
-            @keydown.up.prevent="onStep(name, 1)"
-            @keydown.down.prevent="onStep(name, -1)"
+            @step="onStep(name, $event)"
           />
         </FieldLabel>
       </div>

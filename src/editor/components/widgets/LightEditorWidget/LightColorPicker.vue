@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ArxColor } from 'arx-convert/types'
 import { computed, ref, watch } from 'vue'
+import ColorSwatch from '../../ColorSwatch.vue'
 import { colorOfHsl, hslOfColor, type LightHsl } from './lightEditor.ts'
 
 /**
@@ -92,7 +93,7 @@ function setPart(part: 'h' | 's' | 'l', value: number): void {
 <template>
   <div class="LightColorPicker">
     <div class="head">
-      <span class="swatch" :style="{ backgroundColor: cssColor }" aria-hidden="true"></span>
+      <ColorSwatch :color="cssColor" :size="18" :radius="3" border="strong" />
       <span class="hex">{{ hexColor }}</span>
     </div>
     <label class="part">
@@ -152,14 +153,6 @@ function setPart(part: 'h' | 's' | 'l', value: number): void {
     display: flex;
     align-items: center;
     gap: 6px;
-  }
-
-  .swatch {
-    flex: none;
-    width: 18px;
-    height: 18px;
-    border: 1px solid $border-strong;
-    border-radius: 3px;
   }
 
   .hex {

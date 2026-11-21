@@ -13,6 +13,7 @@ import { levelSeed } from '../modules/level/seed.ts'
 import { levelStore } from '../modules/level/edit/levelStore.ts'
 import { currentMapId, currentMapManifest, poseOfMap } from '../modules/level/source/maps.ts'
 import Modal from './Modal.vue'
+import NumberField from './NumberField.vue'
 
 /**
  * Where the export is.
@@ -285,7 +286,13 @@ onBeforeUnmount(() => {
 
       <div class="field">
         <label for="export-level-index">Level index</label>
-        <input id="export-level-index" v-model="levelIndex" type="number" min="0" step="1" inputmode="numeric" />
+        <NumberField
+          id="export-level-index"
+          :model-value="String(levelIndex)"
+          label="Level index"
+          inputmode="numeric"
+          @update:model-value="levelIndex = $event"
+        />
         <p class="helper">Set to 1 to make Arx Fatalis load the map upon starting a new quest.</p>
       </div>
 

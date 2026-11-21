@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronLeft, ChevronRight, Search, X } from 'lucide-vue-next'
+import { ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import { computed, ref, shallowRef, useTemplateRef, watch } from 'vue'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import {
@@ -18,6 +18,7 @@ import {
   thumbnailOf,
 } from '../../../modules/textures/textureCatalog.ts'
 import type { TextureEntry } from '../../../modules/textures/textureEntry.ts'
+import SearchField from '../../SearchField.vue'
 import WidgetHeading from '../../WidgetHeading.vue'
 import { texturePageOf } from './textureBrowser.ts'
 
@@ -39,43 +40,9 @@ const root = useTemplateRef<HTMLDivElement>('root')
 const query = ref('')
 
 /**
- * The element of the search field, so the clear button can put the focus back on it.
- */
-const searchField = useTemplateRef<HTMLInputElement>('searchField')
-
-/**
  * The scroller of the tiles, so a new page can start at its top.
  */
 const list = useTemplateRef<HTMLDivElement>('list')
-
-/**
- * Selects the whole text of the search field when it takes the focus.
- *
- * @remarks
- * A filter is typed over: the author wants the next word to replace the one that is there, and a click that leaves the
- * caret in the middle of the word makes that a delete of half of it. The selection puts the whole word in the field,
- * ready to be typed over (2026-11-12, the owner).
- *
- * @param event The focus of the field.
- */
-function selectAllOf(event: FocusEvent): void {
-  const field = event.currentTarget
-
-  if (field instanceof HTMLInputElement) {
-    field.select()
-  }
-}
-
-/**
- * Empties the search field, and leaves the focus on it.
- *
- * @remarks
- * The clear button is the end of the field: the pointer is already there, and the next word is typed right away.
- */
-function clearSearch(): void {
-  query.value = ''
-  searchField.value?.focus()
-}
 
 /**
  * The material the list is narrowed to, or `all`.
@@ -286,26 +253,7 @@ async function onDrop(event: DragEvent): Promise<void> {
     <p class="info">Click to replace textures on selected faces.</p>
 
     <div class="filters">
-      <label class="search">
-        <Search :size="12" class="icon" />
-        <input
-          ref="searchField"
-          v-model="query"
-          type="search"
-          placeholder="Search textures"
-          aria-label="Search textures"
-          @focus="selectAllOf"
-        />
-        <button
-          v-if="query !== ''"
-          class="clear"
-          type="button"
-          aria-label="Empty the search"
-          @click.prevent="clearSearch"
-        >
-          <X :size="12" />
-        </button>
-      </label>
+      <SearchField v-model="query" placeholder="Search textures" label="Search textures" />
       <select v-model="material" aria-label="Filter by material">
         <option v-for="option in materials" :key="option.value" :value="option.value">{{ option.label }}</option>
       </select>
@@ -387,61 +335,9 @@ async function onDrop(event: DragEvent): Promise<void> {
   gap: 4px;
   padding: 0 6px;
 
-  .search {
-    position: relative;
-    display: inline-flex;
+  // the field takes the width the row gives it, the select stays beside it
+  .SearchField {
     flex: 1 1 120px;
-    align-items: center;
-    min-width: 110px;
-
-    .icon {
-      position: absolute;
-      left: 6px;
-      color: $text-subtle;
-      pointer-events: none;
-    }
-
-    // the browser draws its own clear button for a search field, and it would sit next to the one of the widget: the
-    // one of the widget is the button of every browser
-    input::-webkit-search-cancel-button,
-    input::-webkit-search-decoration {
-      appearance: none;
-    }
-
-    // the clear button of the field: the quiet grey of an icon, the bright text under the pointer
-    .clear {
-      position: absolute;
-      right: 4px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0;
-      color: $text-subtle;
-      background: none;
-      border: 0;
-      cursor: pointer;
-
-      &:hover {
-        color: $text;
-      }
-    }
-
-    input {
-      box-sizing: border-box;
-      width: 100%;
-      // the room of the two icons of the field: the glass on the left, the clear button on the right
-      padding: 3px 22px 3px 22px;
-      border: 1px solid $border-dark;
-      border-radius: 4px;
-      background: $surface-panel;
-      color: $text;
-      font: inherit;
-
-      &:focus {
-        border-color: $interactive;
-        outline: 1px solid $interactive;
-      }
-    }
   }
 
   select {

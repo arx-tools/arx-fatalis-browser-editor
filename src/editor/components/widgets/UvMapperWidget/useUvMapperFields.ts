@@ -59,6 +59,14 @@ export type UvMapperFields = {
    */
   readonly focusedField: ShallowRef<'u' | 'v' | undefined>
   /**
+   * Whether the text of the `u` field is not a number the uv can take: the field shows the red edge.
+   */
+  readonly invalidU: ShallowRef<boolean>
+  /**
+   * Whether the text of the `v` field is not a number the uv can take: the field shows the red edge.
+   */
+  readonly invalidV: ShallowRef<boolean>
+  /**
    * Writes the numbers of a corner into the fields, except the one the user is typing into.
    *
    * @param corner The corner the fields show.
@@ -110,6 +118,13 @@ export function useUvMapperFields(context: UvMapperFieldsContext): UvMapperField
   const focusedField = shallowRef<'u' | 'v' | undefined>(undefined)
 
   /**
+   * Whether the text of a field is not a number the uv can take (2026-11-21: the field keeps the value and shows the red
+   * edge, like the number fields of the light editor).
+   */
+  const invalidU = shallowRef(false)
+  const invalidV = shallowRef(false)
+
+  /**
    * The corners the typing started from, so the change is one step of the history (like a drag).
    */
   let fieldStart: readonly UvPoint[] | undefined
@@ -122,10 +137,12 @@ export function useUvMapperFields(context: UvMapperFieldsContext): UvMapperField
   function syncFields(corner: UvPoint): void {
     if (focusedField.value !== 'u') {
       fieldU.value = corner.u.toFixed(3)
+      invalidU.value = false
     }
 
     if (focusedField.value !== 'v') {
       fieldV.value = corner.v.toFixed(3)
+      invalidV.value = false
     }
   }
 
@@ -141,6 +158,9 @@ export function useUvMapperFields(context: UvMapperFieldsContext): UvMapperField
     const current = shown.value
     const u = numberOfText(fieldU.value)
     const v = numberOfText(fieldV.value)
+
+    invalidU.value = u === undefined
+    invalidV.value = v === undefined
 
     if (current === undefined || u === undefined || v === undefined) {
       return
@@ -204,6 +224,8 @@ export function useUvMapperFields(context: UvMapperFieldsContext): UvMapperField
     fieldU,
     fieldV,
     focusedField,
+    invalidU,
+    invalidV,
     syncFields,
     onFieldInput: (axis): void => {
       focusedField.value = axis

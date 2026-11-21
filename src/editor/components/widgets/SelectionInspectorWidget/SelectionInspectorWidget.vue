@@ -11,6 +11,7 @@ import {
   textureGroupOfName,
   thumbnailOf,
 } from '../../../modules/textures/textureCatalog.ts'
+import EmptyMessage from '../../EmptyMessage.vue'
 import WidgetHeading from '../../WidgetHeading.vue'
 import { selectionSummaryOf, type SelectionSummary } from './selectionInspector.ts'
 
@@ -225,7 +226,7 @@ function thumbOf(name: string): string | undefined {
         </template>
       </dl>
 
-      <p v-if="summary.count === 0" class="empty">Nothing is selected.</p>
+      <EmptyMessage v-if="summary.count === 0">Nothing is selected.</EmptyMessage>
     </div>
   </div>
 </template>
@@ -381,11 +382,5 @@ dd {
     color: $text-muted;
     font-variant-numeric: tabular-nums;
   }
-}
-
-.empty {
-  margin: 10px 0 0;
-  color: $text-dim;
-  font-size: 11px;
 }
 </style>

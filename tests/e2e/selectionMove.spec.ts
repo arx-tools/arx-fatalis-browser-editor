@@ -77,6 +77,25 @@ test('the gizmo moves the selected face, and the undo takes it back', async ({ p
 
   await page.keyboard.press('ControlOrMeta+y')
   await expect(undo).toBeEnabled()
+
+  // the magnet brings the snap engines up (the vertices and the edge rail): the same drag must move the face and leave
+  // no error behind
+  const errors: string[] = []
+
+  page.on('pageerror', (error) => {
+    errors.push(error.message)
+  })
+
+  await page.locator('.snap-toggle').click()
+  await expect(page.locator('.snap-toggle')).toHaveAttribute('aria-pressed', 'true')
+
+  await page.mouse.move(890, 230)
+  await page.mouse.down()
+  await page.mouse.move(890, 150, { steps: 8 })
+  await page.mouse.up()
+  await page.waitForTimeout(300)
+
+  expect(errors).toEqual([])
 })
 
 test('the magnet of the translate gizmo is on the view, and it stays off until it is pressed', async ({ page }) => {

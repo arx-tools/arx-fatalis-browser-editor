@@ -15,7 +15,8 @@ import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import { rotateVisible, scaleVisible, transformVisible } from '../shared/editModes.ts'
 import { rotationSnapDegrees, rotationSnapFor, snapModifierHeld, vertexSnapEnabled } from '../shared/snapping.ts'
-import { createVertexSnap, type VertexSnap } from './vertexSnap.ts'
+import { createEdgeSnap, type EdgeSnap, type EdgeSnapResult } from './edgeSnap.ts'
+import { createVertexSnap, type VertexSnap, type VertexSnapResult } from './vertexSnap.ts'
 import { selectionCenterOf } from './selectionCenter.ts'
 
 /**
@@ -201,6 +202,10 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
    * The snap of the translate drag, when it is on. The vertices are collected at the first frame that needs them.
    */
   let vertexSnap: VertexSnap | undefined
+  /**
+   * The edge rail of the translate drag: the face under a corner, and its edge along the drag.
+   */
+  let edgeSnap: EdgeSnap | undefined
 
   /**
    * The gizmo the switches of the edit modes ask for, or `undefined` when neither is on.
@@ -288,6 +293,49 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
   }
 
   /**
+   * Reads the correction of the snaps of a translate frame.
+   *
+   * @remarks
+   * The edge rail wins when it has a target: the side of the selection rides on the edge of the level, and the vertex of
+   * a corner would pull it off the rail on every frame (the zig-zag of a drag along the edge). The vertex is the target
+   * when no edge is near, which is the precise snap of a corner. The marker of the one that lost is put away.
+   *
+   * @param total The raw translation of the drag, in the coordinates of the level.
+   *
+   * @returns The correction to add to the translation.
+   */
+  function snapCorrectionOf(total: ArxVector3): ArxVector3 {
+    const active = isSnapActive()
+    let vertex: VertexSnapResult | undefined
+    let edge: EdgeSnapResult | undefined
+
+    if (edgeSnap !== undefined && active) {
+      edge = edgeSnap.snap(total, controls.axis)
+    }
+
+    if (vertexSnap !== undefined && active) {
+      vertex = vertexSnap.snap(total, controls.axis)
+    }
+
+    if (edge?.target !== undefined) {
+      vertexSnap?.hide()
+
+      return edge.correction
+    }
+
+    if (vertex?.target !== undefined) {
+      edgeSnap?.hide()
+
+      return vertex.correction
+    }
+
+    vertexSnap?.hide()
+    edgeSnap?.hide()
+
+    return { x: 0, y: 0, z: 0 }
+  }
+
+  /**
    * Builds the snap of the drag from the level the selection is on.
    *
    * @remarks
@@ -304,6 +352,11 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
       canvas: options.canvas,
       scene: options.scene,
     })
+    edgeSnap = createEdgeSnap(map, faces, {
+      camera: options.camera,
+      canvas: options.canvas,
+      scene: options.scene,
+    })
   }
 
   /**
@@ -312,6 +365,8 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
   function stopVertexSnap(): void {
     vertexSnap?.dispose()
     vertexSnap = undefined
+    edgeSnap?.dispose()
+    edgeSnap = undefined
   }
 
   /**
@@ -385,6 +440,43 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
   }
 
   /**
+   * Moves the selected faces by what the gizmo did since the press, and snaps them.
+   *
+   * @remarks
+   * The model follows the raw travel of the proxy plus the correction of the snap of this frame, so letting the snap go
+   * takes the correction back instead of leaving the selection at the last snapped place.
+   */
+  function translateSelection(): void {
+    if (map === undefined) {
+      return
+    }
+
+    const world = {
+      x: proxy.position.x - startWorld.x,
+      y: proxy.position.y - startWorld.y,
+      z: proxy.position.z - startWorld.z,
+    }
+    const total = arxVector3toVector3(world)
+
+    if (vertexSnap === undefined && isSnapActive()) {
+      startVertexSnap()
+    }
+
+    const correction = snapCorrectionOf(total)
+    const snapped = { x: total.x + correction.x, y: total.y + correction.y, z: total.z + correction.z }
+    const step = { x: snapped.x - applied.x, y: snapped.y - applied.y, z: snapped.z - applied.z }
+
+    if (step.x === 0 && step.y === 0 && step.z === 0) {
+      return
+    }
+
+    map.translatePolygons(faces, step)
+    applied = snapped
+    lastPress = performance.now()
+    bumpLevelRevision()
+  }
+
+  /**
    * Moves or turns the selected faces by what the gizmo did since the press.
    */
   function onObjectChange(): void {
@@ -404,38 +496,7 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
       return
     }
 
-    const world = {
-      x: proxy.position.x - startWorld.x,
-      y: proxy.position.y - startWorld.y,
-      z: proxy.position.z - startWorld.z,
-    }
-    const total = arxVector3toVector3(world)
-
-    if (vertexSnap === undefined && isSnapActive()) {
-      startVertexSnap()
-    }
-
-    let correction = { x: 0, y: 0, z: 0 }
-
-    if (vertexSnap !== undefined && isSnapActive()) {
-      correction = vertexSnap.snap(total, controls.axis).correction
-    } else {
-      vertexSnap?.hide()
-    }
-
-    // the model follows the raw travel of the proxy plus the correction of this frame, so letting the snap go takes the
-    // correction back instead of leaving the selection at the last snapped place
-    const snapped = { x: total.x + correction.x, y: total.y + correction.y, z: total.z + correction.z }
-    const step = { x: snapped.x - applied.x, y: snapped.y - applied.y, z: snapped.z - applied.z }
-
-    if (step.x === 0 && step.y === 0 && step.z === 0) {
-      return
-    }
-
-    map.translatePolygons(faces, step)
-    applied = snapped
-    lastPress = performance.now()
-    bumpLevelRevision()
+    translateSelection()
   }
 
   /**

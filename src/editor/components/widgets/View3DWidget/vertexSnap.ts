@@ -3,16 +3,7 @@ import { isQuad } from 'arx-convert/utils'
 import { BufferAttribute, BufferGeometry, Points, PointsMaterial, Vector3, type Camera, type Scene } from 'three'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
-import {
-  nearestSnapPairs,
-  perpendicularDistance,
-  SNAP_THRESHOLD_PX,
-  screenDistance,
-  snapAxesOf,
-  type ScreenPoint,
-  type SnapAxis,
-  type SnapPair,
-} from '../shared/snapping.ts'
+import { nearestSnapPairs, SNAP_THRESHOLD_PX, snapAxesOf, type ScreenPoint, type SnapPair } from '../shared/snapping.ts'
 
 /**
  * How far the vertices of the level are collected into one cell of the grid of the snap, in the units of the level.
@@ -55,10 +46,6 @@ type CornerProjection = {
    */
   readonly screens: ScreenPoint[]
   /**
-   * The screen direction of the drag axis at each corner, when the drag has one axis.
-   */
-  readonly directions: Array<ScreenPoint | undefined>
-  /**
    * The index of each projected corner in the list of the corners.
    */
   readonly indexes: number[]
@@ -76,6 +63,10 @@ export type VertexSnapResult = {
    * The vertex the selection snapped to, when there is one.
    */
   readonly target?: ArxVector3
+  /**
+   * How far the vertex and the corner were on the canvas, when there is a target.
+   */
+  readonly distance?: number
 }
 
 /**
@@ -395,18 +386,16 @@ export function createVertexSnap(map: ArxMap, faces: readonly number[], options:
   }
 
   /**
-   * Projects the corners of the selection, with the screen direction of a single-axis drag.
+   * Projects the corners of the selection.
    *
    * @param translation The translation of the drag, in the coordinates of the level.
-   * @param snapAxis The one axis of the drag, or `undefined` for a plane.
    *
-   * @returns The screen points, the directions and the indices of the corners.
+   * @returns The screen points, and the indices of the corners.
    */
-  function cornersOnScreenOf(translation: ArxVector3, snapAxis: SnapAxis | undefined): CornerProjection {
+  function cornersOnScreenOf(translation: ArxVector3): CornerProjection {
     const offset = arxVector3toVector3(map.scenePosition)
     const sceneTranslation = arxVector3toVector3(translation)
     const screens: ScreenPoint[] = []
-    const directions: Array<ScreenPoint | undefined> = []
     const indexes: number[] = []
 
     for (const [index, corner] of corners.entries()) {
@@ -419,38 +408,9 @@ export function createVertexSnap(map: ArxMap, faces: readonly number[], options:
 
       screens.push(screen)
       indexes.push(index)
-
-      let direction: ScreenPoint | undefined
-
-      if (snapAxis !== undefined) {
-        let step = { x: 0, y: 0, z: 0 }
-
-        if (snapAxis === 'x') {
-          step = { x: 10, y: 0, z: 0 }
-        } else if (snapAxis === 'y') {
-          step = { x: 0, y: 10, z: 0 }
-        } else {
-          step = { x: 0, y: 0, z: 10 }
-        }
-
-        const endWorld = arxVector3toVector3({
-          x: corner.x + step.x,
-          y: corner.y + step.y,
-          z: corner.z + step.z,
-        })
-          .add(sceneTranslation)
-          .sub(offset)
-        const endScreen = screenOf(endWorld)
-
-        if (endScreen !== undefined) {
-          direction = { x: endScreen.x - screen.x, y: endScreen.y - screen.y }
-        }
-      }
-
-      directions.push(direction)
     }
 
-    return { screens, directions, indexes }
+    return { screens, indexes }
   }
 
   /**
@@ -521,13 +481,7 @@ export function createVertexSnap(map: ArxMap, faces: readonly number[], options:
 
       camera.updateMatrixWorld()
 
-      let snapAxis: SnapAxis | undefined
-
-      if (axes.length === 1) {
-        snapAxis = axes[0]
-      }
-
-      const cornerProjection = cornersOnScreenOf(translation, snapAxis)
+      const cornerProjection = cornersOnScreenOf(translation)
 
       if (cornerProjection.screens.length === 0) {
         hide()
@@ -538,22 +492,7 @@ export function createVertexSnap(map: ArxMap, faces: readonly number[], options:
       const candidates = candidatesOf(corners, translation, grid)
       const targetProjection = targetsOnScreenOf(candidates)
 
-      // a drag along one axis is measured across it: the vertex may be far along the axis (the face is moved towards
-      // it), and the snap counts the coordinates it corrects, not the travel of the drag
-      const pairs = nearestSnapPairs(
-        cornerProjection.screens,
-        targetProjection.screens,
-        SNAP_THRESHOLD_PX,
-        (from, to, cornerIndex) => {
-          const direction = cornerProjection.directions[cornerIndex]
-
-          if (direction === undefined) {
-            return screenDistance(from, to)
-          }
-
-          return perpendicularDistance(to, from, direction)
-        },
-      )
+      const pairs = nearestSnapPairs(cornerProjection.screens, targetProjection.screens, SNAP_THRESHOLD_PX)
 
       if (pairs.length === 0) {
         hide()
@@ -590,7 +529,7 @@ export function createVertexSnap(map: ArxMap, faces: readonly number[], options:
       markerAttribute.needsUpdate = true
       marker.visible = count > 0
 
-      return { correction, target: target.position }
+      return { correction, target: target.position, distance: best.distance }
     },
     hide,
     dispose: (): void => {

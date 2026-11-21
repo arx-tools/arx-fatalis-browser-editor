@@ -191,16 +191,6 @@ export type SnapPair = {
 }
 
 /**
- * How far a corner and a vertex are, for the snap of a drag.
- *
- * @remarks
- * A drag along one axis is measured **across** that axis: the corner and the vertex may be far apart along the axis
- * (that is the movement the author is doing), and the snap has to catch them when the other coordinates line up. A plane
- * drag has no single direction to ignore, so it uses the plain distance of the canvas.
- */
-export type SnapDistance = (corner: ScreenPoint, target: ScreenPoint, cornerIndex: number) => number
-
-/**
  * How far two points of the canvas are.
  *
  * @param from One point.
@@ -210,33 +200,6 @@ export type SnapDistance = (corner: ScreenPoint, target: ScreenPoint, cornerInde
  */
 export function screenDistance(from: ScreenPoint, to: ScreenPoint): number {
   return Math.hypot(from.x - to.x, from.y - to.y)
-}
-
-/**
- * How far a point is from the line of a drag axis on the canvas.
- *
- * @remarks
- * A point on the axis has no distance, however far it is along the line: that is the movement the author is doing, and
- * a drag along the game's Y has to snap a vertex **below** the face as well as one beside it. The measure is the
- * perpendicular of the line through the corner and the drag axis, so only the coordinates the snap corrects count.
- *
- * @param point The point to measure, the vertex.
- * @param origin A point of the line, the corner.
- * @param direction The direction of the line, as the canvas shows it.
- *
- * @returns The distance in pixels; the plain distance when the direction is a point.
- */
-export function perpendicularDistance(point: ScreenPoint, origin: ScreenPoint, direction: ScreenPoint): number {
-  const length = Math.hypot(direction.x, direction.y)
-
-  if (length === 0) {
-    return screenDistance(point, origin)
-  }
-
-  const along = (point.x - origin.x) * direction.y
-  const across = (point.y - origin.y) * direction.x
-
-  return Math.abs(along - across) / length
 }
 
 /**
@@ -250,7 +213,6 @@ export function perpendicularDistance(point: ScreenPoint, origin: ScreenPoint, d
  * @param corners The corners of the selection, as the canvas shows them.
  * @param targets The vertices of the level, as the canvas shows them.
  * @param threshold The farthest a pair may be, in pixels.
- * @param distanceOf The measure of a pair, the plain distance by default.
  *
  * @returns The nearest vertex of each corner, within the threshold.
  */
@@ -258,7 +220,6 @@ export function nearestSnapPairs(
   corners: readonly ScreenPoint[],
   targets: readonly ScreenPoint[],
   threshold = SNAP_THRESHOLD_PX,
-  distanceOf: SnapDistance = screenDistance,
 ): SnapPair[] {
   const pairs: SnapPair[] = []
 
@@ -266,7 +227,7 @@ export function nearestSnapPairs(
     let best: SnapPair | undefined
 
     for (const [target, to] of targets.entries()) {
-      const distance = distanceOf(from, to, cornerIndex)
+      const distance = screenDistance(from, to)
 
       if (!Number.isFinite(distance) || distance > threshold) {
         continue

@@ -73,7 +73,7 @@ onBeforeUnmount(() => {
     place-items: center;
     margin: 0;
     padding: 0 32px;
-    color: $text-dim;
+    color: $text-subtle;
     font-size: 12px;
     text-align: center;
     pointer-events: none;

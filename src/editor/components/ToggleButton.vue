@@ -33,11 +33,16 @@ const props = withDefaults(
      * The colour pair of the switch: the accent of a setting, the green of a lock, or the quiet grey of a tool.
      */
     readonly tone?: 'accent' | 'ok' | 'quiet'
+    /**
+     * Where the tooltip stands, when the switch sits at the edge of its view (the magnet of the walkable view).
+     */
+    readonly tooltipPlacement?: 'top' | 'bottom' | 'left' | 'right'
   }>(),
   {
     tooltip: undefined,
     disabled: false,
     tone: 'accent',
+    tooltipPlacement: undefined,
   },
 )
 
@@ -64,7 +69,7 @@ function toggle(): void {
     :disabled="disabled"
     :aria-pressed="pressed"
     :aria-label="label"
-    v-tooltip="tooltip ?? label"
+    v-tooltip="{ content: tooltip ?? label, placement: tooltipPlacement }"
     @click="toggle"
   >
     <slot v-if="pressed" name="on"><slot /></slot>

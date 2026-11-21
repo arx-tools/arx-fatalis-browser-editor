@@ -56,12 +56,35 @@ import {
   resizeViewScene,
   type ViewScene,
 } from '../shared/viewScene.ts'
+import ToggleButton from '../../ToggleButton.vue'
 import { CameraControls } from './cameraControls.ts'
 import { createFrameLoop } from './frameLoop.ts'
 import { useSelectionDrag } from './useSelectionDrag.ts'
 import { createOrientationGizmo, type OrientationGizmo } from './orientationGizmo.ts'
 import { createPolygonSelectionOverlay, type PolygonSelectionOverlay } from './polygonSelection.ts'
 import { createSelectionGizmo, type SelectionGizmo } from './selectionGizmo.ts'
+
+/**
+ * Whether the snap of the translate gizmo is on now: the magnet, or Shift for the length of the drag.
+ *
+ * @remarks
+ * The icon follows both: a Shift press lights it up **on the key event**, before the pointer moves, so the author sees
+ * the key is held when the magnet itself is off.
+ */
+const snapActive = computed(() => {
+  return snapEnabled.value || snapModifierHeld.value
+})
+
+/**
+ * Flips the magnet of the translate gizmo.
+ *
+ * @remarks
+ * The switch is a preference of the editor: it stays in the browser, and Shift turns the snap on for a drag without
+ * moving it, so a single drag can snap and the next one can go free.
+ */
+function toggleMagnet(): void {
+  snapEnabled.value = !snapEnabled.value
+}
 
 /**
  * What the widget shows over the canvas: a failure, or nothing while the level is on.
@@ -811,28 +834,6 @@ onBeforeUnmount(() => {
     view = undefined
   }
 })
-
-/**
- * Whether the snap of the translate gizmo is on now: the magnet, or Shift for the length of the drag.
- *
- * @remarks
- * The icon follows both: a Shift press lights it up **on the key event**, before the pointer moves, so the author sees
- * the key is held when the magnet itself is off.
- */
-const snapActive = computed(() => {
-  return snapEnabled.value || snapModifierHeld.value
-})
-
-/**
- * Flips the magnet of the translate gizmo.
- *
- * @remarks
- * The switch is a preference of the editor: it stays in the browser, and Shift turns the snap on for a drag without
- * moving it, so a single drag can snap and the next one can go free.
- */
-function toggleVertexSnap(): void {
-  snapEnabled.value = !snapEnabled.value
-}
 </script>
 
 <template>
@@ -840,21 +841,18 @@ function toggleVertexSnap(): void {
     <canvas ref="canvas" class="stage"></canvas>
     <!-- the crosshair marks the middle of the level: while the level loads, the status text is there -->
     <Crosshair v-if="status === '' && hasLevel" />
-    <button
+    <ToggleButton
       v-if="transformVisible"
       class="snap-toggle"
-      type="button"
-      :aria-pressed="snapActive"
+      :pressed="snapActive"
+      label="Snap the selection"
+      :tooltip="snapModifierHeld ? 'Snapping while Shift is held' : 'Snap the selection (hold Shift)'"
+      tooltip-placement="left"
       :data-shifted="snapModifierHeld"
-      aria-label="Snap the selection"
-      v-tooltip="{
-        content: snapModifierHeld ? 'Snapping while Shift is held' : 'Snap the selection (hold Shift)',
-        placement: 'left',
-      }"
-      @click="toggleVertexSnap"
+      @update:pressed="toggleMagnet"
     >
       <Magnet :size="15" />
-    </button>
+    </ToggleButton>
     <div class="gizmo" aria-hidden="true">
       <canvas ref="gizmoCanvas"></canvas>
     </div>
@@ -915,6 +913,7 @@ function toggleVertexSnap(): void {
 
     &:hover {
       color: $text;
+      background: rgba($surface-app, 0.72);
     }
   }
 

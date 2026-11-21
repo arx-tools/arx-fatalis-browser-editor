@@ -170,12 +170,12 @@ function setPart(part: 'h' | 's' | 'l', value: number): void {
   }
 
   .name {
-    color: $text-dim;
+    color: $text-muted;
     font-size: 11px;
   }
 
   .value {
-    color: $text-dim;
+    color: $text-muted;
     font-size: 11px;
     text-align: right;
     font-variant-numeric: tabular-nums;

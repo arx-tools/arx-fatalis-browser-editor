@@ -212,7 +212,7 @@ async function startDrag(event: PointerEvent, kind: string): Promise<void> {
     }
 
     .grip {
-      color: $text-dim;
+      color: $text-subtle;
     }
 
     .mark {

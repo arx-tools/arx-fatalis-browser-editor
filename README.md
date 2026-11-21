@@ -13,10 +13,10 @@ The editor is being rebuilt as a **dock based shell**: a thin header and a dock 
 layout can be rearranged (and later saved) by the user. The new code lives under `src/editor/`
 (`state/`, `keyboard/` and the shell itself); the shared generator modules stay in `src/generator/`.
 
-The **previous app is archived under `src/_old/`** (2026-10-26). It is neither built nor typechecked
-nor linted: it stays in the repository as the reference of the earlier behaviour, and its features are
-ported into widgets one by one. Until that happens, the feature descriptions below describe the
-archived app.
+The **previous app's remaining reference is under `src/_old/`** (the anchor graph and its export, with
+the old bake and converter they import; the old shell was deleted on 2026-11-21 as migrated). It is
+neither built nor typechecked nor linted: it stays in the repository until the anchor backlog is
+ported. The rest of the old app lives in the widgets of the new shell.
 
 ## Development
 

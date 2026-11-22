@@ -211,7 +211,7 @@ function jumpTo(row: LightRow): void {
   gap: 6px;
   height: 100%;
   min-height: 0;
-  padding: 4px 6px;
+  padding: 0 8px 8px;
   color: $text;
   font-size: 12px;
 

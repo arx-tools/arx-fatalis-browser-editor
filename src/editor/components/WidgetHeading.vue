@@ -34,8 +34,12 @@ defineProps<{
   display: flex;
   align-items: center;
   gap: 6px;
+  // the line of the heading is as tall as the action a widget may put in it (22px), so the title sits in the same place
+  // with and without an action; the padding is the same above and below it, so the title sits in the middle of the line
+  // the border draws (2026-11-22, the owner)
+  min-height: 22px;
   margin: 0 0 6px;
-  padding: 0 6px 5px;
+  padding: 5px 6px;
   border-bottom: 1px solid $border-dark;
   color: $text-strong;
   font-size: 12px;

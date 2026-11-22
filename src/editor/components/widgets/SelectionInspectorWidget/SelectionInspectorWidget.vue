@@ -243,7 +243,7 @@ function thumbOf(name: string): string | undefined {
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 8px;
+  padding: 0 8px 8px;
   overflow: hidden;
 
   @include info-list;

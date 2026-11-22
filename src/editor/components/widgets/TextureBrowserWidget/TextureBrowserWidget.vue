@@ -316,7 +316,7 @@ async function onDrop(event: DragEvent): Promise<void> {
   flex-direction: column;
   gap: 6px;
   height: 100%;
-  padding: 8px;
+  padding: 0 8px 8px;
   font-size: 12px;
 }
 

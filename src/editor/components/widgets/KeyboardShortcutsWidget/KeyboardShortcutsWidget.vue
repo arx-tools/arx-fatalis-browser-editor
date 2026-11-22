@@ -264,7 +264,7 @@ function toggleTitle(row: HelpRow): string {
 
 .KeyboardShortcutsWidget {
   height: 100%;
-  padding: 8px;
+  padding: 0 8px 8px;
 
   // the sections follow each other with a small gap, the first one right under the title
   .section + .section {

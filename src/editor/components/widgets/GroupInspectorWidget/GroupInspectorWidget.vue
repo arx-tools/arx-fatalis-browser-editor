@@ -293,7 +293,7 @@ function removeGroup(row: FaceGroupRow): void {
   gap: 6px;
 
   height: 100%;
-  padding: 8px;
+  padding: 0 8px 8px;
   font-size: 13px;
 }
 

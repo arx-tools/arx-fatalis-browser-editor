@@ -589,11 +589,14 @@ function toggleFlag(bit: number, pressed: boolean): void {
   display: flex;
   flex-direction: column;
   height: 100%;
+  // the same inset as the other widgets of the info work: the heading's rule and the content start at the same place
+  // (2026-11-22, the owner)
+  padding: 0 8px 8px;
   overflow: hidden;
 
   .message {
     margin: 0;
-    padding: 8px 10px;
+    padding: 8px 0;
     color: $text-muted;
     font-size: 12px;
   }
@@ -607,7 +610,7 @@ function toggleFlag(bit: number, pressed: boolean): void {
     flex-direction: column;
     gap: 4px;
     min-height: 0;
-    padding: 4px 10px 10px;
+    padding: 4px 0 2px;
     overflow-y: auto;
   }
 

@@ -81,7 +81,7 @@ watch(
 
 .PolygonInspectorWidget {
   height: 100%;
-  padding: 8px;
+  padding: 0 8px 8px;
 
   @include info-list;
 }

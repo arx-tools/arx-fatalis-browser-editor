@@ -174,7 +174,7 @@ async function startDrag(event: PointerEvent, kind: string): Promise<void> {
 
   // the categories are the three columns of the popup: rendering, controls and info, each one a list of its own
   .group + .group {
-    border-left: 1px solid $border-dark;
+    border-left: 1px solid $border;
     padding-left: 4px;
   }
 

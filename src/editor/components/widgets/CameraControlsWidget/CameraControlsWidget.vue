@@ -218,7 +218,7 @@ function onStep(name: CameraFieldName, direction: 1 | -1): void {
   // their place (the full name is in the title and the aria-label of the field)
   .group + .group {
     padding-left: 10px;
-    border-left: 1px solid $border-dark;
+    border-left: 1px solid $border;
   }
 
   // the caption of a field names a text input, so the whole cell is a text cursor (the cell itself is the

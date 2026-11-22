@@ -1,6 +1,8 @@
 import { createDefaultBindings, createHotkeyBindings, type KeyboardBindings } from './bindings.ts'
 import { keyboardActions, type KeyboardAction, type KeyboardActionId } from './actions.ts'
 import {
+  comboPartsOf,
+  formatCombo,
   isEditableTarget,
   isMacPlatform,
   matchesCombo,
@@ -132,6 +134,40 @@ export function setDialogOpen(name: string, open: boolean): void {
   }
 
   openDialogs.delete(name)
+}
+
+/**
+ * The first key of an action, as a label for the menu and the buttons.
+ *
+ * @param id The action to read.
+ *
+ * @returns The label of its first combo, or `undefined` when it has no key.
+ */
+export function keyboardShortcutOf(id: KeyboardActionId): string | undefined {
+  const [combo] = getKeyboardBindings()[id] ?? []
+
+  if (combo === undefined) {
+    return undefined
+  }
+
+  return formatCombo(combo, isMac)
+}
+
+/**
+ * The parts of the first key of an action: one entry per cap the help shows.
+ *
+ * @param id The action to read.
+ *
+ * @returns The parts of its first combo, or an empty list when it has no key.
+ */
+export function keyboardShortcutPartsOf(id: KeyboardActionId): string[] {
+  const [combo] = getKeyboardBindings()[id] ?? []
+
+  if (combo === undefined) {
+    return []
+  }
+
+  return comboPartsOf(combo, isMac)
 }
 
 /**

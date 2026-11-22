@@ -4,6 +4,7 @@ import { computed } from 'vue'
 import { history } from '../../../modules/history/history.ts'
 import { redoLastStep, resetHistorySteps, undoLastStep } from '../../../modules/level/edit/editing.ts'
 import { isMacKeyboard } from '../../../modules/keyboard/keyboard.ts'
+import KeyHint from '../../KeyHint.vue'
 
 /**
  * The two steps of the history of the level, next to each other.
@@ -75,7 +76,7 @@ const resetTooltip = 'Take every step back'
       @click="undoLastStep()"
     >
       <Undo2 :size="14" />
-      <span class="label">Undo ({{ primary }}+Z)</span>
+      <span class="label">Undo <KeyHint :text="`${primary}+Z`" /></span>
     </button>
     <button
       class="step"
@@ -86,7 +87,7 @@ const resetTooltip = 'Take every step back'
       @click="redoLastStep()"
     >
       <Redo2 :size="14" />
-      <span class="label">Redo ({{ primary }}+Y)</span>
+      <span class="label">Redo <KeyHint :text="`${primary}+Y`" /></span>
     </button>
   </div>
 </template>

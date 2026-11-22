@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Check, ChevronDown, LockKeyhole, LockKeyholeOpen, Redo2, Settings, Undo2 } from 'lucide-vue-next'
 import type { PresetId } from '../modules/layout/layoutPresets.ts'
 import { useEditorShell } from '../modules/shell/editorShellContext.ts'
+import KeyHint from './KeyHint.vue'
 import ToggleButton from './ToggleButton.vue'
 import WidgetPicker from './WidgetPicker.vue'
 
@@ -245,6 +246,7 @@ onBeforeUnmount(() => {
               <Check v-if="preset.id === selectedPreset" :size="12" />
               <span v-else class="spacer"></span>
               <span class="name">{{ preset.label }}</span>
+              <KeyHint v-if="preset.shortcut !== undefined" :text="preset.shortcut" />
             </button>
             <button
               class="step"

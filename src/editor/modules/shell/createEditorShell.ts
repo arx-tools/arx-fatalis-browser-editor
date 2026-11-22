@@ -22,7 +22,8 @@ import {
 import { LayoutEditor, type MountWidgetOverlay } from '../layout/layoutEditor.ts'
 import { layoutEquals, lockedBoxOf, lockWidgetTo, type LayoutNode } from '../layout/layoutNode.ts'
 import { createWidget, widgetKind, type WidgetDefinition } from '../layout/widgetDefinition.ts'
-import { onKeyboardAction } from '../keyboard/keyboard.ts'
+import { keyboardShortcutOf, onKeyboardAction } from '../keyboard/keyboard.ts'
+import type { KeyboardActionId } from '../keyboard/actions.ts'
 import { persistedRef } from '../persistedRef/persistedRef.ts'
 
 /**
@@ -119,6 +120,21 @@ export type EditorShell = {
 }
 
 /**
+ * The keyboard action which switches to each factory preset.
+ *
+ * @remarks
+ * The blank layout is missing on purpose: the keys follow the rows of the menu, and the last row is the empty dock
+ * (2026-11-22, the owner).
+ */
+const presetActions: Readonly<Partial<Record<PresetId, KeyboardActionId>>> = {
+  viewer: 'presetViewer',
+  editor: 'presetEditor',
+  painter: 'presetPainter',
+  rooms: 'presetRooms',
+  lighter: 'presetLighter',
+}
+
+/**
  * One row of the preset dropdown of the header.
  */
 export type PresetOption = {
@@ -138,6 +154,11 @@ export type PresetOption = {
    * Tells whether the layout has a step to make again.
    */
   readonly canRedo: boolean
+  /**
+   * The key of the preset, when it has one: the five factory presets are on `F1`..`F5`, the blank layout has none
+   * (2026-11-22, the owner).
+   */
+  readonly shortcut?: string
 }
 
 /**
@@ -276,11 +297,19 @@ export function createEditorShell(
     return factoryPresets.map((preset): PresetOption => {
       const history = historyFor(preset.id)
 
+      const action = presetActions[preset.id]
+      let shortcut: string | undefined
+
+      if (action !== undefined) {
+        shortcut = keyboardShortcutOf(action)
+      }
+
       return {
         id: preset.id,
         label: preset.label,
         canUndo: canUndoOf(history),
         canRedo: canRedoOf(history),
+        shortcut,
       }
     })
   })
@@ -642,22 +671,15 @@ export function createEditorShell(
   })
 
   // the five factory presets on the function keys, in the order the Presets menu shows them (a list, not a sorted one):
-  // the blank layout has no key of its own (2026-11-22, the owner)
-  onKeyboardAction('presetViewer', () => {
-    applyPreset('viewer')
-  })
-  onKeyboardAction('presetEditor', () => {
-    applyPreset('editor')
-  })
-  onKeyboardAction('presetPainter', () => {
-    applyPreset('painter')
-  })
-  onKeyboardAction('presetRooms', () => {
-    applyPreset('rooms')
-  })
-  onKeyboardAction('presetLighter', () => {
-    applyPreset('lighter')
-  })
+  // the blank layout has no key of its own (2026-11-22, the owner). The rows of the menu read the keys from the same
+  // map, so a preset's key and the row that says it can not drift apart
+  for (const [preset, action] of Object.entries(presetActions)) {
+    if (action !== undefined) {
+      onKeyboardAction(action, () => {
+        applyPreset(preset)
+      })
+    }
+  }
 
   return {
     host,

@@ -8,6 +8,7 @@ import {
   handleKeyDown,
   handleKeyUp,
   getKeyboardBindings,
+  keyboardShortcutOf,
   isKeyboardActionActive,
   isKeyDown,
   isMacKeyboard,
@@ -423,6 +424,23 @@ void describe('handleKeyDown', () => {
 
     assert.equal(handleKeyDown(event), 'closeDialog')
     assert.equal(calls, 1)
+  })
+})
+
+void describe('keyboardShortcutOf', () => {
+  void it('writes the key of an action', (t: TestContext) => {
+    let undoShortcut = 'Ctrl+Z'
+
+    if (isMacKeyboard()) {
+      undoShortcut = '⌘Z'
+    }
+
+    t.assert.strictEqual(keyboardShortcutOf('presetViewer'), 'F1')
+    t.assert.strictEqual(keyboardShortcutOf('undo'), undoShortcut)
+  })
+
+  void it('says nothing of an action without a key', (t: TestContext) => {
+    t.assert.strictEqual(keyboardShortcutOf('toggleCameraInfo'), undefined)
   })
 })
 

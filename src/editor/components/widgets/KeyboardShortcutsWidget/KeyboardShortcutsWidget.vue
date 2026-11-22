@@ -1,25 +1,28 @@
 <script setup lang="ts">
 import { Command, Eye, EyeOff, MouseLeft, Redo2, Undo2, UndoDot } from 'lucide-vue-next'
-import { computed, type ShallowRef } from 'vue'
+import type { ShallowRef } from 'vue'
 import { history } from '../../../modules/history/history.ts'
-import { redoLastStep, resetHistorySteps, undoLastStep } from '../../../modules/level/edit/editing.ts'
-import { isMacKeyboard } from '../../../modules/keyboard/keyboard.ts'
+import { redoLastStep, undoLastStep } from '../../../modules/level/edit/editing.ts'
+import { keyboardShortcutPartsOf } from '../../../modules/keyboard/keyboard.ts'
 import WidgetHeading from '../../WidgetHeading.vue'
-import { editModeSwitches, type EditModeSwitch } from '../shared/editModes.ts'
-import { isViewAtDefault, resetViewSwitches, viewSwitches, type ViewSwitch } from '../shared/levelDisplay.ts'
+import { editModeSwitches } from '../shared/editModes.ts'
+import { viewSwitches } from '../shared/levelDisplay.ts'
+import { helpSections, switchNames, type HelpKey, type HelpRow, type HelpToggle } from './helpRows.ts'
 
 /**
- * One cell of the key column: a key cap with a text, or one with an icon of the library.
- */
-type HelpKey =
-  { readonly kind: 'icon'; readonly icon: 'command' | 'mouse-left' } | { readonly kind: 'text'; readonly text: string }
-
-/**
- * The switches the help can flip from its row: the view context and the edit modes.
+ * The keys of the editor: the view context, the edit modes, the movement, the history and the selection.
  *
  * @remarks
- * The two sections keep their own list of switches (`levelDisplay.ts`, `editModes.ts`), and the help reads both through
- * this one table: a row names the switch it carries, wherever that switch lives.
+ * The **caps of a row come from the keyboard table** (through the bindings): the row names its action, and the widget
+ * asks the bindings for the parts of its first combo, so a rebound key shows up here and the list can not drift from the
+ * keys the editor answers (2026-11-22, the 68). The gestures the table does not cover (the mouse, the `Shift` of the
+ * snapping) keep their own caps.
+ *
+ * The eyes of the view and the mode rows flip the switches of the store, and the history rows carry the two steps: the
+ * widget is not a list of keys only, it is also the panel where the switches can be flipped (2026-11-12, the owner).
+ *
+ * The data is [`helpRows.ts`](helpRows.ts): the sections and the rows, kept apart so a test can read them without the
+ * page, and the rendering (the icons, the switches, the rows) lives here.
  */
 const switches = { ...viewSwitches, ...editModeSwitches } as const satisfies Record<
   string,
@@ -27,219 +30,9 @@ const switches = { ...viewSwitches, ...editModeSwitches } as const satisfies Rec
 >
 
 /**
- * A switch the help can flip from its row.
- */
-type HelpToggle = ViewSwitch | EditModeSwitch
-
-/**
- * One row of the key help: the keys of an action, what they do, and the switch behind it.
- */
-type HelpRow = {
-  /**
-   * The keys to press, in the order of the gesture: the cells are joined with a plus sign.
-   */
-  readonly keys: readonly HelpKey[]
-  /**
-   * What the keys do.
-   */
-  readonly action: string
-  /**
-   * How the gesture is repeated, if it is: the double click shows it as `× 2` after the key.
-   */
-  readonly suffix?: string
-  /**
-   * The switch the row belongs to, if it has one: the row then shows a button that flips it too.
-   */
-  readonly toggle?: HelpToggle
-  /**
-   * The switch this row sits under, if it is a child of one.
-   *
-   * @remarks
-   * The row is drawn as a folder child of its parent (indented, with a corner at the end of its label), and its switch
-   * only works while the parent switch is on: a view over a level that is not drawn has nothing to show.
-   */
-  readonly parent?: HelpToggle
-  /**
-   * The history command the row runs, if it has one: the row then shows an undo or a redo button.
-   *
-   * @remarks
-   * The button is disabled when the step it would take is not there (the beginning or the end of the history), so
-   * the widget shows what can be done, the same way the eye of the view rows shows what is on.
-   */
-  readonly button?: 'redo' | 'undo'
-}
-
-/**
- * One section of the key help.
- */
-type HelpSection = {
-  /**
-   * The name of the section, shown above its rows.
-   */
-  readonly title: string
-  /**
-   * The rows of the section.
-   */
-  readonly rows: readonly HelpRow[]
-  /**
-   * The reset of the section, when its header carries a button for it.
-   */
-  readonly reset?: HelpReset
-}
-
-/**
- * The reset button of a section: what it is called, when it can be pressed, and what it does.
- */
-type HelpReset = {
-  /**
-   * The tooltip and the screen reader name of the button.
-   */
-  readonly title: string
-  /**
-   * Whether the button is disabled: there is nothing to reset.
-   */
-  readonly disabled: () => boolean
-  /**
-   * The reset itself.
-   */
-  readonly run: () => void
-}
-
-/**
  * The icons a cell may show, by name.
  */
 const icons = { command: Command, 'mouse-left': MouseLeft }
-
-/**
- * The words the buttons use for the switches of the rows.
- */
-const switchNames: Record<HelpToggle, string> = {
-  mesh: 'the mesh',
-  wireframe: 'the wireframe',
-  roomColors: 'the rooms',
-  portals: 'the portals',
-  lights: 'the lights',
-  transform: 'the transform gizmo',
-  rotate: 'the rotate gizmo',
-  scale: 'the scale gizmo',
-}
-
-/**
- * The key that takes a face out of the selection: `Ctrl` everywhere, and the `Cmd` of the mac.
- *
- * @remarks
- * The editor answers to both on every platform (`selectionModeOf` reads `ctrlKey` and `metaKey`), the help
- * only shows the one the platform puts under the fingers.
- */
-let removeKey: HelpKey = { kind: 'text', text: 'Ctrl' }
-
-if (isMacKeyboard()) {
-  removeKey = { kind: 'icon', icon: 'command' }
-}
-
-/**
- * The left button of the mouse, as the icon the library draws.
- */
-const leftButton: HelpKey = { kind: 'icon', icon: 'mouse-left' }
-
-/**
- * Whether the history has nothing to take back, so its reset button is disabled.
- */
-function isHistoryAtStart(): boolean {
-  return !history.canUndo.value
-}
-
-/**
- * The modifier of a shortcut: `Ctrl` everywhere, and the `Cmd` of the mac.
- */
-let primaryKey: HelpKey = { kind: 'text', text: 'Ctrl' }
-
-if (isMacKeyboard()) {
-  primaryKey = { kind: 'icon', icon: 'command' }
-}
-
-// The keys the views really answer today: the rest of the table is not wired to a widget yet, so listing it
-// would promise keys that do nothing (the generated list comes with the widget round that uses them).
-const sections = computed<readonly HelpSection[]>(() => {
-  return [
-    {
-      title: 'View context',
-      reset: {
-        title: 'Reset view context',
-        disabled: (): boolean => {
-          return isViewAtDefault.value
-        },
-        run: resetViewSwitches,
-      },
-      // the action is the name of the switch with a capital (2026-11-12, the owner): Wireframe, Mesh, Rooms, Portals
-      rows: [
-        { keys: [{ kind: 'text', text: 'X' }], action: 'Wireframe', toggle: 'wireframe' },
-        { keys: [{ kind: 'text', text: 'M' }], action: 'Mesh', toggle: 'mesh' },
-        { keys: [{ kind: 'text', text: 'R' }], action: 'Rooms', toggle: 'roomColors', parent: 'mesh' },
-        { keys: [{ kind: 'text', text: 'P' }], action: 'Portals', toggle: 'portals', parent: 'mesh' },
-        { keys: [{ kind: 'text', text: 'L' }], action: 'Lights', toggle: 'lights' },
-      ],
-    },
-    {
-      title: 'Edit modes',
-      // the eye of a row is the switch of the mode, as in the view context, and the two modes are exclusive (the
-      // store keeps them apart, so the eyes can not show both on)
-      rows: [
-        { keys: [{ kind: 'text', text: '1' }], action: 'Transform', toggle: 'transform' },
-        { keys: [{ kind: 'text', text: '2' }], action: 'Rotate', toggle: 'rotate' },
-        { keys: [{ kind: 'text', text: '3' }], action: 'Scale', toggle: 'scale' },
-        // the temporary switch of the snapping: Shift turns it on for the length of a drag, the magnet is the same
-        // switch (2026-11-21, the owner)
-        { keys: [{ kind: 'text', text: 'Shift' }], action: 'Snapping' },
-      ],
-    },
-    {
-      title: 'History',
-      reset: { title: 'Take every step back', disabled: isHistoryAtStart, run: resetHistorySteps },
-      rows: [
-        { keys: [primaryKey, { kind: 'text', text: 'Z' }], action: 'Undo', button: 'undo' },
-        { keys: [primaryKey, { kind: 'text', text: 'Y' }], action: 'Redo', button: 'redo' },
-      ],
-    },
-    {
-      title: 'Selection',
-      rows: [
-        { keys: [leftButton], action: 'Select face(s)' },
-        { keys: [leftButton], suffix: '× 2', action: 'Fill select by view context' },
-        { keys: [{ kind: 'text', text: 'Shift' }, leftButton], action: 'Add to selection' },
-        { keys: [removeKey, leftButton], action: 'Remove from selection' },
-        { keys: [{ kind: 'text', text: 'C' }], action: 'Clear selection' },
-        // the copy and the paste of the faces: `primary` is Ctrl everywhere and the Cmd of the mac (the row above the
-        // delete, the order of the keyboard section of the ticket)
-        { keys: [primaryKey, { kind: 'text', text: 'C' }], action: 'Copy face(s)' },
-        { keys: [primaryKey, { kind: 'text', text: 'V' }], action: 'Paste face(s)' },
-        { keys: [{ kind: 'text', text: 'Delete' }], action: 'Delete face(s), room(s) or group(s)' },
-      ],
-    },
-    {
-      // the section of the keys that belong to none of the others (2026-11-14, the owner). The row of the popup is here,
-      // so a layout without the widget still shows the list, and the dialog says how it opens
-      title: 'Miscellaneous',
-      rows: [
-        { keys: [{ kind: 'text', text: 'H' }], action: 'Show keyboard shortcuts popup' },
-        { keys: [primaryKey, { kind: 'text', text: 'G' }], action: 'Group the selected faces' },
-      ],
-    },
-    {
-      // the last section: the five factory presets on the function keys, in the order the Presets menu shows them (a
-      // list, not a sorted one), and the blank layout has no key of its own (2026-11-22, the owner). The keys come from
-      // the keyboard table with the rest of the list, when that round arrives
-      title: 'Layout presets',
-      rows: [
-        { keys: [{ kind: 'text', text: 'F1' }], action: 'Viewer' },
-        { keys: [{ kind: 'text', text: 'F2' }], action: 'Editor' },
-        { keys: [{ kind: 'text', text: 'F3' }], action: 'Painter' },
-        { keys: [{ kind: 'text', text: 'F4' }], action: 'Rooms' },
-        { keys: [{ kind: 'text', text: 'F5' }], action: 'Lighter' },
-      ],
-    },
-  ]
-})
 
 /**
  * The label of the widget, from the widget definition.
@@ -252,6 +45,23 @@ const props = defineProps<{
    */
   readonly heading?: boolean
 }>()
+
+/**
+ * The caps of a row: the parts of the key of its action, or the hand-written cells of a gesture.
+ *
+ * @param row The row to read.
+ *
+ * @returns The cells of the key column, in the order of the press.
+ */
+function keysOf(row: HelpRow): readonly HelpKey[] {
+  if (row.actionId === undefined) {
+    return row.keys ?? []
+  }
+
+  return keyboardShortcutPartsOf(row.actionId).map((text) => {
+    return { kind: 'text' as const, text }
+  })
+}
 
 /**
  * Tells whether the switch of a row is on.
@@ -273,13 +83,6 @@ function flip(toggle: HelpToggle): void {
   switches[toggle].ref.value = !switches[toggle].ref.value
 }
 
-/**
- * The tooltip of the button of a row: it says what a click does.
- *
- * @param toggle The switch of the row.
- *
- * @returns The label of the button.
- */
 /**
  * Tells whether the button of a row can be pressed.
  *
@@ -330,6 +133,13 @@ function runHistory(button: 'redo' | 'undo'): void {
   redoLastStep()
 }
 
+/**
+ * The tooltip of the button of a row: it says what a click does.
+ *
+ * @param toggle The switch of the row.
+ *
+ * @returns The label of the button.
+ */
 function buttonTitle(toggle: HelpToggle): string {
   if (isOn(toggle)) {
     return `Hide ${switchNames[toggle]}`
@@ -389,7 +199,7 @@ function toggleTitle(row: HelpRow): string {
 <template>
   <div class="KeyboardShortcutsWidget">
     <WidgetHeading v-if="props.heading !== false" :label="props.label" />
-    <section v-for="section in sections" :key="section.title" class="section">
+    <section v-for="section in helpSections" :key="section.title" class="section">
       <div class="section-head">
         <h3 class="section-title">{{ section.title }}</h3>
         <button
@@ -407,7 +217,7 @@ function toggleTitle(row: HelpRow): string {
       <dl>
         <template v-for="row in section.rows" :key="row.action">
           <dt :class="{ 'is-disabled': isRowDisabled(row) }">
-            <template v-for="(key, index) in row.keys" :key="index">
+            <template v-for="(key, index) in keysOf(row)" :key="index">
               <span v-if="index > 0" class="plus">+</span>
               <component :is="icons[key.icon]" v-if="key.kind === 'icon'" class="key-icon" />
               <kbd v-else>{{ key.text }}</kbd>

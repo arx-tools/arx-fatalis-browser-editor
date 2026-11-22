@@ -441,4 +441,15 @@ test('the function keys switch the five presets in the order of the menu', async
       return await presetName(page)
     })
     .toBe('Lighter')
+
+  // the rows of the menu say the keys of the same list, and the blank layout says none
+  await page.locator('header button[aria-label="Presets"]').click()
+
+  const rows = page.locator('.preset-menu .preset-row')
+
+  for (const [key, name] of presets) {
+    await expect(rows.filter({ hasText: name })).toContainText(`(${key})`)
+  }
+
+  await expect(rows.filter({ hasText: 'Blank' })).not.toContainText('(')
 })

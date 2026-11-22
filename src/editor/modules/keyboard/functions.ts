@@ -102,6 +102,16 @@ const keyLabels: Record<string, string> = {
   Enter: 'Enter',
   Equal: '=',
   Escape: 'Esc',
+  // the physical modifier keys, for the rows of a `hold` action: a `ShiftLeft` combo is matched while Shift is held,
+  // and the label of it is the name the author reads on the key
+  ShiftLeft: 'Shift',
+  ShiftRight: 'Shift',
+  ControlLeft: 'Ctrl',
+  ControlRight: 'Ctrl',
+  AltLeft: 'Alt',
+  AltRight: 'Alt',
+  MetaLeft: 'Meta',
+  MetaRight: 'Meta',
   Home: 'Home',
   Minus: '-',
   PageDown: 'PageDown',
@@ -327,13 +337,18 @@ export function getKeyLabel(code: string): string {
 }
 
 /**
- * Formats a combo the way the help and a settings panel show it.
+ * The parts of a combo: the modifiers first, in the canonical order, and the key at the end.
  *
- * @param combo The combo to format.
+ * @remarks
+ * A part is one cap of the help: `Ctrl` and `Z` of `Ctrl+Z` are two of them, and the platform decides their words
+ * (`⌘` and `Z` on an Apple keyboard).
+ *
+ * @param combo The combo to split.
  * @param isMac Whether the platform is macOS, where the symbols are used.
- * @returns The readable form, for example `Ctrl+Shift+F2`, `⌘M` or `Shift+F2`.
+ *
+ * @returns The parts, like `['Ctrl', 'Z']`.
  */
-export function formatCombo(combo: KeyCombo, isMac: boolean): string {
+export function comboPartsOf(combo: KeyCombo, isMac: boolean): string[] {
   let label = combo.key
 
   if (label === undefined) {
@@ -342,23 +357,28 @@ export function formatCombo(combo: KeyCombo, isMac: boolean): string {
     label = label.toUpperCase()
   }
 
-  const mods = combo.mods ?? []
-
-  if (isMac) {
-    const symbols = mods
-      .map((mod) => {
-        return formatModifier(mod, isMac)
-      })
-      .join('')
-
-    return `${symbols}${label}`
-  }
-
-  const names = mods.map((mod) => {
+  const names = (combo.mods ?? []).map((mod) => {
     return formatModifier(mod, isMac)
   })
 
-  return [...names, label].join('+')
+  return [...names, label]
+}
+
+/**
+ * Formats a combo the way the help and a settings panel show it.
+ *
+ * @param combo The combo to format.
+ * @param isMac Whether the platform is macOS, where the symbols are used.
+ * @returns The readable form, for example `Ctrl+Shift+F2`, `⌘M` or `Shift+F2`.
+ */
+export function formatCombo(combo: KeyCombo, isMac: boolean): string {
+  const parts = comboPartsOf(combo, isMac)
+
+  if (isMac) {
+    return parts.join('')
+  }
+
+  return parts.join('+')
 }
 
 /**

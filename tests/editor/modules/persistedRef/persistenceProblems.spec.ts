@@ -1,6 +1,8 @@
 import { describe, it, type TestContext } from 'node:test'
 import {
   clearPersistenceProblems,
+  dismissPersistenceProblems,
+  persistenceNoticeOf,
   persistenceProblems,
   reportProblem,
 } from '../../../../src/editor/modules/persistedRef/persistenceProblems.ts'
@@ -88,5 +90,49 @@ void describe('clearPersistenceProblems', () => {
 
     t.assert.strictEqual(persistenceProblems.value.length, 1)
     t.assert.strictEqual(warnings.length, 2)
+  })
+})
+
+void describe('persistenceNoticeOf', () => {
+  void it('says nothing while there is no problem', (t: TestContext) => {
+    t.assert.strictEqual(persistenceNoticeOf([]), undefined)
+  })
+
+  void it('says the message of the first problem', (t: TestContext) => {
+    const problems = [
+      { key: 'camera', target: 'localStorage', message: 'the storage is full' },
+      { key: 'shadows', target: 'url', message: 'two' },
+    ] as const
+
+    t.assert.strictEqual(persistenceNoticeOf(problems), 'the storage is full')
+  })
+})
+
+void describe('dismissPersistenceProblems', () => {
+  void it('empties the list, and keeps the same problem quiet', (t: TestContext) => {
+    collectWarnings(t)
+
+    reportProblem('camera', 'localStorage', 'one')
+    dismissPersistenceProblems()
+    t.assert.strictEqual(persistenceProblems.value.length, 0)
+
+    // the author closed the bar: the same failing key does not raise it again
+    reportProblem('camera', 'localStorage', 'two')
+    t.assert.strictEqual(persistenceProblems.value.length, 0)
+
+    // a new failure is news
+    reportProblem('shadows', 'localStorage', 'three')
+    t.assert.strictEqual(persistenceProblems.value.length, 1)
+  })
+
+  void it('lets the same problem come back after a test clear', (t: TestContext) => {
+    collectWarnings(t)
+
+    reportProblem('camera', 'localStorage', 'one')
+    dismissPersistenceProblems()
+    clearPersistenceProblems()
+
+    reportProblem('camera', 'localStorage', 'two')
+    t.assert.strictEqual(persistenceProblems.value.length, 1)
   })
 })

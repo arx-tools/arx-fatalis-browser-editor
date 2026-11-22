@@ -140,6 +140,10 @@ export const coverage: readonly SpecCoverage[] = [
     ],
   },
   {
+    spec: 'tests/e2e/persistenceNotice.spec.ts',
+    covers: ['src/editor/components/PersistenceNotice.vue'],
+  },
+  {
     spec: 'tests/e2e/posePerMap.spec.ts',
     covers: ['src/editor/modules/level/source/maps.ts', 'src/editor/modules/level/source/maps/**'],
   },

@@ -63,3 +63,30 @@ export function clearPersistenceProblems(): void {
   reportedProblems.clear()
   persistenceProblems.value = []
 }
+
+/**
+ * Closes the notice of the problems, keeping the failures quiet for the rest of the session.
+ *
+ * @remarks
+ * The author read the warning: the list goes, so the bar of the shell disappears, and the deduplication stays, so the
+ * same failing key does not come back on the next write (2026-11-22, the owner: the close hides it for the session). A
+ * **new** failure (another key, another target) is news, and raises the bar again.
+ */
+export function dismissPersistenceProblems(): void {
+  persistenceProblems.value = []
+}
+
+/**
+ * The sentence of the notice of the persistence problems.
+ *
+ * @remarks
+ * The bar of the shell is one line: the message of the first problem (the console, and the list of the bar, has every
+ * one of them).
+ *
+ * @param problems The problems reported so far.
+ *
+ * @returns The text of the notice, or `undefined` when there is nothing to say.
+ */
+export function persistenceNoticeOf(problems: readonly PersistenceProblem[]): string | undefined {
+  return problems[0]?.message
+}

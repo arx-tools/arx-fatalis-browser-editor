@@ -5,6 +5,7 @@ import HelpPopup from './components/HelpPopup.vue'
 import Dock from './components/Dock.vue'
 import EditorHeader from './components/EditorHeader.vue'
 import LoadingOverlay from './components/LoadingOverlay.vue'
+import PersistenceNotice from './components/PersistenceNotice.vue'
 import MissingMapPrompt from './components/MissingMapPrompt.vue'
 import { startEditModes } from './components/widgets/shared/editModes.ts'
 import { startLevelDisplay } from './components/widgets/shared/levelDisplay.ts'
@@ -301,6 +302,7 @@ onMounted(async () => {
     <LoadingOverlay v-if="isLevelLoading" />
     <EditorHeader />
     <Dock />
+    <PersistenceNotice />
     <Cover />
     <MissingMapPrompt />
     <HelpPopup />

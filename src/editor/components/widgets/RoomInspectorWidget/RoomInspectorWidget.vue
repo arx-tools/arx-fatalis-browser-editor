@@ -29,6 +29,7 @@ import EmptyMessage from '../../EmptyMessage.vue'
 import SearchField from '../../SearchField.vue'
 import InspectorRow from '../../InspectorRow.vue'
 import RowActionButton from '../../RowActionButton.vue'
+import SectionTitle from '../../SectionTitle.vue'
 import WidgetHeading from '../../WidgetHeading.vue'
 import { isMeshVisible, isRoomColorsVisible, toggleRoomColors } from '../shared/levelDisplay.ts'
 import { roomProblemsOf, type RoomProblem } from './roomInspector.ts'
@@ -602,7 +603,7 @@ function removeRowRoom(room: number): void {
     </ul>
     <EmptyMessage v-if="rows.length > 0 && shown.length === 0">No room matches the search</EmptyMessage>
     <section class="manage">
-      <h3 class="title">Manage selection</h3>
+      <SectionTitle>Manage selection</SectionTitle>
       <div class="moves">
         <button
           type="button"
@@ -638,7 +639,7 @@ function removeRowRoom(room: number): void {
       </div>
     </section>
     <section v-if="problems.length > 0" class="problems">
-      <h3 class="title">Warnings</h3>
+      <SectionTitle>Warnings</SectionTitle>
       <p v-for="problem in problems" :key="problem.text" class="problem" :class="`is-${problem.kind}`">
         {{ problem.text }}
       </p>
@@ -893,16 +894,6 @@ function removeRowRoom(room: number): void {
   margin-top: 6px;
   padding-top: 6px;
   border-top: 1px solid $border-dark;
-}
-
-.title {
-  margin: 0 0 4px;
-  padding: 0 6px;
-  color: $text-icon;
-  font-size: 11px;
-  font-weight: normal;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .problem {

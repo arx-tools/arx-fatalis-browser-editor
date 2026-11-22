@@ -14,6 +14,7 @@ import { levelStore } from '../modules/level/edit/levelStore.ts'
 import { currentMapId, currentMapManifest, poseOfMap } from '../modules/level/source/maps.ts'
 import Modal from './Modal.vue'
 import NumberField from './NumberField.vue'
+import Button from './Button.vue'
 
 /**
  * Where the export is.
@@ -103,6 +104,20 @@ const label = computed(() => {
   }
 
   return 'Export as ZIP'
+})
+/**
+ * The tone of the export button: the plain plate, the finished export or the failed one.
+ */
+const exportTone = computed<'plain' | 'ok' | 'danger'>(() => {
+  if (state.value === 'done') {
+    return 'ok'
+  }
+
+  if (state.value === 'failed') {
+    return 'danger'
+  }
+
+  return 'plain'
 })
 
 /**
@@ -315,13 +330,12 @@ onBeforeUnmount(() => {
       <p v-if="failure !== ''" class="failure">{{ failure }}</p>
 
       <template #actions>
-        <button class="export" type="button" :class="`is-${state}`" :disabled="state === 'packing'" @click="exportIt">
+        <Button class="export" :label="label" :tone="exportTone" :disabled="state === 'packing'" @click="exportIt">
           <LoaderCircle v-if="state === 'packing'" class="spinner" :size="14" />
           <Check v-else-if="state === 'done'" class="mark" :size="14" />
           <X v-else-if="state === 'failed'" class="mark" :size="14" />
           <Download v-else :size="14" />
-          <span>{{ label }}</span>
-        </button>
+        </Button>
       </template>
     </Modal>
   </div>
@@ -430,46 +444,6 @@ onBeforeUnmount(() => {
 
 // the button of the dialog: the primary action, the only one with a frame of its own, as wide as the dialog (the way the
 // dialog of the data directory draws its one button)
-.export {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: 100%;
-  padding: 5px 12px;
-  color: $text-strong;
-  font: inherit;
-  background: $surface-raised;
-  border: 1px solid $border-strong;
-  border-radius: 4px;
-  cursor: pointer;
-
-  &:hover:not(:disabled) {
-    background: $surface-float;
-    border-color: $interactive;
-  }
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: default;
-  }
-
-  // the turning mark of a wait: the packing blocks the thread, but a `transform` animation is turned by the compositor,
-  // so it keeps going while the level is packed
-  .spinner {
-    animation: ExportMap-spin 1.2s linear infinite;
-  }
-
-  // the end of an export: a green check for a file that went to the browser, a red cross for one that did not
-  &.is-done .mark {
-    color: $ok;
-  }
-
-  &.is-failed .mark {
-    color: $danger-bright;
-  }
-}
-
 @keyframes ExportMap-spin {
   to {
     transform: rotate(1turn);

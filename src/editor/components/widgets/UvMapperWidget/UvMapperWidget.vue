@@ -18,6 +18,7 @@ import { bitmapOf, entryOfName, loadBitmap } from '../../../modules/textures/tex
 import type { TextureEntry } from '../../../modules/textures/textureEntry.ts'
 import Notice from '../../Notice.vue'
 import NumberField from '../../NumberField.vue'
+import ToolButton from '../../ToolButton.vue'
 import {
   DEFAULT_ZOOM,
   mismatchMessageOf,
@@ -870,63 +871,36 @@ watch(
         />
       </label>
       <div v-if="shown !== undefined" class="turns">
-        <button
-          class="turn"
-          type="button"
-          aria-label="Rotate counter-clockwise"
-          v-tooltip="'Rotate counter-clockwise'"
-          @click="onTurn('rotate-ccw')"
-        >
+        <ToolButton class="turn" label="Rotate counter-clockwise" @click="onTurn('rotate-ccw')">
           <RotateCcw :size="13" />
-        </button>
-        <button
-          class="turn"
-          type="button"
-          aria-label="Rotate clockwise"
-          v-tooltip="'Rotate clockwise'"
-          @click="onTurn('rotate-cw')"
-        >
+        </ToolButton>
+        <ToolButton class="turn" label="Rotate clockwise" @click="onTurn('rotate-cw')">
           <RotateCw :size="13" />
-        </button>
-        <button
-          class="turn"
-          type="button"
-          aria-label="Flip horizontally"
-          v-tooltip="'Flip horizontally'"
-          @click="onTurn('flip-h')"
-        >
+        </ToolButton>
+        <ToolButton class="turn" label="Flip horizontally" @click="onTurn('flip-h')">
           <SquareCenterlineDashedHorizontal :size="13" />
-        </button>
-        <button
-          class="turn"
-          type="button"
-          aria-label="Flip vertically"
-          v-tooltip="'Flip vertically'"
-          @click="onTurn('flip-v')"
-        >
+        </ToolButton>
+        <ToolButton class="turn" label="Flip vertically" @click="onTurn('flip-v')">
           <SquareCenterlineDashedVertical :size="13" />
-        </button>
+        </ToolButton>
         <!-- the two buttons of the quad: a face that draws a quarter of its texture, and one that draws all of it -->
-        <button
+        <ToolButton
           class="turn"
-          type="button"
-          aria-label="Lay the corners in a quarter of the texture"
-          v-tooltip="'Lay the corners in a quarter of the texture (the next quarter on every click)'"
+          label="Lay the corners in a quarter of the texture"
+          tooltip="Lay the corners in a quarter of the texture (the next quarter on every click)"
           :disabled="!isQuad"
           @click="onQuarter"
         >
           <LayoutGrid :size="13" />
-        </button>
-        <button
+        </ToolButton>
+        <ToolButton
           class="turn"
-          type="button"
-          aria-label="Stretch the corners to the whole texture"
-          v-tooltip="'Stretch the corners to the whole texture'"
+          label="Stretch the corners to the whole texture"
           :disabled="!isQuad"
           @click="onMaximize"
         >
           <Maximize :size="13" />
-        </button>
+        </ToolButton>
       </div>
     </div>
   </div>
@@ -1234,31 +1208,6 @@ watch(
     display: flex;
     gap: 2px;
     margin-left: auto;
-  }
-
-  .turn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 20px;
-    padding: 0;
-    color: $text-icon;
-    background: $surface-panel;
-    border: 1px solid $border-dark;
-    border-radius: 4px;
-    cursor: pointer;
-
-    &:hover:not(:disabled) {
-      color: $text-strong;
-      background: $surface-widget;
-    }
-
-    // the two buttons of the quad are off for a triangle
-    &:disabled {
-      opacity: 0.45;
-      cursor: default;
-    }
   }
 }
 </style>

@@ -112,6 +112,46 @@ test('the colour picker changes the colour of the light', async ({ page }) => {
 })
 
 /**
+ * The two columns of the flags are split by a faint rule.
+ *
+ * @remarks
+ * The six flags of the basic group (and the twelve of the advanced one) are two columns: the caption on the left, the
+ * switch on the right, and the switches of the two columns form two ragged edges. The rule between them is what tells
+ * the eye which switch belongs to which caption (2026-11-22, the owner): a 1px line of the faint border colour in the
+ * middle of the gap. It is a pseudo-element of the grid, so the flags stay one two-column grid.
+ */
+test('the two columns of the flags are split by a faint rule', async ({ page }) => {
+  await openLighter(page)
+  await pickFirstLight(page)
+
+  const rule = await page
+    .locator('[data-widget-kind="light-editor"] .flags')
+    .first()
+    .evaluate((grid) => {
+      const layout = getComputedStyle(grid)
+      const line = getComputedStyle(grid, '::after')
+
+      return {
+        columns: layout.gridTemplateColumns.split(' ').length,
+        gap: Number.parseFloat(layout.columnGap),
+        height: Number.parseFloat(line.height),
+        width: line.width,
+        background: line.backgroundColor,
+        gridHeight: grid.getBoundingClientRect().height,
+      }
+    })
+
+  // the two columns of flags, and the rule in the middle of the gap
+  expect(rule.columns).toBe(2)
+  expect(rule.gap).toBe(16)
+  expect(rule.width).toBe('1px')
+  expect(rule.background).not.toBe('rgba(0, 0, 0, 0)')
+
+  // the rule runs down the rows of the group, not just the first one
+  expect(rule.height).toBeCloseTo(rule.gridHeight, 1)
+})
+
+/**
  * The palette of the level follows a light edit without leaving the field.
  *
  * @remarks

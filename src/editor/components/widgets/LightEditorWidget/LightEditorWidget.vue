@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ArxLight } from 'arx-convert/types'
+import { Power } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, reactive, watch, type ComputedRef } from 'vue'
 import { commandOf } from '../../../modules/history/commands.ts'
 import { createSetLightRecord, type LightChange, type SetLightEdit } from '../../../modules/history/records.ts'
@@ -9,6 +10,7 @@ import { lightsRevision, touchLights } from '../../../modules/level/edit/lightEd
 import { refreshLightPalette, type LightPaletteChange } from '../../../modules/level/edit/lightPalette.ts'
 import { lightSelectionStore } from '../../../modules/selection/lightSelectionStore.ts'
 import Notice from '../../Notice.vue'
+import ToggleButton from '../../ToggleButton.vue'
 import NumberField from '../../NumberField.vue'
 import WidgetHeading from '../../WidgetHeading.vue'
 import LightColorPicker from './LightColorPicker.vue'
@@ -426,13 +428,12 @@ function hasFlag(bit: number): boolean {
  * Flips a flag of the fields, and writes the step at once.
  *
  * @param bit The bit of `ArxLightFlags`.
- * @param event The event of the checkbox.
+ * @param pressed Whether the flag is being turned on.
  */
-function toggleFlag(bit: number, event: Event): void {
-  const enabled = (event.target as HTMLInputElement).checked
+function toggleFlag(bit: number, pressed: boolean): void {
   let flags = fields.flags & ~bit
 
-  if (enabled) {
+  if (pressed) {
     flags = fields.flags | bit
   }
 
@@ -491,10 +492,12 @@ function toggleFlag(bit: number, event: Event): void {
         />
       </div>
       <div class="flags">
-        <label v-for="flag in BASIC_LIGHT_FLAGS" :key="flag.bit" class="flag">
-          <input type="checkbox" :checked="hasFlag(flag.bit)" @change="toggleFlag(flag.bit, $event)" />
+        <div v-for="flag in BASIC_LIGHT_FLAGS" :key="flag.bit" class="flag">
           <span>{{ flag.label }}</span>
-        </label>
+          <ToggleButton :pressed="hasFlag(flag.bit)" :label="flag.label" @update:pressed="toggleFlag(flag.bit, $event)">
+            <Power :size="14" />
+          </ToggleButton>
+        </div>
       </div>
       <details class="advanced">
         <summary>Advanced</summary>
@@ -563,10 +566,16 @@ function toggleFlag(bit: number, event: Event): void {
           />
         </div>
         <div class="flags">
-          <label v-for="flag in ADVANCED_LIGHT_FLAGS" :key="flag.bit" class="flag">
-            <input type="checkbox" :checked="hasFlag(flag.bit)" @change="toggleFlag(flag.bit, $event)" />
+          <div v-for="flag in ADVANCED_LIGHT_FLAGS" :key="flag.bit" class="flag">
             <span>{{ flag.label }}</span>
-          </label>
+            <ToggleButton
+              :pressed="hasFlag(flag.bit)"
+              :label="flag.label"
+              @update:pressed="toggleFlag(flag.bit, $event)"
+            >
+              <Power :size="14" />
+            </ToggleButton>
+          </div>
         </div>
       </details>
     </div>
@@ -651,19 +660,33 @@ function toggleFlag(bit: number, event: Event): void {
   }
 
   .flags {
+    position: relative;
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 2px 8px;
+    gap: 2px 16px;
     margin-top: 4px;
+  }
+
+  // the rule between the two columns of the flags: the switches are right aligned against it, and the captions of the
+  // next column start a breath later. It is a pseudo-element, so the flags stay one two-column grid (the rule is not a
+  // third column the auto-placement would have to skip), and the line spans the rows of the group
+  .flags::after {
+    position: absolute;
+    inset-block: 0;
+    left: calc(50% - 0.5px);
+    width: 1px;
+    background: $border;
+    content: '';
+    pointer-events: none;
   }
 
   .flag {
     display: flex;
     align-items: center;
-    gap: 4px;
+    justify-content: space-between;
+    gap: 8px;
     color: $text-muted;
     font-size: 11px;
-    cursor: pointer;
   }
 
   .flag input {

@@ -35,6 +35,14 @@ export type KeyboardEventSource = {
 }
 
 /**
+ * The keys of a browser which are not characters: F1 to F12.
+ *
+ * @remarks
+ * A function key types nothing, so the editor may take it even while a field has the focus (see `handleKeyDown`).
+ */
+const FUNCTION_KEY = /^F(?:[1-9]|1[0-2])$/u
+
+/**
  * The pressed key codes, so a `hold` action (the movement) can be read on every frame.
  */
 const pressedCodes = new Set<string>()
@@ -223,6 +231,32 @@ export function resolveKeyboardMode(target: unknown, isLocked: boolean, hasOpenD
 }
 
 /**
+ * Tells whether any action of the table answers the event, whatever the mode.
+ *
+ * @remarks
+ * The mode decides whether an action runs, not whether its key reaches the browser: a function key the editor binds is
+ * the editor's even while a field has the focus, where the action itself stays put (2026-11-22, the spike of the owner:
+ * the F3 find of Firefox, the F1 help and the F5 reload have to stay away).
+ *
+ * @param event The event to check.
+ * @param actions The action table to search.
+ * @param combos The combos of every action.
+ *
+ * @returns True when an action of the table is bound to the keys of the event.
+ */
+export function isBoundKey(
+  event: KeyboardEventLike,
+  actions: readonly KeyboardAction[],
+  combos: KeyboardBindings,
+): boolean {
+  return actions.some((action) => {
+    return (combos[action.id] ?? []).some((combo) => {
+      return matchesCombo(event, combo)
+    })
+  })
+}
+
+/**
  * Picks the action an event fires, if any.
  *
  * @remarks
@@ -290,9 +324,16 @@ export function handleKeyDown(event: KeyboardDownEvent): KeyboardActionId | unde
   }
 
   const mode = resolveKeyboardMode(event.target, pointerLocked, openDialogs.size > 0)
-  const action = pickKeyboardAction(event, keyboardActions, getKeyboardBindings(), mode)
+  const combos = getKeyboardBindings()
+  const action = pickKeyboardAction(event, keyboardActions, combos, mode)
 
   if (action === undefined) {
+    // a bound function key stays with the editor in the modes the action does not fire in: the browser's own F1, F3
+    // and F5 would leave the page, and none of them types a character
+    if (FUNCTION_KEY.test(event.code) && isBoundKey(event, keyboardActions, combos)) {
+      event.preventDefault?.()
+    }
+
     return undefined
   }
 

@@ -15,6 +15,7 @@ const groups = new Set<KeyboardGroup>([
   'camera',
   'developer',
   'history',
+  'layouts',
   'miscellaneous',
   'movement',
   'overlay',

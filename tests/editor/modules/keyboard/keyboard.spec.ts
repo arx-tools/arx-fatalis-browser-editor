@@ -386,6 +386,34 @@ void describe('handleKeyDown', () => {
     assert.equal(calls, 0)
   })
 
+  void it('keeps a bound function key from the browser while a text field has the focus', () => {
+    const { event, preventDefaultCalls } = createEvent('F3', { target: { tagName: 'INPUT' } })
+
+    // the preset does not fire while the field is typed into, but the find of the browser does not open either
+    assert.equal(handleKeyDown(event), undefined)
+    assert.equal(preventDefaultCalls(), 1)
+  })
+
+  void it('leaves an unbound function key to the browser', () => {
+    const { event, preventDefaultCalls } = createEvent('F7', { target: { tagName: 'INPUT' } })
+
+    assert.equal(handleKeyDown(event), undefined)
+    assert.equal(preventDefaultCalls(), 0)
+  })
+
+  void it('fires the preset of a function key, and stops the browser default', () => {
+    let calls = 0
+
+    onKeyboardAction('presetEditor', () => {
+      calls = calls + 1
+    })
+    const { event, preventDefaultCalls } = createEvent('F2')
+
+    assert.equal(handleKeyDown(event), 'presetEditor')
+    assert.equal(calls, 1)
+    assert.equal(preventDefaultCalls(), 1)
+  })
+
   void it('fires the dialog action while a text field has the focus', () => {
     let calls = 0
     onKeyboardAction('closeDialog', () => {

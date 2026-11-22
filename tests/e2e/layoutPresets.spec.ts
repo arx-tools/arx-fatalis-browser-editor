@@ -7,14 +7,16 @@ import { editorUrl, waitForLayoutSettled } from './support/editor.ts'
  * @remarks
  * The lock of a widget is a box, and a preset spells it on two levels of the tree: the width on the horizontal split
  * the widget sits in and the height on the vertical one. These tests are the acceptance of the numbers (2026-11-01):
- * the viewer comes with the keys on the left at 350 wide and the whole height, the plan at 340 x 403, the jump at
- * 340 x 70 and the render performance readout at 340 wide (2026-11-15, the owner rearranged the viewer: the keys were on
- * the right before), the editor with the plan at 360 x 260, the group inspector under it, the jump at 200 x 50, the
+ * the viewer comes with the keys on the left at 350 wide and the whole height, the plan at 350 x 403, the jump at
+ * 350 x 70 and the render performance readout at 350 wide (2026-11-15, the owner rearranged the viewer: the keys were on
+ * the right before), the editor with the plan at 350 x 300, the group inspector under it, the jump at 200 x 50, the
  * statistics at 350 x 200, the
  * inspector at 350 x 180 and the undo and redo row at 350 x 60
- * (2026-11-09), and the painter (2026-11-04) with the polygon inspector at 360 x 185 and the uv mapper at 400 x 430;
- * the keys left the painter (2026-11-16), and the selection inspector takes their place. The rooms preset came with the round (2026-11-13): the statistics at 360 x 200 and the
- * top view at 350 x 260 (the room mapper went with its content into the room inspector, 2026-11-15). The widgets the owner did not
+ * (2026-11-09), and the painter (2026-11-04) with the polygon inspector at 350 x 185 and the uv mapper at 350 x 430
+ * (both columns are 350 wide, 2026-11-22, the owner);
+ * the keys left the painter (2026-11-16), and the selection inspector takes their place. The rooms preset came with the round (2026-11-13): the statistics at 350 x 200 and the
+ * top view at 350 x 260 (the room mapper went with its content into the room inspector, 2026-11-15); the statistics
+ * are 350 wide too. The widgets the owner did not
  * size stay free, and the header has to keep the name of the preset after the locks are applied — a layout that comes
  * back differently from the preset would show up as `Blank` — the name now says which layout is active, and a tweak
  * belongs to the preset it was made on (see `layoutHistory.ts`).
@@ -100,14 +102,14 @@ test('the default layout is the viewer, with the keys on the left and the plan o
   expect(await page.locator('[data-widget-kind="keyboard-shortcuts"]').getAttribute('data-locked-width')).toBeNull()
   expect(await page.locator('[data-widget-kind="keyboard-shortcuts"]').getAttribute('data-locked-height')).toBeNull()
 
-  expect(plan.width).toBe(340)
+  expect(plan.width).toBe(350)
   expect(plan.height).toBe(403)
-  expect(jump.width).toBe(340)
+  expect(jump.width).toBe(350)
   expect(jump.height).toBe(70)
-  expect(numbers.width).toBe(340)
-  expect(await page.locator('[data-widget-kind="top-view"]').getAttribute('data-locked-width')).toBe('340')
+  expect(numbers.width).toBe(350)
+  expect(await page.locator('[data-widget-kind="top-view"]').getAttribute('data-locked-width')).toBe('350')
   expect(await page.locator('[data-widget-kind="top-view"]').getAttribute('data-locked-height')).toBe('403')
-  expect(await page.locator('[data-widget-kind="jump-to-location"]').getAttribute('data-locked-width')).toBe('340')
+  expect(await page.locator('[data-widget-kind="jump-to-location"]').getAttribute('data-locked-width')).toBe('350')
   expect(await page.locator('[data-widget-kind="jump-to-location"]').getAttribute('data-locked-height')).toBe('70')
 
   // the numbers are the one block of the column that follows the window
@@ -220,7 +222,7 @@ test('the rooms preset comes with the sizes the owner measured', async ({ page }
   const inspector = await boxOf(page, 'room-inspector')
   const view = await boxOf(page, '3d-view')
 
-  expect(statistics.width).toBe(360)
+  expect(statistics.width).toBe(350)
   expect(statistics.height).toBe(200)
   expect(top.width).toBe(350)
   expect(top.height).toBe(260)
@@ -266,16 +268,16 @@ test('the painter preset comes with the sizes the owner measured', async ({ page
   const undo = await boxOf(page, 'undo-redo')
 
   // the two boxes of the arrangement: the two inspectors on the left, the uv mapper on the right
-  expect(inspector.width).toBe(360)
+  expect(inspector.width).toBe(350)
   expect(inspector.height).toBe(185)
-  expect(mapper.width).toBe(400)
+  expect(mapper.width).toBe(350)
   expect(mapper.height).toBe(430)
 
   expect(await page.locator('[data-widget-kind="polygon-inspector"]').getAttribute('data-locked-height')).toBe('185')
-  expect(await page.locator('[data-widget-kind="uv-mapper"]').getAttribute('data-locked-width')).toBe('400')
+  expect(await page.locator('[data-widget-kind="uv-mapper"]').getAttribute('data-locked-width')).toBe('350')
 
   // the row of the undo and the redo: a locked 60 pixel strip under the uv mapper (2026-11-06, the owner's request)
-  expect(undo.width).toBe(400)
+  expect(undo.width).toBe(350)
   expect(undo.height).toBe(60)
   expect(await page.locator('[data-widget-kind="undo-redo"]').getAttribute('data-locked-height')).toBe('60')
 
@@ -397,4 +399,46 @@ test('every layout keeps its own history, and the steps of the menu take it back
 
   await openMenu()
   await expect(page.locator('.preset-row', { hasText: 'Viewer' }).locator('.step').first()).toBeEnabled()
+})
+
+/**
+ * The five factory presets are on the function keys, in the order of the Presets menu.
+ *
+ * @remarks
+ * The list is a list, not a sorted one: F1 is the viewer of the menu's first row, and so on to the lighter (2026-11-22,
+ * the owner). The blank layout has no key of its own. The browser would open its own F1 (the help), F3 (the find) and F5
+ * (the reload) on those keys, and the editor stops it: a page that reloaded would lose the preset the test just read.
+ */
+test('the function keys switch the five presets in the order of the menu', async ({ page }) => {
+  await page.setViewportSize({ width: 1631, height: 850 })
+  await page.goto(editorUrl())
+
+  await expect(page.locator('.lm-DockPanel-widget').first()).toBeVisible()
+
+  const presets = [
+    ['F1', 'Viewer'],
+    ['F2', 'Editor'],
+    ['F3', 'Painter'],
+    ['F4', 'Rooms'],
+    ['F5', 'Lighter'],
+  ] as const
+
+  for (const [key, name] of presets) {
+    await page.keyboard.press(key)
+
+    await expect
+      .poll(async () => {
+        return await presetName(page)
+      })
+      .toBe(name)
+  }
+
+  // the blank layout has no key of its own: a key without a preset leaves the layout where it is
+  await page.keyboard.press('F6')
+
+  await expect
+    .poll(async () => {
+      return await presetName(page)
+    })
+    .toBe('Lighter')
 })

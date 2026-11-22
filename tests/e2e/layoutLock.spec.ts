@@ -170,7 +170,7 @@ test('a lock survives a reload when the widget is alone in its column', async ({
   const mapper = await boxOf(page, 'uv-mapper')
   const view = await boxOf(page, '3d-view')
 
-  expect(mapper.width).toBe(400)
+  expect(mapper.width).toBe(350)
   expect(Number(await page.locator('[data-widget-kind="uv-mapper"]').getAttribute('data-locked-height'))).toBe(
     mapper.height,
   )
@@ -183,10 +183,10 @@ test('a lock survives a reload when the widget is alone in its column', async ({
   const reloaded = await boxOf(page, 'uv-mapper')
   const reloadedView = await boxOf(page, '3d-view')
 
-  expect(reloaded.width).toBe(400)
+  expect(reloaded.width).toBe(350)
   expect(reloaded.height).toBe(mapper.height)
   expect(reloadedView.width).toBe(view.width)
-  expect(await page.locator('[data-widget-kind="uv-mapper"]').getAttribute('data-locked-width')).toBe('400')
+  expect(await page.locator('[data-widget-kind="uv-mapper"]').getAttribute('data-locked-width')).toBe('350')
 })
 
 test('a locked widget keeps its size, the others take the rest', async ({ page }) => {
@@ -306,7 +306,7 @@ test('a preset switched in the edit mode comes with the locks on the plates', as
   // the three locks of the rooms preset are on the plates: the plan, the statistics and the steps
   await expect(page.locator('.WidgetOverlay .size')).toHaveCount(3)
   expect(await badgeOf(page, 'top-view')).toBe('350 × 260')
-  expect(await badgeOf(page, 'map-statistics')).toBe('360 × 200')
+  expect(await badgeOf(page, 'map-statistics')).toBe('350 × 200')
   expect(await badgeOf(page, 'undo-redo')).toBe('350 × 60')
 })
 

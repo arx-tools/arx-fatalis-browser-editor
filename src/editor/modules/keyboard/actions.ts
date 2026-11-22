@@ -21,10 +21,12 @@ export type KeyboardActionId =
   | 'moveSlower'
   | 'openCameraDialog'
   | 'pasteSelection'
-  | 'toggleAnchors'
+  | 'presetEditor'
+  | 'presetLighter'
+  | 'presetPainter'
+  | 'presetRooms'
+  | 'presetViewer'
   | 'toggleCameraInfo'
-  | 'toggleCameraLight'
-  | 'toggleDebugPanel'
   | 'toggleHelp'
   | 'toggleLights'
   | 'toggleMesh'
@@ -42,7 +44,7 @@ export type KeyboardActionId =
  * The group an action belongs to in the help panel.
  */
 export type KeyboardGroup =
-  'camera' | 'developer' | 'history' | 'miscellaneous' | 'movement' | 'overlay' | 'selection' | 'view'
+  'camera' | 'developer' | 'history' | 'layouts' | 'miscellaneous' | 'movement' | 'overlay' | 'selection' | 'view'
 
 /**
  * One row of the action table: what it is called, where it lives and which combos fire it.
@@ -118,24 +120,10 @@ export const keyboardActions: readonly KeyboardAction[] = [
     modes: ['editor', 'pointerLocked'],
   },
   {
-    id: 'toggleCameraLight',
-    label: 'Toggle the camera light',
-    group: 'view',
-    keys: [{ code: 'KeyF' }],
-    modes: ['editor', 'pointerLocked'],
-  },
-  {
     id: 'toggleCameraInfo',
     label: 'Toggle the camera info',
     group: 'view',
     keys: [],
-    modes: ['editor', 'pointerLocked'],
-  },
-  {
-    id: 'toggleAnchors',
-    label: 'Toggle the anchors',
-    group: 'overlay',
-    keys: [{ code: 'KeyJ' }],
     modes: ['editor', 'pointerLocked'],
   },
   {
@@ -157,13 +145,6 @@ export const keyboardActions: readonly KeyboardAction[] = [
     label: 'Toggle the keys',
     group: 'view',
     keys: [{ code: 'KeyH' }],
-    modes: ['editor', 'pointerLocked'],
-  },
-  {
-    id: 'toggleDebugPanel',
-    label: 'Toggle the debug panel',
-    group: 'developer',
-    keys: [{ code: 'F2' }],
     modes: ['editor', 'pointerLocked'],
   },
   {
@@ -280,5 +261,40 @@ export const keyboardActions: readonly KeyboardAction[] = [
     keys: [{ code: 'ShiftLeft' }, { code: 'ShiftRight' }],
     modes: ['pointerLocked'],
     hold: true,
+  },
+  {
+    id: 'presetViewer',
+    label: 'Viewer',
+    group: 'layouts',
+    keys: [{ code: 'F1' }],
+    modes: ['editor', 'pointerLocked'],
+  },
+  {
+    id: 'presetEditor',
+    label: 'Editor',
+    group: 'layouts',
+    keys: [{ code: 'F2' }],
+    modes: ['editor', 'pointerLocked'],
+  },
+  {
+    id: 'presetPainter',
+    label: 'Painter',
+    group: 'layouts',
+    keys: [{ code: 'F3' }],
+    modes: ['editor', 'pointerLocked'],
+  },
+  {
+    id: 'presetRooms',
+    label: 'Rooms',
+    group: 'layouts',
+    keys: [{ code: 'F4' }],
+    modes: ['editor', 'pointerLocked'],
+  },
+  {
+    id: 'presetLighter',
+    label: 'Lighter',
+    group: 'layouts',
+    keys: [{ code: 'F5' }],
+    modes: ['editor', 'pointerLocked'],
   },
 ]

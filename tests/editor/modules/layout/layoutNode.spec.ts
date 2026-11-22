@@ -164,13 +164,13 @@ void describe('the viewer preset', () => {
     assert.deepEqual(root.sizes, [
       { kind: 'fixed', px: 350 },
       { kind: 'auto', ratio: 1 },
-      { kind: 'fixed', px: 340 },
+      { kind: 'fixed', px: 350 },
     ])
   })
 
   void it('locks the plan and the jump to the sizes the owner measured off the plate', () => {
-    assert.deepEqual(lockOfKind(viewerLayout, 'top-view'), { width: 340, height: 403 })
-    assert.deepEqual(lockOfKind(viewerLayout, 'jump-to-location'), { width: 340, height: 70 })
+    assert.deepEqual(lockOfKind(viewerLayout, 'top-view'), { width: 350, height: 403 })
+    assert.deepEqual(lockOfKind(viewerLayout, 'jump-to-location'), { width: 350, height: 70 })
   })
 
   void it('leaves the keys and the numbers free along the height', () => {
@@ -186,7 +186,7 @@ void describe('the painter preset', () => {
     // 2026-11-16, the owner: the keys left the preset, and the selection inspector takes the full height under the
     // polygon inspector
     assert.equal(collectKinds(painterLayout).includes('keyboard-shortcuts'), false)
-    assert.deepEqual(lockOfKind(painterLayout, 'polygon-inspector'), { width: 360, height: 185 })
+    assert.deepEqual(lockOfKind(painterLayout, 'polygon-inspector'), { width: 350, height: 185 })
     assert.equal(lockOfKind(painterLayout, 'selection-inspector'), undefined)
   })
 })

@@ -22,6 +22,7 @@ import {
 import { LayoutEditor, type MountWidgetOverlay } from '../layout/layoutEditor.ts'
 import { layoutEquals, lockedBoxOf, lockWidgetTo, type LayoutNode } from '../layout/layoutNode.ts'
 import { createWidget, widgetKind, type WidgetDefinition } from '../layout/widgetDefinition.ts'
+import { onKeyboardAction } from '../keyboard/keyboard.ts'
 import { persistedRef } from '../persistedRef/persistedRef.ts'
 
 /**
@@ -638,6 +639,24 @@ export function createEditorShell(
   const firstFit = requestAnimationFrame(() => {
     apply.applyManagedSizes()
     dock.fit()
+  })
+
+  // the five factory presets on the function keys, in the order the Presets menu shows them (a list, not a sorted one):
+  // the blank layout has no key of its own (2026-11-22, the owner)
+  onKeyboardAction('presetViewer', () => {
+    applyPreset('viewer')
+  })
+  onKeyboardAction('presetEditor', () => {
+    applyPreset('editor')
+  })
+  onKeyboardAction('presetPainter', () => {
+    applyPreset('painter')
+  })
+  onKeyboardAction('presetRooms', () => {
+    applyPreset('rooms')
+  })
+  onKeyboardAction('presetLighter', () => {
+    applyPreset('lighter')
   })
 
   return {

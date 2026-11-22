@@ -225,7 +225,7 @@ export const lighterLayout: LayoutNode = {
  * are the reference of the reader, so they sit beside the view at every row, not under a column of widgets
  * - the middle column is the walkable view, the whole height of the dock: this layout is not for editing, it is for
  * walking around and reading the number under the crosshair
- * - the right column is locked to 340 wide (the owner's measurement of the plate, 2026-11-15): the plan to 403 high, the
+ * - the right column is locked to 350 wide, the same as the left one (2026-11-22, the owner): the plan to 403 high, the
  * jump to 70, and the numbers of the renderer take what the two locks leave
  *
  * The locks are the sizes the owner read off the badge of the plate (2026-11-01).
@@ -233,7 +233,7 @@ export const lighterLayout: LayoutNode = {
 export const viewerLayout: LayoutNode = {
   type: 'split',
   orientation: 'horizontal',
-  sizes: [fixed(350), auto(1), fixed(340)],
+  sizes: [fixed(350), auto(1), fixed(350)],
   children: [
     { type: 'widget', kind: WIDGET_KINDS.keyboardShortcuts },
     { type: 'widget', kind: WIDGET_KINDS.view3d },
@@ -257,7 +257,8 @@ export const viewerLayout: LayoutNode = {
  * @remarks
  * The owner arranged this one in the editor (2026-11-04): the column of the work is the **right** one — the texture list
  * with the uv mapper above it — and the left column has the two inspectors. The numbers are the sizes he read off the
- * plates of the edit mode: the polygon inspector 360 x 185 and the uv mapper 400 x 430 (the width of the right column).
+ * plates of the edit mode: the polygon inspector 185 high and the uv mapper 430; both columns are 350 wide
+ * (2026-11-22, the owner).
  * The **keys left the preset** (2026-11-16, the owner): the selection inspector takes the full height under the polygon
  * inspector, which is the list the painter works from. The **undo and redo** row under the uv mapper is his later request
  * (2026-11-06): a locked 60 px strip, so the two steps of the history are a click away from the texture work. The
@@ -268,7 +269,7 @@ export const viewerLayout: LayoutNode = {
 export const painterLayout: LayoutNode = {
   type: 'split',
   orientation: 'horizontal',
-  sizes: [fixed(360), auto(1), fixed(400)],
+  sizes: [fixed(350), auto(1), fixed(350)],
   children: [
     {
       type: 'split',
@@ -297,8 +298,9 @@ export const painterLayout: LayoutNode = {
  * The layout of the room work: the statistics, the walkable view and the rooms.
  *
  * @remarks
- * The owner measured the layout of the round (2026-11-13): the statistics at **360 x 200** and the selection inspector
- * under it on the left, the walkable view in the middle, and the top view at **350 x 260** on the right. The undo and
+ * The owner measured the layout of the round (2026-11-13): the statistics at **200** high and the selection inspector
+ * under it on the left, the walkable view in the middle, and the top view at **260** on the right; both columns are
+ * **350** wide (2026-11-22, the owner). The undo and
  * redo row takes its **60** there (2026-11-17, the owner: the steps of the work under the plan), and the room inspector
  * takes what the two locks leave. The walkable view's own readout carries the camera (the camera controls widget is not
  * on this layout), and the room map is the surface the round works on.
@@ -310,7 +312,7 @@ export const painterLayout: LayoutNode = {
 export const roomsLayout: LayoutNode = {
   type: 'split',
   orientation: 'horizontal',
-  sizes: [fixed(360), auto(1), fixed(350)],
+  sizes: [fixed(350), auto(1), fixed(350)],
   children: [
     {
       type: 'split',

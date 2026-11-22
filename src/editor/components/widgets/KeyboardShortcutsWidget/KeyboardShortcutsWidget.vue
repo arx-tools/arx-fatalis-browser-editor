@@ -217,12 +217,25 @@ const sections = computed<readonly HelpSection[]>(() => {
       ],
     },
     {
-      // the last section: the keys that belong to none of the others (2026-11-14, the owner). The row of the popup is
-      // here, so a layout without the widget still shows the list, and the dialog says how it opens
+      // the section of the keys that belong to none of the others (2026-11-14, the owner). The row of the popup is here,
+      // so a layout without the widget still shows the list, and the dialog says how it opens
       title: 'Miscellaneous',
       rows: [
         { keys: [{ kind: 'text', text: 'H' }], action: 'Show keyboard shortcuts popup' },
         { keys: [primaryKey, { kind: 'text', text: 'G' }], action: 'Group the selected faces' },
+      ],
+    },
+    {
+      // the last section: the five factory presets on the function keys, in the order the Presets menu shows them (a
+      // list, not a sorted one), and the blank layout has no key of its own (2026-11-22, the owner). The keys come from
+      // the keyboard table with the rest of the list, when that round arrives
+      title: 'Layout presets',
+      rows: [
+        { keys: [{ kind: 'text', text: 'F1' }], action: 'Viewer' },
+        { keys: [{ kind: 'text', text: 'F2' }], action: 'Editor' },
+        { keys: [{ kind: 'text', text: 'F3' }], action: 'Painter' },
+        { keys: [{ kind: 'text', text: 'F4' }], action: 'Rooms' },
+        { keys: [{ kind: 'text', text: 'F5' }], action: 'Lighter' },
       ],
     },
   ]

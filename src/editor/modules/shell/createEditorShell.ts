@@ -132,6 +132,7 @@ const presetActions: Readonly<Partial<Record<PresetId, KeyboardActionId>>> = {
   painter: 'presetPainter',
   rooms: 'presetRooms',
   lighter: 'presetLighter',
+  entities: 'presetEntities',
 }
 
 /**

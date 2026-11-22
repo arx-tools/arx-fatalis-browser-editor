@@ -4,7 +4,7 @@ import { WIDGET_KINDS } from './widgetKinds.ts'
 /**
  * The identifier of a preset of the dock layout.
  */
-export type PresetId = 'custom' | 'editor' | 'lighter' | 'painter' | 'rooms' | 'viewer'
+export type PresetId = 'custom' | 'editor' | 'entities' | 'lighter' | 'painter' | 'rooms' | 'viewer'
 
 /**
  * One factory preset of the layout.
@@ -338,6 +338,16 @@ export const roomsLayout: LayoutNode = {
 }
 
 /**
+ * The layout of the entity work: the rooms preset, copied.
+ *
+ * @remarks
+ * The owner asked for a copy (2026-11-22): the entity work starts from the frame of the room work (the statistics and
+ * the selection inspector on the left, the walkable view in the middle, the plan and the room inspector on the right),
+ * and the two may part ways later. The function keys follow the rows, so this one is `F6` and the blank layout has none.
+ */
+export const entitiesLayout: LayoutNode = structuredClone(roomsLayout)
+
+/**
  * The layout the editor starts with.
  *
  * @remarks
@@ -374,6 +384,7 @@ export const factoryPresets: readonly FactoryPreset[] = [
   { id: 'painter', label: 'Painter', layout: painterLayout },
   { id: 'rooms', label: 'Rooms', layout: roomsLayout },
   { id: 'lighter', label: 'Lighter', layout: lighterLayout },
+  { id: 'entities', label: 'Entities', layout: entitiesLayout },
   { id: 'custom', label: 'Blank', layout: customLayout },
 ]
 

@@ -91,6 +91,13 @@ const isLevelLoading = computed(() => {
 // the map has to survive that (a layout reset rebuilds every widget). Starting it here also means the
 // level is on its way before the dock asks for it.
 onMounted(async () => {
+  // the switches and the help start before the data directory of the browser is read: the dock is on the screen by then,
+  // and a key pressed in that gap (the E of the entities, the H of the help) has to be heard (2026-11-22, the e2e of the
+  // help popup was the one that found the gap)
+  startLevelDisplay()
+  startEditModes()
+  startHelpPopup()
+
   const url = getUrlAdapter(undefined)
   const zipUrl = zipUrlFromUrl(url)
   // the map and the pose the url names are read once, before a level is on the screen: the pose beside the map is the
@@ -125,9 +132,6 @@ onMounted(async () => {
 
   // the modules that follow the level start before it arrives: their watchers have to be there when it lands (and the
   // map of the url is read before the level is opened)
-  startLevelDisplay()
-  startEditModes()
-  startHelpPopup()
   startSelection()
   startLevelEditing()
   startDeleteSelection()

@@ -402,14 +402,14 @@ test('every layout keeps its own history, and the steps of the menu take it back
 })
 
 /**
- * The five factory presets are on the function keys, in the order of the Presets menu.
+ * The six factory presets are on the function keys, in the order of the Presets menu.
  *
  * @remarks
  * The list is a list, not a sorted one: F1 is the viewer of the menu's first row, and so on to the lighter (2026-11-22,
  * the owner). The blank layout has no key of its own. The browser would open its own F1 (the help), F3 (the find) and F5
  * (the reload) on those keys, and the editor stops it: a page that reloaded would lose the preset the test just read.
  */
-test('the function keys switch the five presets in the order of the menu', async ({ page }) => {
+test('the function keys switch the six presets in the order of the menu', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
   await page.goto(editorUrl())
 
@@ -421,6 +421,7 @@ test('the function keys switch the five presets in the order of the menu', async
     ['F3', 'Painter'],
     ['F4', 'Rooms'],
     ['F5', 'Lighter'],
+    ['F6', 'Entities'],
   ] as const
 
   for (const [key, name] of presets) {
@@ -436,14 +437,14 @@ test('the function keys switch the five presets in the order of the menu', async
     await expect(page.locator('header button[aria-label="Presets"]')).toContainText(`(${key})`)
   }
 
-  // the blank layout has no key of its own: a key without a preset leaves the layout where it is
-  await page.keyboard.press('F6')
+  // the blank layout has no key of its own: a key without a preset leaves the layout where it is (the sixth preset)
+  await page.keyboard.press('F7')
 
   await expect
     .poll(async () => {
       return await presetName(page)
     })
-    .toBe('Lighter')
+    .toBe('Entities')
 
   // the rows of the menu say the keys of the same list, and the blank layout says none
   await page.locator('header button[aria-label="Presets"]').click()
@@ -455,4 +456,44 @@ test('the function keys switch the five presets in the order of the menu', async
   }
 
   await expect(rows.filter({ hasText: 'Blank' })).not.toContainText('(')
+})
+
+/**
+ * The Entities preset is the rooms one, copied.
+ *
+ * @remarks
+ * The owner asked for the entity work to start on the frame of the room work (2026-11-22): the same five widgets in the
+ * same boxes. The two trees are separate objects (the copy is made once), so a later change of one does not move the
+ * other, and this test pins the starting point down.
+ */
+test('the entities preset is the rooms one, copied', async ({ page }) => {
+  await page.setViewportSize({ width: 1631, height: 850 })
+  await page.goto(editorUrl())
+
+  await expect(page.locator('.lm-DockPanel-widget').first()).toBeVisible()
+
+  const kinds = ['map-statistics', 'selection-inspector', 'top-view', 'undo-redo', 'room-inspector']
+
+  await page.locator('header button[aria-label="Presets"]').click()
+  await page.locator('.preset-menu .preset-row', { hasText: 'Rooms' }).click()
+  await waitForLayoutSettled(page)
+
+  const rooms = await Promise.all(
+    kinds.map(async (kind) => {
+      return await boxOf(page, kind)
+    }),
+  )
+
+  await page.locator('header button[aria-label="Presets"]').click()
+  await page.locator('.preset-menu .preset-row', { hasText: 'Entities' }).click()
+  await waitForLayoutSettled(page)
+
+  const entities = await Promise.all(
+    kinds.map(async (kind) => {
+      return await boxOf(page, kind)
+    }),
+  )
+
+  expect(entities).toEqual(rooms)
+  expect(await presetName(page)).toBe('Entities')
 })

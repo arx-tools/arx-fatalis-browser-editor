@@ -104,6 +104,7 @@ export const switchNames: Record<HelpToggle, string> = {
   roomColors: 'the rooms',
   portals: 'the portals',
   lights: 'the lights',
+  entities: 'the entities',
   transform: 'the transform gizmo',
   rotate: 'the rotate gizmo',
   scale: 'the scale gizmo',
@@ -160,6 +161,8 @@ export const helpSections: readonly HelpSection[] = [
       { actionId: 'toggleRooms', action: 'Rooms', toggle: 'roomColors', parent: 'mesh' },
       { actionId: 'togglePortals', action: 'Portals', toggle: 'portals', parent: 'mesh' },
       { actionId: 'toggleLights', action: 'Lights', toggle: 'lights' },
+      // the entities of the level: the door of level 0 is the first one the editor draws (TODO 239)
+      { actionId: 'toggleEntities', action: 'Entities', toggle: 'entities' },
     ],
   },
   {
@@ -240,6 +243,7 @@ export const helpSections: readonly HelpSection[] = [
       { actionId: 'presetPainter', action: 'Painter' },
       { actionId: 'presetRooms', action: 'Rooms' },
       { actionId: 'presetLighter', action: 'Lighter' },
+      { actionId: 'presetEntities', action: 'Entities' },
     ],
   },
 ]

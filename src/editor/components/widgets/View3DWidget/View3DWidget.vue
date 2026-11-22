@@ -28,6 +28,7 @@ import { cameraStore } from '../camera/cameraStore.ts'
 import { renderPerformanceStore } from '../shared/renderPerformance.ts'
 import { transformVisible } from '../shared/editModes.ts'
 import {
+  isEntitiesVisible,
   isLightsVisible,
   isMeshVisible,
   isPortalsVisible,
@@ -203,6 +204,7 @@ let stopWatchingWireframe: (() => void) | undefined
 let stopWatchingMesh: (() => void) | undefined
 let stopWatchingPortals: (() => void) | undefined
 let stopWatchingLights: (() => void) | undefined
+let stopWatchingEntities: (() => void) | undefined
 let stopWatchingPortalRevision: (() => void) | undefined
 let stopWatchingRooms: (() => void) | undefined
 let stopWatchingRoom: (() => void) | undefined
@@ -497,6 +499,7 @@ function showMap(map: ArxMap): void {
       }
 
       spikeEntity = group
+      group.visible = isEntitiesVisible.value
       view.scene.add(group)
       loop.requestRender()
     })
@@ -711,6 +714,16 @@ onMounted(() => {
     },
   )
 
+  // the entities of the level are a switch like the lights: they stay in the scene, and the switch takes them off the
+  // frame (TODO 239: the door of level 0 is the first one)
+  stopWatchingEntities = watch(isEntitiesVisible, (visible) => {
+    if (spikeEntity !== undefined) {
+      spikeEntity.visible = visible
+    }
+
+    loop.requestRender()
+  })
+
   // the portal outline is a switch of every view at once: the same ref is read by the six fixed ones
   stopWatchingPortals = watch(isPortalsVisible, () => {
     updateVisibility()
@@ -771,6 +784,7 @@ onBeforeUnmount(() => {
     stopWatchingMesh,
     stopWatchingPortals,
     stopWatchingLights,
+    stopWatchingEntities,
     stopWatchingPortalRevision,
     stopWatchingRooms,
     stopWatchingRoom,
@@ -789,6 +803,7 @@ onBeforeUnmount(() => {
   stopWatchingMesh = undefined
   stopWatchingPortals = undefined
   stopWatchingLights = undefined
+  stopWatchingEntities = undefined
   stopWatchingPortalRevision = undefined
   stopWatchingRooms = undefined
   stopWatchingRoom = undefined

@@ -76,6 +76,21 @@ export const isLightsVisible = persistedRef<boolean>({
 })
 
 /**
+ * Whether the entities of the level are drawn.
+ *
+ * @remarks
+ * The entities are the interactive objects of the DLF, and the editor draws the ones the level holds (today the door of
+ * level 0, from the spike of TODO 235). The switch is a view preference like the others, and its default is **on**: the
+ * entities are part of the level, not a debug aid. The `E` toggles it (2026-11-22, the owner: the first slice of
+ * TODO 239).
+ */
+export const isEntitiesVisible = persistedRef<boolean>({
+  key: 'entitiesVisible',
+  defaultValue: true,
+  persistInLocalStorage: true,
+})
+
+/**
  * The switches of the View section of the key help, with the value each one starts from.
  *
  * @remarks
@@ -89,6 +104,7 @@ export const viewSwitches = {
   roomColors: { ref: isRoomColorsVisible, defaultValue: false },
   portals: { ref: isPortalsVisible, defaultValue: false },
   lights: { ref: isLightsVisible, defaultValue: false },
+  entities: { ref: isEntitiesVisible, defaultValue: true },
 } as const satisfies Record<string, { readonly ref: ShallowRef<boolean>; readonly defaultValue: boolean }>
 
 /**
@@ -181,4 +197,5 @@ export function startLevelDisplay(): void {
   onKeyboardAction('toggleRooms', toggleRoomColors)
   onKeyboardAction('togglePortals', togglePortals)
   onKeyboardToggle('toggleLights', isLightsVisible)
+  onKeyboardToggle('toggleEntities', isEntitiesVisible)
 }

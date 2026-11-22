@@ -68,7 +68,14 @@ test('the portals are a view of the level, under the mesh', async ({ page }) => 
   const meshRow = viewContext.locator('dd', { hasText: 'Mesh' })
 
   // the row sits under the rooms, with the branch of a child, and it names its key (the fourth row of the section)
-  await expect(viewContext.locator('dd .action')).toHaveText(['Wireframe', 'Mesh', 'Rooms', 'Portals', 'Lights'])
+  await expect(viewContext.locator('dd .action')).toHaveText([
+    'Wireframe',
+    'Mesh',
+    'Rooms',
+    'Portals',
+    'Lights',
+    'Entities',
+  ])
   await expect(portalsRow.locator('.branch')).toHaveCount(1)
   await expect(viewContext.locator('dt').nth(3).locator('kbd')).toHaveText('P')
 

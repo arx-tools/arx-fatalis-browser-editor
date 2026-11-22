@@ -22,11 +22,13 @@ export type KeyboardActionId =
   | 'openCameraDialog'
   | 'pasteSelection'
   | 'presetEditor'
+  | 'presetEntities'
   | 'presetLighter'
   | 'presetPainter'
   | 'presetRooms'
   | 'presetViewer'
   | 'toggleCameraInfo'
+  | 'toggleEntities'
   | 'toggleHelp'
   | 'toggleLights'
   | 'toggleMesh'
@@ -311,6 +313,20 @@ export const keyboardActions: readonly KeyboardAction[] = [
     label: 'Next face of the selection',
     group: 'selection',
     keys: [{ code: 'Period' }],
+    modes: ['editor', 'pointerLocked'],
+  },
+  {
+    id: 'toggleEntities',
+    label: 'Toggle the entities',
+    group: 'overlay',
+    keys: [{ code: 'KeyE' }],
+    modes: ['editor', 'pointerLocked'],
+  },
+  {
+    id: 'presetEntities',
+    label: 'Entities',
+    group: 'layouts',
+    keys: [{ code: 'F6' }],
     modes: ['editor', 'pointerLocked'],
   },
 ]

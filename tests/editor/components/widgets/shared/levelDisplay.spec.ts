@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { beforeEach, describe, it } from 'node:test'
 import {
+  isEntitiesVisible,
   isLightsVisible,
   isMeshVisible,
   isPortalsVisible,
@@ -50,6 +51,7 @@ beforeEach(() => {
   isRoomColorsVisible.value = false
   isPortalsVisible.value = false
   isLightsVisible.value = false
+  isEntitiesVisible.value = true
   isMeshVisible.value = true
 })
 
@@ -91,6 +93,29 @@ void describe('toggleLights', () => {
 
     toggleLights()
     assert.equal(isLightsVisible.value, true)
+  })
+})
+
+void describe('isEntitiesVisible', () => {
+  void it('starts on: the entities are part of the level, not a debug aid', () => {
+    assert.equal(isEntitiesVisible.value, true)
+  })
+
+  void it('is a preference with a key of its own', () => {
+    assert.equal(isEntitiesVisible.key, 'entitiesVisible')
+  })
+})
+
+void describe('the E key', () => {
+  void it('flips the switch of the entities', () => {
+    startLevelDisplay()
+
+    handleKeyDown(press('KeyE'))
+    assert.equal(isEntitiesVisible.value, false)
+
+    clearPressedKeys()
+    handleKeyDown(press('KeyE'))
+    assert.equal(isEntitiesVisible.value, true)
   })
 })
 

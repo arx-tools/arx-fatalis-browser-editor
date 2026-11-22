@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { testLayout } from '../support/layouts.ts'
-import { editorUrl, seedLayout, statOf, waitForLevel } from './support/editor.ts'
+import { editorUrl, seedLayout, seedLightingProfile, statOf, waitForLevel } from './support/editor.ts'
 
 /**
  * The markers of the lights in a fixed view: the overlay canvas is a 2D canvas over the scene, and the markers are its
@@ -74,6 +74,8 @@ test('the fixed views draw a marker of every light while the switch is on', asyn
 test('the dots of the blank level follow the switch of the lights', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
   await seedLayout(page, testLayout)
+  // the light of the blank level is static: the profile has to read the lights for its dot to be drawn
+  await seedLightingProfile(page)
   await page.goto('/?map=blank-flat')
   await waitForLevel(page)
 
@@ -113,6 +115,7 @@ test('the dots of the blank level follow the switch of the lights', async ({ pag
 test('the dots of a fixed view come back after the frames a dialog dropped', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
   await seedLayout(page, testLayout)
+  await seedLightingProfile(page)
   await page.goto('/?map=blank-flat')
   await waitForLevel(page)
 
@@ -171,6 +174,7 @@ test('the dots of a fixed view come back after the frames a dialog dropped', asy
 test('the dots of a fixed view follow the switches after a second level', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
   await seedLayout(page, testLayout)
+  await seedLightingProfile(page)
   await page.goto('/?map=blank-minimal')
   await waitForLevel(page)
 

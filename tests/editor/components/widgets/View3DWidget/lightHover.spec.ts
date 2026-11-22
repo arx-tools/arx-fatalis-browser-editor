@@ -8,6 +8,7 @@ import { lightHoverStore } from '../../../../../src/editor/modules/selection/lig
 import { lightSelectionStore } from '../../../../../src/editor/modules/selection/lightSelectionStore.ts'
 import { selectionStore } from '../../../../../src/editor/modules/selection/selectionStore.ts'
 import { isLightsVisible } from '../../../../../src/editor/components/widgets/shared/levelDisplay.ts'
+import { lightingProfile } from '../../../../../src/editor/modules/level/edit/lightingProfile.ts'
 import {
   createLightMarkers,
   type LightMarkerTextures,
@@ -79,6 +80,8 @@ beforeEach(() => {
 
   // the markers are the target of the pick only while the Lights switch shows them
   isLightsVisible.value = true
+  // the profiles with a light of their own hide the markers of the static lights: the pick is about the others
+  lightingProfile.value = 'Arx'
 })
 
 void describe('useSelectionDrag.pickUnderCrosshair', () => {

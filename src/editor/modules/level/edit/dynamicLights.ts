@@ -4,6 +4,7 @@ import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { persistedRef } from '../../persistedRef/persistedRef.ts'
 import { levelRevision } from './editing.ts'
 import { lightsRevision } from './lightEditing.ts'
+import { lightingProfile, readsPalette } from './lightingProfile.ts'
 import { levelStore } from './levelStore.ts'
 import { writeBakedColors } from './levelTextures/bakedColors.ts'
 import {
@@ -65,6 +66,20 @@ export const isDynamicLightsVisible = persistedRef<boolean>({
 })
 
 /**
+ * Whether the baked light of the level is on the corners, whatever the static switch says.
+ *
+ * @remarks
+ * The static switch takes the palette of the level away, and the palette is what the profiles that read the lights
+ * baked. The `Flat` and the `Texture Rainbow` profiles read no light: their colour is the light of the map, and there is
+ * nothing under it to take away, so the level keeps its light while one of them is on (2026-11-22, the owner).
+ *
+ * @returns True when the palette of the profile lights the level.
+ */
+export function isStaticLightOn(): boolean {
+  return isStaticLightsVisible.value || !readsPalette(lightingProfile.value)
+}
+
+/**
  * What draws the layer: the render of a view that registered itself, and the camera it draws with.
  *
  * @remarks
@@ -118,7 +133,7 @@ let started = false
  * @returns True when the controller has to paint the light of the level.
  */
 function isOverridden(): boolean {
-  if (!isStaticLightsVisible.value) {
+  if (!isStaticLightOn()) {
     return true
   }
 
@@ -166,7 +181,7 @@ function paintStaticLights(): void {
     return
   }
 
-  if (isStaticLightsVisible.value) {
+  if (isStaticLightOn()) {
     if (isBlackened) {
       writeBakedColors(map)
       isBlackened = false
@@ -218,7 +233,7 @@ function applyFrame(): boolean {
     return false
   }
 
-  const applied = applyDynamicLightModel(model, geometry, Math.random, isStaticLightsVisible.value)
+  const applied = applyDynamicLightModel(model, geometry, Math.random, isStaticLightOn())
 
   if (applied) {
     isApplied = true
@@ -452,7 +467,7 @@ function sync(): void {
     return
   }
 
-  if (isStaticLightsVisible.value) {
+  if (isStaticLightOn()) {
     // the palette may have been baked again: the base of the layer follows it
     refreshDynamicLightBaseColors(model, map)
   }
@@ -520,6 +535,7 @@ export function startDynamicLights(): void {
     [
       isStaticLightsVisible,
       isDynamicLightsVisible,
+      lightingProfile,
       (): ArxMap | undefined => {
         return levelStore.map.value
       },

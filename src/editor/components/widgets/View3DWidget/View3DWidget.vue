@@ -10,6 +10,7 @@ import {
   isStaticLightsVisible,
   registerDynamicLightsView,
 } from '../../../modules/level/edit/dynamicLights.ts'
+import { lightingProfile } from '../../../modules/level/edit/lightingProfile.ts'
 import { activeFaceGroups } from '../../../modules/groups/groupStore.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { lightsRevision } from '../../../modules/level/edit/lightEditing.ts'
@@ -690,6 +691,7 @@ onMounted(() => {
       lightHoverStore.light,
       isStaticLightsVisible,
       isDynamicLightsVisible,
+      lightingProfile,
     ],
     ([visible]) => {
       if (lightMarkers !== undefined) {

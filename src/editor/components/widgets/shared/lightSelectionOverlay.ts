@@ -1,7 +1,7 @@
 import { AdditiveBlending, CanvasTexture, Group, Sprite, SpriteMaterial, type Texture } from 'three'
 import type { ArxLight } from 'arx-convert/types'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
-import { lightMarkerSizeOf } from './lightMarkers.ts'
+import { isLightHidden, lightMarkerSizeOf } from './lightMarkers.ts'
 
 /**
  * The side of the square the ring of the selection is drawn into, in pixels.
@@ -165,7 +165,7 @@ export function createLightSelectionOverlay(): LightSelectionOverlay {
       for (const index of selected) {
         const light = lights[index]
 
-        if (light === undefined) {
+        if (light === undefined || isLightHidden(light)) {
           continue
         }
 
@@ -178,7 +178,7 @@ export function createLightSelectionOverlay(): LightSelectionOverlay {
 
       const light = lights[hovered]
 
-      if (light === undefined) {
+      if (light === undefined || isLightHidden(light)) {
         return
       }
 

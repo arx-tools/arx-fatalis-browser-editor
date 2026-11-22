@@ -17,6 +17,7 @@ import {
 import { writeBakedColors } from './levelTextures/bakedColors.ts'
 import { buildMaterial, paintedNamesOf, paintKeyOf, paintKeyOfPolygon } from './levelTextures/paint.ts'
 import { applyTemporaryUvsOf } from './levelTextures/temporaryUvs.ts'
+import { isRainbowProfile, lightingProfile } from './lightingProfile.ts'
 import {
   addRunGroups,
   drawnRunsOf,
@@ -72,6 +73,14 @@ type PaintedLevel = {
    */
   readonly textures: ReadonlyMap<string, Texture>
   readonly missing: Texture | undefined
+  /**
+   * Whether the materials were built for the `TextureRainbow` profile, which keeps the textures lightened.
+   *
+   * @remarks
+   * The profile is a fact of the author, not of the level: a change of it repaints the level, and the materials are
+   * rebuilt when the flag turns (the shader of a texture material is not the one of the other profile).
+   */
+  readonly rainbow: boolean
 }
 
 /**
@@ -125,10 +134,16 @@ let current: PaintedTextures | undefined
  * @param map The map to paint.
  * @param textures The textures, by the name the level calls them.
  * @param missing The texture the containers the zip has none for draw with; without it they stay the flat colour.
+ * @param rainbow Whether the materials are the ones of the `TextureRainbow` profile, which lightens the textures.
  *
  * @returns How many containers got a texture.
  */
-export function paintLevelTextures(map: ArxMap, textures: ReadonlyMap<string, Texture>, missing?: Texture): number {
+export function paintLevelTextures(
+  map: ArxMap,
+  textures: ReadonlyMap<string, Texture>,
+  missing?: Texture,
+  rainbow = false,
+): number {
   const mesh = map.solidMeshes[0]
 
   if (mesh === undefined) {
@@ -162,6 +177,7 @@ export function paintLevelTextures(map: ArxMap, textures: ReadonlyMap<string, Te
   const isSamePaint =
     started?.textures === textures &&
     started.missing === missing &&
+    started.rainbow === rainbow &&
     started.materials.length === keys.length &&
     keyStrings.every((key, index) => {
       return started.keys[index] === key
@@ -175,7 +191,7 @@ export function paintLevelTextures(map: ArxMap, textures: ReadonlyMap<string, Te
     materials.length = 0
 
     for (const key of keys) {
-      materials.push(buildMaterial(key, textures, missing))
+      materials.push(buildMaterial(key, textures, missing, rainbow))
     }
   }
 
@@ -206,9 +222,9 @@ export function paintLevelTextures(map: ArxMap, textures: ReadonlyMap<string, Te
   }
 
   if (started?.mesh === mesh) {
-    painted = { mesh, material: started.material, materials, keys: keyStrings, textures, missing }
+    painted = { mesh, material: started.material, materials, keys: keyStrings, textures, missing, rainbow }
   } else {
-    painted = { mesh, material: mesh.material, materials, keys: keyStrings, textures, missing }
+    painted = { mesh, material: mesh.material, materials, keys: keyStrings, textures, missing, rainbow }
     mesh.material = materials
   }
 
@@ -253,7 +269,7 @@ export function unpaintLevelTextures(map: ArxMap): void {
 export function paintZipTextures(map: ArxMap, textures: Map<string, Texture>, missing?: Texture): number {
   current = { map, textures, missing }
 
-  return paintLevelTextures(map, textures, missing)
+  return paintLevelTextures(map, textures, missing, isRainbowProfile(lightingProfile.value))
 }
 
 /**
@@ -446,7 +462,7 @@ async function repaintForRevision(): Promise<void> {
   }
 
   if (current !== undefined) {
-    paintLevelTextures(current.map, current.textures, current.missing)
+    paintLevelTextures(current.map, current.textures, current.missing, isRainbowProfile(lightingProfile.value))
 
     // the paint of the level came after the step that asked for it (the texture was still on its way), so the views drew
     // the level before this: the step is what they follow, and it has to hear about the paint that followed it. Without
@@ -504,7 +520,7 @@ export function repaintLevelColors(): void {
     return
   }
 
-  paintLevelTextures(current.map, current.textures, current.missing)
+  paintLevelTextures(current.map, current.textures, current.missing, isRainbowProfile(lightingProfile.value))
   bumpLevelRevision()
 }
 

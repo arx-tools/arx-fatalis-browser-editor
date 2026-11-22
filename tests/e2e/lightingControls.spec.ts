@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { editorUrl, waitForLayoutSettled } from './support/editor.ts'
+import { editorUrl, litPixels, nextFrames, screenshotDifference, waitForLayoutSettled } from './support/editor.ts'
 
 /**
  * The lighting controls: the `Lighter` preset carries them, and the profile of the bake is a fact of the browser.
@@ -156,15 +156,15 @@ test('the flat light reads out as a percentage of a fixed width', async ({ page 
 })
 
 /**
- * The fields of the lighting controls start at the same column, and the two rows fit the 60 px of the Lighter preset.
+ * The fields of the lighting controls start at the same column, and the rows fit the height of the Lighter preset.
  *
  * @remarks
- * The caption sits beside the control (2026-11-18): the profile row and the flat row start at the same x, after the
- * captions, and the content of the widget fits the 60 px the preset locks, so the caption of the profile is not cut at
- * the top (the 253). The two switches of the light layer are the third and the fourth row, and the preset locks the
- * height the four need.
+ * The caption sits beside the control (2026-11-18): the profile row and the luminosity row start at the same x, after
+ * the captions, and the content of the widget fits the height the preset locks, so the caption of the profile is not cut
+ * at the top (the 253). The switch of the static lights is only there for the profiles that read the lights (2026-11-22),
+ * so the flat profile shows three rows in a box of 130.
  */
-test('the fields start at the same column, and the four rows fit the Lighter preset', async ({ page }) => {
+test('the fields start at the same column, and the rows fit the Lighter preset', async ({ page }) => {
   await page.goto(editorUrl())
 
   await page.locator('header button[aria-label="Presets"]').click()
@@ -270,4 +270,174 @@ test('the throbber of the bake turns in place', async ({ page }) => {
   for (const offset of offsets) {
     expect(Math.abs(offset)).toBeLessThan(1)
   }
+})
+
+/**
+ * The `Texture Rainbow` profile draws the level with the colour of its containers.
+ *
+ * @remarks
+ * The profile multiplies its palette with the texture of the face, and the textures of the game are dark, so the colour
+ * came out muddy (2026-11-20, the owner). The material keeps a third of the texture under the colour (2026-11-22),
+ * which is a fragment shader of its own: a shader the renderer can not compile draws nothing, and the console says so,
+ * so the test reads the picture and the console together.
+ */
+test('the Texture Rainbow draws the level with the colour of its containers', async ({ page }) => {
+  const errors: string[] = []
+
+  page.on('console', (message) => {
+    if (message.type() === 'error') {
+      errors.push(message.text())
+    }
+  })
+
+  await page.goto(editorUrl())
+
+  await page.locator('header button[aria-label="Presets"]').click()
+  await page.locator('.preset-menu .preset-row', { hasText: 'Lighter' }).click()
+  await waitForLayoutSettled(page)
+
+  const controls = page.locator('[data-widget-kind="lighting-controls"]')
+  const select = controls.locator('select')
+
+  await select.selectOption('TextureRainbow')
+  await expect(select).toHaveValue('TextureRainbow')
+
+  await nextFrames(page, 3)
+
+  // the palette of the profile colours every face: the view is not the grey the flat profile leaves, and not black
+  const stage = page.locator('[data-widget-kind="3d-view"] canvas.stage')
+  const lit = await litPixels(stage)
+
+  expect(lit).toBeGreaterThan(1000)
+  expect(
+    errors.filter((text) => {
+      return /three|shader/iu.test(text)
+    }),
+  ).toEqual([])
+})
+
+/**
+ * The switch of the static lights belongs to the profiles that read the lights.
+ *
+ * @remarks
+ * The `Flat` and the `Texture Rainbow` profiles draw a light of their own, so the static switch would take away nothing
+ * there: it is off the widget, and the slider is the light of the level (2026-11-22, the owner). The profiles that read
+ * the lights keep the switch and have no slider.
+ */
+test('the switch of the static lights is only there for the profiles that read the lights', async ({ page }) => {
+  await page.goto(editorUrl())
+
+  await page.locator('header button[aria-label="Presets"]').click()
+  await page.locator('.preset-menu .preset-row', { hasText: 'Lighter' }).click()
+  await waitForLayoutSettled(page)
+
+  const controls = page.locator('[data-widget-kind="lighting-controls"]')
+  const select = controls.locator('select')
+
+  await expect(select).toHaveValue('Flat')
+  await expect(controls.locator('#static-lights')).toHaveCount(0)
+  await expect(controls.locator('#flat-luminosity')).toBeVisible()
+
+  await select.selectOption('TextureRainbow')
+
+  // the rainbow has a light of its own, and the slider starts at the 70% of the default
+  await expect(controls.locator('#static-lights')).toHaveCount(0)
+  await expect(controls.locator('#rainbow-luminosity')).toBeVisible()
+  await expect(controls.locator('.value')).toHaveText('70%')
+
+  await select.selectOption('Arx')
+
+  await expect(select).toHaveValue('Arx')
+  await expect(controls.locator('#static-lights')).toHaveCount(1)
+  await expect(controls.locator('input[type="range"]')).toHaveCount(0)
+})
+
+/**
+ * The luminosity of the rainbow darkens the colours of the level.
+ *
+ * @remarks
+ * The profile bakes a hue per texture container at the value of the slider: a step of the slider is a step of the light
+ * of the whole level, without a role for the lights of the map (2026-11-22, the owner).
+ */
+test('the luminosity of the rainbow darkens the colours of the level', async ({ page }) => {
+  await page.goto(editorUrl())
+
+  await page.locator('header button[aria-label="Presets"]').click()
+  await page.locator('.preset-menu .preset-row', { hasText: 'Lighter' }).click()
+  await waitForLayoutSettled(page)
+
+  const controls = page.locator('[data-widget-kind="lighting-controls"]')
+  const select = controls.locator('select')
+
+  await select.selectOption('TextureRainbow')
+
+  const slider = controls.locator('#rainbow-luminosity')
+
+  await expect(slider).toHaveValue('0.7')
+
+  const stage = page.locator('[data-widget-kind="3d-view"] canvas.stage')
+
+  await nextFrames(page, 3)
+
+  const bright = await stage.screenshot()
+
+  await slider.evaluate((element) => {
+    if (element instanceof HTMLInputElement) {
+      element.value = '0.3'
+      element.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+  })
+
+  await expect(controls.locator('.value')).toHaveText('30%')
+  await nextFrames(page, 5)
+
+  const dark = await stage.screenshot()
+  const lit = await screenshotDifference(page, bright, dark)
+
+  // the level is darker, and not a few pixels of it: the whole palette of the profile
+  expect(lit.differing).toBeGreaterThan(1000)
+  expect(lit.secondSum).toBeLessThan(lit.firstSum)
+
+  // the value is a fact of the author: the next visit comes back with it
+  await expect
+    .poll(async () => {
+      return await page.evaluate(() => {
+        return localStorage.getItem('rainbowLuminosity')
+      })
+    })
+    .toBe('0.3')
+})
+
+/**
+ * A profile change does not move the controls of the widget.
+ *
+ * @remarks
+ * The dropdown and the slider of the light take one width (2026-11-22, the owner): the profiles that read the lights
+ * have no slider, and a dropdown of its own width would move the captions and the controls under the hand of the author.
+ */
+test('a profile change does not move the controls of the widget', async ({ page }) => {
+  await page.goto(editorUrl())
+
+  await page.locator('header button[aria-label="Presets"]').click()
+  await page.locator('.preset-menu .preset-row', { hasText: 'Lighter' }).click()
+  await waitForLayoutSettled(page)
+
+  const controls = page.locator('[data-widget-kind="lighting-controls"]')
+  const select = controls.locator('select')
+
+  const flatSelect = await select.boundingBox()
+  const sliderRow = await controls.locator('.flat-field .row').boundingBox()
+
+  // the dropdown is as wide as the row of the slider and its readout
+  expect(flatSelect?.width).toBe(sliderRow?.width)
+
+  await select.selectOption('Arx')
+
+  await expect(controls.locator('#static-lights')).toHaveCount(1)
+
+  const arxSelect = await select.boundingBox()
+
+  // the profile without the slider keeps the place of the dropdown, and the width of it
+  expect(arxSelect?.x).toBeCloseTo(flatSelect?.x ?? 0, 1)
+  expect(arxSelect?.width).toBeCloseTo(flatSelect?.width ?? 0, 1)
 })

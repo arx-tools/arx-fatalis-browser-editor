@@ -77,6 +77,24 @@ export async function seedLayout(page: Page, layout: LayoutNode): Promise<void> 
 }
 
 /**
+ * Seeds the profile of the lighting the editor opens with.
+ *
+ * @remarks
+ * The profile is a fact of the browser, and its default is the flat one. A test that drives the static light layer (the
+ * switch, the palette of the export, the markers of the lights) needs a profile that reads the lights: the flat and the
+ * rainbow ones have a light of their own, and they hide the static lights (2026-11-22, the owner). The call goes after
+ * {@link seedLayout}, whose script clears the storage.
+ *
+ * @param page The page to prepare.
+ * @param profile The profile the editor opens with, `Arx` by default.
+ */
+export async function seedLightingProfile(page: Page, profile = 'Arx'): Promise<void> {
+  await page.addInitScript((value: string) => {
+    localStorage.setItem('lightingProfile', JSON.stringify(value))
+  }, profile)
+}
+
+/**
  * Reads the value of a row of an info widget.
  *
  * @remarks

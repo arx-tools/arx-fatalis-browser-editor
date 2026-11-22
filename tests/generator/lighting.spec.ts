@@ -148,6 +148,17 @@ void describe('bakeLlfColors', () => {
     )
   })
 
+  void it('takes the value of the colours from the luminosity of the rainbow', () => {
+    const dark = bakeFloor({ rainbowLuminosity: 0 }, 'TextureRainbow')
+    const half = bakeFloor({ rainbowLuminosity: 0.5 }, 'TextureRainbow')
+    const full = bakeFloor({ rainbowLuminosity: 1 }, 'TextureRainbow')
+
+    assert.deepEqual(dark[0], { r: 0, g: 0, b: 0, a: 255 })
+    // the only container is the first one, red, at the saturation of the profile: the slider is the value of the colour
+    assert.deepEqual(half[0], { r: 128, g: 32, b: 32, a: 255 })
+    assert.deepEqual(full[0], { r: 255, g: 64, b: 64, a: 255 })
+  })
+
   void it('bakes the static light into the corners in the Arx mode', () => {
     const colors = bakeFloor({}, 'Arx')
 

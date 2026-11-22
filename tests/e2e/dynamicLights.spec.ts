@@ -1,6 +1,13 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { testLayout } from '../support/layouts.ts'
-import { editorUrl, nextFrames, screenshotDifference, seedLayout, waitForLevel } from './support/editor.ts'
+import {
+  editorUrl,
+  nextFrames,
+  screenshotDifference,
+  seedLayout,
+  seedLightingProfile,
+  waitForLevel,
+} from './support/editor.ts'
 
 /**
  * Opens the Lighter preset and puts the camera on a burning torch.
@@ -8,9 +15,16 @@ import { editorUrl, nextFrames, screenshotDifference, seedLayout, waitForLevel }
  * @param page The page of the editor.
  * @param options The light of the level.
  * @param options.flatZero Whether the flat light goes to zero: only the dynamic layer can light the level then.
+ * @param options.readsLights Whether the profile of the level reads the lights: the static switch and the dots of the
+ * views need one of those.
  */
-async function openTorch(page: Page, options: { flatZero?: boolean } = {}): Promise<void> {
+async function openTorch(page: Page, options: { flatZero?: boolean; readsLights?: boolean } = {}): Promise<void> {
   await seedLayout(page, testLayout)
+
+  if (options.readsLights === true) {
+    await seedLightingProfile(page)
+  }
+
   await page.goto(editorUrl())
   await waitForLevel(page)
 
@@ -141,7 +155,7 @@ test('the dynamic light layer lights the level like the game, and goes off again
 
 test('the static light switch takes the baked light away, and puts it back', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
-  await openTorch(page, { flatZero: false })
+  await openTorch(page, { flatZero: false, readsLights: true })
   await page.waitForTimeout(1200)
 
   const off = await stageOf(page).screenshot()
@@ -167,6 +181,7 @@ test('the static light switch takes the baked light away, and puts it back', asy
 })
 
 test('the dynamic light switch stays in the browser', async ({ page }) => {
+  await seedLightingProfile(page)
   await page.goto(editorUrl())
 
   await page.locator('header button[aria-label="Presets"]').click()
@@ -198,7 +213,7 @@ test('the dynamic light switch stays in the browser', async ({ page }) => {
 
 test('the small views draw the yellow dots of the lights, and grey the ones a switch took out', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
-  await openTorch(page, { flatZero: false })
+  await openTorch(page, { flatZero: false, readsLights: true })
   await page.waitForTimeout(800)
 
   // the markers of the views are off by default: L of the key help shows them

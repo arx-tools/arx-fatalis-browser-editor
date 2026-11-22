@@ -8,6 +8,7 @@ import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { roomRevision } from '../../../modules/rooms/roomRevision.ts'
 import { portalRevision } from '../../../modules/rooms/portalSync.ts'
 import { isDynamicLightsVisible, isStaticLightsVisible } from '../../../modules/level/edit/dynamicLights.ts'
+import { lightingProfile } from '../../../modules/level/edit/lightingProfile.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { centreOfBounds, type CameraBounds } from '../shared/cameraBounds.ts'
 import { gamePositionToWorld } from '../camera/cameraPose.ts'
@@ -33,7 +34,7 @@ import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import { hoverRoom, litRooms } from '../../../modules/rooms/roomStore.ts'
 import { pickRoom } from '../../../modules/rooms/roomSelection.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
-import { DISABLED_MARKER_GREY, isLightDisabled } from '../shared/lightMarkers.ts'
+import { DISABLED_MARKER_GREY, isLightDisabled, isLightHidden } from '../shared/lightMarkers.ts'
 import {
   createPolygonSelectionOverlay,
   pickPolygonAt,
@@ -210,6 +211,11 @@ function drawLights(target: ViewScene<OrthographicCamera>): void {
   const halfHeight = height / 2
 
   for (const mark of lightMarks) {
+    // the profiles with a light of their own have no use of the dots of the static lights
+    if (isLightHidden(mark.light)) {
+      continue
+    }
+
     const point = mark.position.clone().project(target.camera)
 
     if (Math.abs(point.z) > 1) {
@@ -750,7 +756,7 @@ stopWatchingMesh = watch(isMeshVisible, () => {
 })
 
 // the portal outline is a switch of every view at once
-stopWatchingLights = watch([isLightsVisible, isStaticLightsVisible, isDynamicLightsVisible], () => {
+stopWatchingLights = watch([isLightsVisible, isStaticLightsVisible, isDynamicLightsVisible, lightingProfile], () => {
   requestRender()
 })
 

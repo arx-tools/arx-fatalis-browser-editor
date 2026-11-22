@@ -6,9 +6,12 @@ import ToggleButton from '../../ToggleButton.vue'
 import { isDynamicLightsVisible, isStaticLightsVisible } from '../../../modules/level/edit/dynamicLights.ts'
 import {
   flatLuminosity,
+  hasLuminosity,
   isBakingLighting,
   LIGHTING_PROFILES,
   lightingProfile,
+  rainbowLuminosity,
+  readsPalette,
   type LightingProfile,
 } from '../../../modules/level/edit/lighting.ts'
 
@@ -29,13 +32,75 @@ const profile = computed<LightingProfile>({
 })
 
 /**
- * The light of the flat profile, bound to the slider.
+ * Whether the profile on the screen is the `Texture Rainbow` one.
+ */
+const isRainbow = computed<boolean>(() => {
+  return lightingProfile.value === 'TextureRainbow'
+})
+
+/**
+ * Whether the slider of the light belongs to the widget: the two profiles with a light of their own have one.
+ */
+const showsLuminosity = computed<boolean>(() => {
+  return hasLuminosity(lightingProfile.value)
+})
+
+/**
+ * Whether the switch of the static lights belongs to the widget.
+ *
+ * @remarks
+ * Only the profiles that read the lights have a baked palette under them: the `Flat` and the `Texture Rainbow` profiles
+ * draw a light of their own, and the switch would take away nothing there (2026-11-22, the owner).
+ */
+const showsStaticSwitch = computed<boolean>(() => {
+  return readsPalette(lightingProfile.value)
+})
+
+/**
+ * The identifier of the slider: one per profile, so the label and the field of the browser name the light they set.
+ */
+const luminosityFieldId = computed<string>(() => {
+  if (isRainbow.value) {
+    return 'rainbow-luminosity'
+  }
+
+  return 'flat-luminosity'
+})
+
+/**
+ * The name of the slider, for the assistive technology.
+ */
+const luminosityLabel = computed<string>(() => {
+  if (isRainbow.value) {
+    return 'Texture Rainbow luminosity'
+  }
+
+  return 'Flat luminosity'
+})
+
+/**
+ * The light of the profile, bound to the slider.
+ *
+ * @remarks
+ * The two profiles that have a light of their own keep their own value: the grey of the flat one, and the value of the
+ * colours of the rainbow one. The slider shows the value of the profile on the screen, and writes that one (2026-11-22,
+ * the owner: the rainbow got a slider too).
  */
 const luminosity = computed<number>({
   get: (): number => {
+    if (isRainbow.value) {
+      return rainbowLuminosity.value
+    }
+
     return flatLuminosity.value
   },
   set: (value: number): void => {
+    if (isRainbow.value) {
+      rainbowLuminosity.value = value
+
+      return
+    }
+
     flatLuminosity.value = value
   },
 })
@@ -49,13 +114,6 @@ const luminosity = computed<number>({
  */
 const luminosityPercentage = computed<number>(() => {
   return Math.round(luminosity.value * 100)
-})
-
-/**
- * Whether the slider of the flat light belongs to the widget: only the flat profile draws one grey.
- */
-const isFlat = computed<boolean>(() => {
-  return lightingProfile.value === 'Flat'
 })
 
 /**
@@ -110,23 +168,23 @@ const dynamicLights = computed<boolean>({
       </div>
     </FieldLabel>
 
-    <FieldLabel v-if="isFlat" class="field flat-field" inline label="Luminosity" for="flat-luminosity">
+    <FieldLabel v-if="showsLuminosity" class="field flat-field" inline label="Luminosity" :for="luminosityFieldId">
       <div class="row">
         <input
-          id="flat-luminosity"
+          :id="luminosityFieldId"
           v-model.number="luminosity"
           class="slider"
           type="range"
           min="0"
           max="1"
           step="0.1"
-          aria-label="Flat luminosity"
+          :aria-label="luminosityLabel"
         />
         <span class="value">{{ luminosityPercentage }}%</span>
       </div>
     </FieldLabel>
 
-    <FieldLabel class="field" inline label="Static lights" for="static-lights">
+    <FieldLabel v-if="showsStaticSwitch" class="field" inline label="Static lights" for="static-lights">
       <div class="row">
         <ToggleButton
           id="static-lights"
@@ -157,7 +215,12 @@ const dynamicLights = computed<boolean>({
 <style scoped lang="scss">
 @use '../../../palette' as *;
 
-// The lighting of the level: the profile of the bake, and the slider of the flat light. The widget is content-sized: it
+// The column of a control: the dropdown and the slider of the light take one width, so a profile change (which shows or
+// takes away the slider) does not move the captions and the controls under the hand of the author (2026-11-22, the
+// owner). The slider takes what the readout of the percentage leaves.
+$control-width: 176px;
+
+// The lighting of the level: the profile of the bake, and the slider of the light. The widget is content-sized: it
 // wants the height of its rows, and the dock gives it that much when there is room. The widget has no heading of its
 // own: the dock says its name. The caption sits **beside** the control (2026-11-18): the Lighter preset gives the
 // widget 350 by 60, and the caption above the control took the top of the widget away, so the two rows are one line
@@ -208,8 +271,13 @@ const dynamicLights = computed<boolean>({
     }
   }
 
+  .flat-field .row {
+    width: $control-width;
+  }
+
   .slider {
-    width: 140px;
+    flex: 1;
+    min-width: 0;
     margin: 0;
     accent-color: $interactive;
     cursor: pointer;
@@ -226,8 +294,7 @@ const dynamicLights = computed<boolean>({
   }
 
   select {
-    width: 100%;
-    min-width: 160px;
+    width: $control-width;
     padding: 3px 5px;
     border: 1px solid $border-dark;
     border-radius: 4px;

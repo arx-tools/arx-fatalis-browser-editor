@@ -74,11 +74,13 @@ const EDITOR_TOP_VIEW_HEIGHT = 300
  * The height of the lighting controls of the `Lighter` preset, in pixels.
  *
  * @remarks
- * The widget has four rows: the profile, the luminosity of the flat profile and the two switches of the light layer.
- * The rows are one line each (a 10px caption and the control beside it), with four pixels between them: 104 leaves a
- * little air around the four, and the widget does not scroll under its lock.
+ * The widget has three rows: the profile, the luminosity (the flat and the rainbow profiles have one of their own) and
+ * the switch of the dynamic layer; the static one is only there for the profiles that read the lights. The rows are one
+ * line each (a 10px caption and the control beside it), with four pixels between them. The owner measured the box of the
+ * preset at 130 (2026-11-22): the rows sit in the middle of it with air around them, and the widget does not scroll
+ * under its lock.
  */
-const LIGHTING_CONTROLS_HEIGHT = 104
+const LIGHTING_CONTROLS_HEIGHT = 130
 
 /**
  * A child of a split that follows the layout, as a share of the space the locks leave.

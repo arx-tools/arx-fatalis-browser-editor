@@ -6,8 +6,10 @@ import { Color } from '../../../../../../src/generator/Color.ts'
 import type { ArxMap } from '../../../../../../src/generator/ArxMap.ts'
 import {
   buildMaterial,
+  lightenedTextureFragmentShader,
   paintKeyOf,
   paintKeyOfPolygon,
+  RAINBOW_TEXTURE_STRENGTH,
   type PaintKey,
 } from '../../../../../../src/editor/modules/level/edit/levelTextures/paint.ts'
 
@@ -126,6 +128,39 @@ void describe('buildMaterial', () => {
 
     assert.equal(material.side, DoubleSide)
     assert.equal(buildMaterial(keyOf(), new Map(), undefined).side, FrontSide)
+  })
+
+  void it('keeps the texture of the rainbow profile, with a shader of its own', () => {
+    const material = buildMaterial(keyOf({ name: 'a.bmp' }), new Map([['a.bmp', texture]]), undefined, true)
+
+    assert.equal(material.map, texture)
+    // the renderer caches the programs by the parameters of the material: the patched one needs a key of its own
+    assert.equal(material.customProgramCacheKey(), 'arx-rainbow-texture')
+  })
+
+  void it('leaves the texture of the other profiles as it is', () => {
+    const material = buildMaterial(keyOf({ name: 'a.bmp' }), new Map([['a.bmp', texture]]), undefined)
+
+    assert.equal(material.map, texture)
+    assert.notEqual(material.customProgramCacheKey(), 'arx-rainbow-texture')
+  })
+})
+
+void describe('lightenedTextureFragmentShader', () => {
+  void it('turns the texture step into the mix of the rainbow profile', () => {
+    const shader = lightenedTextureFragmentShader('void main() {\n#include <map_fragment>\n}')
+
+    assert.doesNotMatch(shader, /#include <map_fragment>/u)
+    assert.match(shader, /#ifdef USE_MAP/u)
+    assert.ok(shader.includes(`mix( vec3( 1.0 ), sampledDiffuseColor.rgb, ${RAINBOW_TEXTURE_STRENGTH.toFixed(2)} )`))
+    // the holes of a texture (a fence, a glow) still cut the face
+    assert.match(shader, /sampledDiffuseColor\.a/u)
+  })
+
+  void it('keeps a shader without a texture step as it is', () => {
+    const shader = 'void main() {}'
+
+    assert.equal(lightenedTextureFragmentShader(shader), shader)
   })
 })
 

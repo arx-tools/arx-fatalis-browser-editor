@@ -6,10 +6,12 @@ import {
   isDynamicLightsVisible,
   isStaticLightsVisible,
 } from '../../../../../src/editor/modules/level/edit/dynamicLights.ts'
+import { lightingProfile } from '../../../../../src/editor/modules/level/edit/lightingProfile.ts'
 import {
   createLightMarkers,
   disposeLightMarkers,
   isLightDisabled,
+  isLightHidden,
   lightMarkerColorOf,
   lightMarkerShapeOf,
   lightMarkerIndexAt,
@@ -66,6 +68,7 @@ function texturesOf(): LightMarkerTextures {
 beforeEach(() => {
   isStaticLightsVisible.value = true
   isDynamicLightsVisible.value = false
+  lightingProfile.value = 'Arx'
 })
 
 void describe('isLightDisabled', () => {
@@ -87,6 +90,29 @@ void describe('isLightDisabled', () => {
 
   void it('disables a semi-dynamic light with the dynamic switch off', () => {
     assert.equal(isLightDisabled(light({ flags: ArxLightFlags.SemiDynamic })), true)
+  })
+})
+
+void describe('isLightHidden', () => {
+  void it('hides the static lights of the profiles with a light of their own', () => {
+    lightingProfile.value = 'Flat'
+
+    assert.equal(isLightHidden(light()), true)
+    // the dynamic layer still draws the torches: their marker stays
+    assert.equal(isLightHidden(light({ flags: ArxLightFlags.SemiDynamic })), false)
+
+    lightingProfile.value = 'TextureRainbow'
+
+    assert.equal(isLightHidden(light()), true)
+    assert.equal(isLightHidden(light({ flags: ArxLightFlags.SemiDynamic })), false)
+  })
+
+  void it('keeps the static lights of the profiles that read them', () => {
+    assert.equal(isLightHidden(light()), false)
+
+    lightingProfile.value = 'Realistic'
+
+    assert.equal(isLightHidden(light()), false)
   })
 })
 
@@ -194,6 +220,37 @@ void describe('createLightMarkers', () => {
 
     assert.equal(sprite.material.opacity, 1)
     assert.ok(sprite.material.color.equals(expected))
+  })
+})
+
+void describe('the markers of the profiles with a light of their own', () => {
+  void it('takes the sprites of the static lights off the frame', () => {
+    lightingProfile.value = 'Flat'
+
+    const group = createLightMarkers([light(), light({ flags: ArxLightFlags.SemiDynamic })], texturesOf())
+    // the sprites are in the order of the lights
+    const [staticLight, torch] = group.children
+
+    assert.equal(staticLight?.visible, false)
+    assert.equal(torch?.visible, true)
+
+    disposeLightMarkers(group)
+  })
+
+  void it('follows a profile change when the markers are updated', () => {
+    const lights = [light()]
+    const group = createLightMarkers(lights, texturesOf())
+    const [marker] = group.children
+
+    assert.equal(marker?.visible, true)
+
+    lightingProfile.value = 'TextureRainbow'
+
+    updateLightMarkers(group, lights, texturesOf())
+
+    assert.equal(marker?.visible, false)
+
+    disposeLightMarkers(group)
   })
 })
 

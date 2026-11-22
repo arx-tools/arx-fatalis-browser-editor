@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { beforeEach, describe, it } from 'node:test'
 import { AdditiveBlending, NormalBlending, Sprite } from 'three'
-import type { ArxLight } from 'arx-convert/types'
+import { ArxLightFlags, type ArxLight } from 'arx-convert/types'
 import { createLightSelectionOverlay } from '../../../../../src/editor/components/widgets/shared/lightSelectionOverlay.ts'
+import { lightingProfile } from '../../../../../src/editor/modules/level/edit/lightingProfile.ts'
 
 /**
  * Fills every field of an LLF light, so a test changes only what it needs.
@@ -67,6 +68,11 @@ function stubCanvas(): void {
   })
 }
 
+beforeEach(() => {
+  // the rings of the static lights are there in the profiles that read the lights
+  lightingProfile.value = 'Arx'
+})
+
 void describe('createLightSelectionOverlay', () => {
   stubCanvas()
 
@@ -84,6 +90,19 @@ void describe('createLightSelectionOverlay', () => {
     assert.equal(focus.renderOrder, 10)
     assert.equal(hover.renderOrder, 10)
     assert.notEqual(focus.material.map, hover.material.map)
+
+    overlay.dispose()
+  })
+
+  void it('draws no ring for a static light of a profile that has a light of its own', () => {
+    lightingProfile.value = 'Flat'
+
+    const overlay = createLightSelectionOverlay()
+
+    overlay.update([light(), light({ flags: ArxLightFlags.SemiDynamic })], new Set([0, 1]), 0)
+
+    // the marker of the torch keeps its ring, the one of the static light is off the screen with its marker
+    assert.equal(overlay.group.children.length, 1)
 
     overlay.dispose()
   })

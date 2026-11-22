@@ -14,6 +14,7 @@ import { bumpLevelRevision } from '../../../../../src/editor/modules/level/edit/
 import { touchLights } from '../../../../../src/editor/modules/level/edit/lightEditing.ts'
 import { writeBakedColors } from '../../../../../src/editor/modules/level/edit/levelTextures/bakedColors.ts'
 import { setFlatLight } from '../../../../../src/editor/modules/level/edit/lightingFlat.ts'
+import { lightingProfile } from '../../../../../src/editor/modules/level/edit/lightingProfile.ts'
 import { levelStore } from '../../../../../src/editor/modules/level/edit/levelStore.ts'
 import { ArxMap } from '../../../../../src/generator/ArxMap.ts'
 import { Settings } from '../../../../../src/generator/Settings.ts'
@@ -231,6 +232,7 @@ beforeEach(async () => {
   frames.clear()
   isDynamicLightsVisible.value = false
   isStaticLightsVisible.value = true
+  lightingProfile.value = 'Arx'
   levelStore.map.value = undefined
 
   await nextTick()
@@ -429,6 +431,31 @@ void describe('the dynamic light layer', () => {
 
     await nextTick()
 
+    assert.ok(Math.abs(firstColorOf(map) - linearOf(FLOOR_GREY)) < 1e-6)
+
+    await stopLayer(view)
+  })
+
+  void it('keeps the light of the profiles that have one of their own, whatever the static switch says', async () => {
+    lightingProfile.value = 'Flat'
+
+    const map = litFloor()
+
+    levelStore.map.value = map
+
+    const view = await startLayer()
+
+    isDynamicLightsVisible.value = false
+
+    await nextTick()
+
+    assert.ok(Math.abs(firstColorOf(map) - linearOf(FLOOR_GREY)) < 1e-6)
+
+    isStaticLightsVisible.value = false
+
+    await nextTick()
+
+    // the palette of the flat profile is the light of the map: the static switch has nothing to take away
     assert.ok(Math.abs(firstColorOf(map) - linearOf(FLOOR_GREY)) < 1e-6)
 
     await stopLayer(view)

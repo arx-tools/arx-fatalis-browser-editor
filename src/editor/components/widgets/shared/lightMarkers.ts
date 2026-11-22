@@ -12,6 +12,7 @@ import {
 } from 'three'
 import { ArxLightFlags, type ArxLight } from 'arx-convert/types'
 import { isDynamicLightsVisible, isStaticLightsVisible } from '../../../modules/level/edit/dynamicLights.ts'
+import { lightingProfile, readsPalette } from '../../../modules/level/edit/lightingProfile.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 
 /**
@@ -386,6 +387,26 @@ export function drawLightMarkerShape(
 }
 
 /**
+ * Tells whether the profile of the lighting keeps the gizmo of a light off the screen.
+ *
+ * @remarks
+ * The `Flat` and the `Texture Rainbow` profiles have a light of their own, so the static lights of the level do not light
+ * anything there: their markers would only name places that mean nothing on the picture (2026-11-22, the owner). The
+ * semidynamic lights stay, the dynamic layer still draws the torches.
+ *
+ * @param light The light of the LLF.
+ *
+ * @returns True when the marker of the light is not drawn.
+ */
+export function isLightHidden(light: ArxLight): boolean {
+  if ((light.flags & ArxLightFlags.SemiDynamic) !== 0) {
+    return false
+  }
+
+  return !readsPalette(lightingProfile.value)
+}
+
+/**
  * Tells whether the switch of the group of a light is off.
  *
  * @param light The light of the LLF.
@@ -474,6 +495,9 @@ function markerOf(light: ArxLight, textures: LightMarkerTextures, index: number)
   // the light of a marker is its index in `map.lights`: the pick reads it back from the sprite
   sprite.userData.lightIndex = index
 
+  // the profiles with a light of their own have no use of the markers of the static lights
+  sprite.visible = !isLightHidden(light)
+
   // the markers are a display of their own over the level, so they draw above the fill (7) and the outline (9) of the
   // selected polygons; otherwise a selected room would hide the lights in it (2026-11-18, the owner)
   sprite.renderOrder = 10
@@ -522,7 +546,12 @@ export function lightMarkerIndexAt(camera: Camera, markers: Group): number | und
 
   raycaster.setFromCamera(centre, camera)
 
-  const hit = raycaster.intersectObjects(markers.children, false)[0]
+  const hit = raycaster.intersectObjects(
+    markers.children.filter((child) => {
+      return child.visible
+    }),
+    false,
+  )[0]
   const index: unknown = hit?.object.userData.lightIndex
 
   if (typeof index === 'number') {
@@ -583,6 +612,8 @@ export function updateLightMarkers(group: Group, lights: readonly ArxLight[], te
     }
 
     const texture = textures[lightMarkerShapeOf(light)]
+
+    child.visible = !isLightHidden(light)
 
     if (child.material.map !== texture) {
       child.material.map = texture

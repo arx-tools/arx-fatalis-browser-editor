@@ -11,6 +11,7 @@ import {
   openZip,
   readPose,
   seedLayout,
+  seedLightingProfile,
   waitForLevel,
   waitForUrlPose,
   writePose,
@@ -148,6 +149,8 @@ test('the export leaves the lights of a switched off layer out, and a static-off
   await page.setViewportSize({ width: 1631, height: 850 })
 
   await seedLayout(page, testLayout)
+  // the export of a dark level is about the palette the profile baked from the lights, so the profile reads them
+  await seedLightingProfile(page)
   await page.goto(editorUrl())
   await waitForLevel(page)
 

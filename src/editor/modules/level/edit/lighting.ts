@@ -11,6 +11,7 @@ import {
   lightingProfile,
   paletteBakeOptionsOf,
   paletteKeyOf,
+  rainbowLuminosity,
 } from './lightingProfile.ts'
 import { paintLevel, repaintLevelColors } from './levelTextures.ts'
 import { levelStore } from './levelStore.ts'
@@ -28,10 +29,13 @@ export {
   LIGHTING_PROFILES,
   flatLightOfProfile,
   flatLuminosity,
+  hasLuminosity,
   isLightingProfile,
+  isRainbowProfile,
   lightingProfile,
   paletteBakeOptionsOf,
   paletteKeyOf,
+  rainbowLuminosity,
   readsPalette,
   type LightingProfile,
 } from './lightingProfile.ts'
@@ -136,11 +140,10 @@ export async function bakeLighting(): Promise<void> {
   }
 
   const profile = lightingProfile.value
-  const luminosity = flatLuminosity.value
 
-  setFlatLight(map, flatLightOfProfile(profile, luminosity))
+  setFlatLight(map, flatLightOfProfile(profile, flatLuminosity.value))
 
-  const key = paletteKeyOf(profile, luminosity)
+  const key = paletteKeyOf(profile, flatLuminosity.value, rainbowLuminosity.value)
   const cached = cachedPaletteOf(map, key)
 
   if (cached !== undefined) {
@@ -208,7 +211,7 @@ export async function bakeLoadedMap(map: ArxMap): Promise<void> {
     }
 
     map.llf.colors = colors
-    rememberPaletteOf(map, paletteKeyOf(lightingProfile.value, flatLuminosity.value), colors)
+    rememberPaletteOf(map, paletteKeyOf(lightingProfile.value, flatLuminosity.value, rainbowLuminosity.value), colors)
 
     // the mesh of the map carries the palette before the views wrap it: the first frame of the new level is the baked one
     writeBakedColors(map)
@@ -257,7 +260,7 @@ export function startLighting(): void {
     void bakeLighting()
   })
 
-  watch(flatLuminosity, () => {
+  watch([flatLuminosity, rainbowLuminosity], () => {
     void bakeLighting()
   })
 }

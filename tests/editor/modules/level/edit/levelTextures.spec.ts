@@ -143,6 +143,30 @@ void describe('the paint of a level', () => {
     assert.equal(Array.isArray(map.solidMeshes[0]?.material), true)
   })
 
+  void it('rebuilds the materials when the rainbow profile turns on, and keeps them while it is on', () => {
+    const map = blankMap()
+    const textures = new Map([['jorge-[stone].jpg', new Texture()]])
+
+    paintLevelTextures(map, textures)
+
+    const materials = map.solidMeshes[0]?.material as Material[]
+    const plain = materials[0]
+
+    assert.notEqual(plain?.customProgramCacheKey(), 'arx-rainbow-texture')
+
+    paintLevelTextures(map, textures, undefined, true)
+
+    assert.notEqual(materials[0], plain)
+    assert.equal(materials[0]?.customProgramCacheKey(), 'arx-rainbow-texture')
+
+    // the same profile again: the materials of the paint are the ones on the screen (a repaint of a colour edit)
+    const rainbow = materials[0]
+
+    paintLevelTextures(map, textures, undefined, true)
+
+    assert.equal(materials[0], rainbow)
+  })
+
   void it('keeps the faces flat where the zip has no texture', () => {
     const map = blankMap()
     const painted = paintLevelTextures(map, new Map())

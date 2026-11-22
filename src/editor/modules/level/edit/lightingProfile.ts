@@ -95,6 +95,60 @@ export const flatLuminosity = persistedRef<number>({
 })
 
 /**
+ * The value of the colours of the `TextureRainbow` profile, from 0 (black) to 1 (the full colour of the hue).
+ *
+ * @remarks
+ * The profile has a light of its own, like the `Flat` one: the slider of the widget sets the value of every hue, and
+ * the bake reads it, so a darker level keeps the colours of the containers, just darker. It is a fact of the author,
+ * like the profile: it stays in the browser, and its default is the 70% of the flat one (2026-11-22, the owner).
+ */
+export const rainbowLuminosity = persistedRef<number>({
+  key: 'rainbowLuminosity',
+  defaultValue: 0.7,
+  persistInLocalStorage: true,
+  deserialize: (raw: string): number | undefined => {
+    const value = parseJson(raw)
+
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return Math.min(1, Math.max(0, value))
+    }
+
+    return undefined
+  },
+})
+
+/**
+ * Whether a profile has a light of its own, with a luminosity slider.
+ *
+ * @remarks
+ * The `Flat` one draws one grey and the `Texture Rainbow` one a hue per texture: neither reads the lights of the level,
+ * so the slider of the widget is the light of the map for both (2026-11-22, the owner: the rainbow got one too).
+ *
+ * @param profile The profile of the widget.
+ *
+ * @returns True for the two profiles that carry their own light.
+ */
+export function hasLuminosity(profile: LightingProfile): boolean {
+  return profile === 'Flat' || profile === 'TextureRainbow'
+}
+
+/**
+ * Whether a profile is the `Texture Rainbow` one.
+ *
+ * @remarks
+ * The profile keeps the textures of the level, but lightened: its palette is the colour of the containers, and the
+ * texture may not drown it (`paint.ts` `RAINBOW_TEXTURE_STRENGTH`). The other profiles draw the textures as the game
+ * has them.
+ *
+ * @param profile The profile of the widget.
+ *
+ * @returns True for the `TextureRainbow` profile.
+ */
+export function isRainbowProfile(profile: LightingProfile): boolean {
+  return profile === 'TextureRainbow'
+}
+
+/**
  * Whether a profile of the bake draws the palette of the level, or a colour of its own.
  *
  * @remarks
@@ -126,16 +180,21 @@ export function flatLightOfProfile(profile: LightingProfile, luminosity: number)
 }
 
 /**
- * The key of a palette in the cache: the profile, and the luminosity of the flat one.
+ * The key of a palette in the cache: the profile, and the luminosity of a profile that has one.
  *
  * @param profile Which profile bakes the map now.
- * @param luminosity The slider of the widget, 0 to 1.
+ * @param flatLight The slider of the flat profile, 0 to 1.
+ * @param rainbowLight The slider of the rainbow profile, 0 to 1.
  *
  * @returns The key the cache stores the palette under.
  */
-export function paletteKeyOf(profile: LightingProfile, luminosity: number): string {
+export function paletteKeyOf(profile: LightingProfile, flatLight: number, rainbowLight: number): string {
   if (profile === 'Flat') {
-    return `Flat:${luminosity.toFixed(1)}`
+    return `Flat:${flatLight.toFixed(1)}`
+  }
+
+  if (profile === 'TextureRainbow') {
+    return `TextureRainbow:${rainbowLight.toFixed(1)}`
   }
 
   return profile
@@ -157,6 +216,7 @@ export function paletteBakeOptionsOf(map: ArxMap): LightingOptions {
   return {
     mode: lightingProfile.value,
     flatLuminosity: flatLuminosity.value,
+    rainbowLuminosity: rainbowLuminosity.value,
     occluders: map.solidMeshes,
     ambientFloor: 23,
     shadows: false,

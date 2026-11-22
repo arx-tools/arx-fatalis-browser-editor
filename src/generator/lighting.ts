@@ -38,6 +38,16 @@ export type LightingOptions = {
    */
   readonly flatLuminosity?: number
   /**
+   * The value of the colours of the `TextureRainbow` profile, from 0 (black) to 1 (the full colour of the hue).
+   *
+   * @remarks
+   * The profile draws a hue per texture container, and this is the value of every one of them: the slider of the widget
+   * sets it, so a darker level keeps the colours of the containers, just darker.
+   *
+   * @default 1
+   */
+  readonly rainbowLuminosity?: number
+  /**
    * The meshes that block the light of a vertex, for the `Realistic` profile.
    *
    * @remarks
@@ -197,10 +207,11 @@ function hsvToRgb(hue: number, saturation: number, value: number): ArxColor {
  *
  * @param fts The scene of the level.
  * @param llf The lighting of the level.
+ * @param luminosity The value of the colours, from 0 (black) to 1 (the full colour of the hue).
  *
  * @returns The palette, one colour per entry.
  */
-function bakeTextureRainbow(fts: ArxFTS, llf: ArxLLF): ArxColor[] {
+function bakeTextureRainbow(fts: ArxFTS, llf: ArxLLF, luminosity: number): ArxColor[] {
   const containers = fts.textureContainers
   const count = containers.length
   const colorOfContainer = new Map<number, ArxColor>()
@@ -212,7 +223,7 @@ function bakeTextureRainbow(fts: ArxFTS, llf: ArxLLF): ArxColor[] {
       hue = (240 * index) / (count - 1)
     }
 
-    colorOfContainer.set(container.id, hsvToRgb(hue, RAINBOW_SATURATION, 1))
+    colorOfContainer.set(container.id, hsvToRgb(hue, RAINBOW_SATURATION, luminosity))
   }
 
   const fallback: ArxColor = { r: 255, g: 255, b: 255, a: 255 }
@@ -875,7 +886,7 @@ function* bakeLlfColorsSteps(fts: ArxFTS, llf: ArxLLF, options: LightingOptions)
   }
 
   if (options.mode === 'TextureRainbow') {
-    return bakeTextureRainbow(fts, llf)
+    return bakeTextureRainbow(fts, llf, MathUtils.clamp(options.rainbowLuminosity ?? 1, 0, 1))
   }
 
   if (options.mode === 'Flat') {

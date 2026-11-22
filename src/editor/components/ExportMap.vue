@@ -7,7 +7,7 @@ import { authorName, projectHomepage } from '../modules/export/authorFields.ts'
 import { faceGroupsJsonOf } from '../modules/groups/groupStore.ts'
 import { roomNamesJson } from '../modules/rooms/roomNames.ts'
 import { authorOf, exportSeedOf, levelIndexOf, projectOf } from '../modules/export/exportOptions.ts'
-import { isDynamicLightsVisible, isStaticLightsVisible } from '../modules/level/edit/dynamicLights.ts'
+import { isDynamicLightsVisible, isStaticLightOn } from '../modules/level/edit/dynamicLights.ts'
 import { snapshotOfHistory } from '../modules/level/edit/editing.ts'
 import { levelSeed } from '../modules/level/seed.ts'
 import { levelStore } from '../modules/level/edit/levelStore.ts'
@@ -233,8 +233,9 @@ async function exportIt(): Promise<void> {
       },
       {
         levelIndex: levelIndexOf(String(levelIndex.value)),
-        // the switches of the light layer: a layer that is off is not in the file, and a static-off level is dark
-        staticLights: isStaticLightsVisible.value,
+        // the switches of the light layer: a layer that is off is not in the file, and a static-off level is dark.
+        // The profiles with a light of their own read no light, so their palette is in the file whatever the switch says
+        staticLights: isStaticLightOn(),
         dynamicLights: isDynamicLightsVisible.value,
         // an empty field means the seed the level already has (the number the game's generator made for it)
         seed: exportSeedOf(seed.value) ?? current.settings.seed,

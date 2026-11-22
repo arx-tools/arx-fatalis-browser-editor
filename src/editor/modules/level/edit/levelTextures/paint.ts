@@ -314,7 +314,71 @@ function waterMaterialOf(key: PaintKey, texture: Texture): MeshBasicMaterial {
 }
 
 /**
- * Builds the material of a paint key.
+ * How much of the texture the `TextureRainbow` profile keeps under the colour of the faces.
+ *
+ * @remarks
+ * The palette of the profile is a colour per container, and the material multiplies it with the texture: the palette is
+ * written at the value of 1, but the textures of the game are dark (the mean of their texels is 22-56%), so a vivid
+ * colour of the palette came out as a dark, muddy one (2026-11-20, the owner: *„élénkebb, jobban elüssenek"*). The
+ * profile keeps a third of the texture: the rest of the surface is white, so the colour of the face keeps its brightness
+ * and the texture is a detail on it, not the layer under it (2026-11-22, the owner's choice).
+ *
+ * The value is read in the colour space of the shader (the texture and the palette are both linear there), so a texel of
+ * 0.25 comes out as 0.74.
+ */
+export const RAINBOW_TEXTURE_STRENGTH = 0.35
+
+/**
+ * The step of the fragment shader that draws the texture, with the mix of the `TextureRainbow` profile.
+ */
+const LIGHTENED_TEXTURE_STEP = `#ifdef USE_MAP
+        vec4 sampledDiffuseColor = texture2D( map, vMapUv );
+        diffuseColor *= vec4(
+          mix( vec3( 1.0 ), sampledDiffuseColor.rgb, ${RAINBOW_TEXTURE_STRENGTH.toFixed(2)} ),
+          sampledDiffuseColor.a
+        );
+      #endif`
+
+/**
+ * Replaces the texture step of a fragment shader with the lightened one of the `TextureRainbow` profile.
+ *
+ * @remarks
+ * The shader of `MeshBasicMaterial` multiplies the colour of the face with the texture (`map_fragment`). The profile
+ * needs the same product with the texture **towards white**: the step becomes a mix, and the alpha of the texture (the
+ * holes of a fence, the shape of a glow) is kept as it is.
+ *
+ * @param fragmentShader The fragment shader of the material the paint built.
+ *
+ * @returns The shader with the lightened texture step.
+ */
+export function lightenedTextureFragmentShader(fragmentShader: string): string {
+  return fragmentShader.replace('#include <map_fragment>', () => {
+    return LIGHTENED_TEXTURE_STEP
+  })
+}
+
+/**
+ * Lightens the texture of a material for the `TextureRainbow` profile.
+ *
+ * @remarks
+ * The material gets a `customProgramCacheKey` of its own, because the renderer caches one program per set of material
+ * parameters: without the key a patched material and a plain one of the same shape would share the program of the first
+ * one that was drawn, and the level would lose the mix (or another level would keep it).
+ *
+ * @param material The material of a face, with its texture on.
+ */
+function lightenTextureOf(material: MeshBasicMaterial): void {
+  material.onBeforeCompile = (shader): void => {
+    shader.fragmentShader = lightenedTextureFragmentShader(shader.fragmentShader)
+  }
+
+  material.customProgramCacheKey = (): string => {
+    return 'arx-rainbow-texture'
+  }
+}
+
+/**
+ * Builds the material of a paint key, with the texture of the key as it is.
  *
  * @remarks
  * A face the level gives **no texture** draws the placeholder of the generator see-through ({@link noTextureMaterialOf}),
@@ -330,7 +394,7 @@ function waterMaterialOf(key: PaintKey, texture: Texture): MeshBasicMaterial {
  *
  * @returns The material of the key.
  */
-export function buildMaterial(
+function materialOf(
   key: PaintKey,
   textures: ReadonlyMap<string, Texture>,
   missing: Texture | undefined,
@@ -362,6 +426,36 @@ export function buildMaterial(
   material.alphaTest = ALPHA_CUTOUT
 
   applyBlend(material, key)
+
+  return material
+}
+
+/**
+ * Builds the material of a paint key.
+ *
+ * @remarks
+ * The material draws the texture of the key as the game has it. The `TextureRainbow` profile keeps its texture **under**
+ * its colour, lightened ({@link RAINBOW_TEXTURE_STRENGTH}): the palette of the profile is the point of it, and the
+ * texture is the detail over it.
+ *
+ * @param key What the faces draw with.
+ * @param textures The textures of the level, by the name it calls them.
+ * @param missing The texture the containers the level has none for draw with, when there is one.
+ * @param rainbow Whether the profile of the bake is the `TextureRainbow`, whose colours the texture may not drown.
+ *
+ * @returns The material of the key.
+ */
+export function buildMaterial(
+  key: PaintKey,
+  textures: ReadonlyMap<string, Texture>,
+  missing: Texture | undefined,
+  rainbow = false,
+): MeshBasicMaterial {
+  const material = materialOf(key, textures, missing)
+
+  if (rainbow && material.map !== null) {
+    lightenTextureOf(material)
+  }
 
   return material
 }

@@ -67,6 +67,10 @@ export const WIDGET_KINDS = {
    */
   roomInspector: 'room-inspector',
   /**
+   * The interactive objects the DLF of the level carries.
+   */
+  entityList: 'entity-list',
+  /**
    * The groups of faces the author made, by the level they belong to.
    */
   groupInspector: 'group-inspector',

@@ -459,41 +459,42 @@ test('the function keys switch the six presets in the order of the menu', async 
 })
 
 /**
- * The Entities preset is the rooms one, copied.
+ * The Entities preset: the list is the left column, the right one keeps the plan, the history and the selection.
  *
  * @remarks
- * The owner asked for the entity work to start on the frame of the room work (2026-11-22): the same five widgets in the
- * same boxes. The two trees are separate objects (the copy is made once), so a later change of one does not move the
- * other, and this test pins the starting point down.
+ * The owner rearranged the copy of the rooms layout for the entity work (2026-11-22): the entity list takes the whole
+ * left column (in place of the statistics and the selection inspector), and the right column keeps the plan and the
+ * history, with the selection inspector in the place the list had.
  */
-test('the entities preset is the rooms one, copied', async ({ page }) => {
+test('the entities preset puts the list on the left, and the selection inspector on the right', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
   await page.goto(editorUrl())
 
   await expect(page.locator('.lm-DockPanel-widget').first()).toBeVisible()
 
-  const kinds = ['map-statistics', 'selection-inspector', 'top-view', 'undo-redo', 'room-inspector']
-
-  await page.locator('header button[aria-label="Presets"]').click()
-  await page.locator('.preset-menu .preset-row', { hasText: 'Rooms' }).click()
-  await waitForLayoutSettled(page)
-
-  const rooms = await Promise.all(
-    kinds.map(async (kind) => {
-      return await boxOf(page, kind)
-    }),
-  )
-
   await page.locator('header button[aria-label="Presets"]').click()
   await page.locator('.preset-menu .preset-row', { hasText: 'Entities' }).click()
   await waitForLayoutSettled(page)
 
-  const entities = await Promise.all(
-    kinds.map(async (kind) => {
-      return await boxOf(page, kind)
-    }),
-  )
+  const list = await boxOf(page, 'entity-list')
+  const view = await boxOf(page, '3d-view')
+  const plan = await boxOf(page, 'top-view')
+  const undo = await boxOf(page, 'undo-redo')
+  const selection = await boxOf(page, 'selection-inspector')
 
-  expect(entities).toEqual(rooms)
+  // the list is the left column, the whole height, and the numbers of the level are not on this layout
+  expect(list.left).toBe(0)
+  expect(list.width).toBe(350)
+  expect(list.top).toBe(view.top)
+  expect(list.height).toBeGreaterThan(600)
+  expect(await page.locator('[data-widget-kind="map-statistics"]').count()).toBe(0)
+
+  // the right column: the plan, the history, and the selection inspector under them
+  expect(plan.width).toBe(350)
+  expect(plan.height).toBe(260)
+  expect(undo.width).toBe(350)
+  expect(undo.height).toBe(60)
+  expect(selection.width).toBe(350)
+  expect(selection.top).toBe(undo.top + undo.height + 4)
   expect(await presetName(page)).toBe('Entities')
 })

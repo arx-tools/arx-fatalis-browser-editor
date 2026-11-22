@@ -341,11 +341,36 @@ export const roomsLayout: LayoutNode = {
  * The layout of the entity work: the rooms preset, copied.
  *
  * @remarks
- * The owner asked for a copy (2026-11-22): the entity work starts from the frame of the room work (the statistics and
- * the selection inspector on the left, the walkable view in the middle, the plan and the room inspector on the right),
- * and the two may part ways later. The function keys follow the rows, so this one is `F6` and the blank layout has none.
+ * The owner asked for a copy of the rooms layout (2026-11-22) and then rearranged it for the entity work: the **entity
+ * list** is the whole **left column** (in place of the statistics and the selection inspector), the walkable view is the
+ * middle, and the right column is the plan, the history and the **selection inspector** (in the place the list had in the
+ * copy, for a while). The tree is written out (and not cloned from the rooms one) so the two layouts can part ways; the
+ * function keys follow the rows, so this one is `F6` and the blank layout has none.
  */
-export const entitiesLayout: LayoutNode = structuredClone(roomsLayout)
+export const entitiesLayout: LayoutNode = {
+  type: 'split',
+  orientation: 'horizontal',
+  sizes: [fixed(350), auto(1), fixed(350)],
+  children: [
+    // the left column is the list alone (the owner, 2026-11-22): the entity work reads the entities and not the numbers
+    // of the level, and the list takes the whole height the statistics and the selection inspector shared
+    { type: 'widget', kind: WIDGET_KINDS.entityList },
+    { type: 'widget', kind: WIDGET_KINDS.view3d },
+    {
+      type: 'split',
+      orientation: 'vertical',
+      sizes: [fixed(260), fixed(UNDO_ROW_HEIGHT), auto(1)],
+      children: [
+        { type: 'widget', kind: WIDGET_KINDS.topView },
+        { type: 'widget', kind: WIDGET_KINDS.undoRedo },
+        // the selection inspector takes the place the list had in the copy of the rooms layout, for a while (the
+        // owner, 2026-11-22): the pick of an entity is TODO 240, and until then the faces of the selection are the
+        // read of the work
+        { type: 'widget', kind: WIDGET_KINDS.selectionInspector },
+      ],
+    },
+  ],
+}
 
 /**
  * The layout the editor starts with.

@@ -1,4 +1,14 @@
+import type { ArxVector3 } from 'arx-convert/types'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
+
+/**
+ * How far the camera stands from an entity when the list jumps to it.
+ *
+ * @remarks
+ * The same distance the light inspector jumps with (2026-11-22, the owner: 300 units is fine for the first round): the
+ * entity lands in the middle of the view the camera already looks towards.
+ */
+export const ENTITY_JUMP_DISTANCE = 300
 
 /**
  * The categories of the entities, in the order the list shows them.
@@ -6,14 +16,14 @@ import type { ArxMap } from '../../../../generator/ArxMap.ts'
  * @remarks
  * The first segment of the `name` of a DLF interactive object is its category (`fix_inter/light_door`), and the words
  * are the names of the folders the game keeps the models in (`GRAPH/obj3d/interactive`), as the owner asked
- * (2026-11-22): the game works with these five folders, so the list has exactly these five sections, and an empty one is
- * still there.
+ * (2026-11-22): the list has one section per folder the game actually places, so an empty one still tells what it is. The
+ * `player` folder is not among them: the player is not an entity of a level, and the folder never holds one (the owner,
+ * 2026-11-22).
  */
 export const ENTITY_CATEGORIES = [
   { id: 'fix_inter', label: 'fix_inter' },
   { id: 'items', label: 'items' },
   { id: 'npc', label: 'npc' },
-  { id: 'player', label: 'player' },
   { id: 'system', label: 'system' },
 ] as const
 
@@ -54,6 +64,10 @@ export type EntityRow = {
    * The category of the entity.
    */
   readonly category: EntityCategory
+  /**
+   * Where the entity stands, in the game's coordinates.
+   */
+  readonly position: ArxVector3
 }
 
 /**
@@ -123,6 +137,7 @@ export function entityRowsOf(map: ArxMap): EntityRow[] {
       kind,
       entityName: `${kind}_${String(object.identifier).padStart(4, '0')}`,
       category,
+      position: object.position,
     })
   }
 
@@ -148,13 +163,12 @@ export function entityRowsOf(map: ArxMap): EntityRow[] {
  * Groups the rows into the sections of the list.
  *
  * @remarks
- * The sections are the five folders the game has, always, so the list of a level reads the same whichever of them holds
- * an entity: the player folder has none in most of the levels, and its row still says what it is (2026-11-22, the
- * owner).
+ * The sections are the folders the game places entities from, always, so the list of a level reads the same whichever
+ * of them holds an entity (2026-11-22, the owner).
  *
  * @param rows The rows to group.
  *
- * @returns The five sections, in the order of the list.
+ * @returns The sections, in the order of the list.
  */
 export function entitySectionsOf(rows: readonly EntityRow[]): EntitySection[] {
   return ENTITY_CATEGORIES.map((category): EntitySection => {

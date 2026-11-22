@@ -32,7 +32,7 @@ test('the entity list shows the entities of the level, and the search filters th
     .poll(async () => {
       return await list.locator('.AccordionRow').count()
     })
-    .toBe(5)
+    .toBe(4)
 
   // the total of the level sits in the heading, on the right
   await expect(list.locator('.total')).toHaveText(/^Total: \d+$/u)
@@ -42,8 +42,8 @@ test('the entity list shows the entities of the level, and the search filters th
 
   expect(total).toBeGreaterThan(0)
 
-  // the five folders of the game are the rows, all of them closed to start with
-  await expect(list.locator('.AccordionRow')).toHaveCount(5)
+  // the four folders the game places entities from are the rows, all of them closed to start with
+  await expect(list.locator('.AccordionRow')).toHaveCount(4)
 
   for (const category of ['items', 'npc', 'system']) {
     await expect(list.locator('.AccordionRow', { hasText: category }).locator('.head')).toHaveAttribute(
@@ -52,17 +52,14 @@ test('the entity list shows the entities of the level, and the search filters th
     )
   }
 
-  // the two folders level 8 holds nothing in (the fixed ones and the player): their rows do not fold, and the dash
-  // takes the place of the arrow
-  for (const category of ['fix_inter', 'player']) {
-    const row = list.locator('.AccordionRow', { hasText: category })
+  // the fixed folder level 8 holds nothing in: its row does not fold, and the dash takes the place of the arrow
+  const fixedRow = list.locator('.AccordionRow', { hasText: 'fix_inter' })
 
-    await expect(row.locator('.head')).not.toHaveAttribute('aria-expanded')
-    await expect(row.locator('.dash')).toHaveCount(1)
-    await expect(row.locator('.chevron')).toHaveCount(0)
-  }
+  await expect(fixedRow.locator('.head')).not.toHaveAttribute('aria-expanded')
+  await expect(fixedRow.locator('.dash')).toHaveCount(1)
+  await expect(fixedRow.locator('.chevron')).toHaveCount(0)
 
-  await list.locator('.AccordionRow', { hasText: 'player' }).locator('.head').click()
+  await fixedRow.locator('.head').click()
   await expect(list.locator('.row')).toHaveCount(0)
 
   // opening a row shows its entities, and the arrow says it (the level 8 has items, npcs and system objects, and no
@@ -81,6 +78,22 @@ test('the entity list shows the entities of the level, and the search filters th
   const rows = await list.locator('.row').count()
 
   expect(rows).toBeGreaterThan(0)
+
+  // the jump at the end of a row takes the camera to the entity: the pose of the camera is in the url, so the move is
+  // the parameter it writes (the layout has no camera form to read)
+  function positionOf(url: string): string | undefined {
+    return new URL(url).searchParams.get('position') ?? undefined
+  }
+
+  const spawnPosition = positionOf(page.url())
+
+  await list.locator('.row .jump').first().click()
+
+  await expect
+    .poll(() => {
+      return positionOf(page.url())
+    })
+    .not.toBe(spawnPosition)
 
   // the search keeps what the name matches, opens the sections it found, and the count says how much of the level is
   // left (the level 8 has human_base entities among its npcs)

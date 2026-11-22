@@ -65,6 +65,12 @@ void describe('entityRowsOf', () => {
     assert.strictEqual(rows[0]?.name, 'items/provisions/pie')
   })
 
+  void it('carries the place of the entity, so the list can jump to it', () => {
+    const rows = entityRowsOf(mapWith([['system/marker', 17]]))
+
+    assert.deepStrictEqual(rows[0]?.position, { x: 0, y: 0, z: 0 })
+  })
+
   void it('sorts the rows of a folder by the name of the entity', () => {
     // the owner reads a folder by name (2026-11-22): the kinds in the alphabetical order, the numbers inside a kind
     const rows = entityRowsOf(
@@ -137,20 +143,28 @@ void describe('entitySectionsOf', () => {
         ['fix_inter', 2],
         ['items', 0],
         ['npc', 0],
-        ['player', 0],
         ['system', 1],
       ],
     )
   })
 
-  void it('keeps the five folders of the game, even the ones a level has nothing in', () => {
-    const sections = entitySectionsOf(entityRowsOf(mapWith([['player/player', 1]])))
+  void it('keeps the folders of the game, even the ones a level has nothing in', () => {
+    const sections = entitySectionsOf(entityRowsOf(mapWith([['npc/mice', 1]])))
 
     assert.deepStrictEqual(
       sections.map((section) => {
         return section.category
       }),
-      ['fix_inter', 'items', 'npc', 'player', 'system'],
+      ['fix_inter', 'items', 'npc', 'system'],
+    )
+  })
+
+  void it('has no section for the player folder: a level never places one', () => {
+    assert.deepStrictEqual(
+      entitySectionsOf([]).map((section) => {
+        return section.category
+      }),
+      ['fix_inter', 'items', 'npc', 'system'],
     )
   })
 })

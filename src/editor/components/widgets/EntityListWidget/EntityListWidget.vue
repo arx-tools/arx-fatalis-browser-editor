@@ -1,11 +1,17 @@
 <script setup lang="ts">
+import { ScanSearch } from 'lucide-vue-next'
 import { computed, reactive, shallowRef, watch } from 'vue'
 import EmptyMessage from '../../EmptyMessage.vue'
 import SearchField from '../../SearchField.vue'
 import WidgetHeading from '../../WidgetHeading.vue'
 import AccordionRow from '../../AccordionRow.vue'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
+import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
+import { cameraStore } from '../camera/cameraStore.ts'
+import { worldPositionToGame } from '../camera/cameraPose.ts'
+import { jumpPoseOf } from '../camera/jumpPose.ts'
 import {
+  ENTITY_JUMP_DISTANCE,
   entityRowsOf,
   entitySectionsOf,
   searchRows,
@@ -94,6 +100,31 @@ const sections = computed(() => {
 })
 
 /**
+ * Moves the camera to an entity.
+ *
+ * @remarks
+ * The jump keeps the orientation the camera has, so the entity lands in the middle of the view (the way the light
+ * inspector jumps, 2026-11-22, the owner). The camera of the view is the only one: the fixed views frame the whole level.
+ *
+ * @param row The row of the list.
+ */
+function jumpTo(row: EntityRow): void {
+  const pose = cameraStore.pose.value
+  const map = levelStore.map.value
+
+  if (pose === undefined || map === undefined) {
+    return
+  }
+
+  // the DLF position of an entity is the local space of the level, which is where the spike draws the door of level 0
+  // (the map is `M(v - scenePosition)`), and the camera's pose is the game's own space: the way back is the inverse of
+  // the one the view applies (2026-11-22, the owner: the jump of the rows went out of the level)
+  const target = worldPositionToGame(arxVector3toVector3(row.position), map.scenePosition)
+
+  cameraStore.moveCamera(jumpPoseOf(pose, target, ENTITY_JUMP_DISTANCE))
+}
+
+/**
  * Reads the entities of the level into the list.
  */
 function rebuild(): void {
@@ -131,7 +162,18 @@ watch(levelStore.map, rebuild, { immediate: true })
         @toggle="toggleSection(section.category)"
       >
         <ul class="rows">
-          <li v-for="row in section.rows" :key="row.index" class="row">{{ row.entityName }}</li>
+          <li v-for="row in section.rows" :key="row.index" class="row">
+            <span class="name">{{ row.entityName }}</span>
+            <button
+              class="jump"
+              type="button"
+              :aria-label="`Jump to entity ${row.entityName}`"
+              v-tooltip="`Jump to entity ${row.entityName}`"
+              @click="jumpTo(row)"
+            >
+              <ScanSearch :size="13" />
+            </button>
+          </li>
         </ul>
       </AccordionRow>
     </div>
@@ -178,16 +220,37 @@ watch(levelStore.map, rebuild, { immediate: true })
   }
 
   .row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     padding: 3px 6px;
-    overflow: hidden;
-    color: $text;
-    font-size: 12px;
-    white-space: nowrap;
-    text-overflow: ellipsis;
     border-radius: 3px;
 
     &:nth-child(even) {
-      background: rgba($surface-panel, 0.45);
+      background-color: rgba($surface-panel, 0.45);
+    }
+
+    .name {
+      flex: 1;
+      overflow: hidden;
+      color: $text;
+      font-size: 12px;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    // the jump sits at the end of the row, the way the light inspector keeps it
+    .jump {
+      flex: none;
+      padding: 0;
+      color: $text-muted;
+      background: transparent;
+      border: 0;
+      cursor: pointer;
+
+      &:hover {
+        color: $text-strong;
+      }
     }
   }
 }

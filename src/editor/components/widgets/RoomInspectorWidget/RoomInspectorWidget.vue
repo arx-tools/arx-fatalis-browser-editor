@@ -718,7 +718,8 @@ function removeRowRoom(room: number): void {
 .rooms {
   flex: 1;
   min-height: 0;
-  margin: 0;
+  // the search above keeps a breath before the list (2026-11-22, the owner: the rows touched the field)
+  margin: 20px 0 0;
   padding: 0 10px 0 0;
   overflow-y: auto;
   list-style: none;

@@ -176,6 +176,38 @@ export async function statOf(page: Page, label: string): Promise<number | undefi
 }
 
 /**
+ * Reads the value of a row of an accordion (the entity list, the selection inspector).
+ *
+ * @param page The page to read.
+ * @param kind The kind of the widget.
+ * @param label The label of the row.
+ *
+ * @returns The text of the value next to the label, an empty string when the widget has no such row or the row shows no
+ * value.
+ */
+export async function accordionValueOf(page: Page, kind: string, label: string): Promise<string> {
+  return await page.evaluate(
+    ({ kind: widgetKind, label: wanted }) => {
+      const widget = [...globalThis.document.querySelectorAll<HTMLElement>('[data-widget-kind]')].find((node) => {
+        return node.dataset.widgetKind === widgetKind
+      })
+
+      if (widget === undefined) {
+        return ''
+      }
+
+      const rows = [...widget.querySelectorAll<HTMLElement>('.AccordionRow')]
+      const row = rows.find((node) => {
+        return node.querySelector('.label')?.textContent === wanted
+      })
+
+      return row?.querySelector('.value')?.textContent ?? ''
+    },
+    { kind, label },
+  )
+}
+
+/**
  * How many faces the selection holds, as the selection inspector shows it.
  *
  * @remarks
@@ -187,7 +219,7 @@ export async function statOf(page: Page, label: string): Promise<number | undefi
  * @returns The number of the selected faces, or `undefined` before the widget is on the screen.
  */
 export async function selectionCount(page: Page): Promise<number | undefined> {
-  const value = await rowOf(page, WIDGET_KINDS.selectionInspector, 'Selected faces')
+  const value = await accordionValueOf(page, WIDGET_KINDS.selectionInspector, 'Selected faces')
   const text = value.trim()
 
   if (text === '') {

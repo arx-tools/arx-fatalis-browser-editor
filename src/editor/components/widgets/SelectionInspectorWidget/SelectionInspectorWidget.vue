@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ChevronDown } from 'lucide-vue-next'
 import { computed, reactive, shallowRef, watch } from 'vue'
 import { formatCount } from '../../../modules/format.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
@@ -13,6 +12,7 @@ import {
 } from '../../../modules/textures/textureCatalog.ts'
 import EmptyMessage from '../../EmptyMessage.vue'
 import WidgetHeading from '../../WidgetHeading.vue'
+import AccordionRow from '../../AccordionRow.vue'
 import { selectionSummaryOf, type SelectionSummary } from './selectionInspector.ts'
 
 /**
@@ -183,48 +183,37 @@ function thumbOf(name: string): string | undefined {
     <WidgetHeading :label="props.label" />
 
     <div class="rows">
-      <dl>
-        <template v-for="row in summary.rows" :key="row.label">
-          <dt
-            :class="{ 'is-open': isRowOpen(row.label) }"
-            role="button"
-            tabindex="0"
-            :aria-expanded="isRowOpen(row.label)"
-            @click="toggleRow(row.label)"
-            @keydown.enter.prevent="toggleRow(row.label)"
-            @keydown.space.prevent="toggleRow(row.label)"
-          >
-            {{ row.label }}
-          </dt>
-          <dd :class="{ 'is-open': isRowOpen(row.label) }" @click="toggleRow(row.label)">
-            <span class="value">{{ row.value }}</span>
-            <ChevronDown class="chevron" :class="{ 'is-open': isRowOpen(row.label) }" aria-hidden="true" />
-          </dd>
+      <AccordionRow
+        v-for="(row, index) in summary.rows"
+        :key="row.label"
+        :label="row.label"
+        :value="row.value"
+        :stripe="index % 2 === 1"
+        :empty="row.value === '0'"
+        :open="isRowOpen(row.label)"
+        @toggle="toggleRow(row.label)"
+      >
+        <ul v-if="row.label === 'Selected faces'" class="faces">
+          <li v-for="face in selectedFaces" :key="face">{{ face }}</li>
+        </ul>
 
-          <div v-if="isRowOpen(row.label)" class="row-content">
-            <ul v-if="row.label === 'Selected faces'" class="faces">
-              <li v-for="face in selectedFaces" :key="face">{{ face }}</li>
+        <div v-else class="groups">
+          <section v-for="group in summary.groups" :key="group.source" class="group">
+            <h3>
+              <span class="source">{{ group.label }}</span>
+              <span class="count">{{ formatCount(group.faces) }} {{ group.faces === 1 ? 'face' : 'faces' }}</span>
+            </h3>
+            <ul class="textures">
+              <li v-for="texture in group.textures" :key="texture.name" v-tooltip="texture.name">
+                <img v-if="thumbOf(texture.name) !== undefined" class="thumb" :src="thumbOf(texture.name)" alt="" />
+                <span v-else class="thumb placeholder" aria-hidden="true"></span>
+                <span class="name">{{ texture.name }}</span>
+                <span class="count">{{ formatCount(texture.count) }}</span>
+              </li>
             </ul>
-
-            <div v-else class="groups">
-              <section v-for="group in summary.groups" :key="group.source" class="group">
-                <h3>
-                  <span class="source">{{ group.label }}</span>
-                  <span class="count">{{ formatCount(group.faces) }} {{ group.faces === 1 ? 'face' : 'faces' }}</span>
-                </h3>
-                <ul class="textures">
-                  <li v-for="texture in group.textures" :key="texture.name" v-tooltip="texture.name">
-                    <img v-if="thumbOf(texture.name) !== undefined" class="thumb" :src="thumbOf(texture.name)" alt="" />
-                    <span v-else class="thumb placeholder" aria-hidden="true"></span>
-                    <span class="name">{{ texture.name }}</span>
-                    <span class="count">{{ formatCount(texture.count) }}</span>
-                  </li>
-                </ul>
-              </section>
-            </div>
-          </div>
-        </template>
-      </dl>
+          </section>
+        </div>
+      </AccordionRow>
 
       <EmptyMessage v-if="summary.count === 0">Nothing is selected.</EmptyMessage>
     </div>
@@ -257,46 +246,6 @@ function thumbOf(name: string): string | undefined {
   overflow-y: auto;
 }
 
-dl {
-  margin: 0;
-}
-
-dt,
-dd {
-  cursor: pointer;
-  user-select: none;
-
-  &:hover {
-    background: rgba($text-strong, 0.06);
-  }
-}
-
-dd {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 5px;
-}
-
-// the small arrow of a row: down while the content is closed, up while it is open
-.chevron {
-  flex: 0 0 auto;
-  width: 12px;
-  height: 12px;
-  color: $text-subtle;
-  transition: transform 120ms ease;
-
-  &.is-open {
-    transform: rotate(180deg);
-  }
-}
-
-// the content of an open row: it spans the two columns of the grid, under its row
-.row-content {
-  grid-column: 1 / -1;
-  padding: 2px 6px 6px;
-}
-
 .faces {
   display: flex;
   flex-direction: column;
@@ -308,8 +257,13 @@ dd {
   font-variant-numeric: tabular-nums;
   list-style: none;
 
+  // the rows of the fold read like the rows of the entity list: a stripe keeps the eye on the line
   li {
-    padding: 1px 0;
+    padding: 1px 4px;
+
+    &:nth-child(even) {
+      background: rgba($surface-panel, 0.45);
+    }
   }
 }
 

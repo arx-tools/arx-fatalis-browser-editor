@@ -147,7 +147,7 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
   },
   {
     kind: WIDGET_KINDS.entityList,
-    label: 'Entity List',
+    label: 'Entity Inspector',
     contentSized: true,
     group: 'info',
     create: (label): Widget => {

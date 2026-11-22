@@ -126,16 +126,16 @@ test('the selection inspector opens the face ids and the textures', async ({ pag
   await page.waitForTimeout(500)
 
   const widget = page.locator('[data-widget-kind="selection-inspector"]')
-  const facesRow = widget.locator('dt', { hasText: 'Selected faces' })
-  const texturesRow = widget.locator('dt', { hasText: 'Textures' })
+  const facesRow = widget.locator('.AccordionRow', { hasText: 'Selected faces' }).locator('.head')
+  const texturesRow = widget.locator('.AccordionRow', { hasText: 'Textures' }).locator('.head')
 
   // the textures open by default, the ids wait for a click
   await expect(facesRow).toHaveAttribute('aria-expanded', 'false')
   await expect(texturesRow).toHaveAttribute('aria-expanded', 'true')
 
-  // the whole row opens: the triangle is on the value side, and the click goes through it. The value cell is the
-  // sibling of the label, so the click on the number (and the triangle) is the one the reader makes.
-  const texturesValue = texturesRow.locator('xpath=following-sibling::dd[1]')
+  // the whole row opens: the triangle is on the value side, and the click goes through it. The value is in the head of
+  // the row, so the click on the number (and the triangle) is the one the reader makes.
+  const texturesValue = texturesRow.locator('.value')
 
   await texturesValue.click()
   await expect(texturesRow).toHaveAttribute('aria-expanded', 'false')

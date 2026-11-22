@@ -55,15 +55,9 @@ test('a room of the list selects its faces, and a second click clears both', asy
    * @returns The text next to the label.
    */
   async function selectedOf(label: string): Promise<string> {
-    const cells = selectionInspector.locator('dt')
-    const index = await cells.evaluateAll((all, wanted) => {
-      return all.findIndex((cell) => {
-        return cell.textContent === wanted
-      })
-    }, label)
-    const value = selectionInspector.locator('dd').nth(index)
+    const row = selectionInspector.locator('.AccordionRow', { hasText: label }).locator('.value').first()
 
-    return (await value.textContent()) ?? ''
+    return (await row.textContent()) ?? ''
   }
 
   // nothing is selected before the pick
@@ -320,15 +314,9 @@ test('the pointer previews a room, and the row picks it without a checkbox', asy
    * @returns The text next to the label.
    */
   async function selectedOf(label: string): Promise<string> {
-    const cells = selectionInspector.locator('dt')
-    const index = await cells.evaluateAll((all, wanted) => {
-      return all.findIndex((cell) => {
-        return cell.textContent === wanted
-      })
-    }, label)
-    const value = selectionInspector.locator('dd').nth(index)
+    const row = selectionInspector.locator('.AccordionRow', { hasText: label }).locator('.value').first()
 
-    return (await value.textContent()) ?? ''
+    return (await row.textContent()) ?? ''
   }
 
   // the pointer over the row previews the room, but it is not a pick

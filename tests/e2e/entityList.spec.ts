@@ -30,32 +30,48 @@ test('the entity list shows the entities of the level, and the search filters th
   // statistics widget to wait on: the list itself is the signal)
   await expect
     .poll(async () => {
-      return await list.locator('.section').count()
+      return await list.locator('.AccordionRow').count()
     })
     .toBe(5)
 
-  await expect(list.locator('.count')).toContainText('entit')
+  // the total of the level sits in the heading, on the right
+  await expect(list.locator('.total')).toHaveText(/^Total: \d+$/u)
 
-  // the count line says how many the whole level holds, which the search narrows down below
-  const countText = await list.locator('.count').innerText()
-  const total = Number(/\d+/.exec(countText)?.[0] ?? 0)
+  const totalText = await list.locator('.total').innerText()
+  const total = Number(/\d+/.exec(totalText)?.[0] ?? 0)
 
-  // the five folders of the game are the sections, all of them closed to start with
-  await expect(list.locator('.section-head')).toHaveCount(5)
+  expect(total).toBeGreaterThan(0)
 
-  for (const category of ['fix_inter', 'items', 'npc', 'player', 'system']) {
-    await expect(list.locator('.section-head', { hasText: category })).toHaveAttribute('aria-expanded', 'false')
+  // the five folders of the game are the rows, all of them closed to start with
+  await expect(list.locator('.AccordionRow')).toHaveCount(5)
+
+  for (const category of ['items', 'npc', 'system']) {
+    await expect(list.locator('.AccordionRow', { hasText: category }).locator('.head')).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
   }
 
+  // the two folders level 8 holds nothing in (the fixed ones and the player): their rows do not fold, and the dash
+  // takes the place of the arrow
+  for (const category of ['fix_inter', 'player']) {
+    const row = list.locator('.AccordionRow', { hasText: category })
+
+    await expect(row.locator('.head')).not.toHaveAttribute('aria-expanded')
+    await expect(row.locator('.dash')).toHaveCount(1)
+    await expect(row.locator('.chevron')).toHaveCount(0)
+  }
+
+  await list.locator('.AccordionRow', { hasText: 'player' }).locator('.head').click()
   await expect(list.locator('.row')).toHaveCount(0)
 
-  // opening a section shows its rows, and the arrow says it (the level 8 has items, npcs and system objects, and no
+  // opening a row shows its entities, and the arrow says it (the level 8 has items, npcs and system objects, and no
   // fixed one)
-  const itemsSection = list.locator('.section-head', { hasText: 'items' })
+  const itemsRow = list.locator('.AccordionRow', { hasText: 'items' })
 
-  await itemsSection.click()
+  await itemsRow.locator('.head').click()
 
-  await expect(itemsSection).toHaveAttribute('aria-expanded', 'true')
+  await expect(itemsRow.locator('.head')).toHaveAttribute('aria-expanded', 'true')
   await expect
     .poll(async () => {
       return await list.locator('.row').count()
@@ -76,7 +92,6 @@ test('the entity list shows the entities of the level, and the search filters th
     })
     .toBeLessThan(total)
 
-  await expect(list.locator('.count')).toContainText(`of ${String(total)} entities`)
   expect(await list.locator('.row').count()).toBeGreaterThan(0)
 
   // nothing matches: the list says so, and the count goes to zero

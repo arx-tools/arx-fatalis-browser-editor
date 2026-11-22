@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ChevronDown } from 'lucide-vue-next'
 import { computed, reactive, shallowRef, watch } from 'vue'
 import EmptyMessage from '../../EmptyMessage.vue'
 import SearchField from '../../SearchField.vue'
 import WidgetHeading from '../../WidgetHeading.vue'
+import AccordionRow from '../../AccordionRow.vue'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import {
   entityRowsOf,
@@ -94,24 +94,6 @@ const sections = computed(() => {
 })
 
 /**
- * The line above the list: the count of the level, or how many the search kept of it.
- */
-const countText = computed(() => {
-  const total = rows.value.length
-  const kept = shown.value.length
-
-  if (kept !== total) {
-    return `${String(kept)} of ${String(total)} entities`
-  }
-
-  if (total === 1) {
-    return '1 entity'
-  }
-
-  return `${String(total)} entities`
-})
-
-/**
  * Reads the entities of the level into the list.
  */
 function rebuild(): void {
@@ -131,27 +113,27 @@ watch(levelStore.map, rebuild, { immediate: true })
 
 <template>
   <div class="EntityListWidget">
-    <WidgetHeading :label="props.label" />
-    <p class="count">{{ countText }}</p>
+    <WidgetHeading :label="props.label">
+      <template #actions>
+        <span class="total">Total: {{ rows.length }}</span>
+      </template>
+    </WidgetHeading>
     <SearchField v-if="rows.length > 0" v-model="query" placeholder="Search entities" label="Search entities" />
     <div v-if="rows.length > 0 && shown.length > 0" class="sections">
-      <section v-for="section in sections" :key="section.category" class="section">
-        <div
-          class="section-head"
-          role="button"
-          tabindex="0"
-          :aria-expanded="isSectionOpen(section.category)"
-          @click="toggleSection(section.category)"
-          @keydown.enter.prevent="toggleSection(section.category)"
-          @keydown.space.prevent="toggleSection(section.category)"
-        >
-          <span class="section-name">{{ section.label }} ({{ section.rows.length }})</span>
-          <ChevronDown class="chevron" :class="{ 'is-open': isSectionOpen(section.category) }" aria-hidden="true" />
-        </div>
-        <ul v-if="isSectionOpen(section.category)" class="rows">
+      <AccordionRow
+        v-for="(section, index) in sections"
+        :key="section.category"
+        :label="section.label"
+        :value="String(section.rows.length)"
+        :stripe="index % 2 === 1"
+        :empty="section.rows.length === 0"
+        :open="isSectionOpen(section.category)"
+        @toggle="toggleSection(section.category)"
+      >
+        <ul class="rows">
           <li v-for="row in section.rows" :key="row.index" class="row">{{ row.entityName }}</li>
         </ul>
-      </section>
+      </AccordionRow>
     </div>
     <EmptyMessage v-if="rows.length === 0">This level has no entities.</EmptyMessage>
     <EmptyMessage v-else-if="shown.length === 0">No entity matches the search.</EmptyMessage>
@@ -168,56 +150,22 @@ watch(levelStore.map, rebuild, { immediate: true })
   padding: 0 8px 8px;
   overflow: hidden;
 
-  .count {
-    margin: 0 6px 6px;
+  // the count of the level sits in the heading, on the right, where a widget keeps its action: the list has none, and
+  // the total is the number the author opens it for (2026-11-22, the owner)
+  .total {
     color: $text-muted;
-    font-size: 12px;
+    font-size: 11px;
   }
 
   .sections {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 2px;
     min-height: 0;
+    margin-top: 20px;
     // the rows stop before the scrollbar, the way the rows of the group inspector do: the bar takes the right edge
     padding: 0 10px 0 0;
     overflow-y: auto;
-  }
-
-  // the categories fold away, the way the rows of the selection inspector do: the name and the arrow on one line, and
-  // the arrow down while the rows are closed
-  .section-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 3px 6px;
-    border-radius: 3px;
-    cursor: pointer;
-    user-select: none;
-
-    &:hover {
-      background: rgba($surface-panel, 0.45);
-    }
-  }
-
-  .section-name {
-    color: $text-icon;
-    font-size: 11px;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
-
-  .chevron {
-    flex: 0 0 auto;
-    width: 12px;
-    height: 12px;
-    color: $text-subtle;
-    transition: transform 120ms ease;
-
-    &.is-open {
-      transform: rotate(180deg);
-    }
   }
 
   .rows {

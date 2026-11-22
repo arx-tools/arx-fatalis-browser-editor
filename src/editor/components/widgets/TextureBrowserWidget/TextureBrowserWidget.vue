@@ -362,6 +362,8 @@ async function onDrop(event: DragEvent): Promise<void> {
   flex: 1;
   grid-template-columns: repeat(auto-fill, minmax(74px, 1fr));
   gap: 4px;
+  // the search row keeps a breath before the list (2026-11-22, the owner: the rows touched the field)
+  margin-top: 20px;
   padding: 2px 6px;
   overflow-y: auto;
   align-content: start;

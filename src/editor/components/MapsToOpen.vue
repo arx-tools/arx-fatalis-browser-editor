@@ -234,6 +234,8 @@ watch(currentMapId, (id) => {
       padding-left: 6px;
       color: $text-subtle;
       white-space: nowrap;
+      // the prefix is a caption, not text to copy: a double click on it must not select it (2026-11-22, the owner)
+      user-select: none;
       cursor: pointer;
     }
 

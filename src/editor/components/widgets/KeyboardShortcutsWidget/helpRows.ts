@@ -215,6 +215,10 @@ export const helpSections: readonly HelpSection[] = [
       { actionId: 'copySelection', action: 'Copy face(s)' },
       { actionId: 'pasteSelection', action: 'Paste face(s)' },
       { actionId: 'deleteSelectedPolygons', action: 'Delete face(s), room(s) or group(s)' },
+      // the two steps of the selection: the camera goes to a face of it, so a face no view shows can be found
+      // (2026-11-22, the owner)
+      { actionId: 'stepPreviousFace', action: 'Previous face of the selection' },
+      { actionId: 'stepNextFace', action: 'Next face of the selection' },
     ],
   },
   {

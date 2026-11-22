@@ -431,6 +431,9 @@ test('the function keys switch the five presets in the order of the menu', async
         return await presetName(page)
       })
       .toBe(name)
+
+    // the closed button counts the layouts with the same key the menu row shows, so the active one reads at a glance
+    await expect(page.locator('header button[aria-label="Presets"]')).toContainText(`(${key})`)
   }
 
   // the blank layout has no key of its own: a key without a preset leaves the layout where it is

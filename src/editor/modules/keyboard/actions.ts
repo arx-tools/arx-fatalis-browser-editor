@@ -37,6 +37,8 @@ export type KeyboardActionId =
   | 'toggleTransform'
   | 'toggleWireframe'
   | 'redo'
+  | 'stepNextFace'
+  | 'stepPreviousFace'
   | 'undo'
   | 'unlockPointer'
 
@@ -295,6 +297,20 @@ export const keyboardActions: readonly KeyboardAction[] = [
     label: 'Lighter',
     group: 'layouts',
     keys: [{ code: 'F5' }],
+    modes: ['editor', 'pointerLocked'],
+  },
+  {
+    id: 'stepPreviousFace',
+    label: 'Previous face of the selection',
+    group: 'selection',
+    keys: [{ code: 'Comma' }],
+    modes: ['editor', 'pointerLocked'],
+  },
+  {
+    id: 'stepNextFace',
+    label: 'Next face of the selection',
+    group: 'selection',
+    keys: [{ code: 'Period' }],
     modes: ['editor', 'pointerLocked'],
   },
 ]

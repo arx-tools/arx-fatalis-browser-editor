@@ -17,6 +17,7 @@ import { startPortalGeneration } from './modules/rooms/portalSync.ts'
 import { startSelection } from './modules/selection/selectionStore.ts'
 import { startClipboard } from './modules/selection/clipboard.ts'
 import { startDeleteSelection } from './modules/selection/deleteSelection.ts'
+import { startFaceStepping } from './modules/selection/faceStepping.ts'
 import { startLevelTextures } from './modules/level/edit/levelTextures.ts'
 import { prepareLoadedMap, startLighting } from './modules/level/edit/lighting.ts'
 import { MAP_PARAMETER, mapIdFromUrl, mapSlugOf, storedMapId } from './modules/level/source/maps/mapId.ts'
@@ -130,6 +131,7 @@ onMounted(async () => {
   startSelection()
   startLevelEditing()
   startDeleteSelection()
+  startFaceStepping()
   startClipboard()
   startPortalGeneration()
   startMapHistoryPersistence()

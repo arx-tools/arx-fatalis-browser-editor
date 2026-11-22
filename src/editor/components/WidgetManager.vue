@@ -51,6 +51,19 @@ const selectedLabel = computed(() => {
 })
 
 /**
+ * The key of the selected preset, which the button shows next to the name.
+ *
+ * @remarks
+ * The closed button is the counter of the layouts: the function key of the preset says which one is on, the same way
+ * the open menu does (2026-11-22, the owner). The blank layout has no key, so its button says its name alone.
+ */
+const selectedShortcut = computed(() => {
+  return presets.value.find((preset) => {
+    return preset.id === selectedPreset.value
+  })?.shortcut
+})
+
+/**
  * Puts the chosen preset on the dock and closes the menu.
  *
  * @param id The identifier of the preset.
@@ -233,6 +246,7 @@ onBeforeUnmount(() => {
         @click="togglePresets"
       >
         <span class="name">{{ selectedLabel }}</span>
+        <KeyHint v-if="selectedShortcut !== undefined" :text="selectedShortcut" />
         <ChevronDown :size="12" />
       </button>
       <div v-if="isPresetOpen" class="preset-menu" role="menu">

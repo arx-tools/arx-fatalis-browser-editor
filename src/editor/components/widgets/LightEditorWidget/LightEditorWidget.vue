@@ -6,7 +6,7 @@ import { commandOf } from '../../../modules/history/commands.ts'
 import { createSetLightRecord, type LightChange, type SetLightEdit } from '../../../modules/history/records.ts'
 import { runStep } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
-import { lightsRevision, touchLights } from '../../../modules/level/edit/lightEditing.ts'
+import { cloneLightOf, lightsRevision, touchLights } from '../../../modules/level/edit/lightEditing.ts'
 import { fallEndSphereVisible, fallStartSphereVisible } from '../../../modules/level/edit/lightSpheres.ts'
 import { refreshLightPalette, type LightPaletteChange } from '../../../modules/level/edit/lightPalette.ts'
 import { lightSelectionStore } from '../../../modules/selection/lightSelectionStore.ts'
@@ -172,22 +172,6 @@ const mismatchMessage = computed(() => {
 
   return lightMismatchMessageOf(current.reasons)
 })
-
-/**
- * Copies a light, so the step and the fields do not share a vector with the level.
- *
- * @param light The light to copy.
- *
- * @returns The light, with vectors of its own.
- */
-function cloneLightOf(light: ArxLight): ArxLight {
-  return {
-    ...light,
-    position: { ...light.position },
-    color: { ...light.color },
-    exFlicker: { ...light.exFlicker },
-  }
-}
 
 /**
  * Writes the fields to the selected lights, and tells the markers.

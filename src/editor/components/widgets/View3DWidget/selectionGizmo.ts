@@ -36,7 +36,7 @@ import { selectionCenterOf } from './selectionCenter.ts'
  * the two apart without a flag that a drag (which may fire no click) would leave behind. A click of the gizmo that
  * moved nothing does not start the window, so the user can click the middle of the view to walk again.
  */
-const LOCK_GUARD_MS = 300
+export const LOCK_GUARD_MS = 300
 
 /**
  * The turn between the frame of the scene and the frame of the game.
@@ -46,7 +46,7 @@ const LOCK_GUARD_MS = 300
  * the corner is turned by it so its triad shows the game's axes; the gizmo gets the same turn, so its arrows point the
  * way the compass and the coordinate readout do: the green Y down the game's Y, the red X the game's X.
  */
-const GAME_TURN = new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), Math.PI)
+export const GAME_TURN = new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), Math.PI)
 
 /**
  * The axis and the angle of a turn.

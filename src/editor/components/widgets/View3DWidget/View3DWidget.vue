@@ -69,6 +69,7 @@ import { createFrameLoop } from './frameLoop.ts'
 import { useSelectionDrag } from './useSelectionDrag.ts'
 import { createOrientationGizmo, type OrientationGizmo } from './orientationGizmo.ts'
 import { createPolygonSelectionOverlay, type PolygonSelectionOverlay } from './polygonSelection.ts'
+import { createLightGizmo, type LightGizmo } from './lightGizmo.ts'
 import { createSelectionGizmo, type SelectionGizmo } from './selectionGizmo.ts'
 
 /**
@@ -179,6 +180,10 @@ const gizmoCanvas = useTemplateRef<HTMLCanvasElement>('gizmoCanvas')
 let view: ViewScene<PerspectiveCamera> | undefined
 let gizmo: OrientationGizmo | undefined
 let selectionGizmo: SelectionGizmo | undefined
+/**
+ * The move gizmo of the selected lights, or `undefined` before the view is built.
+ */
+let lightGizmo: LightGizmo | undefined
 let shown: Mesh[] = []
 let wireframe: LevelWireframe | undefined
 let normals: NormalsOverlay | undefined
@@ -382,6 +387,15 @@ function createScene(): void {
 
   gizmo = createOrientationGizmo(gizmoTarget, view.camera)
   selectionGizmo = createSelectionGizmo({
+    scene: view.scene,
+    camera: view.camera,
+    canvas: target,
+    onRender: (): void => {
+      loop.requestRender()
+    },
+  })
+  // the lights move with a gizmo of their own: a point light has no direction, so it has the translate mode only
+  lightGizmo = createLightGizmo({
     scene: view.scene,
     camera: view.camera,
     canvas: target,
@@ -665,10 +679,11 @@ function showMap(map: ArxMap): void {
       loop.requestRender()
     },
     canLock: (): boolean => {
-      return selectionGizmo?.canLock() ?? true
+      return (selectionGizmo?.canLock() ?? true) && (lightGizmo?.canLock() ?? true)
     },
     onLockChange: (locked: boolean): void => {
       selectionGizmo?.setEnabled(!locked)
+      lightGizmo?.setEnabled(!locked)
 
       if (locked) {
         loop.startLoop()
@@ -1014,6 +1029,8 @@ onBeforeUnmount(() => {
 
   selectionGizmo?.dispose()
   selectionGizmo = undefined
+  lightGizmo?.dispose()
+  lightGizmo = undefined
 
   observer?.disconnect()
   observer = undefined

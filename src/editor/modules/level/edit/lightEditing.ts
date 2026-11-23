@@ -1,3 +1,4 @@
+import type { ArxLight } from 'arx-convert/types'
 import { shallowRef, type ShallowRef } from 'vue'
 
 /**
@@ -9,6 +10,26 @@ import { shallowRef, type ShallowRef } from 'vue'
  * bumps this counter the way the mesh work bumps `levelRevision`, and the views read it.
  */
 export const lightsRevision: ShallowRef<number> = shallowRef(0)
+
+/**
+ * Gives the light with vectors of its own.
+ *
+ * @remarks
+ * The lights of the level are the mutable objects of the LLF: a snapshot of a light for the history or for the start of
+ * a drag has to copy the vectors, or the write of the live edit would move the snapshot too.
+ *
+ * @param light The light to copy.
+ *
+ * @returns The light, with vectors of its own.
+ */
+export function cloneLightOf(light: ArxLight): ArxLight {
+  return {
+    ...light,
+    position: { ...light.position },
+    color: { ...light.color },
+    exFlicker: { ...light.exFlicker },
+  }
+}
 
 /**
  * Marks the lights of the level as changed.

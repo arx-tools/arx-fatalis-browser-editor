@@ -64,6 +64,9 @@ export default defineConfig({
   // the e2e suite lives next to the unit tests but in its own folder: `node --test` does not run it and
   // playwright does not run the unit tests
   testDir: './tests/e2e',
+  // the levels a spec opens are a map of the data dir of the game: the setup below writes the three files of every level
+  // the suite uses into a fixture folder of the output dir, and `editorUrl` names it in the url
+  globalSetup: './tests/e2e/support/levelFixture.ts',
   fullyParallel: true,
   workers,
   // a `test.only` that was left in the code would silently hide every other test in the ci

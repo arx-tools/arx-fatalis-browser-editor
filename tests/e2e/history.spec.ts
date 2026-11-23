@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import {
   clickCrosshair,
+  clickCrosshairUntilSelected,
   editorUrl,
   layoutWithTheKeys,
   lockPointer,
@@ -137,7 +138,7 @@ test('the redo follows the label on the key, not the position of a US keyboard',
 
   await lockPointer(page, view)
   await writePose(page, spawn)
-  await clickCrosshair(view)
+  await clickCrosshairUntilSelected(page, view)
   await page.keyboard.press('Delete')
 
   await expect
@@ -171,7 +172,7 @@ test('the help runs the steps too, and a new delete drops the redo side', async 
 
   await lockPointer(page, view)
   await writePose(page, spawn)
-  await clickCrosshair(view)
+  await clickCrosshairUntilSelected(page, view)
   await page.keyboard.press('Delete')
 
   await expect
@@ -226,7 +227,7 @@ test('the help runs the steps too, and a new delete drops the redo side', async 
 
   await lockPointer(page, view)
   await writePose(page, spawn)
-  await clickCrosshair(view)
+  await clickCrosshairUntilSelected(page, view)
   await page.keyboard.press('Delete')
 
   await expect

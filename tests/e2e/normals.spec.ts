@@ -1,7 +1,14 @@
 import { expect, test, type Page } from '@playwright/test'
 import { testLayout } from '../support/layouts.ts'
 import { WIDGET_KINDS } from '../../src/editor/modules/layout/widgetKinds.ts'
-import { editorUrl, renameKinds, seedLayout, waitForLevel } from './support/editor.ts'
+import {
+  clickCrosshairUntilSelected,
+  editorUrl,
+  lockPointer,
+  renameKinds,
+  seedLayout,
+  waitForLevel,
+} from './support/editor.ts'
 
 /**
  * Reads a value the editor kept in the browser.
@@ -136,6 +143,57 @@ test('the normals are a switch of the walkable view, and the widget chooses thei
   await expect(widget.locator('button[aria-label="Vertex normals"]')).toHaveAttribute('aria-pressed', 'true')
   await expect(widget.locator('button[aria-label="Face normals"]')).toHaveAttribute('aria-pressed', 'false')
   await expect(widget.locator('button[aria-label="Vertex normals"]')).toBeDisabled()
+
+  expect(errors).toEqual([])
+})
+
+/**
+ * The lines of the selected faces take their own color, and a selection change does not break the layer.
+ *
+ * @remarks
+ * The two colors of the selection are the unit test of `normalsOverlay.ts` (the plain and the selected halves of a
+ * layer); here the page proves that a click of the walkable view reaches the layer: the selection grows, the lines are
+ * built again after the throttled wait, and the page has no error. The pointer lock needs chromium (the headless
+ * firefox of the suite does not keep one).
+ */
+test('the lines of the selected faces are built again, without an error', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'the pointer lock of the walkable view needs chromium here')
+  test.setTimeout(120_000)
+
+  const errors: string[] = []
+
+  page.on('pageerror', (error) => {
+    errors.push(String(error))
+  })
+
+  // the normals widget takes the row of the polygon inspector, and the selection inspector stays for the count
+  await seedLayout(
+    page,
+    renameKinds(testLayout, {
+      [WIDGET_KINDS.polygonInspector]: WIDGET_KINDS.normalsControls,
+    }),
+  )
+
+  await page.goto(editorUrl())
+  await waitForLevel(page)
+
+  const widget = page.locator(`[data-widget-kind="${WIDGET_KINDS.normalsControls}"]`)
+  const view = page.locator('[data-widget-kind="3d-view"] canvas').first()
+
+  // both layers on
+  await page.keyboard.press('n')
+
+  await expect(widget.locator('button[aria-label="Face normals"]')).toHaveAttribute('aria-pressed', 'true')
+  await widget.locator('button[aria-label="Vertex normals"]').click()
+
+  await expect(widget.locator('button[aria-label="Vertex normals"]')).toHaveAttribute('aria-pressed', 'true')
+
+  // the face under the crosshair joins the selection, so its lines go into the selected halves
+  await lockPointer(page, view)
+  await clickCrosshairUntilSelected(page, view)
+
+  // the rebuild of the lines follows the selection after the throttled wait
+  await page.waitForTimeout(1000)
 
   expect(errors).toEqual([])
 })

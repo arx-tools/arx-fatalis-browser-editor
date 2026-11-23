@@ -28,6 +28,17 @@ const FACE_NORMAL_COLOR = 0xff_a5_00
 const VERTEX_NORMAL_COLOR = 0x22_d3_ee
 
 /**
+ * The color of the line of a normal of a selected face: white.
+ *
+ * @remarks
+ * The two layers share the color (2026-11-23, the owner: the same white is fine on the face and on the corner): the white
+ * is the brightest line of the scene, so a selected line stands out of the amber and the cyan of the unselected ones even
+ * on a light wall, and the shape of the line already says which layer it belongs to. The red and the green of the face
+ * layer were tried first; the red sat too close to the amber, and the green was too loud beside the crosshair contour.
+ */
+const NORMAL_SELECTED_COLOR = 0xff_ff_ff
+
+/**
  * The share of the radius of a face a normal line takes.
  *
  * @remarks
@@ -309,12 +320,14 @@ export type NormalsOverlay = {
    *
    * @remarks
    * A level is edited in place, so the buffers of its mesh tell nothing about a new geometry: this is the call after an
-   * edit, and a hidden group changes the list of the polygons the same way.
+   * edit, and a hidden group changes the list of the polygons the same way. The selected faces are a source of their own,
+   * because their lines take the selected color.
    *
    * @param polygons The faces to draw, in their own order.
    * @param offset The scene position of the level, already mirrored.
+   * @param selected The faces in the selection; the lines of these take the selected color.
    */
-  readonly setPolygons: (polygons: readonly ArxPolygon[], offset: Vector3) => void
+  readonly setSource: (polygons: readonly ArxPolygon[], offset: Vector3, selected: ReadonlySet<ArxPolygon>) => void
   /**
    * Takes the overlay out of the scene and frees its geometries and materials.
    */
@@ -371,6 +384,10 @@ function createLayer(color: number, renderOrder: number): NormalsLayer {
  * mesh, so they are built from the polygons of the map and every view that draws them has its own wrapper. The lines
  * write depth and are drawn after the wireframe, so the normals of a wall behind another wall stay hidden.
  *
+ * Every layer has two halves, a plain one and the one of the **selected** faces, because the line of a selected face
+ * takes a color of its own (2026-11-23, the owner). The two halves are built from the two parts of the same polygon
+ * list, so a rebuild walks the level once per layer, the same cost as a single color would be.
+ *
  * The lines are built from the **visible** polygons the caller gives, and only the layers the view shows are built: the
  * default is the face normals, which is one line per face, and the corner normals of a big level are ten times that many
  * points.
@@ -387,19 +404,24 @@ export function attachNormals(scene: Scene): NormalsOverlay {
 
   const face = createLayer(FACE_NORMAL_COLOR, 7)
   const vertex = createLayer(VERTEX_NORMAL_COLOR, 8)
+  const selectedFace = createLayer(NORMAL_SELECTED_COLOR, 9)
+  const selectedVertex = createLayer(NORMAL_SELECTED_COLOR, 10)
 
-  group.add(face.lines, vertex.lines)
+  group.add(face.lines, vertex.lines, selectedFace.lines, selectedVertex.lines)
 
   let layers: NormalsLayers = { face: true, vertex: false }
   let source: { readonly polygons: readonly ArxPolygon[]; readonly offset: Vector3 } | undefined
-  let sourceIndex = 0
+  let selection: ReadonlySet<ArxPolygon> = new Set()
+  let revision = 0
 
   /**
    * Puts the layers the view asks for on the screen and takes the others off.
    */
   function applyLayers(): void {
     face.lines.visible = layers.face
+    selectedFace.lines.visible = layers.face
     vertex.lines.visible = layers.vertex
+    selectedVertex.lines.visible = layers.vertex
   }
 
   /**
@@ -407,33 +429,52 @@ export function attachNormals(scene: Scene): NormalsOverlay {
    *
    * @param layer The layer to build.
    * @param shown Whether the view shows it.
+   * @param polygons The faces of the layer, already split by the selection.
    * @param build The builder of its points.
    */
   function buildLayer(
     layer: NormalsLayer,
     shown: boolean,
+    polygons: readonly ArxPolygon[],
     build: (polygons: readonly ArxPolygon[], offset: Vector3) => Float32Array,
   ): void {
-    if (!shown || source === undefined || layer.builtSource === sourceIndex) {
+    if (!shown || source === undefined || layer.builtSource === revision) {
       return
     }
 
-    const positions = build(source.polygons, source.offset)
+    const positions = build(polygons, source.offset)
 
     layer.lines.geometry.setAttribute('position', new BufferAttribute(positions, 3))
-    layer.builtSource = sourceIndex
+    layer.builtSource = revision
   }
 
   /**
    * Builds the layers the view shows, if they are stale.
    */
   function buildShownLayers(): void {
-    if (!group.visible) {
+    if (source === undefined || !group.visible) {
       return
     }
 
-    buildLayer(face, layers.face, faceNormalLines)
-    buildLayer(vertex, layers.vertex, vertexNormalLines)
+    if (!layers.face && !layers.vertex) {
+      return
+    }
+
+    const plain: ArxPolygon[] = []
+    const highlighted: ArxPolygon[] = []
+
+    for (const polygon of source.polygons) {
+      if (selection.has(polygon)) {
+        highlighted.push(polygon)
+      } else {
+        plain.push(polygon)
+      }
+    }
+
+    buildLayer(face, layers.face, plain, faceNormalLines)
+    buildLayer(selectedFace, layers.face, highlighted, faceNormalLines)
+    buildLayer(vertex, layers.vertex, plain, vertexNormalLines)
+    buildLayer(selectedVertex, layers.vertex, highlighted, vertexNormalLines)
   }
 
   applyLayers()
@@ -448,16 +489,17 @@ export function attachNormals(scene: Scene): NormalsOverlay {
       applyLayers()
       buildShownLayers()
     },
-    setPolygons: (polygons: readonly ArxPolygon[], offset: Vector3): void => {
+    setSource: (polygons: readonly ArxPolygon[], offset: Vector3, selected: ReadonlySet<ArxPolygon>): void => {
       source = { polygons, offset }
-      sourceIndex = sourceIndex + 1
+      selection = selected
+      revision = revision + 1
       buildShownLayers()
     },
     dispose: (): void => {
       scene.remove(group)
       group.clear()
 
-      for (const layer of [face, vertex]) {
+      for (const layer of [face, vertex, selectedFace, selectedVertex]) {
         layer.lines.geometry.dispose()
         layer.lines.material.dispose()
       }

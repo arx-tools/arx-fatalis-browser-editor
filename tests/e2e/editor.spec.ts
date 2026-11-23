@@ -1,6 +1,5 @@
 import { expect, test } from '@playwright/test'
 import {
-  editorUrl,
   layoutWithSelectionInspector,
   lockPointer,
   readPose,
@@ -17,6 +16,9 @@ import {
  * It is the first test of the suite, the frame the others hang on: the level is not waited for, so the
  * test does not depend on the download of the level files. Every further scenario (the layout editor,
  * the picker, the camera form, the widgets) comes after it, one file per area of the editor.
+ *
+ * The page is the plain start (no map, no data dir): the shell is what it tests, and a fixture data dir would make the
+ * editor probe the folder for the textures of the level, whose 404s are console errors (2026-11-23, the e2e fixture).
  */
 test('the shell opens with the default layout', async ({ page }) => {
   const consoleErrors: string[] = []
@@ -30,7 +32,7 @@ test('the shell opens with the default layout', async ({ page }) => {
     consoleErrors.push(String(error))
   })
 
-  await page.goto(editorUrl())
+  await page.goto('/')
 
   // the header is the sign that the shell mounted at all
   await expect(page.getByText('Arx Fatalis Browser Editor')).toBeVisible()
@@ -57,7 +59,7 @@ test('the shell opens with the default layout', async ({ page }) => {
  */
 test('the header keeps the title and the version on a narrow window', async ({ page }) => {
   await page.setViewportSize({ width: 1450, height: 850 })
-  await page.goto(editorUrl())
+  await page.goto('/')
 
   const brand = page.locator('header .brand')
 
@@ -96,7 +98,7 @@ test('the pointer lock walks the camera with the keys', async ({ page, browserNa
   test.setTimeout(120_000)
 
   await seedLayout(page, layoutWithSelectionInspector())
-  await page.goto(editorUrl())
+  await page.goto('/')
 
   const view = page.locator('[data-widget-kind="3d-view"] canvas').first()
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
 import { Magnet } from 'lucide-vue-next'
-import type { ArxLight } from 'arx-convert/types'
+import type { ArxLight, ArxPolygon } from 'arx-convert/types'
 import { PerspectiveCamera, type Group, type Mesh } from 'three'
 import Crosshair from '../../Crosshair.vue'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
@@ -470,12 +470,34 @@ function applyRoomHighlight(): void {
 }
 
 /**
+ * The faces of the selection, as the polygons of the level.
+ *
+ * @param map The map the selection belongs to.
+ *
+ * @returns The selected faces; an empty set when the selection is empty.
+ */
+function selectedPolygonsOf(map: ArxMap): Set<ArxPolygon> {
+  const selected = new Set<ArxPolygon>()
+
+  for (const index of selectionStore.polygons.value) {
+    const polygon = map.polygons[index]
+
+    if (polygon !== undefined) {
+      selected.add(polygon)
+    }
+  }
+
+  return selected
+}
+
+/**
  * Builds the lines of the normals again from the polygons the mesh draws.
  *
  * @remarks
  * The normals are built from the polygons and not from the geometry of the mesh: a line starts in the middle of a face
  * and on its corners, which the buffers of the triangles no longer know. The source is therefore rebuilt after every
- * edit, and after a group hides or shows a face (the level draws the visible polygons only).
+ * edit, and after a group hides or shows a face (the level draws the visible polygons only). The selection comes along,
+ * because the lines of a selected face take a color of their own.
  */
 function refreshNormals(): void {
   const map = loadedMap
@@ -484,7 +506,7 @@ function refreshNormals(): void {
     return
   }
 
-  normals.setPolygons(map.visiblePolygons, arxVector3toVector3(map.scenePosition))
+  normals.setSource(map.visiblePolygons, arxVector3toVector3(map.scenePosition), selectedPolygonsOf(map))
 }
 
 /**
@@ -578,7 +600,7 @@ function showMap(map: ArxMap): void {
   // two switches decide which of the layers is on. Only this view draws them (2026-11-23, the owner)
   normals = attachNormals(view.scene)
   normals.setLayers(normalsLayers.value)
-  normals.setPolygons(map.visiblePolygons, arxVector3toVector3(map.scenePosition))
+  normals.setSource(map.visiblePolygons, arxVector3toVector3(map.scenePosition), selectedPolygonsOf(map))
   normals.setVisible(isNormalsVisible.value)
 
   // the portal outline has no geometry in the level: it is built from the list of the portals, over the same space
@@ -905,9 +927,11 @@ onMounted(() => {
   // the room inspector picks a room: the map dims the others, so the picked room reads at a glance
   stopWatchingRoom = watch(litRooms, applyRoomHighlight)
 
-  // the selection is shared with the statistics widget: a change draws the fill of the polygons
+  // the selection is shared with the statistics widget: a change draws the fill of the polygons, and gives the lines of
+  // the selected faces their color (the rebuild waits between two frames of a sweep, like an edit does)
   stopWatchingSelection = watch(selectionStore.polygons, () => {
     dragSelection.updateHighlight()
+    scheduleNormals()
     loop.requestRender()
   })
 

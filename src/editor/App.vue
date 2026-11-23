@@ -30,12 +30,7 @@ import {
   hasDataDir,
   startDataDir,
 } from './modules/level/source/dataDir.ts'
-import {
-  isOriginalLevelSource,
-  ORIGINAL_LEVEL_PARAMETER,
-  starterLevelSource,
-  zipUrlFromUrl,
-} from './modules/level/source/levelSource.ts'
+import { starterLevelSource, zipUrlFromUrl } from './modules/level/source/levelSource.ts'
 import {
   arxLevels,
   adoptEditorFilesOf,
@@ -206,18 +201,6 @@ onMounted(async () => {
           adoptHistoryOf(currentMapId.value, source)
           adoptEditorFilesOf(currentMapId.value, source, levelStore.map.value?.fingerprint)
         }
-      } else if (isOriginalLevelSource(source)) {
-        currentMapId.value = `arx:${String(source.level)}`
-
-        // a level of the game, with the textures of the data directory of the url: nothing is downloaded, and a folder
-        // that has no such level is an error the walkable view shows
-        await levelStore
-          .openLevel(source, async (map): Promise<void> => {
-            await prepareLoadedMap(map)
-          })
-          .catch(() => {
-            // the store keeps the error of the load, the walkable view shows it
-          })
       } else {
         // the blank level of the start is painted like any other: the containers it has draw with the placeholder (the
         // editor has no texture of the game at hand), so the floor is the jorge pattern and not the bare gray of a mesh
@@ -275,16 +258,16 @@ onMounted(async () => {
         // a map the list does not have (a level the folder lost, a zip of a previous session) falls back to the level the
         // editor opens with. The camera follows the pose of the opened map: the pose of the url is the one of the link,
         // and a blank level under it would put that pose on a level it does not belong to
-        await openMap(resolved ?? DEFAULT_MAP_ID)
+        // the map of the url is not in the list: the default opens, and the address bar keeps the link (the folder of a
+        // later visit may have its level, and the map of the screen is not the answer to the link)
+        await openMap(resolved ?? DEFAULT_MAP_ID, { keepUrl: keepRequestedMap })
       }
     }
 
     if (url !== undefined) {
-      // the map of the screen is a value of the list now, so the address bar carries that instead of the old parameter
-      // (a reload starts from the same map). The folder of the url stays in the address bar: nothing remembers it, so a
-      // link is what gives the folder of the next visit
-      writeUrlValue(url, ORIGINAL_LEVEL_PARAMETER, undefined)
-
+      // the map of the screen is a value of the list, so the address bar carries that (a reload starts from the same
+      // map). The folder of the url stays in the address bar: nothing remembers it, so a link is what gives the folder
+      // of the next visit
       // a zip of the url is the map itself: the address bar keeps it instead of a value of a list the next visit does
       // not have. A map the list did not have is kept too: the folder of the next visit may have its level
       if (zipUrl === undefined && !keepRequestedMap) {

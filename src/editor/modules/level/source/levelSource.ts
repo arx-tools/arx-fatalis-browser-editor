@@ -4,7 +4,6 @@ import { getUrlAdapter, readUrlValue, type UrlAdapter } from '../../persistedRef
 import { createBlankLevelFiles, FLAT_PRESET, type NewLevelPreset } from '../blankLevel.ts'
 import { levelSeed } from '../seed.ts'
 import { dataDirFromUrl, hasDataDir, readDataFile } from './dataDir.ts'
-import { IS_DEVELOPMENT } from './dataDir/url.ts'
 import { createZipUrlLevelSource } from './zipSource.ts'
 
 /**
@@ -52,96 +51,12 @@ export type LevelSource = {
 }
 
 /**
- * Where the packed level files are downloaded from.
- *
- * @remarks
- * The `pkware-test-files` repository holds the levels of the game unpacked from the PAKs, still with
- * their inner compression. It is the same source the archived editor used, and it keeps the repository
- * free of multi megabyte binaries.
- */
-const LEVEL_FILES_BASE_URL = 'https://raw.githubusercontent.com/arx-tools/pkware-test-files/main/arx-fatalis'
-
-/**
- * Where the development server serves the same files (see `localLevelRoute` of `vite.config.ts`).
- *
- * @remarks
- * The route reads the checkout of the repository next to this one, and the cache of the machine, and downloads a level
- * only when neither has it. The tests and a hand session of the editor therefore read the level from the disk.
- */
-const LOCAL_LEVEL_FILES_BASE_URL = '/__local-levels/arx-fatalis'
-
-/**
- * The base url the packed level files are read from.
- *
- * @remarks
- * On the development server the level comes from the machine itself (`LOCAL_LEVEL_FILES_BASE_URL`), which is what makes
- * a browser test fast and a checkout of the `pkware-test-files` repository a source; the shipped editor has no server
- * behind it, so it downloads from the repository.
- *
- * @param isDevelopment Whether the editor runs on the development server.
- *
- * @returns The url the three files of a level hang under.
- */
-export function levelFilesBaseUrlOf(isDevelopment: boolean): string {
-  if (isDevelopment) {
-    return LOCAL_LEVEL_FILES_BASE_URL
-  }
-
-  return LEVEL_FILES_BASE_URL
-}
-
-/**
- * The url parameter that opens one of the original levels of the game.
- *
- * @remarks
- * The url is the **api** of the editor: everything the editor can do with the level is a parameter of it, and a
- * link is the whole state. This one is the level itself, beside the seed, the camera pose and the visibility
- * switches — so a test (and a person) can open level 8 without touching the code.
- *
- * It is not called `level` because a level is not only a number here: the editor opens a level from one of three
- * sources ({@link LevelSource}), and this parameter is the **original game level** of one of them.
- */
-export const ORIGINAL_LEVEL_PARAMETER = 'fromOriginalArxLevel'
-
-/**
- * The original level the url asks for.
- *
- * @remarks
- * The original levels of the game are numbered from 0, so a value that is not a whole number in that range is
- * ignored (the editor opens a blank level then): a mistyped link is not a reason to fail a load.
- *
- * @param url The query string to read, the one of the page by default.
- *
- * @returns The level of the url, or undefined when it says nothing usable.
- */
-export function originalLevelFromUrl(url: UrlAdapter | undefined = getUrlAdapter(undefined)): number | undefined {
-  if (url === undefined) {
-    return undefined
-  }
-
-  const raw = readUrlValue(url, ORIGINAL_LEVEL_PARAMETER)
-
-  // an empty parameter (`?fromOriginalArxLevel=`) is not level 0: it says nothing
-  if (raw === undefined || raw.trim() === '') {
-    return undefined
-  }
-
-  const level = Number(raw)
-
-  if (!Number.isSafeInteger(level) || level < 0) {
-    return undefined
-  }
-
-  return level
-}
-
-/**
  * The url parameter that opens a level from a zip.
  *
  * @remarks
- * The sibling of {@link ORIGINAL_LEVEL_PARAMETER}: the level of the session is not one of the game's own, but a zip
- * somewhere the browser (or the development server) can read. A hand test is one url then: paste the path of the zip
- * in the address bar, and the editor opens it.
+ * The level of the session is not one of the game's own, but a zip somewhere the browser (or the development server) can
+ * read. A hand test is one url then: paste the path of the zip in the address bar, and the editor opens it. A level of
+ * the game is a **map** of the list instead (`?map=arx-fatalis-level-8`), which needs the data directory of the game.
  */
 export const ZIP_URL_PARAMETER = 'fromZip'
 
@@ -175,62 +90,6 @@ export function zipUrlFromUrl(url: UrlAdapter | undefined = getUrlAdapter(undefi
  */
 export function levelFileNames(level: number): { dlf: string; fts: string; llf: string } {
   return { dlf: `level${level}.dlf`, fts: 'fast.fts', llf: `level${level}.llf` }
-}
-
-/**
- * The urls of the three files of a level.
- *
- * @param level The number of the level.
- *
- * @returns The url of each of the three formats.
- */
-export function levelFileUrls(level: number): { dlf: string; fts: string; llf: string } {
-  const names = levelFileNames(level)
-  const base = `${levelFilesBaseUrlOf(IS_DEVELOPMENT)}/level${level}`
-
-  return { dlf: `${base}/${names.dlf}`, fts: `${base}/${names.fts}`, llf: `${base}/${names.llf}` }
-}
-
-/**
- * Downloads one file.
- *
- * @param url The url to read.
- * @param fetchImpl The fetch to use; the tests pass a fake one.
- *
- * @returns The bytes of the file.
- *
- * @throws When the response is not ok.
- */
-async function fetchFile(url: string, fetchImpl: typeof fetch): Promise<ArrayBuffer> {
-  const response = await fetchImpl(url)
-
-  if (!response.ok) {
-    throw new Error(`Failed to download ${url}: ${String(response.status)} ${response.statusText}`)
-  }
-
-  return await response.arrayBuffer()
-}
-
-/**
- * Downloads the three packed files of a level.
- *
- * @param level The number of the level.
- * @param fetchImpl The fetch to use; the tests pass a fake one.
- *
- * @returns The three files, ready for the generator.
- */
-export async function fetchLevelFiles(
-  level: number,
-  fetchImpl: typeof fetch = fetch,
-): Promise<{ dlf: ArrayBuffer; fts: ArrayBuffer; llf: ArrayBuffer }> {
-  const urls = levelFileUrls(level)
-  const [dlf, fts, llf] = await Promise.all([
-    fetchFile(urls.dlf, fetchImpl),
-    fetchFile(urls.fts, fetchImpl),
-    fetchFile(urls.llf, fetchImpl),
-  ])
-
-  return { dlf, fts, llf }
 }
 
 /**
@@ -337,17 +196,19 @@ export function isOriginalLevelSource(source: LevelSource): source is OriginalLe
 /**
  * The source of one of the original levels of the game.
  *
+ * @remarks
+ * The level comes from the data directory of the game, which is the only source of the original levels: the folder of
+ * the header, the remembered one, or the folder the url names. A level without a folder is not downloaded any more
+ * (2026-11-23, the owner: the `fromOriginalArxLevel` parameter was the old api, and the map of the list replaced it).
+ *
  * @param level The number of the level.
  * @param url The query string to read, the one of the page by default.
- * @param isDev Whether the build is the development one: a development build downloads a level of the game that the url
- * names without a folder (the tests and the probes open the levels like that, the site never does).
  *
- * @returns The source, which reads the three files of that level from the folder, or downloads them in a dev build.
+ * @returns The source, which reads the three files of that level from the folder of the game.
  */
 export function createOriginalLevelSource(
   level: number,
   url: UrlAdapter | undefined = getUrlAdapter(undefined),
-  isDev = IS_DEVELOPMENT,
 ): OriginalLevelSource {
   // the folder is read **now**: the url does not keep the parameter (the editor takes it out of the address bar after
   // the start, and the source loads later)
@@ -371,16 +232,9 @@ export function createOriginalLevelSource(
         throw new Error(`The data directory has no level ${String(level)}.`)
       }
 
-      // no data directory at all: the level of the game is not downloaded in a build of the site (the notice over the
-      // editor asks for the folder). The development build keeps the download, because the tests and the probes open a
-      // level of the game without a folder (2026-11-12, the owner)
-      if (!isDev) {
-        throw new Error(
-          'The level of the game needs the Arx data dir: set the folder of the game, and the level opens.',
-        )
-      }
-
-      return await fetchLevelFiles(level, fetchImpl)
+      // no data directory at all: the level of the game has no source, and the notice over the editor asks for the
+      // folder (2026-11-12, the owner)
+      throw new Error('The level of the game needs the Arx data dir: set the folder of the game, and the level opens.')
     },
   }
 }
@@ -426,26 +280,12 @@ export async function loadLevel(source: LevelSource, fetchImpl?: typeof fetch): 
 }
 
 /**
- * Downloads and builds one of the original levels of the game.
- *
- * @param level The number of the level.
- * @param fetchImpl The fetch to use; the tests pass a fake one.
- *
- * @returns The built map of that level.
- */
-export async function loadOriginalArxLevel(level: number, fetchImpl: typeof fetch = fetch): Promise<ArxMap> {
-  return await loadLevel(createOriginalLevelSource(level), fetchImpl)
-}
-
-/**
- * Where the editor takes the level it opens from: the zip of the url, the original level of the url, or a blank one.
+ * Where the editor takes the level it opens from: the zip of the url, or a blank one.
  *
  * @remarks
- * The editor opens **no level by default**: with nothing in the url it starts from a blank level of the `Flat`
- * preset, which is a floor to build on rather than a level of the game to look at. A link that names an original
- * level opens that one — the url is the api, and this is the parameter of it which chooses what is loaded. The zip
- * comes first: it is the most specific thing a link can name, and the two parameters together are a mistake the zip
- * side wins.
+ * The editor opens **no level by default**: with nothing in the url it starts from a blank level of the `Flat` preset,
+ * which is a floor to build on rather than a level of the game to look at. A level of the game is a map of the list
+ * (`?map=arx-fatalis-level-8`), which needs the data directory; it is not a starter source (2026-11-23, the owner).
  *
  * @param url The query string to read, the one of the page by default.
  *
@@ -458,22 +298,16 @@ export function starterLevelSource(url: UrlAdapter | undefined = getUrlAdapter(u
     return createZipUrlLevelSource(zipUrl)
   }
 
-  const level = originalLevelFromUrl(url)
-
-  if (level === undefined) {
-    return createBlankLevelSource(FLAT_PRESET)
-  }
-
-  return createOriginalLevelSource(level, url)
+  return createBlankLevelSource(FLAT_PRESET)
 }
 
 /**
  * Builds the level the editor opens.
  *
  * @remarks
- * A level of the game that does not load is **not an error**: the editor opens a blank one instead, so a link with
- * a level that is not on the server (or a download that fails) still gives something to work with. The user is not
- * told about it yet — the toast of the persistence problems (TODO 66) will carry that message.
+ * A source that does not load is **not an error**: the editor opens a blank one instead, so a link with a zip that is
+ * not there still gives something to work with. The user is not told about it yet — the toast of the persistence
+ * problems (TODO 66) will carry that message.
  *
  * @param fetchImpl The fetch to use; the tests pass a fake one.
  * @param url The query string to read, the one of the page by default.
@@ -485,13 +319,6 @@ export async function loadStarterLevel(
   url: UrlAdapter | undefined = getUrlAdapter(undefined),
 ): Promise<ArxMap> {
   const source = starterLevelSource(url)
-  const named = dataDirFromUrl(url)
-
-  // a level the url names in a data directory is read from the disk: a folder that has no such level is a mistake of
-  // the url, and the walkable view shows it instead of a silent blank level
-  if (named !== undefined && originalLevelFromUrl(url) !== undefined) {
-    return await loadLevel(source, fetchImpl)
-  }
 
   try {
     return await loadLevel(source, fetchImpl)

@@ -193,7 +193,7 @@ export type FaceRoom = {
  *
  * @example
  * ```ts
- * const files = await fetchLevelFiles(11) // the editor side
+ * // the three packed files of a level, from the folder of the game, from a zip, or from a test fixture
  * const map = new ArxMap(files.dlf, files.fts, files.llf)
  *
  * for (const mesh of map.meshes) {

@@ -41,11 +41,10 @@ import { createZipLevelSource, isZipLevelSource } from './zipSource.ts'
  * that were opened in the session.
  *
  * @remarks
- * The header shows them in one list (`Maps to open (N)`), grouped by where they come from. The list is what the old
- * `?fromOriginalArxLevel` parameter was: a level is chosen here, and switching one **replaces the map in the store** —
- * the page does not load again, so the layout and the camera controls survive the change. The choice goes into the url
- * (`?map=`) and into the browser, so a reload starts from the map of the last visit, and the camera from the pose that
- * map was left at (see {@link moveCameraToPoseOfOpen}).
+ * The header shows them in one list (`Maps to open (N)`), grouped by where they come from. A level is chosen here, and
+ * switching one **replaces the map in the store** — the page does not load again, so the layout and the camera controls
+ * survive the change. The choice goes into the url (`?map=`) and into the browser, so a reload starts from the map of
+ * the last visit, and the camera from the pose that map was left at (see {@link moveCameraToPoseOfOpen}).
  */
 
 /**
@@ -774,6 +773,15 @@ export type OpenMapOptions = {
    * camera of the link (or of the blank map of an earlier visit) does not follow it.
    */
   readonly atSpawn?: boolean
+  /**
+   * Whether the address bar keeps the map it already names.
+   *
+   * @remarks
+   * A link may name a map the folder of the game does not have: the editor opens its default map, and the url has to
+   * keep the link (a map the address bar forgets does not come back when the folder arrives). The write of the map of
+   * the screen is skipped then, so the link is the one the folder is asked for later.
+   */
+  readonly keepUrl?: boolean
 }
 
 /**
@@ -839,7 +847,7 @@ export async function openMap(id: string, options: OpenMapOptions = {}): Promise
   // not change the value, so the watcher would not fire and the link would come back on the next visit
   const mapUrl = getUrlAdapter(undefined)
 
-  if (mapUrl !== undefined) {
+  if (mapUrl !== undefined && options.keepUrl !== true) {
     writeUrlValue(mapUrl, ZIP_URL_PARAMETER, undefined)
     writeUrlValue(mapUrl, MAP_PARAMETER, mapSlugOf(id))
   }

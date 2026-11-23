@@ -1,10 +1,11 @@
-import { expect, test, type Response } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 import {
-  clickCrosshair,
+  clickCrosshairUntilSelected,
   editorUrl,
   layoutWithSelectionInspector,
   litPixels,
   lockPointer,
+  nextFrames,
   readPose,
   seedLayout,
   selectionCount,
@@ -17,27 +18,13 @@ import {
  * The deletion of the selected faces.
  *
  * @remarks
- * The level comes over the network, from the repository the deployed editor downloads it from too. That is
- * deliberate: this is the only test that needs a real level, and the download is a part of the product that
- * can break on its own (the shape of the urls, the headers of the cdn, a moved file), which a level served
- * from the disk of the checkout would hide. So the test waits for the download instead of mocking it, and it
- * checks that the three files of the level arrived with a 200 before it clicks anything.
- *
- * It runs only in chromium: the walkable view selects with a pointer lock, and the headless firefox of the
- * suite does not keep one.
+ * The level comes from the fixture data dir of the run (`editorUrl`): the folder is what a level of the game opens
+ * from, and the fixture is the same level the specs measure on. The test runs only in chromium: the walkable view
+ * selects with a pointer lock, and the headless firefox of the suite does not keep one.
  */
 test('a deleted face leaves the rest of the level on the screen', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium', 'the pointer lock of the walkable view needs chromium here')
   test.setTimeout(120_000)
-
-  // the three files of the level, as they arrive: the test asserts them after the map is on
-  const downloads: Response[] = []
-
-  page.on('response', (response) => {
-    if (/\/arx-fatalis\/level\d+\//u.test(response.url())) {
-      downloads.push(response)
-    }
-  })
 
   // the editor preset: it has the camera form, which is how the test aims the camera again after the lock
   await seedLayout(page, layoutWithSelectionInspector())
@@ -48,13 +35,6 @@ test('a deleted face leaves the rest of the level on the screen', async ({ page,
   await expect(view).toBeVisible()
   await waitForLevel(page)
 
-  // and it came whole: three files, all of them read (the order of the three fetches is not fixed)
-  const statuses = downloads.map((response) => {
-    return response.status()
-  })
-
-  expect(statuses).toEqual([200, 200, 200])
-
   const total = await waitForLevel(page)
   const litBefore = await litPixels(view)
 
@@ -64,15 +44,7 @@ test('a deleted face leaves the rest of the level on the screen', async ({ page,
 
   await lockPointer(page, view)
   await writePose(page, spawn)
-  await clickCrosshair(view)
-
-  await expect
-    .poll(async () => {
-      return await selectionCount(page)
-    })
-    .toBeGreaterThan(0)
-
-  const selected = (await selectionCount(page)) ?? 0
+  const selected = await clickCrosshairUntilSelected(page, view)
 
   await page.keyboard.press('Delete')
 
@@ -97,17 +69,15 @@ test('a deleted face leaves the rest of the level on the screen', async ({ page,
   const pose = await readPose(page)
   const turned = (Number(pose.yaw) + 90) % 360
 
-  await writePose(page, { ...pose, yaw: turned.toFixed(2) })
+  // the pitch looks down: the face under the crosshair is a floor tile of the room, and the view of the room stays whole
+  // (a wall in the middle of the view would leave its hole as the picture)
+  await writePose(page, { ...pose, pitch: '45.00', yaw: turned.toFixed(2) })
 
-  await clickCrosshair(view)
+  // the view has to draw the new aim before the press picks with it: the pose write moves the camera, and the raycast
+  // reads the matrix of the last frame (measured: the press a frame too early found the hole of the first delete)
+  await nextFrames(page, 3)
 
-  await expect
-    .poll(async () => {
-      return await selectionCount(page)
-    })
-    .toBeGreaterThan(0)
-
-  const secondSelected = (await selectionCount(page)) ?? 0
+  const secondSelected = await clickCrosshairUntilSelected(page, view)
 
   await page.keyboard.press('Delete')
 
@@ -123,8 +93,14 @@ test('a deleted face leaves the rest of the level on the screen', async ({ page,
     })
     .toBe(0)
 
-  // and so does the picture: the level lost two faces, not itself
-  const litAfter = await litPixels(view)
+  // and so does the picture: the level lost two faces, not itself. The paint of the cut geometry builds the mesh again in
+  // a frame of its own, and a picture taken in that frame is black: the view is read until it holds the level again
+  let litAfter = await litPixels(view)
+
+  for (let attempt = 0; attempt < 5 && litAfter <= litBefore * 0.5; attempt++) {
+    await page.waitForTimeout(200)
+    litAfter = await litPixels(view)
+  }
 
   expect(litAfter).toBeGreaterThan(litBefore * 0.5)
 })

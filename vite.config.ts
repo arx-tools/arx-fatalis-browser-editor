@@ -25,20 +25,21 @@ const LEVELS_REMOTE_BASE = 'https://raw.githubusercontent.com/arx-tools/pkware-t
 const LEVELS_CACHE_DIR = 'node_modules/.cache/arx-levels'
 
 /**
- * The route the page asks the packed level files of the game from, on the development server.
+ * The route the packed level files of the game are read from, on the development server.
  *
  * @remarks
- * The editor downloads the three files of an original level from the `pkware-test-files` repository (see
- * `levelSource.ts`), and a browser test loads a level per page: the same handful of megabytes over and over, from the
- * network, on every run (2026-11-14, the owner: *„legyen cache, hogy a CI/CD is gyorsabb legyen"*).
+ * The **e2e** reads the levels a spec opens from here: the fixture data dir of a run (`tests/e2e/support/levelFixture.ts`)
+ * downloads the three files of a level once, and no spec touches the network (2026-11-14, the owner: *„legyen cache,
+ * hogy a CI/CD is gyorsabb legyen"*). A level of the game is a map of the data dir, and the fixture is the folder that
+ * holds it (2026-11-23, the owner: the `fromOriginalArxLevel` parameter of the old api is gone).
  *
- * The **development** server serves them instead, in three steps: the checkout of the repository next to this one
- * (`../pkware-test-files`, a clone of it beside the editor), the cache under `node_modules/`, and — the first time a level is
- * asked on a machine without either — the repository itself, whose answer is written into the cache. A shipped editor
- * has no server behind it, so the production build keeps the urls of the repository.
+ * The route serves them in three steps: the checkout of the repository next to this one (`../pkware-test-files`, a clone
+ * of it beside the editor), the cache under `node_modules/`, and — the first time a level is asked on a machine without
+ * either — the repository itself, whose answer is written into the cache. A shipped editor has no server behind it, and
+ * no level to download: it opens the levels of the data directory only.
  *
  * The route takes a path of three pieces (`arx-fatalis/level8/level8.dlf`): no piece may climb out of the folder, and
- * only a machine of the server may ask (the same rule as the routes of the zip and of the data directory).
+ * only a machine of the server may ask (the same rule as the routes of the zip and the data directory).
  *
  * @returns The plugin that adds the route to the server.
  */

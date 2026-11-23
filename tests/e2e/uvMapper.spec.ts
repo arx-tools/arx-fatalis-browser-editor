@@ -1,6 +1,7 @@
 import { expect, test, type Locator } from '@playwright/test'
 import {
   clickCrosshair,
+  editorUrlForLevel,
   lockPointer,
   readPose,
   seedLayout,
@@ -579,7 +580,7 @@ test('a face without a loaded texture says so under the square, without the corn
   test.setTimeout(120_000)
 
   await seedLayout(page, uvLayout())
-  await page.goto('/?fromOriginalArxLevel=12')
+  await page.goto(editorUrlForLevel(12))
 
   const view = page.locator('[data-widget-kind="3d-view"] canvas').first()
   const mapper = page.locator('[data-widget-kind="uv-mapper"]')

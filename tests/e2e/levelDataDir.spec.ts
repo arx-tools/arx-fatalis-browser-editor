@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { createBlankLevelFiles, MINIMAL_PRESET } from '../../src/editor/modules/level/blankLevel.ts'
+import { mapSlugOf } from '../../src/editor/modules/level/source/maps/mapId.ts'
 import { testLayout } from '../support/layouts.ts'
 import { seedLayout, statOf, waitForLevel } from './support/editor.ts'
 
@@ -40,7 +41,7 @@ test('a level opens from the data directory of the url', async ({ page }, testIn
   const dataDir = await dataDirOfABlankLevel(testInfo.outputPath('data'))
 
   await seedLayout(page, testLayout)
-  await page.goto(`/?fromOriginalArxLevel=0&dataDir=${encodeURIComponent(dataDir)}`)
+  await page.goto(`/?map=${mapSlugOf('arx:0')}&dataDir=${encodeURIComponent(dataDir)}`)
   await waitForLevel(page)
 
   // the level of the folder is the minimal blank one: one face, not the 121 of the blank level of the editor
@@ -216,7 +217,7 @@ test('the dialog closes itself after the folder is seen, and a hand-opened one s
   const dataDir = await dataDirOfABlankLevel(testInfo.outputPath('data'))
 
   await seedLayout(page, testLayout)
-  await page.goto(`/?fromOriginalArxLevel=0&dataDir=${encodeURIComponent(dataDir)}`)
+  await page.goto(`/?map=${mapSlugOf('arx:0')}&dataDir=${encodeURIComponent(dataDir)}`)
   await waitForLevel(page)
 
   const dialog = page.locator('[role="dialog"][aria-label="Setting up Arx data dir"]')
@@ -256,29 +257,33 @@ test('the level of the link opens when the folder arrives later, in the dialog',
   await page.locator('.dir-input').setInputFiles(dataDir)
   await expect(notice).toHaveCount(0, { timeout: 20_000 })
 
-  // the level of the game comes from the network when the url has no folder (the folder gives the textures), so the test
-  // asks for the map the editor opened, not for the number of its faces
+  // the folder of the link is what opens the level now (a level of the game has no other source), so the test asks for the
+  // map the editor opened, not for the number of its faces
   await expect(page.getByRole('combobox', { name: /The maps the editor can open/u })).toHaveValue('arx:11', {
     timeout: 20_000,
   })
 })
 
-test('a data directory without the level says what happened', async ({ page }, testInfo) => {
+test('a data directory without the level opens the blank map, and the url keeps the link', async ({
+  page,
+}, testInfo) => {
   const dataDir = await dataDirOfABlankLevel(testInfo.outputPath('empty'))
 
   await seedLayout(page, testLayout)
 
-  // the folder has the level 0, the url asks for the level 8: a level named in a data directory is not silently a blank
-  await page.goto(`/?fromOriginalArxLevel=8&dataDir=${encodeURIComponent(dataDir)}`)
+  // the folder has the level 0, the url asks for the level 8: the map is not in the list, so the editor opens its own
+  // blank map (the map api, 2026-11-23), and the address bar keeps the link for a visit where the folder has the level
+  await page.goto(`/?map=${mapSlugOf('arx:8')}&dataDir=${encodeURIComponent(dataDir)}`)
 
-  await expect(page.locator('[data-widget-kind="3d-view"] .status')).toContainText('has no level 8')
+  await expect(page.getByRole('combobox', { name: /The maps the editor can open/u })).toHaveValue('blank:flat')
+  await expect(page).toHaveURL(/map=arx-fatalis-level-8/u)
 })
 
 test('the button of the header shows the state of the data directory', async ({ page }) => {
   await seedLayout(page, testLayout)
 
-  // no folder at all: the level of the url has nothing to load from, and the button carries that state
-  await page.goto('/?fromOriginalArxLevel=0')
+  // no folder at all: the button carries that state (no level of the game is asked for, so no notice covers the header)
+  await page.goto('/')
 
   const setup = page.locator('header button[aria-label*="Arx data dir"]')
 
@@ -328,9 +333,10 @@ test('the data directory of the header opens the level of the url', async ({ pag
 
   await seedLayout(page, testLayout)
 
-  // the url names the level, but the folder it names is not there: the walkable view says so
-  await page.goto(`/?fromOriginalArxLevel=0&dataDir=${encodeURIComponent('/no/such/folder')}`)
-  await expect(page.locator('[data-widget-kind="3d-view"] .status')).toContainText('has no level 0')
+  // the url names the level, but the folder it names is not there: the map is not in the list, so the blank map opens,
+  // and the address bar keeps the link for the folder of the header below (2026-11-23, the map api)
+  await page.goto(`/?map=${mapSlugOf('arx:0')}&dataDir=${encodeURIComponent('/no/such/folder')}`)
+  await expect(page.getByRole('combobox', { name: /The maps the editor can open/u })).toHaveValue('blank:flat')
 
   // the button of the header opens the setup dialog, and the state there is the one of the url: a folder is named, even
   // though the level it should hold is not in it

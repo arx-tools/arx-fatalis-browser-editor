@@ -2,13 +2,8 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
   createOriginalLevelSource,
-  fetchLevelFiles,
   levelFileNames,
-  levelFilesBaseUrlOf,
-  levelFileUrls,
   loadStarterLevel,
-  ORIGINAL_LEVEL_PARAMETER,
-  originalLevelFromUrl,
   starterLevelSource,
   ZIP_URL_PARAMETER,
   zipUrlFromUrl,
@@ -21,72 +16,9 @@ import {
 import { isZipLevelSource } from '../../../../../src/editor/modules/level/source/zipSource.ts'
 import type { UrlAdapter } from '../../../../../src/editor/modules/persistedRef/url.ts'
 
-/**
- * A fake fetch which answers with the bytes of the url.
- *
- * @remarks
- * The response is a real `Response` (node has it), so it behaves like the one the browser gives back,
- * without a network.
- *
- * @param failOn `true` to answer with a 404 for every request.
- *
- * @returns The fake fetch and the urls it was called with.
- */
-function fakeFetch(failOn = false): { fetchImpl: typeof fetch; calls: string[] } {
-  const calls: string[] = []
-
-  async function fetchImpl(input: string): Promise<Response> {
-    calls.push(input)
-
-    // the body is the url itself, read through the response API the caller uses
-    const body = await new Response(input).arrayBuffer()
-    let status = 200
-    let statusText = 'OK'
-
-    if (failOn) {
-      status = 404
-      statusText = 'Not Found'
-    }
-
-    return new Response(body, { status, statusText })
-  }
-
-  return { fetchImpl: fetchImpl as unknown as typeof fetch, calls }
-}
-
 void describe('levelFileNames', () => {
   void it('follows the naming of the game data', () => {
     assert.deepEqual(levelFileNames(11), { dlf: 'level11.dlf', fts: 'fast.fts', llf: 'level11.llf' })
-  })
-})
-
-void describe('levelFileUrls', () => {
-  void it('points at the pkware-test-files repository', () => {
-    const urls = levelFileUrls(11)
-
-    assert.ok(urls.fts.startsWith('https://raw.githubusercontent.com/arx-tools/pkware-test-files/'))
-    assert.ok(urls.fts.endsWith('/arx-fatalis/level11/fast.fts'))
-    assert.ok(urls.dlf.endsWith('/arx-fatalis/level11/level11.dlf'))
-    assert.ok(urls.llf.endsWith('/arx-fatalis/level11/level11.llf'))
-  })
-})
-
-void describe('fetchLevelFiles', () => {
-  void it('downloads the three files', async () => {
-    const { fetchImpl, calls } = fakeFetch()
-    const files = await fetchLevelFiles(11, fetchImpl)
-
-    assert.equal(calls.length, 3)
-    // every buffer holds the url it came from, so the three landed in the right slot
-    assert.equal(new TextDecoder().decode(files.dlf), levelFileUrls(11).dlf)
-    assert.equal(new TextDecoder().decode(files.fts), levelFileUrls(11).fts)
-    assert.equal(new TextDecoder().decode(files.llf), levelFileUrls(11).llf)
-  })
-
-  void it('fails when a file can not be downloaded', async () => {
-    const { fetchImpl } = fakeFetch(true)
-
-    await assert.rejects(fetchLevelFiles(11, fetchImpl), /Failed to download/u)
   })
 })
 
@@ -108,33 +40,6 @@ function urlOf(search: string): UrlAdapter {
     },
   }
 }
-
-void describe('originalLevelFromUrl', () => {
-  void it('reads the level the url asks for', () => {
-    assert.equal(originalLevelFromUrl(urlOf(`${ORIGINAL_LEVEL_PARAMETER}=8`)), 8)
-    // the parameter sits between the others of the editor (the seed, the camera, the switches)
-    assert.equal(originalLevelFromUrl(urlOf(`seed=1&${ORIGINAL_LEVEL_PARAMETER}=11&position=1,2,3`)), 11)
-    // the original levels are numbered from 0
-    assert.equal(originalLevelFromUrl(urlOf(`${ORIGINAL_LEVEL_PARAMETER}=0`)), 0)
-  })
-
-  void it('ignores a url that names no level', () => {
-    assert.equal(originalLevelFromUrl(urlOf('')), undefined)
-    assert.equal(originalLevelFromUrl(urlOf('seed=1')), undefined)
-  })
-
-  void it('ignores a level which is not a whole number', () => {
-    // a mistyped link is not a reason to fail a load
-    assert.equal(originalLevelFromUrl(urlOf(`${ORIGINAL_LEVEL_PARAMETER}=eleven`)), undefined)
-    assert.equal(originalLevelFromUrl(urlOf(`${ORIGINAL_LEVEL_PARAMETER}=1.5`)), undefined)
-    assert.equal(originalLevelFromUrl(urlOf(`${ORIGINAL_LEVEL_PARAMETER}=`)), undefined)
-    assert.equal(originalLevelFromUrl(urlOf(`${ORIGINAL_LEVEL_PARAMETER}=-1`)), undefined)
-  })
-
-  void it('has no url to read in node', () => {
-    assert.equal(originalLevelFromUrl(undefined), undefined)
-  })
-})
 
 void describe('zipUrlFromUrl', () => {
   void it('reads the url of the zip', () => {
@@ -171,12 +76,6 @@ void describe('starterLevelSource', () => {
 
     assert.equal(source.label, 'lalees.zip')
     assert.equal(isZipLevelSource(source), true)
-    // the zip wins over the level parameter: it is the more specific thing a link can name
-    assert.equal(starterLevelSource(urlOf(`${ZIP_URL_PARAMETER}=/a.zip&${ORIGINAL_LEVEL_PARAMETER}=8`)).label, 'a.zip')
-  })
-
-  void it('opens the original level the url names', () => {
-    assert.equal(starterLevelSource(urlOf(`${ORIGINAL_LEVEL_PARAMETER}=8`)).label, 'Level 8')
   })
 
   void it('builds the flat floor of the blank level', async () => {
@@ -185,22 +84,22 @@ void describe('starterLevelSource', () => {
     // the Flat preset: 11×11 tiles of 100×100
     assert.equal(map.statistics.faceCount, 121)
   })
-
-  void it('falls back to a blank level when the original one does not load', async () => {
-    const { fetchImpl, calls } = fakeFetch(true)
-    const map = await loadStarterLevel(fetchImpl, urlOf(`${ORIGINAL_LEVEL_PARAMETER}=8`))
-
-    // without the folder of the game the level of the url is not downloaded (the site has no level without the folder),
-    // and the editor still has something to show
-    assert.equal(calls.length, 0)
-    assert.equal(map.statistics.faceCount, 121)
-  })
 })
 
 void describe('the level of the game without a folder', () => {
-  void it('is not downloaded by a build that is not the development one', async () => {
-    const { fetchImpl, calls } = fakeFetch(false)
-    const source = createOriginalLevelSource(8, urlOf(''), false)
+  void it('is not downloaded: every build needs the data directory', async () => {
+    const source = createOriginalLevelSource(8, urlOf(''))
+    const calls: string[] = []
+
+    async function fetchImpl(input: string | URL | Request): Promise<Response> {
+      if (typeof input === 'string') {
+        calls.push(input)
+      }
+
+      await Promise.resolve()
+
+      return new Response(null, { status: 404 })
+    }
 
     await assert.rejects(
       (async (): Promise<unknown> => {
@@ -208,16 +107,8 @@ void describe('the level of the game without a folder', () => {
       })(),
       /needs the Arx data dir/u,
     )
-    assert.equal(calls.length, 0)
-  })
 
-  void it('is downloaded by the development build, which the tests and the probes use', async () => {
-    const { fetchImpl, calls } = fakeFetch(false)
-    const source = createOriginalLevelSource(8, urlOf(''), true)
-
-    await source.load(fetchImpl)
-
-    assert.equal(calls.length, 3)
+    assert.deepEqual(calls, [])
   })
 })
 
@@ -294,7 +185,7 @@ void describe('the level of the folder picked in the header', () => {
       return new Response(null, { status: 404 })
     }
 
-    const source = createOriginalLevelSource(8, urlOf(''), false)
+    const source = createOriginalLevelSource(8, urlOf(''))
     const files = await source.load(fetchImpl)
 
     assert.equal(new TextDecoder().decode(files.fts), 'fts')
@@ -315,7 +206,7 @@ void describe('the level of the folder picked in the header', () => {
       'demo-data',
     )
 
-    const source = createOriginalLevelSource(8, urlOf(''), false)
+    const source = createOriginalLevelSource(8, urlOf(''))
     const files = await source.load()
 
     assert.equal(new TextDecoder().decode(files.fts), 'fts')
@@ -323,19 +214,5 @@ void describe('the level of the folder picked in the header', () => {
     assert.equal(new TextDecoder().decode(files.llf), 'llf')
 
     clearPickedDataDir()
-  })
-})
-
-void describe('levelFilesBaseUrlOf', () => {
-  void it('reads the levels from the machine on the development server', () => {
-    // the route of `vite.config.ts` serves the checkout of the repository and the cache of the machine
-    assert.equal(levelFilesBaseUrlOf(true), '/__local-levels/arx-fatalis')
-  })
-
-  void it('downloads them from the repository in the build', () => {
-    assert.equal(
-      levelFilesBaseUrlOf(false),
-      'https://raw.githubusercontent.com/arx-tools/pkware-test-files/main/arx-fatalis',
-    )
   })
 })

@@ -1,8 +1,8 @@
 import { expect, test, type Page } from '@playwright/test'
 import { roomsLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
-import { ORIGINAL_LEVEL_PARAMETER } from '../../src/editor/modules/level/source/levelSource.ts'
 import {
   clickCrosshair,
+  editorUrlForLevel,
   layoutWithTheKeys,
   lockPointer,
   seedLayout,
@@ -10,17 +10,6 @@ import {
   statOf,
   waitForLevel,
 } from './support/editor.ts'
-
-/**
- * The url of a level of the game's own files.
- *
- * @param level The number of the level.
- *
- * @returns The url of the editor with that level.
- */
-function levelUrl(level: number): string {
-  return `/?${ORIGINAL_LEVEL_PARAMETER}=${String(level)}`
-}
 
 /**
  * Reads the stored value of the portal switch.
@@ -55,7 +44,7 @@ test('the portals are a view of the level, under the mesh', async ({ page }) => 
 
   // the health of the level is the numbers of the statistics, so the dock holds them beside the keys
   await seedLayout(page, layoutWithTheKeys())
-  await page.goto(levelUrl(12))
+  await page.goto(editorUrlForLevel(12))
   await waitForLevel(page)
 
   const keys = page.locator('[data-widget-kind="keyboard-shortcuts"]')

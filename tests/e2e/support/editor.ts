@@ -4,8 +4,9 @@ import { factoryPresets } from '../../../src/editor/modules/layout/layoutPresets
 import { factorySignatureOf } from '../../../src/editor/modules/layout/layoutHistory.ts'
 import { layoutEquals, type LayoutNode } from '../../../src/editor/modules/layout/layoutNode.ts'
 import { WIDGET_KINDS } from '../../../src/editor/modules/layout/widgetKinds.ts'
-import { ORIGINAL_LEVEL_PARAMETER } from '../../../src/editor/modules/level/source/levelSource.ts'
+import { mapSlugOf } from '../../../src/editor/modules/level/source/maps/mapId.ts'
 import { testLayout } from '../../support/layouts.ts'
+import { LEVEL_FIXTURE_DIR } from './levelFixture.ts'
 
 /**
  * Starts the page with the given layout on the dock.
@@ -27,17 +28,37 @@ import { testLayout } from '../../support/layouts.ts'
  * The editor starts with the level the owner of the project is looking at (it is a temporary constant), and that one
  * can be a big level: level 1 is 58 963 faces, level 8 is 1 277, and the whole run is about twice as fast on the
  * small one (measured: 1.8 minutes against 50 seconds). Nothing in a spec depends on which level it is — the numbers
- * are read from the page — so the tests ask for the small one through the url.
+ * are read from the page — so the tests ask for the small one.
+ *
+ * The level comes from the fixture data dir of the run ({@link LEVEL_FIXTURE_DIR}): a level of the game is a map of
+ * the list, and a map opens only from the data dir (2026-11-23, the owner: the old level parameter of the url is gone).
  */
 export const E2E_LEVEL = 8
 
 /**
- * The url the e2e opens: the editor, on the level of {@link E2E_LEVEL}.
+ * The url of the editor on a level of the game, from the fixture data dir of the run.
+ *
+ * @remarks
+ * The fixture holds the levels of `./levelFixture.ts`: a spec that needs another level than {@link E2E_LEVEL} names it
+ * here, and the setup of the run wrote its three files into the folder.
+ *
+ * @param level The number of the level.
+ *
+ * @returns The url of the editor, without the host.
+ */
+export function editorUrlForLevel(level: number): string {
+  const map = mapSlugOf(`arx:${String(level)}`)
+
+  return `/?map=${map}&dataDir=${encodeURIComponent(LEVEL_FIXTURE_DIR)}`
+}
+
+/**
+ * The url the e2e opens: the editor, on the level of {@link E2E_LEVEL}, from the fixture data dir of the run.
  *
  * @returns The url of the editor, without the host.
  */
 export function editorUrl(): string {
-  return `/?${ORIGINAL_LEVEL_PARAMETER}=${String(E2E_LEVEL)}`
+  return editorUrlForLevel(E2E_LEVEL)
 }
 
 /**
@@ -394,6 +415,21 @@ export async function lockPointer(page: Page, view: Locator): Promise<void> {
   // the click goes to the lower left corner, away from the middle of the view: the move gizmo of a selection stands in
   // the middle, and a click on its plane would grab it (and nudge the selection) instead of locking the camera
   await page.mouse.click(box.x + 20, box.y + box.height - 20)
+
+  // the browser grants the lock after the click: a press that follows asks the camera controls for the lock, and a
+  // gesture under a lock that has not arrived yet selects nothing (measured under the load of the whole suite, 2026-11-23)
+  await expect
+    .poll(
+      async () => {
+        return await page.evaluate(() => {
+          const { document } = globalThis
+
+          return document.pointerLockElement !== null
+        })
+      },
+      { timeout: 5000 },
+    )
+    .toBe(true)
 }
 
 /**
@@ -466,6 +502,36 @@ export async function clickCrosshair(view: Locator, gesture: SelectionGesture = 
   // the press and the pick run on the next frame, and the widget that follows the selection a tick later: three frames
   // are the length of that (a gesture that changes nothing emits no event to wait for)
   await nextFrames(view.page(), 3)
+}
+
+/**
+ * Presses the crosshair until the selection grows, and gives the count it took.
+ *
+ * @remarks
+ * A press after a programmatic camera move (a pose written into the form, a turn) can land before the view and the
+ * triangle map of a cut geometry are in step, and such a press selects nothing. The gesture is the same one every time,
+ * so the press is repeated until it lands: the test it runs is about the cut geometry, not about the frame of a press
+ * (measured under the load of the whole suite, 2026-11-23).
+ *
+ * @param page The page to drive.
+ * @param view The canvas of the walkable view.
+ * @param timeout The longest the press is tried, in milliseconds.
+ *
+ * @returns The number of selected faces.
+ */
+export async function clickCrosshairUntilSelected(page: Page, view: Locator, timeout = 10_000): Promise<number> {
+  await expect
+    .poll(
+      async () => {
+        await clickCrosshair(view)
+
+        return await selectionCount(page)
+      },
+      { timeout, intervals: [200, 400, 800, 1200] },
+    )
+    .toBeGreaterThan(0)
+
+  return (await selectionCount(page)) ?? 0
 }
 
 /**
@@ -661,7 +727,16 @@ export async function writePose(page: Page, pose: CameraPoseFields): Promise<voi
  * @returns The number of lit pixels.
  */
 export async function litPixels(view: Locator): Promise<number> {
-  const shot = await view.screenshot()
+  // the **page** is shot and cut to the box of the canvas, not the canvas itself: a WebGL buffer without
+  // `preserveDrawingBuffer` may be cleared when the element is captured on its own, and the picture would read black
+  // (measured: the deletion case read 1208 pixels of a bright floor, 2026-11-23)
+  const box = await view.boundingBox()
+
+  if (box === null) {
+    throw new Error('the view has no box')
+  }
+
+  const shot = await view.page().screenshot({ clip: box })
 
   return await view.page().evaluate(async (base64) => {
     const image = new Image()

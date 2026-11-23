@@ -1,22 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { roomsLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
-import { ORIGINAL_LEVEL_PARAMETER } from '../../src/editor/modules/level/source/levelSource.ts'
-import { editorUrl, seedLayout, statOf, waitForLevel } from './support/editor.ts'
-
-/**
- * The url of a level of the game's own files.
- *
- * @remarks
- * The tests that need more than one room read level 12: it has forty one rooms, so a click on a row and a click on
- * another one are two different selections.
- *
- * @param level The number of the level.
- *
- * @returns The url of the editor with that level.
- */
-function levelUrl(level: number): string {
-  return `/?${ORIGINAL_LEVEL_PARAMETER}=${String(level)}`
-}
+import { editorUrl, editorUrlForLevel, seedLayout, statOf, waitForLevel } from './support/editor.ts'
 
 /**
  * The room list and the selection are one thing (TODO 175).
@@ -138,7 +122,7 @@ test('the room inspector lists the rooms with the color of the map, and the sear
   test.setTimeout(120_000)
 
   await seedLayout(page, roomsLayout)
-  await page.goto(levelUrl(12))
+  await page.goto(editorUrlForLevel(12))
 
   await waitForLevel(page)
 
@@ -199,7 +183,7 @@ test('the move takes the selection into the room of the dropdown', async ({ page
   test.setTimeout(120_000)
 
   await seedLayout(page, roomsLayout)
-  await page.goto(levelUrl(12))
+  await page.goto(editorUrlForLevel(12))
 
   await waitForLevel(page)
 
@@ -390,7 +374,7 @@ test('the crosshair washes its row, and the pointer adds another one', async ({ 
   test.setTimeout(120_000)
 
   await seedLayout(page, roomsLayout)
-  await page.goto(levelUrl(12))
+  await page.goto(editorUrlForLevel(12))
 
   await waitForLevel(page)
 
@@ -461,7 +445,7 @@ test('shift on a room of the list adds it to the selection', async ({ page }) =>
   test.setTimeout(120_000)
 
   await seedLayout(page, roomsLayout)
-  await page.goto(levelUrl(12))
+  await page.goto(editorUrlForLevel(12))
 
   await waitForLevel(page)
 
@@ -505,7 +489,7 @@ test('a shift click on a fixed view selects a room, and the camera stays', async
   test.setTimeout(120_000)
 
   await seedLayout(page, roomsLayout)
-  await page.goto(levelUrl(12))
+  await page.goto(editorUrlForLevel(12))
 
   await waitForLevel(page)
 
@@ -574,7 +558,7 @@ test('shift alone lights the room under the pointer of a fixed view', async ({ p
   test.setTimeout(120_000)
 
   await seedLayout(page, roomsLayout)
-  await page.goto(levelUrl(12))
+  await page.goto(editorUrlForLevel(12))
 
   await waitForLevel(page)
 
@@ -853,7 +837,7 @@ test('the pencil of a room opens its name', async ({ page }) => {
 test('Delete takes the picked rooms out, and the undo puts them back with their portals', async ({ page }) => {
   test.setTimeout(120_000)
   await seedLayout(page, roomsLayout)
-  await page.goto(levelUrl(12))
+  await page.goto(editorUrlForLevel(12))
 
   const faces = await waitForLevel(page)
 

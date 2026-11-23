@@ -4,6 +4,7 @@ import { WIDGET_KINDS } from '../../src/editor/modules/layout/widgetKinds.ts'
 import {
   clickCrosshair,
   editorUrl,
+  editorUrlForLevel,
   lockPointer,
   readPose,
   renameKinds,
@@ -190,7 +191,7 @@ test('a level of hundreds of lights draws a window of the list, and reaches the 
   await page.setViewportSize({ width: 1631, height: 850 })
   // the level is a few megabytes of the game: the list starts empty, and the wait below is on the list, not on the dock
   // (the sizes of the dock settle long before the level arrives)
-  await page.goto('?fromOriginalArxLevel=0')
+  await page.goto(editorUrlForLevel(0))
   await page.keyboard.press('F5')
 
   const inspector = page.locator('[data-widget-kind="light-inspector"]')

@@ -167,15 +167,25 @@ function flatTriangle(): ArxPolygon {
  *
  * @throws `Error` when the overlay did not build its layers.
  */
-function layersOf(scene: Scene): { group: Group; face: Layer; vertex: Layer } {
+function layersOf(scene: Scene): {
+  group: Group
+  face: Layer
+  vertex: Layer
+  selectedFace: Layer
+  selectedVertex: Layer
+} {
   const [group] = scene.children as Group[]
-  const [face, vertex] = (group?.children ?? []) as Layer[]
+  const [face, vertex, selectedFace, selectedVertex] = (group?.children ?? []) as Layer[]
 
   if (group === undefined || face === undefined || vertex === undefined) {
     throw new Error('the overlay did not build its layers')
   }
 
-  return { group, face, vertex }
+  if (selectedFace === undefined || selectedVertex === undefined) {
+    throw new Error('the overlay did not build the layers of the selection')
+  }
+
+  return { group, face, vertex, selectedFace, selectedVertex }
 }
 
 void describe('faceNormalLines', () => {
@@ -327,12 +337,14 @@ void describe('attachNormals', () => {
 
     attachNormals(scene)
 
-    const { group, face, vertex } = layersOf(scene)
+    const { group, face, vertex, selectedFace, selectedVertex } = layersOf(scene)
 
     assert.equal(group.visible, false)
-    assert.equal(group.children.length, 2)
+    assert.equal(group.children.length, 4)
     assert.equal(face.visible, true)
+    assert.equal(selectedFace.visible, true)
     assert.equal(vertex.visible, false)
+    assert.equal(selectedVertex.visible, false)
   })
 
   void it('draws over the wireframe and still writes depth', () => {
@@ -340,44 +352,93 @@ void describe('attachNormals', () => {
 
     attachNormals(scene)
 
-    const { face, vertex } = layersOf(scene)
+    const { face, vertex, selectedFace, selectedVertex } = layersOf(scene)
 
     assert.equal(face.renderOrder, 7)
     assert.equal(vertex.renderOrder, 8)
+    assert.equal(selectedFace.renderOrder, 9)
+    assert.equal(selectedVertex.renderOrder, 10)
     assert.equal(face.material.depthTest, true)
     assert.equal(face.material.depthWrite, true)
   })
 
-  void it('gives the two layers their own color', () => {
+  void it('gives every layer its own color', () => {
     const scene = new Scene()
 
     attachNormals(scene)
 
-    const { face, vertex } = layersOf(scene)
+    const { face, vertex, selectedFace, selectedVertex } = layersOf(scene)
 
+    // the plain lines, and the same white for the lines of a selected face on both layers
     assert.equal(face.material.color.getHex(), 0xff_a5_00)
     assert.equal(vertex.material.color.getHex(), 0x22_d3_ee)
+    assert.equal(selectedFace.material.color.getHex(), 0xff_ff_ff)
+    assert.equal(selectedVertex.material.color.getHex(), 0xff_ff_ff)
+  })
+
+  void it('puts the lines of the selection into their own layer', () => {
+    const scene = new Scene()
+    const normals = attachNormals(scene)
+    const polygon = floor()
+
+    // the face alone first, then the same face in the selection
+    normals.setSource([polygon], new Vector3(), new Set())
+    normals.setVisible(true)
+
+    const empty = layersOf(scene)
+
+    assert.equal(empty.face.geometry.getAttribute('position').count, 2)
+    assert.equal(empty.selectedFace.geometry.getAttribute('position').count, 0)
+
+    normals.setSource([polygon], new Vector3(), new Set([polygon]))
+
+    const selected = layersOf(scene)
+
+    assert.equal(selected.face.geometry.getAttribute('position').count, 0)
+    assert.equal(selected.selectedFace.geometry.getAttribute('position').count, 2)
+  })
+
+  void it('splits the two layers between the plain and the selected faces', () => {
+    const scene = new Scene()
+    const normals = attachNormals(scene)
+    const first = floor()
+    const second = floor()
+
+    normals.setSource([first, second], new Vector3(), new Set([second]))
+    normals.setVisible(true)
+    normals.setLayers({ face: true, vertex: true })
+
+    const { face, vertex, selectedFace, selectedVertex } = layersOf(scene)
+
+    // one line per face and four per vertex on each half
+    assert.equal(face.geometry.getAttribute('position').count, 2)
+    assert.equal(selectedFace.geometry.getAttribute('position').count, 2)
+    assert.equal(vertex.geometry.getAttribute('position').count, 8)
+    assert.equal(selectedVertex.geometry.getAttribute('position').count, 8)
   })
 
   void it('builds the lines when it is shown, and only the layers it asks for', () => {
     const scene = new Scene()
     const normals = attachNormals(scene)
 
-    normals.setPolygons([floor()], new Vector3())
+    normals.setSource([floor()], new Vector3(), new Set())
     normals.setVisible(true)
 
-    const { face, vertex } = layersOf(scene)
+    const { face, selectedFace, vertex, selectedVertex } = layersOf(scene)
 
     assert.equal(face.geometry.getAttribute('position').count, 2)
     // the vertex layer is not built while only the face one is on
     assert.equal(vertex.geometry.getAttribute('position').count, 0)
+    // nothing is selected, so the selected layers stay empty
+    assert.equal(selectedFace.geometry.getAttribute('position').count, 0)
+    assert.equal(selectedVertex.geometry.getAttribute('position').count, 0)
   })
 
   void it('builds a layer when its switch asks for it', () => {
     const scene = new Scene()
     const normals = attachNormals(scene)
 
-    normals.setPolygons([floor()], new Vector3())
+    normals.setSource([floor()], new Vector3(), new Set())
     normals.setVisible(true)
     normals.setLayers({ face: true, vertex: true })
 
@@ -392,7 +453,7 @@ void describe('attachNormals', () => {
     const scene = new Scene()
     const normals = attachNormals(scene)
 
-    normals.setPolygons([floor()], new Vector3())
+    normals.setSource([floor()], new Vector3(), new Set())
     normals.setVisible(true)
     normals.setLayers({ face: false, vertex: true })
 
@@ -408,7 +469,7 @@ void describe('attachNormals', () => {
     const scene = new Scene()
     const normals = attachNormals(scene)
 
-    normals.setPolygons([floor()], new Vector3())
+    normals.setSource([floor()], new Vector3(), new Set())
     normals.setVisible(true)
     normals.setLayers({ face: false, vertex: false })
 
@@ -426,9 +487,9 @@ void describe('attachNormals', () => {
     const scene = new Scene()
     const normals = attachNormals(scene)
 
-    normals.setPolygons([floor()], new Vector3())
+    normals.setSource([floor()], new Vector3(), new Set())
     normals.setVisible(true)
-    normals.setPolygons([floor(), floor()], new Vector3())
+    normals.setSource([floor(), floor()], new Vector3(), new Set())
 
     const { face } = layersOf(scene)
 
@@ -439,7 +500,7 @@ void describe('attachNormals', () => {
     const scene = new Scene()
     const normals = attachNormals(scene)
 
-    normals.setPolygons([floor()], new Vector3())
+    normals.setSource([floor()], new Vector3(), new Set())
 
     const { face } = layersOf(scene)
 
@@ -453,7 +514,7 @@ void describe('attachNormals', () => {
   void it('frees its geometries and materials, and leaves the scene', () => {
     const scene = new Scene()
     const normals = attachNormals(scene)
-    const { face, vertex } = layersOf(scene)
+    const { face, vertex, selectedFace, selectedVertex } = layersOf(scene)
     let disposed = 0
 
     face.geometry.addEventListener('dispose', () => {
@@ -468,11 +529,23 @@ void describe('attachNormals', () => {
     vertex.material.addEventListener('dispose', () => {
       disposed = disposed + 1
     })
+    selectedFace.geometry.addEventListener('dispose', () => {
+      disposed = disposed + 1
+    })
+    selectedFace.material.addEventListener('dispose', () => {
+      disposed = disposed + 1
+    })
+    selectedVertex.geometry.addEventListener('dispose', () => {
+      disposed = disposed + 1
+    })
+    selectedVertex.material.addEventListener('dispose', () => {
+      disposed = disposed + 1
+    })
 
     normals.dispose()
 
-    // two geometries and two materials
-    assert.equal(disposed, 4)
+    // four geometries and four materials
+    assert.equal(disposed, 8)
     assert.equal(scene.children.length, 0)
   })
 })

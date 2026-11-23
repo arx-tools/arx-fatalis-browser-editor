@@ -112,6 +112,11 @@ export function createFrameLoop(context: FrameLoopContext): FrameLoop {
   let redrawFrame = 0
 
   /**
+   * The timer that draws a requested frame the browser may have dropped.
+   */
+  let redrawTimer: ReturnType<typeof setTimeout> | undefined
+
+  /**
    * The timestamp of the last frame of the locked loop, in milliseconds, or `0` before the first one.
    */
   let lastFrameAt = 0
@@ -217,6 +222,27 @@ export function createFrameLoop(context: FrameLoopContext): FrameLoop {
       redrawNeeded = false
       drawFrame(now)
     })
+
+    // the browser may drop the frame it owes (a tab that was in the background, a restored session, a hard reload on a
+    // slow level): the view would keep the picture it had, and only the loop of the pointer lock would draw again. The
+    // timer draws what the frame did not, and the frame that does come cancels it (2026-11-23, the owner: the view
+    // showed nothing until the first pointer lock)
+    if (redrawTimer !== undefined) {
+      clearTimeout(redrawTimer)
+    }
+
+    redrawTimer = setTimeout(() => {
+      redrawTimer = undefined
+
+      if (redrawFrame === 0) {
+        return
+      }
+
+      cancelAnimationFrame(redrawFrame)
+      redrawFrame = 0
+      redrawNeeded = false
+      drawFrame(performance.now())
+    }, 500)
   }
 
   /**
@@ -324,6 +350,11 @@ export function createFrameLoop(context: FrameLoopContext): FrameLoop {
       if (redrawFrame !== 0) {
         cancelAnimationFrame(redrawFrame)
         redrawFrame = 0
+      }
+
+      if (redrawTimer !== undefined) {
+        clearTimeout(redrawTimer)
+        redrawTimer = undefined
       }
     },
     get isRunning(): boolean {

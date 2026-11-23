@@ -225,6 +225,33 @@ export const wholeSuite: readonly string[] = [
 ]
 
 /**
+ * Tells whether a diff changes nothing but version numbers.
+ *
+ * @remarks
+ * A release commit bumps the version in `package.json` and `package-lock.json`, and the lock is a file whose change
+ * reaches the whole suite: the gate would run the browser tests for a change no code sees. The test is strict on
+ * purpose: every added and removed line has to be a version field, so a dependency bump (which brings the resolved and
+ * integrity lines too) still reaches the suite.
+ *
+ * @param diff The diff of one file.
+ *
+ * @returns True when the diff only moves version numbers.
+ */
+export function isVersionOnlyDiff(diff: string): boolean {
+  const changed = diff.split('\n').filter((line) => {
+    return (line.startsWith('+') || line.startsWith('-')) && !line.startsWith('+++') && !line.startsWith('---')
+  })
+
+  if (changed.length === 0) {
+    return false
+  }
+
+  return changed.every((line) => {
+    return /^[+-]\s*"version":\s*"\d+\.\d+\.\d+",?$/u.test(line)
+  })
+}
+
+/**
  * Matches one part of a path against one part of a glob.
  *
  * @param part The part of the path, which is never empty.

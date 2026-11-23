@@ -9,10 +9,15 @@
  *
  * The script reads the change from `git status`, so it says the same in the hook (the staged files) and in a hand run
  * (everything that differs from the commit).
+ *
+ * A release commit moves only the version in `package.json` and `package-lock.json`; the lock reaches the whole suite,
+ * so its diff is read, and a change that touches nothing but version numbers is left out of the change (see
+ * {@link isVersionOnlyDiff}). `SKIP_E2E=1` skips the browser tests for one commit, and the lint, the type check and the
+ * unit tests of the hook still run.
  */
 import { execFileSync, spawnSync } from 'node:child_process'
 import process from 'node:process'
-import { reachOf } from './changedSpecs.ts'
+import { isVersionOnlyDiff, reachOf } from './changedSpecs.ts'
 
 /**
  * Reads the files of the change: the changed and the new ones, as `git status` sees them.
@@ -39,7 +44,37 @@ function changedFiles(): string[] {
     })
 }
 
-const files = changedFiles()
+/**
+ * Tells whether the change of a file is only the version of the package.
+ *
+ * @param path The path of the file.
+ *
+ * @returns True when the file is a package file whose diff only moves version numbers.
+ */
+function isVersionOnlyChange(path: string): boolean {
+  if (path !== 'package.json' && path !== 'package-lock.json') {
+    return false
+  }
+
+  try {
+    const diff = execFileSync('git', ['diff', 'HEAD', '--', path], { encoding: 'utf8' })
+
+    return isVersionOnlyDiff(diff)
+  } catch {
+    // a file git can not diff is a change like any other
+    return false
+  }
+}
+
+if (process.env.SKIP_E2E === '1') {
+  console.log('e2e: skipped (SKIP_E2E is set)')
+
+  process.exit(0)
+}
+
+const files = changedFiles().filter((path) => {
+  return !isVersionOnlyChange(path)
+})
 
 if (files.length === 0) {
   console.log('e2e: nothing changed, no spec to run')

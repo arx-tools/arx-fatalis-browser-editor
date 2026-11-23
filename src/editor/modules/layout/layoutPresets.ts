@@ -44,13 +44,24 @@ const UNDO_ROW_HEIGHT = 60
 const EDITOR_UNDO_ROW_HEIGHT = 50
 
 /**
- * The height of the Translate Snapping Settings widget of the `Editor` preset, in pixels.
+ * The height of the Translate Snapping Controls widget of the `Editor` preset, in pixels.
  *
  * @remarks
- * The owner's plate (2026-11-21): the settings row is 350 by 170, the master switch and the three snap types with
- * enough air for the power buttons and the threshold (the widget's old name was Edit Settings).
+ * The owner's plate (2026-11-21): the settings row is the master switch and the three snap types with enough air for the
+ * power buttons and the threshold (the widget's old name was Edit Settings). It is 350 by **160** since 2026-11-23: the
+ * normals took the room under it, and the settings keep their rows with ten pixels less.
  */
-const EDIT_SETTINGS_HEIGHT = 170
+const EDIT_SETTINGS_HEIGHT = 160
+
+/**
+ * The height of the Normals widget of the `Editor` preset, in pixels.
+ *
+ * @remarks
+ * The owner's plate (2026-11-23): the normals sit under the settings, 350 by 100, with the switch and the three modes of
+ * the lines: the two rows of the widget in the room the rest of the column leaves to the groups. The widget joined the
+ * preset with the normals of the walkable view (TODO 277).
+ */
+const EDITOR_NORMALS_HEIGHT = 100
 
 /**
  * The height of the plan view of the `Editor` preset, in pixels.
@@ -115,8 +126,8 @@ function fixed(px: number): ChildSize {
  * wide, and the plan to 300 high, with the left and front elevations sharing the rest under it. The middle column is
  * the **walkable view alone**: the camera form is not in this layout (the pose of the view is on its HUD), so no
  * widget of the middle is locked and it takes what the two columns leave. The right column is locked to 350 wide:
- * the undo and redo row to 50 and the **Edit Settings** to 120, and the group inspector takes what the two locks
- * leave.
+ * the undo and redo row to 50, the **Translate Snapping Controls** to 160 and the **Normals Controls** to 100, and the
+ * group inspector takes what the three locks leave (2026-11-23, the normals joined the column).
  *
  * The locks are the sizes the owner read off the badge of the plate in the edit mode (2026-11-01, and the plate of
  * 2026-11-21 for this arrangement).
@@ -140,10 +151,11 @@ export const editorLayout: LayoutNode = {
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: [fixed(EDITOR_UNDO_ROW_HEIGHT), fixed(EDIT_SETTINGS_HEIGHT), auto(1)],
+      sizes: [fixed(EDITOR_UNDO_ROW_HEIGHT), fixed(EDIT_SETTINGS_HEIGHT), fixed(EDITOR_NORMALS_HEIGHT), auto(1)],
       children: [
         { type: 'widget', kind: WIDGET_KINDS.undoRedo },
         { type: 'widget', kind: WIDGET_KINDS.editSettings },
+        { type: 'widget', kind: WIDGET_KINDS.normalsControls },
         { type: 'widget', kind: WIDGET_KINDS.groupInspector },
       ],
     },

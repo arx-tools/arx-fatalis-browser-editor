@@ -33,12 +33,14 @@ import {
   isEntitiesVisible,
   isLightsVisible,
   isMeshVisible,
+  isNormalsVisible,
   isPortalsVisible,
   isRoomColorsVisible,
   isWireframeVisible,
 } from '../shared/levelDisplay.ts'
 import { snapEnabled, snapModifierHeld } from '../shared/snapping.ts'
 import { addPreviewLights, attachWireframe, viewMeshesOf, type LevelWireframe } from '../shared/levelScene.ts'
+import { attachNormals, normalsLayers, type NormalsOverlay } from '../shared/normalsOverlay.ts'
 import { disposeSpikeEntityModel, loadSpikeEntityModel } from '../../../modules/level/entities/entitySpike.ts'
 import {
   createLightMarkers,
@@ -179,6 +181,7 @@ let gizmo: OrientationGizmo | undefined
 let selectionGizmo: SelectionGizmo | undefined
 let shown: Mesh[] = []
 let wireframe: LevelWireframe | undefined
+let normals: NormalsOverlay | undefined
 let rooms: RoomOverlay | undefined
 let lightMarkers: Group | undefined
 let lightSelection: LightSelectionOverlay | undefined
@@ -227,6 +230,8 @@ let controls: CameraControls | undefined
 let observer: ResizeObserver | undefined
 let stopWatching: (() => void) | undefined
 let stopWatchingWireframe: (() => void) | undefined
+let stopWatchingNormals: (() => void) | undefined
+let stopWatchingNormalsLayers: (() => void) | undefined
 let stopWatchingMesh: (() => void) | undefined
 let stopWatchingPortals: (() => void) | undefined
 let stopWatchingLights: (() => void) | undefined
@@ -465,6 +470,79 @@ function applyRoomHighlight(): void {
 }
 
 /**
+ * Builds the lines of the normals again from the polygons the mesh draws.
+ *
+ * @remarks
+ * The normals are built from the polygons and not from the geometry of the mesh: a line starts in the middle of a face
+ * and on its corners, which the buffers of the triangles no longer know. The source is therefore rebuilt after every
+ * edit, and after a group hides or shows a face (the level draws the visible polygons only).
+ */
+function refreshNormals(): void {
+  const map = loadedMap
+
+  if (map === undefined || normals === undefined) {
+    return
+  }
+
+  normals.setPolygons(map.visiblePolygons, arxVector3toVector3(map.scenePosition))
+}
+
+/**
+ * How long a burst of edits waits between two builds of the normal lines, in milliseconds.
+ *
+ * @remarks
+ * A drag of the gizmo bumps the level revision on every frame, and a rebuild of the lines of level 11 (69 817 faces) is
+ * **19-27 ms** for the face normals and **42 ms** for both layers (measured, 2026-11-23). The normals are a debug layer,
+ * so during a drag they may follow at 6-7 frames a second: the frame that moves the face stays whole, and the lines catch
+ * up when the burst ends.
+ */
+const NORMALS_REBUILD_INTERVAL = 150
+
+/**
+ * When the normal lines were built the last time, in the clock of the page.
+ */
+let normalsBuiltAt = 0
+
+/**
+ * The wait of the rebuild of the normal lines a burst of edits asked for.
+ */
+let normalsRebuild: ReturnType<typeof setTimeout> | undefined
+
+/**
+ * Asks for a rebuild of the normal lines, at most once in {@link NORMALS_REBUILD_INTERVAL}.
+ *
+ * @remarks
+ * The last edit of a burst still gets its rebuild: the timer of the first one fires after the wait and takes the state
+ * of the level of that moment, and the edits that came meanwhile schedule the next one.
+ */
+function scheduleNormals(): void {
+  if (normalsRebuild !== undefined) {
+    return
+  }
+
+  const wait = Math.max(0, NORMALS_REBUILD_INTERVAL - (performance.now() - normalsBuiltAt))
+
+  normalsRebuild = setTimeout(() => {
+    normalsRebuild = undefined
+    normalsBuiltAt = performance.now()
+    refreshNormals()
+    loop.requestRender()
+  }, wait)
+}
+
+/**
+ * Drops the rebuild of the normal lines that is still waiting.
+ */
+function cancelNormalsRebuild(): void {
+  if (normalsRebuild === undefined) {
+    return
+  }
+
+  clearTimeout(normalsRebuild)
+  normalsRebuild = undefined
+}
+
+/**
  * Shows a map: the meshes go into the scene and the camera starts from the player of the level.
  *
  * @param map The map the store loaded.
@@ -495,6 +573,13 @@ function showMap(map: ArxMap): void {
     gray: WIREFRAME_WITHOUT_MESH,
   })
   wireframe.setVisible(isWireframeVisible.value)
+
+  // the normals are an overlay of their own: a line per face and per corner, built from the visible polygons, and the
+  // two switches decide which of the layers is on. Only this view draws them (2026-11-23, the owner)
+  normals = attachNormals(view.scene)
+  normals.setLayers(normalsLayers.value)
+  normals.setPolygons(map.visiblePolygons, arxVector3toVector3(map.scenePosition))
+  normals.setVisible(isNormalsVisible.value)
 
   // the portal outline has no geometry in the level: it is built from the list of the portals, over the same space
   portalLines = attachPortalLines(view.scene, map.fts.portals, arxVector3toVector3(map.scenePosition))
@@ -647,6 +732,9 @@ function hideMap(): void {
 
   wireframe?.dispose()
   wireframe = undefined
+  cancelNormalsRebuild()
+  normals?.dispose()
+  normals = undefined
   portalLines?.dispose()
   portalLines = undefined
   selection?.dispose()
@@ -698,12 +786,29 @@ onMounted(() => {
     loop.requestRender()
   })
 
+  // the normals are a switch of this view: the lines stay in the scene, and the switch takes them off the frame (the
+  // first time it asks for them the lines are built, so a level that never showed them never pays for them)
+  stopWatchingNormals = watch(isNormalsVisible, (visible) => {
+    normals?.setVisible(visible)
+    loop.requestRender()
+  })
+
+  // the two layers of the normals are switches too: the one they ask for and the one they leave are two flags on the
+  // scene
+  stopWatchingNormalsLayers = watch(normalsLayers, (layers) => {
+    normals?.setLayers(layers)
+    loop.requestRender()
+  })
+
   // an edit changes the polygons, but not the objects this view holds: the level refills its geometry in
   // place, so the mesh and the wireframe of the scene already draw the new faces. What an edit does need is a
   // frame: the view draws on demand, so without this the canvas would keep the picture of the level before
   // the edit (a walk away and back would refresh it, which is exactly what a still picture can not do)
   stopWatchingEdit = watch(levelRevision, () => {
     repaintRooms()
+    // the normals are built from the polygons: a moved or deleted face is a new line (and a group that hid a face takes
+    // its normal with it). A drag runs this on every frame, so the build waits between two frames of the burst
+    scheduleNormals()
     // a moved face is a new fill: the overlay is built from the polygons of the selection
     dragSelection.updateHighlight()
     loop.requestRender()
@@ -810,6 +915,8 @@ onMounted(() => {
   // group changes the picture without touching the selection (2026-11-18, the owner)
   stopWatchingGroups = watch(activeFaceGroups, () => {
     dragSelection.updateHighlight()
+    // a hidden group takes its faces out of the mesh, and the normals follow the faces the mesh draws
+    scheduleNormals()
     loop.requestRender()
   })
 
@@ -826,6 +933,8 @@ onBeforeUnmount(() => {
   const stops = [
     stopWatching,
     stopWatchingWireframe,
+    stopWatchingNormals,
+    stopWatchingNormalsLayers,
     stopWatchingMesh,
     stopWatchingPortals,
     stopWatchingLights,
@@ -845,6 +954,8 @@ onBeforeUnmount(() => {
 
   stopWatching = undefined
   stopWatchingWireframe = undefined
+  stopWatchingNormals = undefined
+  stopWatchingNormalsLayers = undefined
   stopWatchingMesh = undefined
   stopWatchingPortals = undefined
   stopWatchingLights = undefined
@@ -871,6 +982,11 @@ onBeforeUnmount(() => {
   // geometry and material belong to the store)
   wireframe?.dispose()
   wireframe = undefined
+
+  // the normals are the lines of this view, built from the polygons of the level: nothing of them belongs to the store
+  cancelNormalsRebuild()
+  normals?.dispose()
+  normals = undefined
 
   selectionGizmo?.dispose()
   selectionGizmo = undefined

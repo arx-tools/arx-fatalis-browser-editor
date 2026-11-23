@@ -76,6 +76,21 @@ export const isLightsVisible = persistedRef<boolean>({
 })
 
 /**
+ * Whether the normals of the level are drawn.
+ *
+ * @remarks
+ * The normals are a debug aid like the wireframe: a line in the middle of every face and one on every corner, built by
+ * `normalsOverlay.ts`. Only the walkable view draws them (2026-11-23, the owner): the fixed views keep their flat map.
+ * The switch is a view preference in the `localStorage`, and the mode of the lines (face, vertex or both) is a
+ * preference of its own (`normalsMode`). The default is off. The `N` toggles it (TODO 277).
+ */
+export const isNormalsVisible = persistedRef<boolean>({
+  key: 'normalsVisible',
+  defaultValue: false,
+  persistInLocalStorage: true,
+})
+
+/**
  * Whether the entities of the level are drawn.
  *
  * @remarks
@@ -104,6 +119,7 @@ export const viewSwitches = {
   roomColors: { ref: isRoomColorsVisible, defaultValue: false },
   portals: { ref: isPortalsVisible, defaultValue: false },
   lights: { ref: isLightsVisible, defaultValue: false },
+  normals: { ref: isNormalsVisible, defaultValue: false },
   entities: { ref: isEntitiesVisible, defaultValue: true },
 } as const satisfies Record<string, { readonly ref: ShallowRef<boolean>; readonly defaultValue: boolean }>
 
@@ -197,5 +213,6 @@ export function startLevelDisplay(): void {
   onKeyboardAction('toggleRooms', toggleRoomColors)
   onKeyboardAction('togglePortals', togglePortals)
   onKeyboardToggle('toggleLights', isLightsVisible)
+  onKeyboardToggle('toggleNormals', isNormalsVisible)
   onKeyboardToggle('toggleEntities', isEntitiesVisible)
 }

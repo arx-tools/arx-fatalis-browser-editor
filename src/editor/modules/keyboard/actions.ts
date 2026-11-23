@@ -32,6 +32,7 @@ export type KeyboardActionId =
   | 'toggleHelp'
   | 'toggleLights'
   | 'toggleMesh'
+  | 'toggleNormals'
   | 'togglePortals'
   | 'toggleRotate'
   | 'toggleScale'
@@ -114,6 +115,13 @@ export const keyboardActions: readonly KeyboardAction[] = [
     label: 'Toggle the wireframe',
     group: 'view',
     keys: [{ code: 'KeyX' }],
+    modes: ['editor', 'pointerLocked'],
+  },
+  {
+    id: 'toggleNormals',
+    label: 'Toggle the normals',
+    group: 'view',
+    keys: [{ code: 'KeyN' }],
     modes: ['editor', 'pointerLocked'],
   },
   {

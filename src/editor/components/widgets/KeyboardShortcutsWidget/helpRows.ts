@@ -104,6 +104,7 @@ export const switchNames: Record<HelpToggle, string> = {
   roomColors: 'the rooms',
   portals: 'the portals',
   lights: 'the lights',
+  normals: 'the normals',
   entities: 'the entities',
   transform: 'the transform gizmo',
   rotate: 'the rotate gizmo',
@@ -157,6 +158,8 @@ export const helpSections: readonly HelpSection[] = [
     // the action is the name of the switch with a capital (2026-11-12, the owner): Wireframe, Mesh, Rooms, Portals
     rows: [
       { actionId: 'toggleWireframe', action: 'Wireframe', toggle: 'wireframe' },
+      // the normals of the faces and the corners: a line over the mesh, built from the visible polygons (TODO 277)
+      { actionId: 'toggleNormals', action: 'Normals', toggle: 'normals' },
       { actionId: 'toggleMesh', action: 'Mesh', toggle: 'mesh' },
       { actionId: 'toggleRooms', action: 'Rooms', toggle: 'roomColors', parent: 'mesh' },
       { actionId: 'togglePortals', action: 'Portals', toggle: 'portals', parent: 'mesh' },

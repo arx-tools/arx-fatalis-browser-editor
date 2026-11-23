@@ -4,13 +4,17 @@ import {
   isEntitiesVisible,
   isLightsVisible,
   isMeshVisible,
+  isNormalsVisible,
   isPortalsVisible,
   isRoomColorsVisible,
+  isViewAtDefault,
   isWireframeVisible,
+  resetViewSwitches,
   startLevelDisplay,
   toggleLights,
   togglePortals,
   toggleRoomColors,
+  viewSwitches,
 } from '../../../../../src/editor/components/widgets/shared/levelDisplay.ts'
 import {
   clearPressedKeys,
@@ -51,6 +55,7 @@ beforeEach(() => {
   isRoomColorsVisible.value = false
   isPortalsVisible.value = false
   isLightsVisible.value = false
+  isNormalsVisible.value = false
   isEntitiesVisible.value = true
   isMeshVisible.value = true
 })
@@ -93,6 +98,46 @@ void describe('toggleLights', () => {
 
     toggleLights()
     assert.equal(isLightsVisible.value, true)
+  })
+})
+
+void describe('isNormalsVisible', () => {
+  void it('starts hidden: the normals are a debug aid, not the look of the level', () => {
+    assert.equal(isNormalsVisible.value, false)
+  })
+
+  void it('is a preference with a key of its own', () => {
+    assert.equal(isNormalsVisible.key, 'normalsVisible')
+  })
+})
+
+void describe('the N key', () => {
+  void it('flips the switch of the normals', () => {
+    startLevelDisplay()
+
+    handleKeyDown(press('KeyN'))
+    assert.equal(isNormalsVisible.value, true)
+
+    clearPressedKeys()
+    handleKeyDown(press('KeyN'))
+    assert.equal(isNormalsVisible.value, false)
+  })
+})
+
+void describe('the reset of the view context', () => {
+  void it('puts the normals back with the other switches', () => {
+    isNormalsVisible.value = true
+
+    assert.equal(isViewAtDefault.value, false)
+
+    resetViewSwitches()
+
+    assert.equal(isNormalsVisible.value, false)
+    assert.equal(isViewAtDefault.value, true)
+  })
+
+  void it('carries a switch for the normals, among the others', () => {
+    assert.equal(Object.hasOwn(viewSwitches, 'normals'), true)
   })
 })
 

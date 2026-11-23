@@ -67,9 +67,10 @@ test('the portals are a view of the level, under the mesh', async ({ page }) => 
   const portalsEye = portalsRow.locator('button.visibility')
   const meshRow = viewContext.locator('dd', { hasText: 'Mesh' })
 
-  // the row sits under the rooms, with the branch of a child, and it names its key (the fourth row of the section)
+  // the row sits under the rooms, with the branch of a child, and it names its key (the fifth row of the section)
   await expect(viewContext.locator('dd .action')).toHaveText([
     'Wireframe',
+    'Normals',
     'Mesh',
     'Rooms',
     'Portals',
@@ -77,7 +78,7 @@ test('the portals are a view of the level, under the mesh', async ({ page }) => 
     'Entities',
   ])
   await expect(portalsRow.locator('.branch')).toHaveCount(1)
-  await expect(viewContext.locator('dt').nth(3).locator('kbd')).toHaveText('P')
+  await expect(viewContext.locator('dt').nth(4).locator('kbd')).toHaveText('P')
 
   // the layer starts off, and the storage has no entry for the default
   await expect(portalsEye).toHaveAttribute('aria-label', 'Show the portals')

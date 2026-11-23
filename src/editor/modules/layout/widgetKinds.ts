@@ -19,6 +19,10 @@ export const WIDGET_KINDS = {
    */
   view3d: '3d-view',
   /**
+   * The normals of the faces of the walkable view: the switch of the layer and the modes of the lines.
+   */
+  normalsControls: 'normals-controls',
+  /**
    * The fixed view from above.
    */
   topView: 'top-view',

@@ -129,7 +129,7 @@ test('the editor preset comes with the sizes the owner measured', async ({ page 
   await page.locator('header button[aria-label="Presets"]').click()
   await page.locator('.preset-menu .preset-row', { hasText: 'Editor' }).click()
 
-  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(7)
+  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(8)
   await expect
     .poll(async () => {
       return await presetName(page)
@@ -143,6 +143,7 @@ test('the editor preset comes with the sizes the owner measured', async ({ page 
   const view = await boxOf(page, '3d-view')
   const undo = await boxOf(page, 'undo-redo')
   const settings = await boxOf(page, 'edit-settings')
+  const normals = await boxOf(page, 'normals-controls')
   const groups = await boxOf(page, 'group-inspector')
 
   // the left column: the plan is locked to 350 x 300, the two elevations share the rest under it
@@ -162,17 +163,21 @@ test('the editor preset comes with the sizes the owner measured', async ({ page 
   await expect(page.locator('[data-widget-kind="camera-controls"]')).toHaveCount(0)
   await expect(page.locator('[data-widget-kind="jump-to-location"]')).toHaveCount(0)
 
-  // the right column: the undo row to 50, the settings to 120, and the groups take what the locks leave
+  // the right column: the undo row to 50, the settings to 160, the normals to 100, and the groups take the rest
   expect(undo.width).toBe(350)
   expect(undo.height).toBe(50)
   expect(settings.width).toBe(350)
-  expect(settings.height).toBe(170)
+  expect(settings.height).toBe(160)
   expect(settings.top).toBe(undo.top + undo.height + 4)
-  expect(groups.top).toBe(settings.top + settings.height + 4)
+  expect(normals.width).toBe(350)
+  expect(normals.height).toBe(100)
+  expect(normals.top).toBe(settings.top + settings.height + 4)
+  expect(groups.top).toBe(normals.top + normals.height + 4)
   expect(groups.width).toBe(350)
   expect(groups.height).toBeGreaterThan(400)
   expect(await page.locator('[data-widget-kind="undo-redo"]').getAttribute('data-locked-height')).toBe('50')
-  expect(await page.locator('[data-widget-kind="edit-settings"]').getAttribute('data-locked-height')).toBe('170')
+  expect(await page.locator('[data-widget-kind="edit-settings"]').getAttribute('data-locked-height')).toBe('160')
+  expect(await page.locator('[data-widget-kind="normals-controls"]').getAttribute('data-locked-height')).toBe('100')
   expect(await page.locator('[data-widget-kind="group-inspector"]').getAttribute('data-locked-height')).toBeNull()
 
   // a taller window: the locks hold, and the widgets that are free take the room
@@ -184,12 +189,14 @@ test('the editor preset comes with the sizes the owner measured', async ({ page 
   const viewAfter = await boxOf(page, '3d-view')
   const undoAfter = await boxOf(page, 'undo-redo')
   const settingsAfter = await boxOf(page, 'edit-settings')
+  const normalsAfter = await boxOf(page, 'normals-controls')
   const groupsAfter = await boxOf(page, 'group-inspector')
 
   expect(await presetName(page)).toBe('Editor')
   expect(planAfter.height).toBe(300)
   expect(undoAfter.height).toBe(50)
-  expect(settingsAfter.height).toBe(170)
+  expect(settingsAfter.height).toBe(160)
+  expect(normalsAfter.height).toBe(100)
   expect(leftAfter.height).toBeGreaterThan(left.height)
   expect(viewAfter.height).toBeGreaterThan(view.height)
   expect(groupsAfter.height).toBeGreaterThan(groups.height)

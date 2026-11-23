@@ -118,6 +118,7 @@ void describe('the editor preset', () => {
       '3d-view',
       'undo-redo',
       'edit-settings',
+      'normals-controls',
       'group-inspector',
     ])
   })
@@ -125,7 +126,8 @@ void describe('the editor preset', () => {
   void it('locks the widgets to the sizes the owner measured off the plate', () => {
     assert.deepEqual(lockOfKind(editorLayout, 'top-view'), { width: 350, height: 300 })
     assert.deepEqual(lockOfKind(editorLayout, 'undo-redo'), { width: 350, height: 50 })
-    assert.deepEqual(lockOfKind(editorLayout, 'edit-settings'), { width: 350, height: 170 })
+    assert.deepEqual(lockOfKind(editorLayout, 'edit-settings'), { width: 350, height: 160 })
+    assert.deepEqual(lockOfKind(editorLayout, 'normals-controls'), { width: 350, height: 100 })
   })
 
   void it('leaves the widgets the owner did not size free', () => {
@@ -200,6 +202,7 @@ void describe('collectKinds', () => {
       'front-view',
       'group-inspector',
       'left-view',
+      'normals-controls',
       'top-view',
       'undo-redo',
     ])

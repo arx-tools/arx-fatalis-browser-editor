@@ -6,6 +6,7 @@ import CameraControlsWidget from './components/widgets/CameraControlsWidget/Came
 import FixedViewWidget from './components/widgets/FixedViewWidget/FixedViewWidget.vue'
 import KeyboardShortcutsWidget from './components/widgets/KeyboardShortcutsWidget/KeyboardShortcutsWidget.vue'
 import JumpToLocationWidget from './components/widgets/JumpToLocationWidget/JumpToLocationWidget.vue'
+import NormalsControlsWidget from './components/widgets/NormalsControlsWidget/NormalsControlsWidget.vue'
 import LightingControlsWidget from './components/widgets/LightingControlsWidget/LightingControlsWidget.vue'
 import EditSettingsWidget from './components/widgets/EditSettingsWidget/EditSettingsWidget.vue'
 import PolygonInspectorWidget from './components/widgets/PolygonInspectorWidget/PolygonInspectorWidget.vue'
@@ -120,11 +121,20 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
   },
   {
     kind: WIDGET_KINDS.editSettings,
-    label: 'Translate Snapping Settings',
+    label: 'Translate Snapping Controls',
     contentSized: true,
     group: 'controls',
     create: (): Widget => {
       return new VueWidget(EditSettingsWidget)
+    },
+  },
+  {
+    kind: WIDGET_KINDS.normalsControls,
+    label: 'Normals Controls',
+    contentSized: true,
+    group: 'controls',
+    create: (): Widget => {
+      return new VueWidget(NormalsControlsWidget)
     },
   },
   {

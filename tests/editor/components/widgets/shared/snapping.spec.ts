@@ -6,6 +6,7 @@ import {
   rotationSnapDegrees,
   rotationSnapFor,
   snapAxesOf,
+  snapModifierOfEvent,
 } from '../../../../../src/editor/components/widgets/shared/snapping.ts'
 
 void describe('rotationSnapFor', () => {
@@ -24,6 +25,21 @@ void describe('rotationSnapFor', () => {
 
     assert.equal(rotationSnapFor(false), 10)
     assert.equal(rotationSnapFor(true), 45)
+  })
+})
+
+void describe('snapModifierOfEvent', () => {
+  void it('follows the Shift of the window', () => {
+    assert.equal(snapModifierOfEvent({ tagName: 'DIV' }, true), true)
+    assert.equal(snapModifierOfEvent({ tagName: 'DIV' }, false), false)
+    assert.equal(snapModifierOfEvent(null, true), true)
+  })
+
+  void it('lets the key go while a text field has the focus', () => {
+    assert.equal(snapModifierOfEvent({ tagName: 'INPUT' }, true), false)
+    assert.equal(snapModifierOfEvent({ tagName: 'TEXTAREA' }, true), false)
+    assert.equal(snapModifierOfEvent({ tagName: 'SELECT' }, true), false)
+    assert.equal(snapModifierOfEvent({ isContentEditable: true }, true), false)
   })
 })
 

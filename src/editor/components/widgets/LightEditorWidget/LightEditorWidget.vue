@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import type { ArxLight } from 'arx-convert/types'
-import { Power } from 'lucide-vue-next'
+import { Eye, Power } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, reactive, watch, type ComputedRef } from 'vue'
 import { commandOf } from '../../../modules/history/commands.ts'
 import { createSetLightRecord, type LightChange, type SetLightEdit } from '../../../modules/history/records.ts'
 import { runStep } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { lightsRevision, touchLights } from '../../../modules/level/edit/lightEditing.ts'
+import { fallEndSphereVisible, fallStartSphereVisible } from '../../../modules/level/edit/lightSpheres.ts'
 import { refreshLightPalette, type LightPaletteChange } from '../../../modules/level/edit/lightPalette.ts'
 import { lightSelectionStore } from '../../../modules/selection/lightSelectionStore.ts'
 import Notice from '../../Notice.vue'
@@ -503,7 +504,7 @@ const visibleFlags = computed<readonly LightFlagField[]>(() => {
           @step="onNumberStep('intensity', $event)"
         />
       </div>
-      <div class="row">
+      <div class="row with-toggle">
         <span class="caption">Fall start</span>
         <NumberField
           :model-value="numberTexts.fallStart"
@@ -514,8 +515,15 @@ const visibleFlags = computed<readonly LightFlagField[]>(() => {
           @blur="onNumberBlur('fallStart')"
           @step="onNumberStep('fallStart', $event)"
         />
+        <ToggleButton
+          :pressed="fallStartSphereVisible"
+          label="Fall start sphere"
+          @update:pressed="fallStartSphereVisible = $event"
+        >
+          <Eye :size="14" aria-hidden="true" />
+        </ToggleButton>
       </div>
-      <div class="row">
+      <div class="row with-toggle">
         <span class="caption">Fall end</span>
         <NumberField
           :model-value="numberTexts.fallEnd"
@@ -526,6 +534,13 @@ const visibleFlags = computed<readonly LightFlagField[]>(() => {
           @blur="onNumberBlur('fallEnd')"
           @step="onNumberStep('fallEnd', $event)"
         />
+        <ToggleButton
+          :pressed="fallEndSphereVisible"
+          label="Fall end sphere"
+          @update:pressed="fallEndSphereVisible = $event"
+        >
+          <Eye :size="14" aria-hidden="true" />
+        </ToggleButton>
       </div>
       <div class="flags">
         <div v-for="flag in visibleFlags" :key="flag.bit" class="flag">
@@ -656,6 +671,12 @@ const visibleFlags = computed<readonly LightFlagField[]>(() => {
     grid-template-columns: 72px 1fr;
     align-items: center;
     gap: 8px;
+  }
+
+  // the row of a number and the debug switch of its sphere: the field keeps the rest of the row, and the switch sits at
+  // the end of it (2026-11-23, the owner)
+  .row.with-toggle {
+    grid-template-columns: 72px 1fr 26px;
   }
 
   .caption {

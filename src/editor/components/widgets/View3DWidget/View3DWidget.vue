@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
 import { Magnet } from 'lucide-vue-next'
+import type { ArxLight } from 'arx-convert/types'
 import { PerspectiveCamera, type Group, type Mesh } from 'three'
 import Crosshair from '../../Crosshair.vue'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
@@ -11,6 +12,7 @@ import {
   registerDynamicLightsView,
 } from '../../../modules/level/edit/dynamicLights.ts'
 import { lightingProfile } from '../../../modules/level/edit/lightingProfile.ts'
+import { fallEndSphereVisible, fallStartSphereVisible } from '../../../modules/level/edit/lightSpheres.ts'
 import { activeFaceGroups } from '../../../modules/groups/groupStore.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { lightsRevision } from '../../../modules/level/edit/lightEditing.ts'
@@ -46,6 +48,7 @@ import {
   type LightMarkerTextures,
 } from '../shared/lightMarkers.ts'
 import { createLightSelectionOverlay, type LightSelectionOverlay } from '../shared/lightSelectionOverlay.ts'
+import { createLightRadiusSpheres, type LightRadiusSpheres } from '../shared/lightRadiusSpheres.ts'
 import { attachPortalLines, type PortalOverlay } from '../shared/portalOverlay.ts'
 import { roomPaletteOf } from '../../../../generator/rooms.ts'
 import { roomRevision } from '../../../modules/rooms/roomRevision.ts'
@@ -179,6 +182,29 @@ let wireframe: LevelWireframe | undefined
 let rooms: RoomOverlay | undefined
 let lightMarkers: Group | undefined
 let lightSelection: LightSelectionOverlay | undefined
+
+/**
+ * The debug spheres of the falloff of the edited light.
+ */
+let lightRadiusSpheres: LightRadiusSpheres | undefined
+
+/**
+ * The light the editor edits, when it edits one: the walkable view draws the debug spheres of that light.
+ *
+ * @param lights The lights of the level, in the order of the LLF.
+ *
+ * @returns The light, or `undefined` when the selection is empty or holds more than one.
+ */
+function editedLightOf(lights: readonly ArxLight[]): ArxLight | undefined {
+  if (lightSelectionStore.lights.value.size !== 1) {
+    return undefined
+  }
+
+  const [index] = lightSelectionStore.lights.value
+
+  return lights[index]
+}
+
 let lightTextures: LightMarkerTextures | undefined
 let spikeEntity: Group | undefined
 let portalLines: PortalOverlay | undefined
@@ -485,6 +511,13 @@ function showMap(map: ArxMap): void {
   lightSelection.update(map.lights, lightSelectionStore.lights.value, lightHoverStore.light.value)
   view.scene.add(lightSelection.group)
 
+  // the debug spheres of the falloff of the light the editor edits: green for the fall start, red for the fall end
+  // the debug spheres are a switch of their own, not a part of the light markers: the fall start and the fall end are
+  // read on the light the editor edits, and the marker display has a switch of its own
+  lightRadiusSpheres = createLightRadiusSpheres()
+  lightRadiusSpheres.update(editedLightOf(map.lights))
+  view.scene.add(lightRadiusSpheres.group)
+
   // the switches read the wireframe too (its lines follow the mesh), so they come after it is there: a fresh load
   // with the mesh on then starts in the inverted look, not in the gray of a hidden level
   updateVisibility()
@@ -596,6 +629,12 @@ function hideMap(): void {
     lightSelection = undefined
   }
 
+  if (lightRadiusSpheres !== undefined) {
+    view?.scene.remove(lightRadiusSpheres.group)
+    lightRadiusSpheres.dispose()
+    lightRadiusSpheres = undefined
+  }
+
   // the selected lights are indices of the level that went: a new level has a list of its own
   lightSelectionStore.clear()
   lightHoverStore.set(undefined)
@@ -695,6 +734,8 @@ onMounted(() => {
       isStaticLightsVisible,
       isDynamicLightsVisible,
       lightingProfile,
+      fallStartSphereVisible,
+      fallEndSphereVisible,
     ],
     ([visible]) => {
       if (lightMarkers !== undefined) {
@@ -708,6 +749,10 @@ onMounted(() => {
       if (lightSelection !== undefined && loadedMap !== undefined) {
         lightSelection.group.visible = visible
         lightSelection.update(loadedMap.lights, lightSelectionStore.lights.value, lightHoverStore.light.value)
+      }
+
+      if (lightRadiusSpheres !== undefined && loadedMap !== undefined) {
+        lightRadiusSpheres.update(editedLightOf(loadedMap.lights))
       }
 
       loop.requestRender()

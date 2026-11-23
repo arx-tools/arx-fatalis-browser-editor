@@ -144,6 +144,66 @@ test('the color picker changes the color of the light', async ({ page }) => {
 })
 
 /**
+ * The debug spheres of the falloff are off, and the switch of each is kept in the local storage.
+ *
+ * @remarks
+ * The game's debug view draws the fall start sphere in green and the fall end in red around a light; the editor shows
+ * them for the light the editor edits, on a switch of its own, so they do not come with the hover (2026-11-23, the
+ * owner, TODO 249). The switches are view preferences of the browser: the local storage keeps them.
+ */
+test('the fall sphere switches start off, and the local storage keeps them', async ({ page }) => {
+  await openLighter(page)
+  await pickFirstLight(page)
+
+  const editor = page.locator('[data-widget-kind="light-editor"]')
+  const fallStart = editor.getByRole('button', { name: 'Fall start sphere', exact: true })
+  const fallEnd = editor.getByRole('button', { name: 'Fall end sphere', exact: true })
+
+  await expect(fallStart).toHaveAttribute('aria-pressed', 'false')
+  await expect(fallEnd).toHaveAttribute('aria-pressed', 'false')
+
+  await fallStart.click()
+  await expect(fallStart).toHaveAttribute('aria-pressed', 'true')
+  await expect
+    .poll(async () => {
+      return await page.evaluate(() => {
+        return localStorage.getItem('fallStartSphereVisible')
+      })
+    })
+    .toBe('true')
+  const storedEnd = await page.evaluate(() => {
+    return localStorage.getItem('fallEndSphereVisible')
+  })
+
+  expect(storedEnd).toBeNull()
+})
+
+/**
+ * The Shift of a text field does not light the magnet of the walkable view.
+ *
+ * @remarks
+ * While a field has the keyboard, Shift selects the text in it: the magnet of the 3D view (and the coarse step of the
+ * rotate gizmo) must not follow that key (2026-11-23, the owner).
+ */
+test('the Shift of a text field does not light the magnet of the walkable view', async ({ page }) => {
+  await openLighter(page)
+  await pickFirstLight(page)
+
+  const editor = page.locator('[data-widget-kind="light-editor"]')
+  const magnet = page.locator('[data-widget-kind="3d-view"] .snap-toggle')
+
+  await expect(magnet).toBeVisible()
+  await expect(magnet).toHaveAttribute('data-shifted', 'false')
+
+  await editor.locator('input[aria-label="Intensity"]').focus()
+  await page.keyboard.down('Shift')
+
+  await expect(magnet).toHaveAttribute('data-shifted', 'false')
+
+  await page.keyboard.up('Shift')
+})
+
+/**
  * The two columns of the flags are split by a faint rule.
  *
  * @remarks

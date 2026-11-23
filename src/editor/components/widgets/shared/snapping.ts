@@ -1,4 +1,5 @@
 import { shallowRef } from 'vue'
+import { isEditableTarget } from '../../../modules/keyboard/functions.ts'
 import { parseJson } from '../../../modules/persistedRef/functions.ts'
 import { persistedRef } from '../../../modules/persistedRef/persistedRef.ts'
 
@@ -59,6 +60,27 @@ export const snapModifierHeld = shallowRef(false)
 let snapModifierStarted = false
 
 /**
+ * The state of the Shift the editor follows, from a key event of the window.
+ *
+ * @remarks
+ * A text field has the keyboard while the author types in it: Shift selects the text there, so the magnet of the
+ * walkable view and the coarse step of the rotate gizmo must not light up on it (2026-11-23, the owner). The state
+ * falls back to false while a field is focused, so a Shift held before the focus does not stay on either.
+ *
+ * @param target The target of the key event.
+ * @param shiftKey Whether the event says Shift is held.
+ *
+ * @returns The state the modifier takes.
+ */
+export function snapModifierOfEvent(target: unknown, shiftKey: boolean): boolean {
+  if (isEditableTarget(target)) {
+    return false
+  }
+
+  return shiftKey
+}
+
+/**
  * Starts following the Shift key.
  *
  * @remarks
@@ -79,7 +101,7 @@ export function startSnapModifier(): void {
    * @param event The key event of the window.
    */
   function update(event: KeyboardEvent): void {
-    snapModifierHeld.value = event.shiftKey
+    snapModifierHeld.value = snapModifierOfEvent(event.target, event.shiftKey)
   }
 
   /**

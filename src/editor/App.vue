@@ -12,6 +12,7 @@ import { startLevelDisplay } from './components/widgets/shared/levelDisplay.ts'
 import { startSnapModifier } from './components/widgets/shared/snapping.ts'
 import { startHelpPopup } from './modules/help/helpPopup.ts'
 import { startDynamicLights } from './modules/level/edit/dynamicLights.ts'
+import { startParticles } from './modules/particles/controller.ts'
 import { startLevelEditing } from './modules/level/edit/editing.ts'
 import { startPortalGeneration } from './modules/rooms/portalSync.ts'
 import { startSelection } from './modules/selection/selectionStore.ts'
@@ -137,6 +138,7 @@ onMounted(async () => {
   startLevelTextures()
   startLighting()
   startDynamicLights()
+  startParticles()
   startTextureCatalog()
   startRoomSelection()
   startCurrentRoom()

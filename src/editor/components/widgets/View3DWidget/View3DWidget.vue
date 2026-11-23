@@ -14,6 +14,7 @@ import {
 import { lightingProfile } from '../../../modules/level/edit/lightingProfile.ts'
 import { fallEndSphereVisible, fallStartSphereVisible } from '../../../modules/level/edit/lightSpheres.ts'
 import { activeFaceGroups } from '../../../modules/groups/groupStore.ts'
+import { registerParticlesView } from '../../../modules/particles/controller.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { lightsRevision } from '../../../modules/level/edit/lightEditing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
@@ -70,6 +71,7 @@ import { useSelectionDrag } from './useSelectionDrag.ts'
 import { createOrientationGizmo, type OrientationGizmo } from './orientationGizmo.ts'
 import { createPolygonSelectionOverlay, type PolygonSelectionOverlay } from './polygonSelection.ts'
 import { createLightGizmo, type LightGizmo } from './lightGizmo.ts'
+import { createParticleField, type ParticleField } from './particleField.ts'
 import { createSelectionGizmo, type SelectionGizmo } from './selectionGizmo.ts'
 
 /**
@@ -184,6 +186,10 @@ let selectionGizmo: SelectionGizmo | undefined
  * The move gizmo of the selected lights, or `undefined` before the view is built.
  */
 let lightGizmo: LightGizmo | undefined
+/**
+ * The particles of the level in this view, or `undefined` before the view is built.
+ */
+let particleField: ParticleField | undefined
 let shown: Mesh[] = []
 let wireframe: LevelWireframe | undefined
 let normals: NormalsOverlay | undefined
@@ -331,6 +337,28 @@ const unregisterDynamicLights = registerDynamicLightsView(
 )
 
 /**
+ * The view takes part in the layer of the particles: the layer hands it the particles of the frame, and it draws them.
+ *
+ * @remarks
+ * The layer wants the camera of the view for the count of the fire of a light, the frames of the particles to draw, and
+ * a frame to draw them in. The registration is a constant of the setup, the way the dynamic layer's is.
+ */
+const unregisterParticles = registerParticlesView({
+  cameraPositionOf: () => {
+    return view?.camera.position
+  },
+  render: () => {
+    loop.requestRender()
+  },
+  setVisible: (visible: boolean): void => {
+    particleField?.setVisible(visible)
+  },
+  update: (frames): void => {
+    particleField?.update(frames)
+  },
+})
+
+/**
  * Recolors the outline of the face under the crosshair when a modifier key goes down or up.
  *
  * @param event The key event of the window.
@@ -399,6 +427,13 @@ function createScene(): void {
     scene: view.scene,
     camera: view.camera,
     canvas: target,
+    onRender: (): void => {
+      loop.requestRender()
+    },
+  })
+  // the particles of the level: the fire of the lights, and the smoke it fades into
+  particleField = createParticleField({
+    scene: view.scene,
     onRender: (): void => {
       loop.requestRender()
     },
@@ -787,12 +822,27 @@ function hideMap(): void {
   controls = undefined
 }
 
+/**
+ * Asks the view for a frame when the tab comes back: the browser may have dropped the frame an earlier request asked
+ * for, and a view that keeps its old picture shows nothing of what changed in the background.
+ */
+function onVisibilityChange(): void {
+  if (document.visibilityState === 'visible') {
+    loop.requestRender()
+  }
+}
+
 onMounted(() => {
   createScene()
 
   observer = new ResizeObserver(() => {
     resize()
   })
+
+  // a tab that comes back from the background may have dropped the frame a render request of it owed: the view would
+  // keep the picture it had when the tab went away, and only a click (the pointer lock's loop) would draw again
+  // (2026-11-23, the owner: the view showed nothing until the first pointer lock)
+  document.addEventListener('visibilitychange', onVisibilityChange)
 
   if (host.value !== null) {
     observer.observe(host.value)
@@ -1007,6 +1057,7 @@ onBeforeUnmount(() => {
   stopWatchingSelection = undefined
   stopWatchingGroups = undefined
   unregisterDynamicLights()
+  unregisterParticles()
 
   globalThis.removeEventListener('keydown', onModifierKey)
   globalThis.removeEventListener('keyup', onModifierKey)
@@ -1031,7 +1082,10 @@ onBeforeUnmount(() => {
   selectionGizmo = undefined
   lightGizmo?.dispose()
   lightGizmo = undefined
+  particleField?.dispose()
+  particleField = undefined
 
+  document.removeEventListener('visibilitychange', onVisibilityChange)
   observer?.disconnect()
   observer = undefined
   cameraStore.setDriver(undefined)

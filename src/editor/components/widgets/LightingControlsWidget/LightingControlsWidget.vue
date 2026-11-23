@@ -4,6 +4,7 @@ import { computed } from 'vue'
 import FieldLabel from '../../FieldLabel.vue'
 import ToggleButton from '../../ToggleButton.vue'
 import { isDynamicLightsVisible, isStaticLightsVisible } from '../../../modules/level/edit/dynamicLights.ts'
+import { particlesVisible } from '../../../modules/particles/controller.ts'
 import {
   flatLuminosity,
   hasLuminosity,
@@ -147,6 +148,23 @@ const dynamicLights = computed<boolean>({
     isDynamicLightsVisible.value = value
   },
 })
+
+/**
+ * The particles of the level, bound to the switch.
+ *
+ * @remarks
+ * The fire of the fireplaces, the smoke of a fire and the fog of a level are the layer of the particles: the author turns
+ * it on to see the level the way the game draws it. It is a view preference of the author, kept in the browser like the
+ * profile.
+ */
+const particles = computed<boolean>({
+  get: (): boolean => {
+    return particlesVisible.value
+  },
+  set: (value: boolean): void => {
+    particlesVisible.value = value
+  },
+})
 </script>
 
 <template>
@@ -205,6 +223,14 @@ const dynamicLights = computed<boolean>({
           label="Dynamic lights"
           @update:pressed="dynamicLights = $event"
         >
+          <Power :size="14" aria-hidden="true" />
+        </ToggleButton>
+      </div>
+    </FieldLabel>
+
+    <FieldLabel class="field" inline label="Particles" for="particles">
+      <div class="row">
+        <ToggleButton id="particles" :pressed="particles" label="Particles" @update:pressed="particles = $event">
           <Power :size="14" aria-hidden="true" />
         </ToggleButton>
       </div>

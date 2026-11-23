@@ -176,3 +176,56 @@ test('a light click takes the face selection away without shift', async ({ page,
     .toBeGreaterThan(0)
   await expect(inspector.locator('.selection')).toContainText('1 selected')
 })
+
+/**
+ * A level of a few hundred lights: the list draws a window of the rows, not every row.
+ *
+ * @remarks
+ * Level 0 has 376 lights, and mounting every row (and its tooltips) on a preset switch was the hitch of the Lighter
+ * preset (2026-11-23, the owner: the Light Inspector dragged into the Painter layout on level 0). The list draws the
+ * rows the box shows, plus a few; the scrollbar still covers the whole list, so the last light stays reachable.
+ */
+test('a level of hundreds of lights draws a window of the list, and reaches the last light', async ({ page }) => {
+  test.setTimeout(120_000)
+
+  await page.setViewportSize({ width: 1631, height: 850 })
+  // the level is a few megabytes of the game: the list starts empty, and the wait below is on the list, not on the dock
+  // (the sizes of the dock settle long before the level arrives)
+  await page.goto('?fromOriginalArxLevel=0')
+  await page.keyboard.press('F5')
+
+  const inspector = page.locator('[data-widget-kind="light-inspector"]')
+
+  await expect(inspector).toBeVisible()
+
+  const line = inspector.locator('.selection')
+
+  /**
+   * Reads how many lights the line above the list counts.
+   *
+   * @returns The number of lights, or 0 while the level is on its way.
+   */
+  async function countOfLights(): Promise<number> {
+    const match = /(?<count>\d{1,6}) lights/u.exec((await line.textContent()) ?? '')
+
+    return Number(match?.groups?.count ?? 0)
+  }
+
+  // the level is a few megabytes of the game: the list starts empty, and the line counts the lights when it arrives
+  await expect.poll(countOfLights, { timeout: 60_000 }).toBeGreaterThan(100)
+
+  const total = await countOfLights()
+
+  const rows = inspector.locator('.light')
+
+  await expect(rows.first()).toBeVisible()
+  // the window of the box (about eight rows) and its overscan, not the hundreds of the level
+  expect(await rows.count()).toBeLessThan(60)
+
+  // the scrollbar covers the whole list: the last light is one scroll away, and the window follows it
+  await inspector.locator('.lights').evaluate((node) => {
+    node.scrollTop = node.scrollHeight
+  })
+
+  await expect(inspector.locator('.index').last()).toHaveText(`light ${String(total - 1)}`)
+})

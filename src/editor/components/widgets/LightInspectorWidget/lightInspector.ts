@@ -190,6 +190,75 @@ export function filteredLightRows(
 }
 
 /**
+ * How many rows the window of the list keeps above and below the visible ones.
+ *
+ * @remarks
+ * A few rows make the next one ready before the scroll reaches it; more would mount the list again from the other side.
+ */
+const OVERSCAN = 6
+
+/**
+ * The rows a window of the list draws, and the room the rows above and below it take.
+ */
+export type LightWindow = {
+  /**
+   * The first row of the window.
+   */
+  readonly start: number
+  /**
+   * The row after the last one of the window.
+   */
+  readonly end: number
+  /**
+   * The height the rows above the window take, in css pixels.
+   */
+  readonly top: number
+  /**
+   * The height the rows below the window take, in css pixels.
+   */
+  readonly bottom: number
+}
+
+/**
+ * Works out the window of the rows a scroll box draws.
+ *
+ * @remarks
+ * A level of a few hundred lights (level 0 has 376) mounts every row and its tooltips when the list draws them all,
+ * which is the hitch of the Lighter preset. The list draws the rows the box shows, plus a few on both sides, and the
+ * two paddings keep the height of the whole list on the scrollbar: the scrollbar is the same, the number of the live
+ * rows is not (TODO 281).
+ *
+ * @param total How many rows the list has.
+ * @param scrollTop How far the box is scrolled, in css pixels.
+ * @param viewportHeight How tall the box is, in css pixels.
+ * @param rowHeight How tall a row is, in css pixels.
+ *
+ * @returns The first and the last row of the window, with the room of the rows outside it.
+ */
+export function lightWindowOf(
+  total: number,
+  scrollTop: number,
+  viewportHeight: number,
+  rowHeight: number,
+): LightWindow {
+  if (total <= 0 || rowHeight <= 0) {
+    return { start: 0, end: 0, top: 0, bottom: 0 }
+  }
+
+  const first = Math.floor(scrollTop / rowHeight) - OVERSCAN
+  const start = Math.max(0, Math.min(first, total - 1))
+  const last = Math.ceil((scrollTop + viewportHeight) / rowHeight) + OVERSCAN
+  const end = Math.min(total, Math.max(start, last))
+
+  return {
+    start,
+    end,
+    top: start * rowHeight,
+    bottom: (total - end) * rowHeight,
+  }
+}
+
+/**
  * What the panel says above the list: how many lights there are, and how many of them are selected.
  *
  * @param total How many lights the level has.

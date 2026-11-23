@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ScanSearch } from 'lucide-vue-next'
-import { computed, shallowRef, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, shallowRef, useTemplateRef, watch } from 'vue'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { cameraStore } from '../camera/cameraStore.ts'
 import { lightsRevision } from '../../../modules/level/edit/lightEditing.ts'
@@ -21,6 +21,7 @@ import {
   lightRowsOf,
   lightSelectionLabelOf,
   lightShapeLabelOf,
+  lightWindowOf,
 } from './lightInspector.ts'
 
 /**
@@ -89,10 +90,158 @@ const shown = computed(() => {
 })
 
 /**
+ * The height of a row of the list, before the browser has measured one.
+ */
+const ROW_HEIGHT_FALLBACK = 25
+
+/**
+ * The scroll box of the list.
+ */
+const list = useTemplateRef<HTMLUListElement>('list')
+
+/**
+ * How far the list is scrolled, in css pixels.
+ */
+const scrollTop = shallowRef(0)
+
+/**
+ * The height of the scroll box, in css pixels.
+ */
+const viewportHeight = shallowRef(0)
+
+/**
+ * The height of a row, in css pixels.
+ *
+ * @remarks
+ * The rows are one line of the same font, so they share their height; the list measures the first one when it is on the
+ * screen, and {@link ROW_HEIGHT_FALLBACK} is the height before that (and in a box that has no size yet).
+ */
+const rowHeight = shallowRef(ROW_HEIGHT_FALLBACK)
+
+/**
+ * The window of the rows the list draws.
+ */
+const listWindow = computed(() => {
+  return lightWindowOf(shown.value.length, scrollTop.value, viewportHeight.value, rowHeight.value)
+})
+
+/**
+ * The rows the window draws.
+ */
+const visibleRows = computed<readonly LightRow[]>(() => {
+  return shown.value.slice(listWindow.value.start, listWindow.value.end)
+})
+
+/**
  * The line above the list: how many lights the level has, and how many are selected.
  */
 const selectionLabel = computed(() => {
   return lightSelectionLabelOf(rows.value.length, lightSelectionStore.lights.value.size)
+})
+
+/**
+ * Reads the scroll position of the list.
+ */
+function handleScroll(): void {
+  const element = list.value
+
+  if (element === null) {
+    return
+  }
+
+  scrollTop.value = element.scrollTop
+}
+
+/**
+ * Reads the height of the scroll box and of a row.
+ *
+ * @remarks
+ * The row is measured and not guessed: a font the editor changes on the screen, or a browser that rounds the line
+ * differently, would move the window off the rows otherwise. The box has no size while the widget is detached (a
+ * layout builds it before the dock takes it), so the observer reads both when it is on the screen.
+ */
+function measureList(): void {
+  const element = list.value
+
+  if (element === null) {
+    return
+  }
+
+  // the pass may let the content of the widget grow for a moment (see `scheduleMeasure`): the node of the widget keeps
+  // the size the dock gave it, and the list can never be taller than that
+  const owner = element.closest<HTMLElement>('.lm-DockPanel-widget')
+  const limit = owner?.clientHeight ?? element.clientHeight
+
+  viewportHeight.value = Math.min(element.clientHeight, limit)
+
+  const row = element.querySelector<HTMLElement>('.light')
+  const height = row?.getBoundingClientRect().height ?? 0
+
+  if (height > 0) {
+    rowHeight.value = height
+  }
+}
+
+/**
+ * The observer of the size of the scroll box (a dock column that is resized).
+ */
+let resizeObserver: ResizeObserver | undefined
+
+/**
+ * The frame the next measurement waits for, or `undefined` when none is asked for.
+ */
+let measureFrame: number | undefined
+
+/**
+ * Measures the scroll box after the layout has settled.
+ *
+ * @remarks
+ * The pass of the sizes measures the content of a content-sized widget by letting it grow for a moment
+ * (`contentHeightOf`), and the observer sees that size: the list is a scroll box whose content is the whole list, so a
+ * measurement of the instant the widget is let go reads the height of the content as the viewport. The two frames below
+ * skip that moment; the box is at its final size on the second one.
+ */
+function scheduleMeasure(): void {
+  if (measureFrame !== undefined) {
+    cancelAnimationFrame(measureFrame)
+  }
+
+  measureFrame = requestAnimationFrame(() => {
+    measureFrame = requestAnimationFrame(() => {
+      measureFrame = undefined
+      measureList()
+    })
+  })
+}
+
+onMounted(() => {
+  scheduleMeasure()
+
+  if (list.value !== null) {
+    resizeObserver = new ResizeObserver(() => {
+      scheduleMeasure()
+    })
+    resizeObserver.observe(list.value)
+  }
+})
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect()
+  resizeObserver = undefined
+
+  if (measureFrame !== undefined) {
+    cancelAnimationFrame(measureFrame)
+    measureFrame = undefined
+  }
+})
+
+// a new search or shape starts the list at its top, or the window would sit on a row the filter may have taken away
+watch([query, shape], () => {
+  scrollTop.value = 0
+
+  if (list.value !== null) {
+    list.value.scrollTop = 0
+  }
 })
 
 /**
@@ -172,12 +321,13 @@ function jumpTo(row: LightRow): void {
         <option v-for="entry in shapes" :key="entry.value" :value="entry.value">{{ entry.label }}</option>
       </select>
     </div>
-    <ul class="lights">
+    <ul ref="list" class="lights" @scroll.passive="handleScroll">
+      <li v-if="listWindow.top > 0" class="spacer" :style="{ height: `${listWindow.top}px` }" aria-hidden="true" />
       <InspectorRow
-        v-for="row in shown"
+        v-for="row in visibleRows"
         :key="row.index"
         class="light"
-        :class="{ 'is-selected': isSelected(row.index) }"
+        :class="{ 'is-selected': isSelected(row.index), 'is-striped': row.index % 2 === 1 }"
         @click="pick(row.index, $event)"
       >
         <ColorSwatch :color="row.color" :radius="3" border="line" />
@@ -195,6 +345,12 @@ function jumpTo(row: LightRow): void {
           <ScanSearch :size="14" />
         </button>
       </InspectorRow>
+      <li
+        v-if="listWindow.bottom > 0"
+        class="spacer"
+        :style="{ height: `${listWindow.bottom}px` }"
+        aria-hidden="true"
+      />
     </ul>
     <EmptyMessage v-if="rows.length > 0 && shown.length === 0">No light matches the search</EmptyMessage>
     <EmptyMessage v-else-if="rows.length === 0">The level has no lights</EmptyMessage>
@@ -253,10 +409,30 @@ function jumpTo(row: LightRow): void {
     overflow-y: auto;
     list-style: none;
 
+    // the room of the rows that are not drawn: a `<li>` and not a padding, because the padding of the scroll box would
+    // be the box's own size (the list would grow to it in the moment the pass lets the content measure itself)
+    .spacer {
+      padding: 0;
+      margin: 0;
+      border: 0;
+      list-style: none;
+    }
+
     .light {
       padding: 4px 6px;
       border-radius: 3px;
+      background: transparent;
       user-select: none;
+
+      // the stripe follows the light, not the place of the row in the window: the window moves while the list scrolls,
+      // so the nth-child of the shared row would crawl
+      &.is-striped {
+        background: rgba($text-strong, 0.03);
+      }
+
+      &:hover {
+        background: $surface-panel;
+      }
 
       &.is-selected {
         background: rgba($accent, 0.15);

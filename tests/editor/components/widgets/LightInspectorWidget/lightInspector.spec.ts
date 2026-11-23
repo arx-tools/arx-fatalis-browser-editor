@@ -10,6 +10,7 @@ import {
   lightRowsOf,
   lightSelectionLabelOf,
   lightShapeLabelOf,
+  lightWindowOf,
   type LightRow,
 } from '../../../../../src/editor/components/widgets/LightInspectorWidget/lightInspector.ts'
 
@@ -42,6 +43,33 @@ function light(overrides: Partial<ArxLight> = {}): ArxLight {
     ...overrides,
   }
 }
+
+void describe('lightWindowOf', () => {
+  void it('draws the rows the box shows, with the overscan', () => {
+    assert.deepEqual(lightWindowOf(376, 0, 190, 25), { start: 0, end: 14, top: 0, bottom: 9050 })
+  })
+
+  void it('moves the window with the scroll, and keeps the height of the whole list', () => {
+    assert.deepEqual(lightWindowOf(376, 1000, 190, 25), { start: 34, end: 54, top: 850, bottom: 8050 })
+  })
+
+  void it('stops at the last row', () => {
+    assert.deepEqual(lightWindowOf(376, 9210, 190, 25), { start: 362, end: 376, top: 9050, bottom: 0 })
+  })
+
+  void it('gives an empty window for an empty list and for a row of no height', () => {
+    assert.deepEqual(lightWindowOf(0, 0, 190, 25), { start: 0, end: 0, top: 0, bottom: 0 })
+    assert.deepEqual(lightWindowOf(10, 0, 190, 0), { start: 0, end: 0, top: 0, bottom: 0 })
+  })
+
+  void it('keeps a stale scroll inside the list', () => {
+    assert.deepEqual(lightWindowOf(5, 9000, 190, 25), { start: 4, end: 5, top: 100, bottom: 0 })
+  })
+
+  void it('draws the overscan of a box that has no size yet', () => {
+    assert.deepEqual(lightWindowOf(376, 0, 0, 25), { start: 0, end: 6, top: 0, bottom: 9250 })
+  })
+})
 
 void describe('lightRowsOf', () => {
   void it('names the lights by their index, with the shape and the colour of the light', () => {

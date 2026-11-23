@@ -2,9 +2,11 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { ArxLightFlags, type ArxLight } from 'arx-convert/types'
 import {
-  ADVANCED_LIGHT_FLAGS,
-  BASIC_LIGHT_FLAGS,
+  COLOR_LEGACY_FLAG,
+  FIX_FLARE_SIZE_FLAG,
+  LIGHT_FLAGS,
   colorOfHsl,
+  conditionalLightFlagsOf,
   fieldsOfLight,
   hasLightFlag,
   hslOfColor,
@@ -12,6 +14,9 @@ import {
   lightSelectionOf,
   lightWithFieldsOf,
   sameLightEditableFields,
+  showsFireOf,
+  showsFlareOf,
+  showsFlickerOf,
   withLightFlag,
 } from '../../../../../src/editor/components/widgets/LightEditorWidget/lightEditor.ts'
 
@@ -70,10 +75,10 @@ void describe('lightSelectionOf', () => {
     assert.deepEqual(selection, { kind: 'ready', indices: [0, 1], light: first })
   })
 
-  void it('reads a colour that differs', () => {
+  void it('reads a color that differs', () => {
     const selection = lightSelectionOf([light(), light({ color: { r: 0, g: 0, b: 0, a: 255 } })], [0, 1])
 
-    assert.deepEqual(selection, { kind: 'mismatch', reasons: ['colour'] })
+    assert.deepEqual(selection, { kind: 'mismatch', reasons: ['color'] })
   })
 
   void it('reads an intensity that differs', () => {
@@ -105,14 +110,21 @@ void describe('lightSelectionOf', () => {
     assert.deepEqual(selection, { kind: 'mismatch', reasons: ['flicker'] })
   })
 
-  void it('reads an advanced field that differs', () => {
+  void it('reads a fire field that differs', () => {
     assert.deepEqual(lightSelectionOf([light(), light({ exRadius: 50 })], [0, 1]), {
       kind: 'mismatch',
-      reasons: ['advanced'],
+      reasons: ['fire'],
     })
     assert.deepEqual(lightSelectionOf([light(), light({ exSpeed: 0.5 })], [0, 1]), {
       kind: 'mismatch',
-      reasons: ['advanced'],
+      reasons: ['fire'],
+    })
+  })
+
+  void it('reads a flare field that differs', () => {
+    assert.deepEqual(lightSelectionOf([light(), light({ exFlareSize: 2 })], [0, 1]), {
+      kind: 'mismatch',
+      reasons: ['flare'],
     })
   })
 
@@ -127,6 +139,7 @@ void describe('lightSelectionOf', () => {
           flags: ArxLightFlags.SemiDynamic,
           exFlicker: { r: 63, g: 63, b: 63, a: 255 },
           exRadius: 10,
+          exFlareSize: 2,
         }),
       ],
       [0, 1],
@@ -134,7 +147,7 @@ void describe('lightSelectionOf', () => {
 
     assert.deepEqual(selection, {
       kind: 'mismatch',
-      reasons: ['colour', 'intensity', 'falloff', 'flags', 'flicker', 'advanced'],
+      reasons: ['color', 'intensity', 'falloff', 'flags', 'flicker', 'fire', 'flare'],
     })
   })
 
@@ -158,7 +171,7 @@ void describe('sameLightEditableFields', () => {
     assert.equal(sameLightEditableFields(light(), light({ position: { x: 1, y: 2, z: 3 } })), true)
   })
 
-  void it('tells a colour apart', () => {
+  void it('tells a color apart', () => {
     assert.equal(sameLightEditableFields(light(), light({ color: { r: 1, g: 128, b: 0, a: 255 } })), false)
   })
 })
@@ -166,13 +179,20 @@ void describe('sameLightEditableFields', () => {
 void describe('lightMismatchMessageOf', () => {
   void it('writes the reasons in the words of the widget', () => {
     assert.equal(
-      lightMismatchMessageOf(['colour', 'intensity']),
-      "Can't edit lights on selection: mismatching colours, mismatching intensities",
+      lightMismatchMessageOf(['color', 'intensity']),
+      "Can't edit lights on selection: mismatching colors, mismatching intensities",
     )
   })
 
   void it('writes one reason', () => {
-    assert.equal(lightMismatchMessageOf(['advanced']), "Can't edit lights on selection: mismatching advanced fields")
+    assert.equal(lightMismatchMessageOf(['fire']), "Can't edit lights on selection: mismatching fire fields")
+  })
+
+  void it('writes the fire and the flare apart', () => {
+    assert.equal(
+      lightMismatchMessageOf(['fire', 'flare']),
+      "Can't edit lights on selection: mismatching fire fields, mismatching flare size",
+    )
   })
 })
 
@@ -183,7 +203,7 @@ void describe('colorOfHsl', () => {
     assert.deepEqual(colorOfHsl({ h: 240, s: 100, l: 50 }), { r: 0, g: 0, b: 255, a: 255 })
   })
 
-  void it('reads white, black and a grey', () => {
+  void it('reads white, black and a gray', () => {
     assert.deepEqual(colorOfHsl({ h: 0, s: 0, l: 100 }), { r: 255, g: 255, b: 255, a: 255 })
     assert.deepEqual(colorOfHsl({ h: 0, s: 0, l: 0 }), { r: 0, g: 0, b: 0, a: 255 })
     assert.deepEqual(colorOfHsl({ h: 0, s: 0, l: 50 }), { r: 128, g: 128, b: 128, a: 255 })
@@ -202,7 +222,7 @@ void describe('hslOfColor', () => {
     assert.deepEqual(hslOfColor({ r: 0, g: 0, b: 255, a: 255 }), { h: 240, s: 100, l: 50 })
   })
 
-  void it('reads a grey without a saturation', () => {
+  void it('reads a gray without a saturation', () => {
     assert.deepEqual(hslOfColor({ r: 128, g: 128, b: 128, a: 255 }), { h: 0, s: 0, l: 50 })
     assert.deepEqual(hslOfColor({ r: 255, g: 255, b: 255, a: 255 }), { h: 0, s: 0, l: 100 })
     assert.deepEqual(hslOfColor({ r: 0, g: 0, b: 0, a: 255 }), { h: 0, s: 0, l: 0 })
@@ -244,11 +264,10 @@ void describe('lightWithFieldsOf', () => {
 })
 
 void describe('the flags of the widget', () => {
-  void it('shows the six flags of the light work, and the six advanced ones', () => {
-    assert.equal(BASIC_LIGHT_FLAGS.length, 6)
-    assert.equal(ADVANCED_LIGHT_FLAGS.length, 6)
+  void it('shows the eight flags the engine reads, and not the dead ones', () => {
+    assert.equal(LIGHT_FLAGS.length, 8)
     assert.deepEqual(
-      BASIC_LIGHT_FLAGS.map((flag) => {
+      LIGHT_FLAGS.map((flag) => {
         return flag.bit
       }),
       [
@@ -258,8 +277,45 @@ void describe('the flags of the widget', () => {
         ArxLightFlags.SpawnFire,
         ArxLightFlags.SpawnSmoke,
         ArxLightFlags.Flare,
+        ArxLightFlags.Fireplace,
+        ArxLightFlags.NoIgnit,
       ],
     )
+
+    const bits = new Set(
+      LIGHT_FLAGS.map((flag) => {
+        return flag.bit
+      }),
+    )
+
+    assert.equal(bits.has(ArxLightFlags.Off), false)
+    assert.equal(bits.has(ArxLightFlags.NoCasted), false)
+  })
+
+  void it('shows the color legacy with the fire, and the fix flare size with the flare', () => {
+    assert.equal(COLOR_LEGACY_FLAG.bit, ArxLightFlags.ColorLegacy)
+    assert.equal(FIX_FLARE_SIZE_FLAG.bit, ArxLightFlags.FixFlareSize)
+  })
+
+  void it('brings the color legacy with the fire, and the fix flare size with the flare', () => {
+    assert.deepEqual(conditionalLightFlagsOf(0), [])
+    assert.deepEqual(conditionalLightFlagsOf(ArxLightFlags.SpawnFire), [COLOR_LEGACY_FLAG])
+    assert.deepEqual(conditionalLightFlagsOf(ArxLightFlags.SpawnSmoke), [COLOR_LEGACY_FLAG])
+    assert.deepEqual(conditionalLightFlagsOf(ArxLightFlags.Flare), [FIX_FLARE_SIZE_FLAG])
+    assert.deepEqual(conditionalLightFlagsOf(ArxLightFlags.SpawnFire | ArxLightFlags.Flare), [
+      COLOR_LEGACY_FLAG,
+      FIX_FLARE_SIZE_FLAG,
+    ])
+  })
+
+  void it('tells which groups of the fields the flags bring', () => {
+    assert.equal(showsFlickerOf(ArxLightFlags.SemiDynamic), true)
+    assert.equal(showsFlickerOf(ArxLightFlags.SpawnFire), false)
+    assert.equal(showsFireOf(ArxLightFlags.SpawnFire), true)
+    assert.equal(showsFireOf(ArxLightFlags.SpawnSmoke), true)
+    assert.equal(showsFireOf(ArxLightFlags.SemiDynamic), false)
+    assert.equal(showsFlareOf(ArxLightFlags.Flare), true)
+    assert.equal(showsFlareOf(ArxLightFlags.SpawnFire), false)
   })
 
   void it('reads a flag', () => {

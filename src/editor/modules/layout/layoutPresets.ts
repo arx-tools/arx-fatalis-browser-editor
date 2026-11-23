@@ -25,16 +25,6 @@ export type FactoryPreset = {
 }
 
 /**
- * The height of the thin row of {@link editorLayout}, in pixels.
- *
- * @remarks
- * The row holds the camera form and the jump: 44px of content (a 10px caption, the 24px fields and 4px of
- * padding on both sides). 50px leaves a little air around it, and the row is **locked** to it through the lock of
- * the jump (the height of a widget in a row is the height of the row).
- */
-const THIN_ROW_HEIGHT = 50
-
-/**
  * The height of the row of the undo and redo buttons, in pixels.
  *
  * @remarks
@@ -161,14 +151,45 @@ export const editorLayout: LayoutNode = {
 }
 
 /**
- * The layout of the light work: the editor's, with the lighting controls in the place of the polygon inspector.
+ * The height of the light editor of the `Lighter` preset, in pixels.
  *
  * @remarks
- * The walkable view is the surface the light is judged on, so the layout keeps the editor's frame (the three fixed views
- * on the left, the camera row and the view in the middle) and the right column is the light work, top down: the undo
- * and redo row, the **Global Lighting Controls**, and the **Light Inspector** below them (2026-11-17, the owner). The two rows
- * are 350 by 60, and the light inspector takes what is left. The statistics left the column with the round: the light
- * work reads the lights, not the counts of the level.
+ * The light work reads the fields of one light, and the editor's conditions (the fire, the flare) add rows to it: the
+ * owner measured the box at **620** (2026-11-23, the largest state: the flicker, the four numbers of the fire and the
+ * flare all open, with the rule above the fields) and moved it to the left column, so the vertical space of the dock is
+ * the editor's, and the list under it takes what is left.
+ */
+const LIGHTER_EDITOR_HEIGHT = 620
+
+/**
+ * The height of the undo row of the `Lighter` preset, in pixels.
+ *
+ * @remarks
+ * The owner's plate (2026-11-23): the same 50 as the undo row of the `Editor`, with the row under the lighting controls.
+ */
+const LIGHTER_UNDO_ROW_HEIGHT = 50
+
+/**
+ * The height of the jump row of the `Lighter` preset, in pixels.
+ *
+ * @remarks
+ * The owner's plate (2026-11-23): the jump moved from the camera row to the right column (350 by 60), next to the top
+ * view.
+ */
+const LIGHTER_JUMP_HEIGHT = 60
+
+/**
+ * The layout of the light work: the light editor and its list on the left, the view in the middle, the controls on the
+ * right.
+ *
+ * @remarks
+ * The owner's arrangement (2026-11-23): the **Light Editor** needs the vertical space (its fields are conditional, and a
+ * fire light brings four rows), so it takes the top of the **left** column at 350 by 620, with the **Light Inspector**
+ * under it. The middle is the **walkable view** alone (2026-11-23, the owner: the camera form is not needed in this
+ * layout; the light work reads the lights on the view, and the camera is moved by the pointer lock and the inspector).
+ * The right column, top down: the **Global Lighting Controls** (350 by 130), the undo row (350 by 50), the jump row
+ * (350 by 60), and the **top view** taking the rest (the plan of the level). The left and the front views left the
+ * preset with this plate: the light work reads the lights and the walkable view, and the top view is the plan it needs.
  */
 export const lighterLayout: LayoutNode = {
   type: 'split',
@@ -178,39 +199,22 @@ export const lighterLayout: LayoutNode = {
     {
       type: 'split',
       orientation: 'vertical',
-      sizes: [fixed(350), auto(0.5), auto(0.5)],
+      sizes: [fixed(LIGHTER_EDITOR_HEIGHT), auto(1)],
       children: [
-        { type: 'widget', kind: WIDGET_KINDS.topView },
-        { type: 'widget', kind: WIDGET_KINDS.leftView },
-        { type: 'widget', kind: WIDGET_KINDS.frontView },
-      ],
-    },
-    {
-      type: 'split',
-      orientation: 'vertical',
-      sizes: [fixed(THIN_ROW_HEIGHT), auto(1)],
-      children: [
-        {
-          type: 'split',
-          orientation: 'horizontal',
-          sizes: [auto(1), fixed(200)],
-          children: [
-            { type: 'widget', kind: WIDGET_KINDS.cameraControls },
-            { type: 'widget', kind: WIDGET_KINDS.jumpToLocation },
-          ],
-        },
-        { type: 'widget', kind: WIDGET_KINDS.view3d },
-      ],
-    },
-    {
-      type: 'split',
-      orientation: 'vertical',
-      sizes: [fixed(UNDO_ROW_HEIGHT), fixed(LIGHTING_CONTROLS_HEIGHT), auto(1), auto(1)],
-      children: [
-        { type: 'widget', kind: WIDGET_KINDS.undoRedo },
-        { type: 'widget', kind: WIDGET_KINDS.lightingControls },
         { type: 'widget', kind: WIDGET_KINDS.lightEditor },
         { type: 'widget', kind: WIDGET_KINDS.lightInspector },
+      ],
+    },
+    { type: 'widget', kind: WIDGET_KINDS.view3d },
+    {
+      type: 'split',
+      orientation: 'vertical',
+      sizes: [fixed(LIGHTING_CONTROLS_HEIGHT), fixed(LIGHTER_UNDO_ROW_HEIGHT), fixed(LIGHTER_JUMP_HEIGHT), auto(1)],
+      children: [
+        { type: 'widget', kind: WIDGET_KINDS.lightingControls },
+        { type: 'widget', kind: WIDGET_KINDS.undoRedo },
+        { type: 'widget', kind: WIDGET_KINDS.jumpToLocation },
+        { type: 'widget', kind: WIDGET_KINDS.topView },
       ],
     },
   ],
@@ -306,7 +310,7 @@ export const painterLayout: LayoutNode = {
  * on this layout), and the room map is the surface the round works on.
  *
  * The `Rooms` name is what the header shows (2026-11-07, the owner). The **Selection Inspector** stays under the
- * numbers (2026-11-10): the fill of the selection paints the faces turned towards the camera only, so a fill that takes
+ * numbers (2026-11-10): the fill of the selection paints the faces turned toward the camera only, so a fill that takes
  * a whole room also takes the faces behind the camera, and the count of the widget is what says how much came along.
  */
 export const roomsLayout: LayoutNode = {

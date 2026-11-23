@@ -15,22 +15,23 @@ const LIGHT_FIELD_TOLERANCE = 1e-6
  * Which editable field of a light differs in a selection.
  *
  * @remarks
- * The fields are grouped the way the widget edits them: one colour picker, one intensity, the two falloff radii, the
- * flags, the flicker colour and the advanced `ex*` numbers. The **position** is not one of them: the move is the gizmo's
+ * The fields are grouped the way the widget edits them: one color picker, one intensity, the two falloff radii, the
+ * flags, the flicker color and the advanced `ex*` numbers. The **position** is not one of them: the move is the gizmo's
  * (TODO 244), and two lights at different places can be edited together.
  */
-export type LightMismatch = 'colour' | 'intensity' | 'falloff' | 'flags' | 'flicker' | 'advanced'
+export type LightMismatch = 'color' | 'intensity' | 'falloff' | 'flags' | 'flicker' | 'fire' | 'flare'
 
 /**
  * The order the mismatches are read in, and the sentence of the widget.
  */
 const LIGHT_MISMATCH_ORDER: readonly LightMismatch[] = [
-  'colour',
+  'color',
   'intensity',
   'falloff',
   'flags',
   'flicker',
-  'advanced',
+  'fire',
+  'flare',
 ]
 
 /**
@@ -59,13 +60,13 @@ function sameNumber(one: number, other: number): boolean {
 }
 
 /**
- * Compares the colour of two lights.
+ * Compares the color of two lights.
  *
  * @remarks
  * The alpha is not edited (a light of the LLF is opaque), so the three channels are what the widget shows and a step
  * writes.
  *
- * @param one The first colour.
+ * @param one The first color.
  * @param other The second one.
  *
  * @returns True when the three channels are the same.
@@ -85,7 +86,7 @@ function sameColor(one: ArxColor, other: ArxColor): boolean {
  */
 function differsIn(reason: LightMismatch, one: ArxLight, other: ArxLight): boolean {
   switch (reason) {
-    case 'colour': {
+    case 'color': {
       return !sameColor(one.color, other.color)
     }
 
@@ -105,14 +106,17 @@ function differsIn(reason: LightMismatch, one: ArxLight, other: ArxLight): boole
       return !sameColor(one.exFlicker, other.exFlicker)
     }
 
-    case 'advanced': {
+    case 'fire': {
       return (
         !sameNumber(one.exRadius, other.exRadius) ||
         !sameNumber(one.exFrequency, other.exFrequency) ||
         !sameNumber(one.exSize, other.exSize) ||
-        !sameNumber(one.exSpeed, other.exSpeed) ||
-        !sameNumber(one.exFlareSize, other.exFlareSize)
+        !sameNumber(one.exSpeed, other.exSpeed)
       )
+    }
+
+    case 'flare': {
+      return !sameNumber(one.exFlareSize, other.exFlareSize)
     }
   }
 }
@@ -191,12 +195,13 @@ export function lightSelectionOf(lights: readonly ArxLight[], indices: Iterable<
  * The words of the mismatches, in the order the widget shows them.
  */
 const LIGHT_MISMATCH_LABELS: Record<LightMismatch, string> = {
-  colour: 'mismatching colours',
+  color: 'mismatching colors',
   intensity: 'mismatching intensities',
   falloff: 'mismatching falloffs',
   flags: 'mismatching flags',
   flicker: 'mismatching flickers',
-  advanced: 'mismatching advanced fields',
+  fire: 'mismatching fire fields',
+  flare: 'mismatching flare size',
 }
 
 /**
@@ -204,7 +209,7 @@ const LIGHT_MISMATCH_LABELS: Record<LightMismatch, string> = {
  *
  * @param reasons The mismatches, in the order the widget shows them.
  *
- * @returns The message, like `Can't edit lights on selection: mismatching colours, mismatching intensities`.
+ * @returns The message, like `Can't edit lights on selection: mismatching colors, mismatching intensities`.
  */
 export function lightMismatchMessageOf(reasons: readonly LightMismatch[]): string {
   const parts = reasons.map((reason) => {
@@ -215,12 +220,12 @@ export function lightMismatchMessageOf(reasons: readonly LightMismatch[]): strin
 }
 
 /**
- * A colour of the picker: the hue in degrees, and the saturation and lightness in percent.
+ * A color of the picker: the hue in degrees, and the saturation and lightness in percent.
  *
  * @remarks
  * The light of the LLF is RGB, and the widget shows its three sliders in HSL: the hue is a full turn (0..360), and the
- * saturation and the lightness are 0..100. The conversion goes through the same three sliders, so a colour the author
- * picks is the colour the light takes.
+ * saturation and the lightness are 0..100. The conversion goes through the same three sliders, so a color the author
+ * picks is the color the light takes.
  */
 export type LightHsl = {
   /**
@@ -238,11 +243,11 @@ export type LightHsl = {
 }
 
 /**
- * The light of the three HSL sliders, as a colour of the LLF.
+ * The light of the three HSL sliders, as a color of the LLF.
  *
  * @param hsl The three sliders.
  *
- * @returns The colour, with the channels rounded to whole bytes.
+ * @returns The color, with the channels rounded to whole bytes.
  */
 export function colorOfHsl(hsl: LightHsl): ArxColor {
   const h = ((hsl.h % 360) + 360) % 360
@@ -292,9 +297,9 @@ export function colorOfHsl(hsl: LightHsl): ArxColor {
 }
 
 /**
- * The three HSL sliders of a colour of the LLF.
+ * The three HSL sliders of a color of the LLF.
  *
- * @param color The colour.
+ * @param color The RGB of the light.
  *
  * @returns The hue in degrees, and the saturation and lightness in percent.
  */
@@ -372,7 +377,7 @@ export type LightFields = {
  *
  * @param light The light of the level.
  *
- * @returns The fields, with colours of their own.
+ * @returns The fields, with colors of their own.
  */
 export function fieldsOfLight(light: ArxLight): LightFields {
   return {
@@ -431,32 +436,97 @@ export type LightFlagField = {
 }
 
 /**
- * The flags the widget always shows.
+ * The flags the widget shows.
  *
  * @remarks
- * These are the ones the light work needs: the kind of the light (semi-dynamic), what it can do (burn, be doused), the
- * fire and the smoke, and the flare. The rest is in the Advanced group.
+ * These are the ones the 1.2.1 reads: the kind of the light (semi-dynamic), what it can do (burn, be doused), the fire
+ * and the smoke, the flare, and the two spell flags (a fireplace is a light a spell can light, and `No ignit` puts it
+ * out). The `Off` and the `NoCasted` bits are **not** here: the engine does not read them (`Off` is only in the
+ * definition, `NoCasted` is not in the 1.2.1 at all), and a light of the file with them set keeps its bits, because the
+ * widget toggles one bit and writes the rest back as they were (TODO 278).
  */
-export const BASIC_LIGHT_FLAGS: readonly LightFlagField[] = [
+export const LIGHT_FLAGS: readonly LightFlagField[] = [
   { bit: ArxLightFlags.SemiDynamic, label: 'Semi-dynamic' },
   { bit: ArxLightFlags.Extinguishable, label: 'Extinguishable' },
   { bit: ArxLightFlags.StartExtinguished, label: 'Starts extinguished' },
   { bit: ArxLightFlags.SpawnFire, label: 'Spawn fire' },
   { bit: ArxLightFlags.SpawnSmoke, label: 'Spawn smoke' },
   { bit: ArxLightFlags.Flare, label: 'Flare' },
+  { bit: ArxLightFlags.Fireplace, label: 'Fireplace' },
+  { bit: ArxLightFlags.NoIgnit, label: 'No ignit' },
 ]
 
 /**
- * The flags of the Advanced group.
+ * The flag of the color the particles of the fire and the smoke take.
+ *
+ * @remarks
+ * It is shown with the fire and the smoke: a flag of its own would be a switch a light without a particle has no use
+ * of.
  */
-export const ADVANCED_LIGHT_FLAGS: readonly LightFlagField[] = [
-  { bit: ArxLightFlags.Fireplace, label: 'Fireplace' },
-  { bit: ArxLightFlags.NoIgnit, label: 'No ignit' },
-  { bit: ArxLightFlags.NoCasted, label: 'No casted' },
-  { bit: ArxLightFlags.FixFlareSize, label: 'Fix flare size' },
-  { bit: ArxLightFlags.ColorLegacy, label: 'Colour legacy' },
-  { bit: ArxLightFlags.Off, label: 'Off' },
-]
+export const COLOR_LEGACY_FLAG: LightFlagField = { bit: ArxLightFlags.ColorLegacy, label: 'Color legacy' }
+
+/**
+ * The flag of a flare of one size.
+ *
+ * @remarks
+ * It is shown with the flare, the same way {@link COLOR_LEGACY_FLAG} is shown with the fire.
+ */
+export const FIX_FLARE_SIZE_FLAG: LightFlagField = { bit: ArxLightFlags.FixFlareSize, label: 'Fix flare size' }
+
+/**
+ * Tells whether the widget shows the flicker of a light.
+ *
+ * @param flags The flags of the light (or of the draft the widget edits).
+ *
+ * @returns True when the light is semi-dynamic, the only kind the engine flickers.
+ */
+export function showsFlickerOf(flags: number): boolean {
+  return (flags & ArxLightFlags.SemiDynamic) !== 0
+}
+
+/**
+ * Tells whether the widget shows the fields of the fire and the smoke.
+ *
+ * @param flags The flags of the light (or of the draft the widget edits).
+ *
+ * @returns True when the light spawns fire or smoke, the only kinds the engine reads the `exRadius` and its neighbors
+ * for.
+ */
+export function showsFireOf(flags: number): boolean {
+  return (flags & (ArxLightFlags.SpawnFire | ArxLightFlags.SpawnSmoke)) !== 0
+}
+
+/**
+ * Tells whether the widget shows the fields of the flare.
+ *
+ * @param flags The flags of the light (or of the draft the widget edits).
+ *
+ * @returns True when the light flares, the only kind the engine reads `exFlareSize` for.
+ */
+export function showsFlareOf(flags: number): boolean {
+  return (flags & ArxLightFlags.Flare) !== 0
+}
+
+/**
+ * The flags a light brings besides {@link LIGHT_FLAGS}: the color of the particles with the fire and the smoke, and the
+ * size of the flare with the flare.
+ *
+ * @param flags The flags of the light (or of the draft the widget edits).
+ *
+ * @returns The flags the widget shows after the ones of {@link LIGHT_FLAGS}.
+ */
+export function conditionalLightFlagsOf(flags: number): readonly LightFlagField[] {
+  return [
+    { flag: COLOR_LEGACY_FLAG, shown: showsFireOf(flags) },
+    { flag: FIX_FLARE_SIZE_FLAG, shown: showsFlareOf(flags) },
+  ]
+    .filter((entry) => {
+      return entry.shown
+    })
+    .map((entry) => {
+      return entry.flag
+    })
+}
 
 /**
  * Tells whether a light has a flag.

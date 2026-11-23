@@ -54,18 +54,17 @@ test('the Lighter preset carries the Light Inspector, and a row picks a light', 
     await expect(inspector.locator('.selection')).toContainText('2 selected')
   }
 
-  // the ScanSearch of a row jumps to the light: the camera moves, and the row picks the light
-  const before = await readPose(page)
+  // the ScanSearch of a row jumps to the light: the camera moves, and the row picks the light. The Lighter has no camera
+  // form any more (2026-11-23), so the pose is read from the url the walkable view writes it into
+  const before = new URL(page.url()).searchParams.get('position')
 
   await rows.first().locator('.jump').click()
   await expect(inspector.locator('.selection')).toContainText('1 selected')
   await expect
-    .poll(async () => {
-      const pose = await readPose(page)
-
-      return pose.x
+    .poll(() => {
+      return new URL(page.url()).searchParams.get('position')
     })
-    .not.toBe(before.x)
+    .not.toBe(before)
 
   // a plain click on the row that is the only pick takes the pick away, the way a row of the rooms does
   await rows.first().click()

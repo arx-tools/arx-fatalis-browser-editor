@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { lighterLayout, roomsLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
+import { editorLayout, roomsLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
 import { editorUrl, lockPointer, seedLayout, waitForLayoutSettled, waitForLevel } from './support/editor.ts'
 
 /**
@@ -282,7 +282,7 @@ test('the painter preset comes with the sizes the owner measured', async ({ page
   expect(undo.height).toBe(60)
   expect(await page.locator('[data-widget-kind="undo-redo"]').getAttribute('data-locked-height')).toBe('60')
 
-  // the selection inspector and the texture list are free: they take what the two locked neighbours leave
+  // the selection inspector and the texture list are free: they take what the two locked neighbors leave
   expect(await page.locator('[data-widget-kind="selection-inspector"]').getAttribute('data-locked-height')).toBeNull()
   expect(await page.locator('[data-widget-kind="textures"]').getAttribute('data-locked-height')).toBeNull()
 
@@ -557,13 +557,13 @@ test('the active preset is not built again', async ({ page }) => {
  * The fixed views of a preset are ready for the next layout that has them.
  *
  * @remarks
- * The lighter layout has the top, the left and the front views, the entities only the top. A switch between them used to
+ * The editor layout has the top, the left and the front views, the entities only the top. A switch between them used to
  * build (and throw away) the two extra views with their renderer and their canvas; a fixed view that leaves the dock now
  * waits for the next layout. The canvases are the probes: a rebuilt widget brings a new one, and the tag is gone.
  */
 test('a fixed view keeps its canvas across the layouts that show it', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
-  await seedLayout(page, lighterLayout)
+  await seedLayout(page, editorLayout)
   await page.goto(editorUrl())
 
   const top = page.locator('[data-widget-kind="top-view"] canvas').first()
@@ -584,7 +584,7 @@ test('a fixed view keeps its canvas across the layouts that show it', async ({ p
     node.dataset.keep = 'front'
   })
 
-  // the entities layout drops the left and the front, the lighter takes the same canvases back
+  // the entities layout drops the left and the front, the editor takes the same canvases back
   await page.keyboard.press('F6')
 
   await expect
@@ -593,13 +593,13 @@ test('a fixed view keeps its canvas across the layouts that show it', async ({ p
     })
     .toBe('Entities')
 
-  await page.keyboard.press('F5')
+  await page.keyboard.press('F2')
 
   await expect
     .poll(async () => {
       return await presetName(page)
     })
-    .toBe('Lighter')
+    .toBe('Editor')
 
   // the top moved with the layout, the left and the front came back from the bench: the same canvases
   await expect(top).toHaveAttribute('data-keep', 'top')

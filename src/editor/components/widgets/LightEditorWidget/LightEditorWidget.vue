@@ -15,14 +15,18 @@ import NumberField from '../../NumberField.vue'
 import WidgetHeading from '../../WidgetHeading.vue'
 import LightColorPicker from './LightColorPicker.vue'
 import {
-  ADVANCED_LIGHT_FLAGS,
-  BASIC_LIGHT_FLAGS,
+  LIGHT_FLAGS,
+  conditionalLightFlagsOf,
   fieldsOfLight,
   lightMismatchMessageOf,
   lightSelectionOf,
   lightWithFieldsOf,
   sameLightEditableFields,
+  showsFireOf,
+  showsFlareOf,
+  showsFlickerOf,
   type LightFields,
+  type LightFlagField,
   type LightSelection,
 } from './lightEditor.ts'
 
@@ -441,6 +445,38 @@ function toggleFlag(bit: number, pressed: boolean): void {
   writeLive()
   commit()
 }
+
+/**
+ * Whether the widget shows the flicker of the light.
+ */
+const showsFlicker = computed<boolean>(() => {
+  return showsFlickerOf(fields.flags)
+})
+
+/**
+ * Whether the widget shows the fields of the fire and the smoke.
+ */
+const showsFire = computed<boolean>(() => {
+  return showsFireOf(fields.flags)
+})
+
+/**
+ * Whether the widget shows the fields of the flare.
+ */
+const showsFlare = computed<boolean>(() => {
+  return showsFlareOf(fields.flags)
+})
+
+/**
+ * The flags the widget shows: the ones the engine reads, and the two a fire or a flare brings.
+ *
+ * @remarks
+ * The two brought flags stay in the grid with the others, so the columns of the flags keep their rule: a flag of its own
+ * row would be a second grid with a switch on the other edge (TODO 278).
+ */
+const visibleFlags = computed<readonly LightFlagField[]>(() => {
+  return [...LIGHT_FLAGS, ...conditionalLightFlagsOf(fields.flags)]
+})
 </script>
 
 <template>
@@ -452,7 +488,7 @@ function toggleFlag(bit: number, pressed: boolean): void {
     </Notice>
     <div v-else class="fields">
       <div class="field">
-        <span class="caption">Colour</span>
+        <span class="caption">Color</span>
         <LightColorPicker v-model="fields.color" @update:model-value="writeLive" @change="commit" />
       </div>
       <div class="row">
@@ -492,19 +528,19 @@ function toggleFlag(bit: number, pressed: boolean): void {
         />
       </div>
       <div class="flags">
-        <div v-for="flag in BASIC_LIGHT_FLAGS" :key="flag.bit" class="flag">
+        <div v-for="flag in visibleFlags" :key="flag.bit" class="flag">
           <span>{{ flag.label }}</span>
           <ToggleButton :pressed="hasFlag(flag.bit)" :label="flag.label" @update:pressed="toggleFlag(flag.bit, $event)">
             <Power :size="14" />
           </ToggleButton>
         </div>
       </div>
-      <details class="advanced">
-        <summary>Advanced</summary>
-        <div class="field">
-          <span class="caption">Flicker</span>
-          <LightColorPicker v-model="fields.exFlicker" @update:model-value="writeLive" @change="commit" />
-        </div>
+      <div v-if="showsFlicker || showsFire || showsFlare" class="separator" aria-hidden="true" />
+      <div v-if="showsFlicker" class="field">
+        <span class="caption">Flicker</span>
+        <LightColorPicker v-model="fields.exFlicker" @update:model-value="writeLive" @change="commit" />
+      </div>
+      <template v-if="showsFire">
         <div class="row">
           <span class="caption">exRadius</span>
           <NumberField
@@ -553,31 +589,19 @@ function toggleFlag(bit: number, pressed: boolean): void {
             @step="onNumberStep('exSpeed', $event)"
           />
         </div>
-        <div class="row">
-          <span class="caption">exFlareSize</span>
-          <NumberField
-            :model-value="numberTexts.exFlareSize"
-            :invalid="invalidNumberFields.exFlareSize"
-            label="exFlareSize"
-            step
-            @update:model-value="onNumberInput('exFlareSize', $event)"
-            @blur="onNumberBlur('exFlareSize')"
-            @step="onNumberStep('exFlareSize', $event)"
-          />
-        </div>
-        <div class="flags">
-          <div v-for="flag in ADVANCED_LIGHT_FLAGS" :key="flag.bit" class="flag">
-            <span>{{ flag.label }}</span>
-            <ToggleButton
-              :pressed="hasFlag(flag.bit)"
-              :label="flag.label"
-              @update:pressed="toggleFlag(flag.bit, $event)"
-            >
-              <Power :size="14" />
-            </ToggleButton>
-          </div>
-        </div>
-      </details>
+      </template>
+      <div v-if="showsFlare" class="row">
+        <span class="caption">exFlareSize</span>
+        <NumberField
+          :model-value="numberTexts.exFlareSize"
+          :invalid="invalidNumberFields.exFlareSize"
+          label="exFlareSize"
+          step
+          @update:model-value="onNumberInput('exFlareSize', $event)"
+          @blur="onNumberBlur('exFlareSize')"
+          @step="onNumberStep('exFlareSize', $event)"
+        />
+      </div>
     </div>
   </div>
 </template>
@@ -662,6 +686,22 @@ function toggleFlag(bit: number, pressed: boolean): void {
     outline: 1px solid $interactive;
   }
 
+  // the line between the flags and the fields a flag brings (2026-11-23, the owner): the same rule as the one between
+  // the two columns of the flags, laid down, with the half of the 16px column gap above and below (the 4px gap of the
+  // column and the 4px margin of the line)
+  .separator {
+    flex: none;
+    height: 1px;
+    margin: 4px 0;
+    background: $border;
+  }
+
+  // the Flicker field carries the 2px of a field, and the line has its 8px above and below: the gap of the column and
+  // the margin of the line make the 8, so the field under the line starts without its own margin
+  .separator + .field {
+    margin-top: 0;
+  }
+
   .flags {
     position: relative;
     display: grid;
@@ -696,23 +736,6 @@ function toggleFlag(bit: number, pressed: boolean): void {
     margin: 0;
     accent-color: $interactive;
     cursor: pointer;
-  }
-
-  .advanced {
-    margin-top: 2px;
-
-    > summary {
-      color: $text-muted;
-      font-size: 12px;
-      cursor: pointer;
-      user-select: none;
-    }
-
-    > .field,
-    > .row,
-    > .flags {
-      margin-top: 4px;
-    }
   }
 }
 </style>

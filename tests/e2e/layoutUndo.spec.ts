@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { lighterLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
+import { editorLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
 import type { LayoutNode } from '../../src/editor/modules/layout/layoutNode.ts'
 import { editorUrl, waitForLayoutSettled } from './support/editor.ts'
 
@@ -36,11 +36,12 @@ async function boxOf(page: Page, kind: string): Promise<{ left: number; top: num
 test('a step back to another ratio of two free widgets keeps the layout and the history', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
 
-  // the first state is the lighter preset with the two elevations of the left column at 0.4 and 0.6, the second is the
+  // the first state is the editor preset with the two elevations of the left column at 0.4 and 0.6, the second is the
   // factory: the step back has to put the first one on the screen. A ratio next to a locked pixel size used to collapse
   // to the css minimums of lumino, and the pass wrote the collapsed 50-50 back as a new state — so the step looked like
-  // it did nothing (the owner's bug, 2026-11-09)
-  const factory = structuredClone(lighterLayout) as Extract<LayoutNode, { type: 'split' }>
+  // it did nothing (the owner's bug, 2026-11-09). The lighter preset is not the base any more: its left column holds the
+  // light editor and the inspector, and this test needs two free widgets in one column (TODO 278)
+  const factory = structuredClone(editorLayout) as Extract<LayoutNode, { type: 'split' }>
   const [leftColumn, ...restOfEditor] = factory.children as Array<Extract<LayoutNode, { type: 'split' }>>
   const first: Extract<LayoutNode, { type: 'split' }> = {
     ...factory,
@@ -59,13 +60,13 @@ test('a step back to another ratio of two free widgets keeps the layout and the 
 
   await page.addInitScript(
     (states: string) => {
-      localStorage.setItem('layoutPreset', JSON.stringify('lighter'))
+      localStorage.setItem('layoutPreset', JSON.stringify('editor'))
       localStorage.setItem(
         'layoutHistories',
-        JSON.stringify({ lighter: { states: JSON.parse(states) as unknown, index: 1 } }),
+        JSON.stringify({ editor: { states: JSON.parse(states) as unknown, index: 1 } }),
       )
     },
-    JSON.stringify([first, lighterLayout]),
+    JSON.stringify([first, editorLayout]),
   )
 
   await page.goto(editorUrl())
@@ -79,7 +80,7 @@ test('a step back to another ratio of two free widgets keeps the layout and the 
 
   // the step of the row, and the first state comes back
   await page.locator('header button[aria-label="Presets"]').click()
-  await page.locator('.preset-row', { hasText: 'Lighter' }).locator('button.step').first().click()
+  await page.locator('.preset-row', { hasText: 'Editor' }).locator('button.step').first().click()
   await waitForLayoutSettled(page)
 
   const left = await boxOf(page, 'left-view')
@@ -101,7 +102,7 @@ test('a step back to another ratio of two free widgets keeps the layout and the 
         return undefined
       }
 
-      const entry = (JSON.parse(stored) as { lighter: { states: unknown[]; index: number } }).lighter
+      const entry = (JSON.parse(stored) as { editor: { states: unknown[]; index: number } }).editor
 
       return { states: entry.states.length, index: entry.index }
     })

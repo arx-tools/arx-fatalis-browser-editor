@@ -8,10 +8,11 @@ import {
 } from '../../../../../src/editor/modules/level/edit/dynamicLights.ts'
 import { lightingProfile } from '../../../../../src/editor/modules/level/edit/lightingProfile.ts'
 import {
+  DISABLED_MARKER_OPACITY,
   createLightMarkers,
   disposeLightMarkers,
   isLightDisabled,
-  isLightHidden,
+  isLightMuted,
   lightMarkerColorOf,
   lightMarkerShapeOf,
   lightMarkerIndexAt,
@@ -93,26 +94,26 @@ void describe('isLightDisabled', () => {
   })
 })
 
-void describe('isLightHidden', () => {
-  void it('hides the static lights of the profiles with a light of their own', () => {
+void describe('isLightMuted', () => {
+  void it('marks the static lights of the profiles with a light of their own as disabled', () => {
     lightingProfile.value = 'Flat'
 
-    assert.equal(isLightHidden(light()), true)
-    // the dynamic layer still draws the torches: their marker stays
-    assert.equal(isLightHidden(light({ flags: ArxLightFlags.SemiDynamic })), false)
+    assert.equal(isLightMuted(light()), true)
+    // the dynamic layer still draws the torches: their marker is lit by the picture
+    assert.equal(isLightMuted(light({ flags: ArxLightFlags.SemiDynamic })), false)
 
     lightingProfile.value = 'TextureRainbow'
 
-    assert.equal(isLightHidden(light()), true)
-    assert.equal(isLightHidden(light({ flags: ArxLightFlags.SemiDynamic })), false)
+    assert.equal(isLightMuted(light()), true)
+    assert.equal(isLightMuted(light({ flags: ArxLightFlags.SemiDynamic })), false)
   })
 
   void it('keeps the static lights of the profiles that read them', () => {
-    assert.equal(isLightHidden(light()), false)
+    assert.equal(isLightMuted(light()), false)
 
     lightingProfile.value = 'Realistic'
 
-    assert.equal(isLightHidden(light()), false)
+    assert.equal(isLightMuted(light()), false)
   })
 })
 
@@ -128,7 +129,7 @@ void describe('lightMarkerSizeOf', () => {
 })
 
 void describe('lightMarkerColorOf', () => {
-  void it('takes the colour of the LLF light', () => {
+  void it('takes the color of the LLF light', () => {
     const color = lightMarkerColorOf(light())
 
     const green = 128 / 255
@@ -203,7 +204,7 @@ void describe('createLightMarkers', () => {
     assert.equal(group.children.length, 0)
   })
 
-  void it('draws the marker of a switched off layer grey and see-through', () => {
+  void it('draws the marker of a switched off layer gray and see-through', () => {
     const textures = texturesOf()
     const group = createLightMarkers([light({ flags: ArxLightFlags.SemiDynamic })], textures)
     const sprite = group.children.at(0)
@@ -224,15 +225,23 @@ void describe('createLightMarkers', () => {
 })
 
 void describe('the markers of the profiles with a light of their own', () => {
-  void it('takes the sprites of the static lights off the frame', () => {
+  void it('keeps the static markers on the screen, gray and see-through', () => {
     lightingProfile.value = 'Flat'
+    // the dynamic layer is on: the torch is lit, the static light is the one the profile disables
+    isDynamicLightsVisible.value = true
 
     const group = createLightMarkers([light(), light({ flags: ArxLightFlags.SemiDynamic })], texturesOf())
     // the sprites are in the order of the lights
     const [staticLight, torch] = group.children
 
-    assert.equal(staticLight?.visible, false)
-    assert.equal(torch?.visible, true)
+    assert.ok(staticLight instanceof Sprite)
+    assert.ok(torch instanceof Sprite)
+
+    assert.equal(staticLight.visible, true)
+    assert.equal(torch.visible, true)
+    assert.equal(staticLight.material.opacity, DISABLED_MARKER_OPACITY)
+    assert.ok(staticLight.material.color.r < 1)
+    assert.equal(torch.material.opacity, 1)
 
     disposeLightMarkers(group)
   })
@@ -242,13 +251,22 @@ void describe('the markers of the profiles with a light of their own', () => {
     const group = createLightMarkers(lights, texturesOf())
     const [marker] = group.children
 
-    assert.equal(marker?.visible, true)
+    assert.ok(marker instanceof Sprite)
+    assert.equal(marker.visible, true)
+    assert.equal(marker.material.opacity, 1)
 
     lightingProfile.value = 'TextureRainbow'
 
     updateLightMarkers(group, lights, texturesOf())
 
-    assert.equal(marker?.visible, false)
+    assert.equal(marker.visible, true)
+    assert.equal(marker.material.opacity, DISABLED_MARKER_OPACITY)
+
+    lightingProfile.value = 'Arx'
+
+    updateLightMarkers(group, lights, texturesOf())
+
+    assert.equal(marker.material.opacity, 1)
 
     disposeLightMarkers(group)
   })
@@ -283,7 +301,7 @@ void describe('lightMarkerIndexAt', () => {
 })
 
 void describe('updateLightMarkers', () => {
-  void it('takes the new shape, colour, size and place of an edited light', () => {
+  void it('takes the new shape, color, size and place of an edited light', () => {
     isDynamicLightsVisible.value = true
 
     const textures = texturesOf()

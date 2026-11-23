@@ -10,7 +10,7 @@ import { portalRevision } from '../../../modules/rooms/portalSync.ts'
 import { isDynamicLightsVisible, isStaticLightsVisible } from '../../../modules/level/edit/dynamicLights.ts'
 import { lightingProfile } from '../../../modules/level/edit/lightingProfile.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
-import { centreOfBounds, type CameraBounds } from '../shared/cameraBounds.ts'
+import { centerOfBounds, type CameraBounds } from '../shared/cameraBounds.ts'
 import { gamePositionToWorld } from '../camera/cameraPose.ts'
 import {
   addPreviewLights,
@@ -34,7 +34,7 @@ import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import { hoverRoom, litRooms } from '../../../modules/rooms/roomStore.ts'
 import { pickRoom } from '../../../modules/rooms/roomSelection.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
-import { DISABLED_MARKER_GREY, isLightDisabled, isLightHidden } from '../shared/lightMarkers.ts'
+import { DISABLED_MARKER_GRAY, DISABLED_MARKER_OPACITY, isLightDisabled, isLightMuted } from '../shared/lightMarkers.ts'
 import {
   createPolygonSelectionOverlay,
   pickPolygonAt,
@@ -85,7 +85,7 @@ const marker = ref<MarkerState>({ x: 0, y: 0, visible: false, clamped: false, de
  *
  * @remarks
  * Every fixed view has its own zoom, and the wheel of the pointer changes it. Above `1` the camera walks in
- * along its own line, towards the marker of the walkable camera, so the place we stand stays in the middle
+ * along its own line, toward the marker of the walkable camera, so the place we stand stays in the middle
  * of the small view.
  */
 const zoom = ref(1)
@@ -103,11 +103,11 @@ let rooms: RoomOverlay | undefined
 let portalLines: PortalOverlay | undefined
 
 /**
- * The revision of the rooms the colours of the room map were written from.
+ * The revision of the rooms the colors of the room map were written from.
  *
  * @remarks
  * A move of the faces into another room does not change the geometry, so the revision of the rooms is what tells the
- * view that the colours of the map are stale (2026-11-15).
+ * view that the colors of the map are stale (2026-11-15).
  */
 let paintedRoomRevision = roomRevision.value
 let wireframe: LevelWireframe | undefined
@@ -149,7 +149,7 @@ let stopWatchingLights: (() => void) | undefined
  * The lights of the level: their place in the space of the meshes, and the light itself.
  *
  * @remarks
- * The fixed views draw a **fixed yellow dot** for every light (2026-11-19, the owner: the coloured shapes of the walkable
+ * The fixed views draw a **fixed yellow dot** for every light (2026-11-19, the owner: the colored shapes of the walkable
  * view read as a smudge on a plan, and the dots are what the views had before). The dots are a 2D overlay over the
  * canvas, and not sprites of the scene. A light whose layer is switched off is left out: the small views show the level,
  * and a disabled light draws nothing.
@@ -157,10 +157,10 @@ let stopWatchingLights: (() => void) | undefined
 let lightMarks: Array<{ position: Vector3; light: ArxLight }> = []
 
 /**
- * The colour of the dot of a light, in the fixed views.
+ * The color of the dot of a light, in the fixed views.
  *
  * @remarks
- * One colour for every light: the plan of the level says where the lights are, and the shape and the colour of a light
+ * One color for every light: the plan of the level says where the lights are, and the shape and the color of a light
  * are the business of the walkable view and of the Light Inspector (2026-11-19, the owner).
  */
 const LIGHT_DOT_COLOR = '#ffd54a'
@@ -175,7 +175,7 @@ const LIGHT_DOT_RADIUS = 1.5
  *
  * @remarks
  * A dot is a small **circle**: the square of the first round read as a pixel of the map at some zooms (2026-11-19, the
- * owner). A light of a switched off layer is grey, so it stays findable without claiming it lights the level.
+ * owner). A light of a switched off layer is gray, so it stays findable without claiming it lights the level.
  *
  * @param target The view whose camera projects the lights.
  */
@@ -211,11 +211,6 @@ function drawLights(target: ViewScene<OrthographicCamera>): void {
   const halfHeight = height / 2
 
   for (const mark of lightMarks) {
-    // the profiles with a light of their own have no use of the dots of the static lights
-    if (isLightHidden(mark.light)) {
-      continue
-    }
-
     const point = mark.position.clone().project(target.camera)
 
     if (Math.abs(point.z) > 1) {
@@ -229,18 +224,29 @@ function drawLights(target: ViewScene<OrthographicCamera>): void {
       continue
     }
 
-    // a light the switches took out stays on the plan, grey: the author has to find it too (2026-11-19, the owner)
-    let colour = LIGHT_DOT_COLOR
+    // a light the switches took out stays on the plan, gray: the author has to find it too (2026-11-19, the owner)
+    let color = LIGHT_DOT_COLOR
+    let alpha = 1
 
     if (isLightDisabled(mark.light)) {
-      colour = DISABLED_MARKER_GREY
+      color = DISABLED_MARKER_GRAY
     }
 
-    context.fillStyle = colour
+    // a static light of a profile with a light of its own is not lit there: its dot stays, half transparent, so the
+    // author finds it and can turn it into a semi-dynamic one (2026-11-23, the owner)
+    if (isLightMuted(mark.light)) {
+      color = DISABLED_MARKER_GRAY
+      alpha = DISABLED_MARKER_OPACITY
+    }
+
+    context.globalAlpha = alpha
+    context.fillStyle = color
     context.beginPath()
     context.arc(x, y, LIGHT_DOT_RADIUS, 0, Math.PI * 2)
     context.fill()
   }
+
+  context.globalAlpha = 1
 }
 
 /**
@@ -260,7 +266,7 @@ let selectionOverlay: PolygonSelectionOverlay | undefined
  * Nothing of this widget moves by itself: the scene is redrawn when the level arrives and when the
  * widget is resized, so there is no render loop.
  *
- * The frame that is already asked for is **cancelled and asked again**, and a frame is not skipped because one is
+ * The frame that is already asked for is **canceled and asked again**, and a frame is not skipped because one is
  * pending: a browser may drop the callback it owes (a frozen tab, and a native dialog like the data dir picker of the
  * editor), and the id would stay set forever — the view would draw the state it had at the load and never follow a
  * switch again (2026-11-19, the owner: the dots of a view kept the state of the load).
@@ -332,7 +338,7 @@ function updateMarker(target: ViewScene<OrthographicCamera>): void {
  * The point the view is a window on, in the space of the meshes.
  *
  * @remarks
- * The framed (`1×`) view covers the whole level, so it is anchored to the **centre of the level**: it never
+ * The framed (`1×`) view covers the whole level, so it is anchored to the **center of the level**: it never
  * moves, and the marker moves inside the window (a click or a step does not shift the picture).
  *
  * A **zoomed** view is a magnifier around the camera, so it is anchored to the **marker**: the mesh follows
@@ -353,7 +359,7 @@ function viewTarget(): Vector3 | undefined {
     return undefined
   }
 
-  return gamePositionToWorld(centreOfBounds(bounds), scenePosition)
+  return gamePositionToWorld(centerOfBounds(bounds), scenePosition)
 }
 
 /**
@@ -513,11 +519,11 @@ function setMeshVisible(visible: boolean): void {
 }
 
 /**
- * Recolours the room map after an edit.
+ * Recolors the room map after an edit.
  *
  * @remarks
- * An edit refills the geometry of the level in place: the colour attribute of the room map is not refilled with it,
- * so the map is coloured again when its vertex count no longer matches the geometry — or when the rooms of the faces
+ * An edit refills the geometry of the level in place: the color attribute of the room map is not refilled with it,
+ * so the map is colored again when its vertex count no longer matches the geometry — or when the rooms of the faces
  * were written (a move into another room leaves the buffers as they were).
  */
 function repaintRooms(): void {
@@ -556,7 +562,7 @@ function showMap(map: ArxMap): void {
   // the small views keep the flat, neutral face of the level: their own material, so a later texture or
   // lighting round can not repaint them (TODO 92)
   // the whole level is one mesh, so the flat material draws every polygon: the faces of a fully transparent texture
-  // (the walls of the game, the holes of a colour key) are cut by the alpha test of the walkable view, not here — the
+  // (the walls of the game, the holes of a color key) are cut by the alpha test of the walkable view, not here — the
   // map is a silhouette, and the few faces of a stairwell do not change it
   shown = viewMeshesOf(map.solidMeshes, previewMaterial())
 
@@ -598,7 +604,7 @@ function showMap(map: ArxMap): void {
     requestRender()
   })
 
-  // a group colours the fill without touching the selection: making or taking apart a group repaints the view too
+  // a group colors the fill without touching the selection: making or taking apart a group repaints the view too
   stopWatchingGroups = watch(activeFaceGroups, () => {
     selectionOverlay?.setHighlight(selectedPolygonsOf(map), undefined, inGroupOf(selectedGroupPolygons.value))
     requestRender()
@@ -743,7 +749,7 @@ stopWatchingEdit = watch(levelRevision, () => {
 })
 
 // a replay of the stored steps writes the rooms without a level revision (only the room revision moves): the room map
-// has to be painted again for it, or a map that came back from the storage stays in the colour of the empty rooms
+// has to be painted again for it, or a map that came back from the storage stays in the color of the empty rooms
 stopWatchingRoomRevision = watch(roomRevision, () => {
   repaintRooms()
   requestRender()

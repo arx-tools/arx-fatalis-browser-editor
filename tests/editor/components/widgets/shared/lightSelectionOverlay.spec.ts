@@ -94,15 +94,15 @@ void describe('createLightSelectionOverlay', () => {
     overlay.dispose()
   })
 
-  void it('draws no ring for a static light of a profile that has a light of its own', () => {
+  void it('draws a ring for a static light of a profile that has a light of its own', () => {
     lightingProfile.value = 'Flat'
 
     const overlay = createLightSelectionOverlay()
 
     overlay.update([light(), light({ flags: ArxLightFlags.SemiDynamic })], new Set([0, 1]), 0)
 
-    // the marker of the torch keeps its ring, the one of the static light is off the screen with its marker
-    assert.equal(overlay.group.children.length, 1)
+    // both selected lights get their rings: the disabled static one is still a light the author can pick (TODO 278)
+    assert.equal(overlay.group.children.length, 2)
 
     overlay.dispose()
   })

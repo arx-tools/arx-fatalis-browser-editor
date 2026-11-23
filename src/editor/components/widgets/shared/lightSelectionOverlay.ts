@@ -1,7 +1,7 @@
 import { AdditiveBlending, CanvasTexture, Group, Sprite, SpriteMaterial, type Texture } from 'three'
 import type { ArxLight } from 'arx-convert/types'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
-import { isLightHidden, lightMarkerSizeOf } from './lightMarkers.ts'
+import { lightMarkerSizeOf } from './lightMarkers.ts'
 
 /**
  * The side of the square the ring of the selection is drawn into, in pixels.
@@ -23,7 +23,7 @@ const RING_SCALE = 1.5
 const FOCUS_FILL = 'rgba(255, 255, 0, 0.35)'
 
 /**
- * Draws the ring of a light: two white circles, so it reads around a marker of any colour.
+ * Draws the ring of a light: two white circles, so it reads around a marker of any color.
  *
  * @param filled Whether the circle is filled with the yellow of the focused lights.
  *
@@ -42,23 +42,23 @@ function createRingTexture(filled: boolean): CanvasTexture {
     throw new Error('The light selection needs a 2D canvas.')
   }
 
-  const centre = RING_TEXTURE_SIZE / 2
+  const center = RING_TEXTURE_SIZE / 2
 
   if (filled) {
     context.beginPath()
-    context.arc(centre, centre, centre - 6, 0, Math.PI * 2)
+    context.arc(center, center, center - 6, 0, Math.PI * 2)
     context.fillStyle = FOCUS_FILL
     context.fill()
   }
 
   context.beginPath()
-  context.arc(centre, centre, centre - 6, 0, Math.PI * 2)
+  context.arc(center, center, center - 6, 0, Math.PI * 2)
   context.strokeStyle = 'rgba(255, 255, 255, 0.95)'
   context.lineWidth = 4
   context.stroke()
 
   context.beginPath()
-  context.arc(centre, centre, centre - 11, 0, Math.PI * 2)
+  context.arc(center, center, center - 11, 0, Math.PI * 2)
   context.strokeStyle = 'rgba(255, 255, 255, 0.45)'
   context.lineWidth = 2
   context.stroke()
@@ -165,7 +165,7 @@ export function createLightSelectionOverlay(): LightSelectionOverlay {
       for (const index of selected) {
         const light = lights[index]
 
-        if (light === undefined || isLightHidden(light)) {
+        if (light === undefined) {
           continue
         }
 
@@ -178,7 +178,7 @@ export function createLightSelectionOverlay(): LightSelectionOverlay {
 
       const light = lights[hovered]
 
-      if (light === undefined || isLightHidden(light)) {
+      if (light === undefined) {
         return
       }
 

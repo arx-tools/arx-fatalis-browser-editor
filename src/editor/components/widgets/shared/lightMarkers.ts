@@ -36,30 +36,34 @@ const LIGHT_MARKER_MIN_SIZE = 6
 const LIGHT_MARKER_TEXTURE_SIZE = 64
 
 /**
- * The grey a marker takes when the light of its group is switched off.
+ * The gray a marker takes when the light of its group is switched off.
  *
  * @remarks
  * The static and the dynamic layer have a switch of their own: a light of a switched off layer is still in the level, so
- * its marker stays on the screen, but grey and more transparent so it reads as disabled.
+ * its marker stays on the screen, but gray and more transparent so it reads as disabled.
  */
 const DISABLED_MARKER_COLOR = new Color(0.55, 0.55, 0.55)
 
 /**
- * The same grey as {@link DISABLED_MARKER_COLOR}, as a css colour.
+ * The same gray as {@link DISABLED_MARKER_COLOR}, as a css color.
  *
  * @remarks
  * The fixed views draw their dots on a 2D canvas, and not the sprites of the walkable view: the two must read the same,
- * so the grey is written once and read both ways.
+ * so the gray is written once and read both ways.
  */
-export const DISABLED_MARKER_GREY = '#8c8c8c'
+export const DISABLED_MARKER_GRAY = '#8c8c8c'
 
 /**
  * The opacity of a disabled marker.
+ *
+ * @remarks
+ * The disabled markers keep their place on the screen at this opacity: the author finds the light, hovers it and picks
+ * it, and can turn it into a semi-dynamic one.
  */
-const DISABLED_MARKER_OPACITY = 0.3
+export const DISABLED_MARKER_OPACITY = 0.3
 
 /**
- * The shape of a marker needs a colour of its own: the textures are white, and the fixed views draw the shape directly.
+ * The shape of a marker needs a color of its own: the textures are white, and the fixed views draw the shape directly.
  */
 type MarkerColor = {
   readonly r: number
@@ -73,12 +77,12 @@ type MarkerColor = {
 const WHITE: MarkerColor = { r: 255, g: 255, b: 255 }
 
 /**
- * Makes a css colour of a marker colour and an alpha.
+ * Makes a css color of a marker color and an alpha.
  *
- * @param color The colour of the shape.
+ * @param color The RGB the shape is drawn with.
  * @param alpha The alpha of the part of the shape.
  *
- * @returns The css colour.
+ * @returns The css color.
  */
 function rgbaOf(color: MarkerColor, alpha: number): string {
   return `rgba(${color.r.toString()}, ${color.g.toString()}, ${color.b.toString()}, ${alpha.toString()})`
@@ -94,7 +98,7 @@ export type LightMarkerShape = 'star' | 'bulb' | 'flame' | 'flameCrossed'
  *
  * @remarks
  * The caller makes the set once (a level load), gives it to every marker and disposes it when the view goes away: the
- * textures are white, so the material of a sprite gives them the colour of its light.
+ * textures are white, so the material of a sprite gives them the color of its light.
  */
 export type LightMarkerTextures = Record<LightMarkerShape, Texture>
 
@@ -110,11 +114,11 @@ export function lightMarkerSizeOf(light: ArxLight): number {
 }
 
 /**
- * The colour a light's marker takes from the light.
+ * The color a light's marker takes from the light.
  *
  * @param light The light of the LLF.
  *
- * @returns The colour of the sprite material, from the 0..255 channels of the LLF.
+ * @returns The color of the sprite material, from the 0..255 channels of the LLF.
  */
 export function lightMarkerColorOf(light: ArxLight): Color {
   return new Color(light.color.r / 255, light.color.g / 255, light.color.b / 255)
@@ -124,7 +128,7 @@ export function lightMarkerColorOf(light: ArxLight): Color {
  * The shape a light's marker takes, from the flags of the light.
  *
  * @remarks
- * The owner's choice (2026-11-17): the shape, not the colour, tells the kinds apart, and the flags have a priority:
+ * The owner's choice (2026-11-17): the shape, not the color, tells the kinds apart, and the flags have a priority:
  * a light that starts extinguished is a crossed out flame, a light that can be doused or burns is a flame, the
  * semi-dynamic lights are bulbs, and every other light keeps the sparkle of the static ones. A flame wins over the
  * bulb of the same light, because the fire is what the light does.
@@ -175,12 +179,12 @@ function markerCanvasOf(): { canvas: HTMLCanvasElement; context: CanvasRendering
  * Draws a soft halo around the icon of a marker.
  *
  * @param context The 2D context of the texture.
- * @param centre The middle of the square.
+ * @param center The middle of the square.
  * @param strength The alpha of the middle of the halo.
- * @param color The colour of the shape.
+ * @param color The RGB the shape is drawn with.
  */
-function drawGlow(context: CanvasRenderingContext2D, centre: number, strength: number, color: MarkerColor): void {
-  const glow = context.createRadialGradient(centre, centre, 0, centre, centre, centre)
+function drawGlow(context: CanvasRenderingContext2D, center: number, strength: number, color: MarkerColor): void {
+  const glow = context.createRadialGradient(center, center, 0, center, center, center)
 
   glow.addColorStop(0, rgbaOf(color, strength))
   glow.addColorStop(1, rgbaOf(color, 0))
@@ -189,18 +193,18 @@ function drawGlow(context: CanvasRenderingContext2D, centre: number, strength: n
 }
 
 /**
- * Draws the sparkle of the static lights: four thin arms around a bright centre.
+ * Draws the sparkle of the static lights: four thin arms around a bright center.
  *
  * @remarks
  * The shape is the one the game's own light debug display shows (2026-11-17, the owner's reference): the four arms and
  * the halo the static lights keep.
  *
  * @param context The 2D context of the texture.
- * @param centre The middle of the square.
- * @param color The colour of the shape.
+ * @param center The middle of the square.
+ * @param color The RGB the shape is drawn with.
  */
-function drawStar(context: CanvasRenderingContext2D, centre: number, color: MarkerColor): void {
-  const glow = context.createRadialGradient(centre, centre, 0, centre, centre, centre)
+function drawStar(context: CanvasRenderingContext2D, center: number, color: MarkerColor): void {
+  const glow = context.createRadialGradient(center, center, 0, center, center, center)
 
   glow.addColorStop(0, rgbaOf(color, 1))
   glow.addColorStop(0.18, rgbaOf(color, 0.75))
@@ -209,16 +213,16 @@ function drawStar(context: CanvasRenderingContext2D, centre: number, color: Mark
   context.fillStyle = glow
   context.fillRect(0, 0, LIGHT_MARKER_TEXTURE_SIZE, LIGHT_MARKER_TEXTURE_SIZE)
 
-  context.translate(centre, centre)
+  context.translate(center, center)
   context.beginPath()
 
   for (let index = 0; index < 8; index++) {
     const angle = (Math.PI / 4) * index
 
-    let radius = centre * 0.12
+    let radius = center * 0.12
 
     if (index % 2 === 0) {
-      radius = centre - 2
+      radius = center - 2
     }
 
     const x = Math.cos(angle) * radius
@@ -240,23 +244,23 @@ function drawStar(context: CanvasRenderingContext2D, centre: number, color: Mark
  * Draws the bulb of the semi-dynamic lights.
  *
  * @param context The 2D context of the texture.
- * @param centre The middle of the square.
- * @param color The colour of the shape.
+ * @param center The middle of the square.
+ * @param color The RGB the shape is drawn with.
  */
-function drawBulb(context: CanvasRenderingContext2D, centre: number, color: MarkerColor): void {
-  drawGlow(context, centre, 0.35, color)
+function drawBulb(context: CanvasRenderingContext2D, center: number, color: MarkerColor): void {
+  drawGlow(context, center, 0.35, color)
 
   context.fillStyle = rgbaOf(color, 0.95)
   context.beginPath()
-  context.arc(centre, centre - 4, centre * 0.4, 0, Math.PI * 2)
+  context.arc(center, center - 4, center * 0.4, 0, Math.PI * 2)
   context.fill()
-  context.fillRect(centre - 5, centre + 9, 10, 9)
+  context.fillRect(center - 5, center + 9, 10, 9)
 
   // the two gaps of the screw base: the bulb reads as a bulb, not as a circle with a block under it
   context.globalCompositeOperation = 'destination-out'
   context.fillStyle = 'rgba(0, 0, 0, 1)'
-  context.fillRect(centre - 6, centre + 12, 12, 2)
-  context.fillRect(centre - 6, centre + 16, 12, 2)
+  context.fillRect(center - 6, center + 12, 12, 2)
+  context.fillRect(center - 6, center + 16, 12, 2)
   context.globalCompositeOperation = 'source-over'
 }
 
@@ -264,17 +268,17 @@ function drawBulb(context: CanvasRenderingContext2D, centre: number, color: Mark
  * Lays the outline of a flame on the context.
  *
  * @param context The 2D context of the texture.
- * @param centre The middle of the square.
+ * @param center The middle of the square.
  */
-function flamePathOf(context: CanvasRenderingContext2D, centre: number): void {
-  const size = centre * 2
+function flamePathOf(context: CanvasRenderingContext2D, center: number): void {
+  const size = center * 2
 
   context.beginPath()
-  context.moveTo(centre, size * 0.1)
+  context.moveTo(center, size * 0.1)
   context.bezierCurveTo(size * 0.74, size * 0.3, size * 0.72, size * 0.62, size * 0.62, size * 0.78)
-  context.bezierCurveTo(size * 0.58, size * 0.83, size * 0.53, size * 0.82, centre, size * 0.73)
+  context.bezierCurveTo(size * 0.58, size * 0.83, size * 0.53, size * 0.82, center, size * 0.73)
   context.bezierCurveTo(size * 0.47, size * 0.82, size * 0.42, size * 0.83, size * 0.38, size * 0.78)
-  context.bezierCurveTo(size * 0.28, size * 0.62, size * 0.26, size * 0.3, centre, size * 0.1)
+  context.bezierCurveTo(size * 0.28, size * 0.62, size * 0.26, size * 0.3, center, size * 0.1)
   context.closePath()
 }
 
@@ -282,13 +286,13 @@ function flamePathOf(context: CanvasRenderingContext2D, centre: number): void {
  * Draws the flame of a light that burns or can be doused.
  *
  * @param context The 2D context of the texture.
- * @param centre The middle of the square.
- * @param color The colour of the shape.
+ * @param center The middle of the square.
+ * @param color The RGB the shape is drawn with.
  */
-function drawFlame(context: CanvasRenderingContext2D, centre: number, color: MarkerColor): void {
-  drawGlow(context, centre, 0.3, color)
+function drawFlame(context: CanvasRenderingContext2D, center: number, color: MarkerColor): void {
+  drawGlow(context, center, 0.3, color)
 
-  flamePathOf(context, centre)
+  flamePathOf(context, center)
   context.fillStyle = rgbaOf(color, 0.95)
   context.fill()
 }
@@ -301,20 +305,20 @@ function drawFlame(context: CanvasRenderingContext2D, centre: number, color: Mar
  * keeps the empty middle dark, so the icon reads as "this light does not burn".
  *
  * @param context The 2D context of the texture.
- * @param centre The middle of the square.
- * @param color The colour of the shape.
+ * @param center The middle of the square.
+ * @param color The RGB the shape is drawn with.
  */
-function drawFlameCrossed(context: CanvasRenderingContext2D, centre: number, color: MarkerColor): void {
-  drawGlow(context, centre, 0.18, color)
+function drawFlameCrossed(context: CanvasRenderingContext2D, center: number, color: MarkerColor): void {
+  drawGlow(context, center, 0.18, color)
 
-  flamePathOf(context, centre)
+  flamePathOf(context, center)
   context.strokeStyle = rgbaOf(color, 0.9)
   context.lineWidth = 3
   context.stroke()
 
   context.beginPath()
-  context.moveTo(centre * 0.52, centre * 1.52)
-  context.lineTo(centre * 1.48, centre * 0.48)
+  context.moveTo(center * 0.52, center * 1.52)
+  context.lineTo(center * 1.48, center * 0.48)
   context.stroke()
 }
 
@@ -323,36 +327,36 @@ function drawFlameCrossed(context: CanvasRenderingContext2D, centre: number, col
  *
  * @param context The 2D context of the texture.
  * @param shape The shape to draw.
- * @param centre The middle of the square.
- * @param color The colour of the shape.
+ * @param center The middle of the square.
+ * @param color The RGB the shape is drawn with.
  */
 function drawShape(
   context: CanvasRenderingContext2D,
   shape: LightMarkerShape,
-  centre: number,
+  center: number,
   color: MarkerColor,
 ): void {
   switch (shape) {
     case 'star': {
-      drawStar(context, centre, color)
+      drawStar(context, center, color)
 
       break
     }
 
     case 'bulb': {
-      drawBulb(context, centre, color)
+      drawBulb(context, center, color)
 
       break
     }
 
     case 'flame': {
-      drawFlame(context, centre, color)
+      drawFlame(context, center, color)
 
       break
     }
 
     case 'flameCrossed': {
-      drawFlameCrossed(context, centre, color)
+      drawFlameCrossed(context, center, color)
 
       break
     }
@@ -364,13 +368,13 @@ function drawShape(
  *
  * @remarks
  * The fixed views draw the same shapes as the walkable view, but as 2D icons over their canvas: this is the one drawing
- * the textures use, with the colour of the light instead of white. The caller puts the top left corner of the shape on
+ * the textures use, with the color of the light instead of white. The caller puts the top left corner of the shape on
  * the canvas (a translate), and the shape is drawn in the square of `size`.
  *
  * @param context The 2D context of the canvas.
  * @param shape The shape to draw.
  * @param size The width and the height of the square, in the units of the context.
- * @param color The colour of the shape.
+ * @param color The RGB the shape is drawn with.
  */
 export function drawLightMarkerShape(
   context: CanvasRenderingContext2D,
@@ -387,18 +391,19 @@ export function drawLightMarkerShape(
 }
 
 /**
- * Tells whether the profile of the lighting keeps the gizmo of a light off the screen.
+ * Tells whether a static light is not lit by the level as the profile draws it.
  *
  * @remarks
  * The `Flat` and the `Texture Rainbow` profiles have a light of their own, so the static lights of the level do not light
- * anything there: their markers would only name places that mean nothing on the picture (2026-11-22, the owner). The
- * semidynamic lights stay, the dynamic layer still draws the torches.
+ * anything there. Their markers stay on the screen, **disabled**: the author sees the light, hovers it and picks it, and
+ * can turn it into a semi-dynamic one with the flags of the light editor, without looking for it in the list (2026-11-23,
+ * the owner). The semi-dynamic lights are lit by the dynamic layer, so they stay.
  *
  * @param light The light of the LLF.
  *
- * @returns True when the marker of the light is not drawn.
+ * @returns True when the marker of the light is disabled by the profile.
  */
-export function isLightHidden(light: ArxLight): boolean {
+export function isLightMuted(light: ArxLight): boolean {
   if ((light.flags & ArxLightFlags.SemiDynamic) !== 0) {
     return false
   }
@@ -446,7 +451,7 @@ function markerTextureOf(name: string, shape: LightMarkerShape): CanvasTexture {
  *
  * @remarks
  * The set is shared by the sprites of a level: it is made once, and the caller disposes it after the markers go. The
- * icons are white and additive, so a sprite keeps the colour of its light.
+ * icons are white and additive, so a sprite keeps the color of its light.
  *
  * @returns The texture of every shape.
  *
@@ -471,7 +476,7 @@ export function createLightMarkerTextures(): LightMarkerTextures {
  * @returns The sprite of the marker.
  */
 function markerOf(light: ArxLight, textures: LightMarkerTextures, index: number): Sprite {
-  const disabled = isLightDisabled(light)
+  const disabled = isLightDisabled(light) || isLightMuted(light)
   let color = lightMarkerColorOf(light)
   let opacity = 1
 
@@ -495,8 +500,8 @@ function markerOf(light: ArxLight, textures: LightMarkerTextures, index: number)
   // the light of a marker is its index in `map.lights`: the pick reads it back from the sprite
   sprite.userData.lightIndex = index
 
-  // the profiles with a light of their own have no use of the markers of the static lights
-  sprite.visible = !isLightHidden(light)
+  // every marker is on the screen: the one of a light a profile does not light stays, disabled, so the author can pick
+  // it and change its kind (2026-11-23, the owner)
 
   // the markers are a display of their own over the level, so they draw above the fill (7) and the outline (9) of the
   // selected polygons; otherwise a selected room would hide the lights in it (2026-11-18, the owner)
@@ -542,9 +547,9 @@ export function createLightMarkers(lights: readonly ArxLight[], textures: LightM
  */
 export function lightMarkerIndexAt(camera: Camera, markers: Group): number | undefined {
   const raycaster = new Raycaster()
-  const centre = new Vector2(0, 0)
+  const center = new Vector2(0, 0)
 
-  raycaster.setFromCamera(centre, camera)
+  raycaster.setFromCamera(center, camera)
 
   const hit = raycaster.intersectObjects(
     markers.children.filter((child) => {
@@ -584,8 +589,8 @@ export function disposeLightMarkers(group: Group): void {
  * Makes the markers of a group follow the lights after an edit.
  *
  * @remarks
- * The light editor changes the flags, the colour, the falloff and the place of a light in the LLF; the markers have to
- * follow without a level load. The sprite of a light keeps its index in `map.lights`, so the shape, the colour, the size
+ * The light editor changes the flags, the color, the falloff and the place of a light in the LLF; the markers have to
+ * follow without a level load. The sprite of a light keeps its index in `map.lights`, so the shape, the color, the size
  * and the place are written in place. A different number of lights rebuilds the group, because the sprites no longer
  * line up with the list.
  *
@@ -613,14 +618,12 @@ export function updateLightMarkers(group: Group, lights: readonly ArxLight[], te
 
     const texture = textures[lightMarkerShapeOf(light)]
 
-    child.visible = !isLightHidden(light)
-
     if (child.material.map !== texture) {
       child.material.map = texture
       child.material.needsUpdate = true
     }
 
-    if (isLightDisabled(light)) {
+    if (isLightDisabled(light) || isLightMuted(light)) {
       child.material.color.copy(DISABLED_MARKER_COLOR)
       child.material.opacity = DISABLED_MARKER_OPACITY
     } else {

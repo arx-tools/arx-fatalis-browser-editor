@@ -678,9 +678,16 @@ export function createEditorShell(
   document.addEventListener('keydown', handleKeyDown)
 
   // the first layout pass: the widgets get their real size here (after the browser laid the host out)
+  let prepareFrame: number | undefined
   const firstFit = requestAnimationFrame(() => {
     apply.applyManagedSizes()
     dock.fit()
+
+    // the fixed views of the presets are made ready on the next frame: the first layout paints without them, and a
+    // switch to a layout that has another one does not build it from scratch (TODO 281)
+    prepareFrame = requestAnimationFrame(() => {
+      apply.prepareWidgets()
+    })
   })
 
   // the five factory presets on the function keys, in the order the Presets menu shows them (a list, not a sorted one):
@@ -715,6 +722,11 @@ export function createEditorShell(
     redoPreset,
     dispose: (): void => {
       cancelAnimationFrame(firstFit)
+
+      if (prepareFrame !== undefined) {
+        cancelAnimationFrame(prepareFrame)
+      }
+
       resizeObserver.disconnect()
       document.removeEventListener('keydown', handleKeyDown)
       dock.layoutModified.disconnect(syncLayout)
@@ -729,6 +741,7 @@ export function createEditorShell(
         widget.dispose()
       }
 
+      apply.disposeReady()
       dock.dispose()
     },
   }

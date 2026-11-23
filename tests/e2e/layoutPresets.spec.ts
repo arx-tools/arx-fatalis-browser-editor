@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { roomsLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
+import { lighterLayout, roomsLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
 import { editorUrl, lockPointer, seedLayout, waitForLayoutSettled, waitForLevel } from './support/editor.ts'
 
 /**
@@ -551,6 +551,60 @@ test('the active preset is not built again', async ({ page }) => {
 
   // the same bar of the dock: the shell did not restore the layout for the preset it is already on
   await expect(tabBar).toHaveAttribute('data-keep', 'yes')
+})
+
+/**
+ * The fixed views of a preset are ready for the next layout that has them.
+ *
+ * @remarks
+ * The lighter layout has the top, the left and the front views, the entities only the top. A switch between them used to
+ * build (and throw away) the two extra views with their renderer and their canvas; a fixed view that leaves the dock now
+ * waits for the next layout. The canvases are the probes: a rebuilt widget brings a new one, and the tag is gone.
+ */
+test('a fixed view keeps its canvas across the layouts that show it', async ({ page }) => {
+  await page.setViewportSize({ width: 1631, height: 850 })
+  await seedLayout(page, lighterLayout)
+  await page.goto(editorUrl())
+
+  const top = page.locator('[data-widget-kind="top-view"] canvas').first()
+  const left = page.locator('[data-widget-kind="left-view"] canvas').first()
+  const front = page.locator('[data-widget-kind="front-view"] canvas').first()
+
+  await expect(top).toBeVisible()
+  await expect(left).toBeVisible()
+  await expect(front).toBeVisible()
+
+  await top.evaluate((node) => {
+    node.dataset.keep = 'top'
+  })
+  await left.evaluate((node) => {
+    node.dataset.keep = 'left'
+  })
+  await front.evaluate((node) => {
+    node.dataset.keep = 'front'
+  })
+
+  // the entities layout drops the left and the front, the lighter takes the same canvases back
+  await page.keyboard.press('F6')
+
+  await expect
+    .poll(async () => {
+      return await presetName(page)
+    })
+    .toBe('Entities')
+
+  await page.keyboard.press('F5')
+
+  await expect
+    .poll(async () => {
+      return await presetName(page)
+    })
+    .toBe('Lighter')
+
+  // the top moved with the layout, the left and the front came back from the bench: the same canvases
+  await expect(top).toHaveAttribute('data-keep', 'top')
+  await expect(left).toHaveAttribute('data-keep', 'left')
+  await expect(front).toHaveAttribute('data-keep', 'front')
 })
 
 /**

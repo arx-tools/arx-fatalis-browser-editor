@@ -23,18 +23,19 @@ Object.defineProperty(globalThis, 'requestAnimationFrame', {
 })
 
 /**
- * The kinds the harness can build.
+ * The kinds the harness can build: the three fixed views of the presets, the other three fixed views and two widgets
+ * that are not fixed views.
  */
-const definitions = ['3d-view', 'top-view', 'camera-controls'].map((kind) => {
-  return {
-    kind,
-    label: kind,
-    group: 'rendering' as const,
-    create: (): InstanceType<typeof Widget> => {
-      return new Widget()
-    },
-  }
-})
+const KINDS = [
+  '3d-view',
+  'top-view',
+  'bottom-view',
+  'front-view',
+  'back-view',
+  'left-view',
+  'right-view',
+  'camera-controls',
+]
 
 /**
  * A leaf of a test layout.
@@ -75,6 +76,7 @@ type Harness = {
   readonly dock: InstanceType<typeof DockPanel>
   readonly decorated: Set<InstanceType<typeof Widget>>
   readonly undecorated: Set<InstanceType<typeof Widget>>
+  readonly created: string[]
 }
 
 /**
@@ -100,6 +102,19 @@ function buildHarness(): Harness {
 
   const decorated = new Set<InstanceType<typeof Widget>>()
   const undecorated = new Set<InstanceType<typeof Widget>>()
+  const created: string[] = []
+  const definitions = KINDS.map((kind) => {
+    return {
+      kind,
+      label: kind,
+      group: 'rendering' as const,
+      create: (): InstanceType<typeof Widget> => {
+        created.push(kind)
+
+        return new Widget()
+      },
+    }
+  })
 
   const apply = createLayoutApply({
     dock,
@@ -123,7 +138,7 @@ function buildHarness(): Harness {
     },
   })
 
-  return { apply, dock, decorated, undecorated }
+  return { apply, dock, decorated, undecorated, created }
 }
 
 /**
@@ -144,21 +159,41 @@ void describe('applyLayout', () => {
   void it('keeps the widgets the new tree has a place for, and drops the rest', () => {
     const { apply, dock, undecorated } = buildHarness()
 
-    apply.applyLayout(row(leaf('3d-view'), leaf('top-view')))
+    apply.applyLayout(row(leaf('3d-view'), leaf('camera-controls')))
 
     const view = liveOf(dock, '3d-view')
-    const plan = liveOf(dock, 'top-view')
+    const camera = liveOf(dock, 'camera-controls')
 
     assert.ok(view)
-    assert.ok(plan)
+    assert.ok(camera)
 
-    apply.applyLayout(row(leaf('3d-view'), leaf('camera-controls')))
+    apply.applyLayout(row(leaf('3d-view'), leaf('top-view')))
 
     assert.equal(liveOf(dock, '3d-view'), view)
     assert.equal(view.isDisposed, false)
-    assert.equal(plan.isDisposed, true)
-    assert.equal(undecorated.has(plan), true)
+    assert.equal(camera.isDisposed, true)
+    assert.equal(undecorated.has(camera), true)
     assert.equal(undecorated.has(view), false)
+  })
+
+  void it('keeps a fixed view for the next layout that has it', () => {
+    const { apply, dock } = buildHarness()
+
+    apply.applyLayout(row(leaf('3d-view'), leaf('left-view')))
+
+    const left = liveOf(dock, 'left-view')
+
+    assert.ok(left)
+
+    apply.applyLayout(row(leaf('3d-view'), leaf('top-view')))
+
+    // the layout does not show it, but it waits off the dock with its renderer
+    assert.equal(liveOf(dock, 'left-view'), undefined)
+    assert.equal(left.isDisposed, false)
+
+    apply.applyLayout(row(leaf('3d-view'), leaf('left-view')))
+
+    assert.equal(liveOf(dock, 'left-view'), left)
   })
 
   void it('creates the widgets the tree has and the dock does not', () => {
@@ -178,6 +213,24 @@ void describe('applyLayout', () => {
     assert.notEqual(camera, view)
     assert.equal(decorated.has(camera), true)
     assert.equal(liveOf(dock, '3d-view'), view)
+  })
+
+  void it('prepares the fixed views of the factory presets, and not the others', () => {
+    const { apply, dock, created } = buildHarness()
+
+    apply.applyLayout(row(leaf('3d-view')))
+    apply.prepareWidgets()
+
+    // the three fixed views of the factory presets are ready; the bottom, back and right ones are not built
+    assert.deepEqual(created.toSorted(), ['3d-view', 'front-view', 'left-view', 'top-view'])
+
+    // the first layout that has the left view takes the prepared one, and does not build a second
+    const before = created.length
+
+    apply.applyLayout(row(leaf('3d-view'), leaf('left-view')))
+
+    assert.equal(created.length, before)
+    assert.ok(liveOf(dock, 'left-view'))
   })
 
   void it('clears the lock the new tree does not keep', () => {
@@ -214,10 +267,10 @@ void describe('applyLayout', () => {
     assert.equal(document.contains(node), true)
   })
 
-  void it('disposes every widget when the tree is empty', () => {
+  void it('disposes every widget that is not a fixed view when the tree is empty', () => {
     const { apply, dock, undecorated } = buildHarness()
 
-    apply.applyLayout(row(leaf('3d-view'), leaf('top-view')))
+    apply.applyLayout(row(leaf('3d-view'), leaf('camera-controls')))
 
     const widgets = dockWidgets(dock)
 
@@ -239,6 +292,25 @@ void describe('applyLayout', () => {
       }),
       true,
     )
+  })
+
+  void it('disposes the widgets that wait off the dock when the shell goes', () => {
+    const { apply, dock, created } = buildHarness()
+
+    apply.applyLayout(row(leaf('3d-view')))
+    apply.prepareWidgets()
+    apply.disposeReady()
+
+    // the left view was prepared, then thrown away: the next layout builds a new one
+    apply.applyLayout(row(leaf('3d-view'), leaf('left-view')))
+
+    assert.equal(
+      created.filter((kind) => {
+        return kind === 'left-view'
+      }).length,
+      2,
+    )
+    assert.ok(liveOf(dock, 'left-view'))
   })
 
   void it('writes the locks of the tree on the widgets', () => {

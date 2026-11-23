@@ -4,7 +4,8 @@ import { MIN_WIDGET_HEIGHT, MIN_WIDGET_WIDTH, type WidgetFit } from './contentFi
 import { toDockConfig, toLayoutNode } from './dockConfig.ts'
 import { dockWidgets } from './dockWidgets.ts'
 import { collectKinds, lockedBoxOf, lockWidgetTo, type LayoutNode, type LockBox } from './layoutNode.ts'
-import { defaultLayout } from './layoutPresets.ts'
+import { defaultLayout, factoryPresets } from './layoutPresets.ts'
+import { WIDGET_KINDS } from './widgetKinds.ts'
 import { createWidget, widgetKind, type WidgetDefinition } from './widgetDefinition.ts'
 
 /**
@@ -84,6 +85,16 @@ export type LayoutApply = {
    */
   requestManagedSizes: () => void
   /**
+   * Creates the fixed views of the factory presets, off the dock, so the first switch to a layout that has one does not
+   * build it.
+   */
+  prepareWidgets: () => void
+  /**
+   * Disposes the widgets that are waiting off the dock, so a shell that goes away leaves no Vue app and no GL context
+   * behind.
+   */
+  disposeReady: () => void
+  /**
    * The tree the last pass applied, or `null` before the first one.
    */
   readonly appliedTree: LayoutNode | null
@@ -92,6 +103,41 @@ export type LayoutApply = {
    */
   readonly isRebuilding: boolean
 }
+
+/**
+ * The kinds of the fixed views.
+ *
+ * @remarks
+ * A fixed view builds a scene of the level (a renderer, the meshes of the level and their overlays), which is the cost
+ * of a preset switch between two layouts with a different set of them (the lighter has the top, the left and the front,
+ * the entities only the top). The kinds a factory preset uses are prepared at start, and any fixed view that comes off
+ * the dock waits for the next layout that has it instead of being thrown away (TODO 281).
+ */
+const FIXED_VIEW_KINDS: ReadonlySet<string> = new Set([
+  WIDGET_KINDS.topView,
+  WIDGET_KINDS.bottomView,
+  WIDGET_KINDS.frontView,
+  WIDGET_KINDS.backView,
+  WIDGET_KINDS.leftView,
+  WIDGET_KINDS.rightView,
+])
+
+/**
+ * The fixed views the factory presets use, in the order they first appear.
+ *
+ * @remarks
+ * The bottom, back and right views are not in a factory preset, so they are not prepared: the author puts them on the
+ * dock when they need them, and the first one is built then.
+ */
+const PREPARED_KINDS: readonly string[] = [
+  ...new Set(
+    factoryPresets.flatMap((preset) => {
+      return collectKinds(preset.layout)
+    }),
+  ),
+].filter((kind) => {
+  return FIXED_VIEW_KINDS.has(kind)
+})
 
 /**
  * Builds the managed layout of the shell.
@@ -135,6 +181,84 @@ export function createLayoutApply(context: LayoutApplyContext): LayoutApply {
    * redo (the owner's bug, 2026-11-09).
    */
   let pendingTree: LayoutNode | null = null
+
+  /**
+   * The widgets that came off the dock and wait for the next layout that has their kind.
+   *
+   * @remarks
+   * A fixed view builds a scene of the level, so rebuilding it on every switch between two layouts that show a different
+   * set of them is the lag of the presets (the lighter and the entities). A widget here is detached (lumino unparented
+   * it) but alive: its Vue app, its renderer and its canvas are the ones the next layout gets. Only the fixed views are
+   * kept: a form or a list is cheap to build and holds the state of the level it was opened on.
+   */
+  const readyWidgets = new Map<string, Widget>()
+
+  /**
+   * Takes a widget off the dock: a fixed view waits for the next layout, anything else is thrown away.
+   *
+   * @param widget The widget the new tree has no place for.
+   */
+  function retire(widget: Widget): void {
+    undecorate(widget)
+    lockWidgetTo(widget, undefined)
+
+    const kind = widgetKind(widget)
+
+    if (kind !== undefined && FIXED_VIEW_KINDS.has(kind)) {
+      readyWidgets.set(kind, widget)
+
+      return
+    }
+
+    widget.dispose()
+  }
+
+  /**
+   * Creates the fixed views the factory presets use, off the dock, so the first switch to a layout that has one does not
+   * build it.
+   *
+   * @remarks
+   * The widgets are created without the decoration of the edit mode: a layout that takes one decorates it. The kinds
+   * already on the dock (and the ones already waiting) are left alone.
+   */
+  function prepareWidgets(): void {
+    const placed = new Set<string>()
+
+    for (const widget of dockWidgets(dock)) {
+      const kind = widgetKind(widget)
+
+      if (kind !== undefined) {
+        placed.add(kind)
+      }
+    }
+
+    for (const kind of PREPARED_KINDS) {
+      if (placed.has(kind) || readyWidgets.has(kind)) {
+        continue
+      }
+
+      const definition = definitions.find((candidate) => {
+        return candidate.kind === kind
+      })
+
+      if (definition === undefined) {
+        continue
+      }
+
+      readyWidgets.set(kind, createWidget(definition))
+    }
+  }
+
+  /**
+   * Disposes the widgets that wait off the dock.
+   */
+  function disposeReady(): void {
+    for (const widget of readyWidgets.values()) {
+      widget.dispose()
+    }
+
+    readyWidgets.clear()
+  }
 
   /**
    * Measures the height the content of a widget wants.
@@ -369,13 +493,12 @@ export function createLayoutApply(context: LayoutApplyContext): LayoutApply {
   }
 
   /**
-   * Takes every widget off the dock and disposes it, so the empty layout of the `Custom` preset has a screen to be
-   * dropped onto.
+   * Takes every widget off the dock, so the empty layout of the `Custom` preset has a screen to be dropped onto.
    *
    * @remarks
    * An empty layout is not a config: `restoreLayout({ main: null })` is what lumino calls an unparented dock. The
-   * restore unparents the widgets first, and the disposal comes after it, so the widgets leave the layout once and not
-   * one by one: the dock has no tree while they are thrown away.
+   * restore unparents the widgets first, and the fixed views wait on the bench after it ({@link retire}), so the next
+   * layout that has one does not build it again.
    */
   function clearDock(): void {
     pendingTree = null
@@ -395,8 +518,7 @@ export function createLayoutApply(context: LayoutApplyContext): LayoutApply {
     appliedTree = toLayoutNode(dock.saveLayout(), widgetKind)
 
     for (const widget of previous) {
-      undecorate(widget)
-      widget.dispose()
+      retire(widget)
     }
 
     syncLayout()
@@ -408,8 +530,9 @@ export function createLayoutApply(context: LayoutApplyContext): LayoutApply {
    * @remarks
    * The kinds of the tree decide what happens to the widgets that are already on the dock. A widget of a kind the tree
    * has is **kept**: a preset switch rearranges the dock instead of throwing the Vue apps away, so the walkable view
-   * keeps its canvas, its camera and the pointer lock (TODO 281). A widget of a kind the tree has no place for is
-   * unparented by the restore and disposed below. A kind without a live widget is created and decorated.
+   * keeps its canvas, its camera and the pointer lock (TODO 281). A fixed view of a kind the tree has no place for is
+   * unparented by the restore and waits on the bench for the next layout; any other widget of such a kind is disposed
+   * below. A kind without a live widget is taken from the bench, or created and decorated.
    *
    * A kind that is no longer in the registry is dropped with its share; when nothing is left, the default layout takes
    * over, so the screen is never empty by accident. An **empty** tree is not an accident: it clears the dock and
@@ -455,6 +578,19 @@ export function createLayoutApply(context: LayoutApplyContext): LayoutApply {
         lockWidgetTo(existing, undefined)
         widgets.set(kind, existing)
         kept.delete(kind)
+
+        continue
+      }
+
+      const waiting = readyWidgets.get(kind)
+
+      if (waiting !== undefined) {
+        // a fixed view that came off the dock waits for the next layout: it keeps its renderer and its canvas, so a
+        // switch between the layouts that show it does not build them again
+        readyWidgets.delete(kind)
+        lockWidgetTo(waiting, undefined)
+        decorate(waiting)
+        widgets.set(kind, waiting)
 
         continue
       }
@@ -522,8 +658,7 @@ export function createLayoutApply(context: LayoutApplyContext): LayoutApply {
 
     for (const widget of new Set([...previous, ...widgets.values()])) {
       if (!live.has(widget)) {
-        undecorate(widget)
-        widget.dispose()
+        retire(widget)
       }
     }
 
@@ -542,6 +677,8 @@ export function createLayoutApply(context: LayoutApplyContext): LayoutApply {
     applyLayout,
     applyManagedSizes,
     requestManagedSizes,
+    prepareWidgets,
+    disposeReady,
     get appliedTree(): LayoutNode | null {
       return appliedTree
     },

@@ -210,11 +210,12 @@ export function createFrameLoop(context: FrameLoopContext): FrameLoop {
       return
     }
 
-    // a frame already asked for is canceled and asked again: a browser that freezes a tab in the background may drop
-    // the callback it owes, and the id would stay set forever, which would leave the view on the picture of the load
-    // (2026-11-19, the owner: the dots of a fixed view kept the state of the load)
+    // a frame already asked for draws this state too, so the request waits for it: a caller that asks on every frame
+    // (the particles of the level ask as long as their layer is on) would cancel the frame of the last ask over and
+    // over, and the view would never draw a picture (2026-11-23, the owner: with the particles on the view stayed
+    // blank until the pointer lock)
     if (redrawFrame !== 0) {
-      cancelAnimationFrame(redrawFrame)
+      return
     }
 
     redrawFrame = requestAnimationFrame((now) => {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ArxColor } from 'arx-convert/types'
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import ColorSwatch from '../../ColorSwatch.vue'
 import { colorOfHsl, hslOfColor, type LightHsl } from './lightEditor.ts'
 
@@ -57,14 +57,38 @@ const cssColor = computed(() => {
 })
 
 /**
- * The color of the swatch, in the way the author writes it.
+ * The size of the patch, in pixels: the height of the sliders beside it.
+ *
+ * @remarks
+ * The patch is a square, as tall as the three sliders (2026-11-23, the owner). The height of the sliders comes from
+ * the browser (the range inputs are taller in Firefox than in Chromium), and the `aspect-ratio` of a stretched flex
+ * item resolves to a zero width in some Firefox builds, so the height is measured and the width follows it (2026-11-23).
  */
-const hexColor = computed(() => {
-  const channels = [props.modelValue.r, props.modelValue.g, props.modelValue.b].map((channel) => {
-    return channel.toString(16).padStart(2, '0')
+const patchSize = ref(52)
+
+/**
+ * The column of the sliders, whose height the patch takes.
+ */
+const slidersElement = ref<HTMLElement | null>(null)
+
+let resizeObserver: ResizeObserver | undefined
+
+onMounted(() => {
+  resizeObserver = new ResizeObserver(([entry]) => {
+    const height = entry?.contentRect.height
+
+    if (height !== undefined && height > 0) {
+      patchSize.value = height
+    }
   })
 
-  return `#${channels.join('').toUpperCase()}`
+  if (slidersElement.value !== null) {
+    resizeObserver.observe(slidersElement.value)
+  }
+})
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect()
 })
 
 /**
@@ -92,52 +116,53 @@ function setPart(part: 'h' | 's' | 'l', value: number): void {
 
 <template>
   <div class="LightColorPicker">
-    <div class="head">
-      <ColorSwatch :color="cssColor" :size="18" :radius="3" border="strong" />
-      <span class="hex">{{ hexColor }}</span>
+    <div class="swatch" :style="{ width: `${String(patchSize)}px` }">
+      <ColorSwatch :color="cssColor" fill :radius="4" border="strong" />
     </div>
-    <label class="part">
-      <span class="name">H</span>
-      <input
-        type="range"
-        min="0"
-        max="360"
-        step="1"
-        :value="hsl.h"
-        aria-label="Hue"
-        @input="setPart('h', numberOfEvent($event))"
-        @change="emit('change')"
-      />
-      <span class="value">{{ hsl.h }}</span>
-    </label>
-    <label class="part">
-      <span class="name">S</span>
-      <input
-        type="range"
-        min="0"
-        max="100"
-        step="1"
-        :value="hsl.s"
-        aria-label="Saturation"
-        @input="setPart('s', numberOfEvent($event))"
-        @change="emit('change')"
-      />
-      <span class="value">{{ hsl.s }}</span>
-    </label>
-    <label class="part">
-      <span class="name">L</span>
-      <input
-        type="range"
-        min="0"
-        max="100"
-        step="1"
-        :value="hsl.l"
-        aria-label="Lightness"
-        @input="setPart('l', numberOfEvent($event))"
-        @change="emit('change')"
-      />
-      <span class="value">{{ hsl.l }}</span>
-    </label>
+    <div ref="slidersElement" class="sliders">
+      <label class="part">
+        <span class="name">H</span>
+        <input
+          type="range"
+          min="0"
+          max="360"
+          step="1"
+          :value="hsl.h"
+          aria-label="Hue"
+          @input="setPart('h', numberOfEvent($event))"
+          @change="emit('change')"
+        />
+        <span class="value">{{ hsl.h }}</span>
+      </label>
+      <label class="part">
+        <span class="name">S</span>
+        <input
+          type="range"
+          min="0"
+          max="100"
+          step="1"
+          :value="hsl.s"
+          aria-label="Saturation"
+          @input="setPart('s', numberOfEvent($event))"
+          @change="emit('change')"
+        />
+        <span class="value">{{ hsl.s }}</span>
+      </label>
+      <label class="part">
+        <span class="name">L</span>
+        <input
+          type="range"
+          min="0"
+          max="100"
+          step="1"
+          :value="hsl.l"
+          aria-label="Lightness"
+          @input="setPart('l', numberOfEvent($event))"
+          @change="emit('change')"
+        />
+        <span class="value">{{ hsl.l }}</span>
+      </label>
+    </div>
   </div>
 </template>
 
@@ -146,20 +171,23 @@ function setPart(part: 'h' | 's' | 'l', value: number): void {
 
 .LightColorPicker {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 8px;
 
-  .head {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+  // the patch is as tall as the three sliders, and a square: the height comes from the row, the width from the
+  // measured height of the sliders (the aspect-ratio of a stretched item is not reliable in Firefox)
+  .swatch {
+    flex: none;
+    align-self: stretch;
   }
 
-  .hex {
-    color: $text-muted;
-    font-size: 11px;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 0.02em;
+  .sliders {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
   }
 
   .part {

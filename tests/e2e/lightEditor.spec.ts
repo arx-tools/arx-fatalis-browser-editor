@@ -99,15 +99,47 @@ test('the color picker changes the color of the light', async ({ page }) => {
   await pickFirstLight(page)
 
   const editor = page.locator('[data-widget-kind="light-editor"]')
-  const hex = editor.locator('.hex').first()
+  // the patch of the picker is the color: the hex is not on the widget any more (2026-11-23, the owner)
+  const swatch = editor.locator('.LightColorPicker .ColorSwatch').first()
 
-  await expect(hex).toHaveText(/^#[0-9A-F]{6}$/)
+  await expect(swatch).toBeVisible()
 
-  const before = await hex.innerText()
+  // the patch is a square, as tall as the three sliders, in every browser
+  const box = await editor.evaluate((widget) => {
+    const picker = widget.querySelector<HTMLElement>('.LightColorPicker')
+    const patch = widget.querySelector<HTMLElement>('.swatch')
+    const sliders = widget.querySelector<HTMLElement>('.sliders')
+
+    if (picker === null || patch === null || sliders === null) {
+      throw new Error('the light editor has no picker, patch or sliders')
+    }
+
+    const patchBox = patch.getBoundingClientRect()
+    const slidersBox = sliders.getBoundingClientRect()
+
+    return {
+      width: Math.round(patchBox.width),
+      height: Math.round(patchBox.height),
+      sliders: Math.round(slidersBox.height),
+    }
+  })
+
+  expect(box.height).toBe(box.sliders)
+  expect(box.width).toBe(box.sliders)
+
+  const before = await swatch.evaluate((node) => {
+    return getComputedStyle(node).backgroundColor
+  })
 
   await editor.locator('input[aria-label="Hue"]').first().fill('200')
 
-  await expect(hex).not.toHaveText(before)
+  await expect
+    .poll(async () => {
+      return await swatch.evaluate((node) => {
+        return getComputedStyle(node).backgroundColor
+      })
+    })
+    .not.toBe(before)
   await expect(page.getByRole('button', { name: /Undo/ })).toBeEnabled()
 })
 

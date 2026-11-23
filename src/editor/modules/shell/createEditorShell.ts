@@ -20,7 +20,7 @@ import {
   type LayoutHistory,
 } from '../layout/layoutHistory.ts'
 import { LayoutEditor, type MountWidgetOverlay } from '../layout/layoutEditor.ts'
-import { layoutEquals, lockedBoxOf, lockWidgetTo, type LayoutNode } from '../layout/layoutNode.ts'
+import { layoutEquals, layoutShapeEquals, lockedBoxOf, lockWidgetTo, type LayoutNode } from '../layout/layoutNode.ts'
 import { createWidget, widgetKind, type WidgetDefinition } from '../layout/widgetDefinition.ts'
 import { keyboardShortcutOf, onKeyboardAction } from '../keyboard/keyboard.ts'
 import type { KeyboardActionId } from '../keyboard/actions.ts'
@@ -531,6 +531,11 @@ export function createEditorShell(
    * Switching **keeps every history**: a layout that was tweaked is left on its last state, and coming back puts that
    * state on the dock, with its cursor where it was.
    *
+   * The preset that is already on the dock is **not built again** (TODO 281): pressing its menu row or its function key
+   * while it is active is not a change, and a rebuild would throw the state of the widgets away (the camera of the
+   * walkable view, the pointer lock). The tree is what says whether the layout is still that preset's: a shape that
+   * differs is the way back to the preset's own state, and a switch that is still on its way settles to the same shape.
+   *
    * @param id The preset to apply.
    */
   function applyPreset(id: string): void {
@@ -540,8 +545,15 @@ export function createEditorShell(
       return
     }
 
+    const target = stateOf(historyFor(preset.id))
+    const current = readDockLayout()
+
+    if (current !== undefined && activePreset.value === preset.id && layoutShapeEquals(current, target)) {
+      return
+    }
+
     activePreset.value = preset.id
-    apply.applyLayout(stateOf(historyFor(preset.id)))
+    apply.applyLayout(target)
   }
 
   /**

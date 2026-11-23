@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
-import { editorUrl, waitForLayoutSettled } from './support/editor.ts'
+import { roomsLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
+import { editorUrl, lockPointer, seedLayout, waitForLayoutSettled, waitForLevel } from './support/editor.ts'
 
 /**
  * The factory presets carry the sizes the owner measured.
@@ -456,6 +457,100 @@ test('the function keys switch the six presets in the order of the menu', async 
   }
 
   await expect(rows.filter({ hasText: 'Blank' })).not.toContainText('(')
+})
+
+/**
+ * A preset switch rearranges the dock; the walkable view is in every preset, so the switch has to keep it.
+ *
+ * @remarks
+ * The canvas of the view is the probe: a rebuilt widget brings a new canvas, and the tag put on the old one is gone.
+ * The pointer lock is the owner's symptom of the rebuild: a switch under a locked pointer used to drop it.
+ */
+test('a preset switch keeps the walkable view and the pointer lock', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'the pointer lock of the walkable view needs chromium here')
+
+  await page.setViewportSize({ width: 1631, height: 850 })
+  // the rooms preset is the one with the statistics the level is waited for: the switch goes to the viewer
+  await seedLayout(page, roomsLayout)
+  await page.goto(editorUrl())
+
+  const view = page.locator('[data-widget-kind="3d-view"]')
+  const canvas = view.locator('canvas').first()
+
+  await expect(canvas).toBeVisible()
+  await waitForLevel(page)
+
+  await canvas.evaluate((node) => {
+    node.dataset.keep = 'yes'
+  })
+
+  await lockPointer(page, canvas)
+  await expect
+    .poll(async () => {
+      return await page.evaluate(() => {
+        return globalThis.document.pointerLockElement !== null
+      })
+    })
+    .toBe(true)
+
+  await page.keyboard.press('F1')
+
+  await expect
+    .poll(async () => {
+      return await presetName(page)
+    })
+    .toBe('Viewer')
+
+  await waitForLayoutSettled(page)
+
+  // the same canvas with the tag, and the pointer is still in the view: the widget was rearranged, not rebuilt
+  await expect(canvas).toHaveAttribute('data-keep', 'yes')
+  await expect
+    .poll(async () => {
+      return await page.evaluate(() => {
+        return globalThis.document.pointerLockElement !== null
+      })
+    })
+    .toBe(true)
+})
+
+/**
+ * The preset that is on the dock is not built again.
+ *
+ * @remarks
+ * The tab bar of the dock is the probe: a rebuild of the layout (`restoreLayout`) throws the old bars away and makes
+ * new ones, even when the widgets themselves are kept, so the tag on the old bar is gone. Pressing the key of the active
+ * preset has to leave the dock alone (TODO 281).
+ */
+test('the active preset is not built again', async ({ page }) => {
+  await page.setViewportSize({ width: 1631, height: 850 })
+  await page.goto(editorUrl())
+
+  const view = page.locator('[data-widget-kind="3d-view"]')
+  const canvas = view.locator('canvas').first()
+
+  await expect(canvas).toBeVisible()
+
+  const tabBar = page.locator('.lm-TabBar').first()
+
+  await expect(tabBar).toBeAttached()
+  await tabBar.evaluate((node) => {
+    node.dataset.keep = 'yes'
+  })
+
+  // F1 is the Viewer, the layout of the start: pressing it again is not a change
+  await page.keyboard.press('F1')
+
+  await expect
+    .poll(async () => {
+      return await presetName(page)
+    })
+    .toBe('Viewer')
+
+  await waitForLayoutSettled(page)
+
+  // the same bar of the dock: the shell did not restore the layout for the preset it is already on
+  await expect(tabBar).toHaveAttribute('data-keep', 'yes')
 })
 
 /**

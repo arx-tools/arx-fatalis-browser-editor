@@ -312,6 +312,39 @@ export function layoutEquals(first: LayoutNode, second: LayoutNode): boolean {
 }
 
 /**
+ * Tells whether two layouts are the same tree, whatever the sizes are.
+ *
+ * @remarks
+ * A preset switch works from the shape: the widgets and the splits decide what the dock is, and the sizes are the
+ * business of the pass (a preset and the dock it was applied to can differ in a few pixels and still be the same
+ * layout). This is what the preset of the shell asks before it applies itself again: the same shape means the layout
+ * is already that preset's (TODO 281).
+ *
+ * @param first One layout.
+ * @param second The other one.
+ *
+ * @returns `true` when the trees have the same splits and the same kinds in the same places.
+ */
+export function layoutShapeEquals(first: LayoutNode, second: LayoutNode): boolean {
+  // the empty layout has nothing to compare: two empty layouts are the same, an empty one and a tree never are
+  if (first.type === 'empty' || second.type === 'empty') {
+    return first.type === 'empty' && second.type === 'empty'
+  }
+
+  if (first.type === 'widget' || second.type === 'widget') {
+    return first.type === 'widget' && second.type === 'widget' && first.kind === second.kind
+  }
+
+  if (first.orientation !== second.orientation || first.children.length !== second.children.length) {
+    return false
+  }
+
+  return first.children.every((child, index) => {
+    return layoutShapeEquals(child, second.children[index])
+  })
+}
+
+/**
  * Normalizes the sizes of a split to the children it really has.
  *
  * @remarks

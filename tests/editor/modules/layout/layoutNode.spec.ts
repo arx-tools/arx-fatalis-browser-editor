@@ -5,6 +5,7 @@ import {
   emptyLayout,
   flexSizes,
   layoutEquals,
+  layoutShapeEquals,
   parseLayoutNode,
   type LayoutNode,
 } from '../../../../src/editor/modules/layout/layoutNode.ts'
@@ -269,6 +270,40 @@ void describe('layoutEquals', () => {
     assert.equal(layoutEquals(emptyLayout, widget('help')), false)
     assert.equal(layoutEquals(widget('help'), emptyLayout), false)
     assert.equal(layoutEquals(emptyLayout, tree), false)
+  })
+})
+
+void describe('layoutShapeEquals', () => {
+  void it('accepts the same tree, whatever the sizes are', () => {
+    const first = split('horizontal', [widget('help'), split('vertical', [widget('camera'), widget('plan')])])
+    const second = { ...first, sizes: flexSizes(0.2, 0.8) }
+
+    assert.equal(layoutShapeEquals(first, second), true)
+  })
+
+  void it('sees a different kind', () => {
+    assert.equal(layoutShapeEquals(widget('help'), widget('camera')), false)
+  })
+
+  void it('sees a different shape', () => {
+    const tree = split('horizontal', [widget('help')])
+
+    assert.equal(layoutShapeEquals(widget('help'), tree), false)
+  })
+
+  void it('sees a different orientation and a different nesting', () => {
+    const flat = split('horizontal', [widget('help'), widget('camera')])
+    const vertical = split('vertical', [widget('help'), widget('camera')])
+    const nested = split('horizontal', [widget('help'), split('vertical', [widget('camera'), widget('plan')])])
+
+    assert.equal(layoutShapeEquals(flat, vertical), false)
+    assert.equal(layoutShapeEquals(flat, nested), false)
+  })
+
+  void it('takes two empty layouts for the same, and never an empty one for a tree', () => {
+    assert.equal(layoutShapeEquals(emptyLayout, { type: 'empty' }), true)
+    assert.equal(layoutShapeEquals(emptyLayout, widget('help')), false)
+    assert.equal(layoutShapeEquals(widget('help'), emptyLayout), false)
   })
 })
 

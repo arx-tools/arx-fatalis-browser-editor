@@ -20,7 +20,7 @@ import {
  * Builds a portal between two rooms.
  *
  * @remarks
- * The colouring only reads the two room ids, so the rest of a portal (the quad, the radius, the runtime flag) is left
+ * The coloring only reads the two room ids, so the rest of a portal (the quad, the radius, the runtime flag) is left
  * out: those do not take part in the graph.
  *
  * @param first One side of the portal.
@@ -60,13 +60,13 @@ void describe('roomAdjacencyOf', () => {
     assert.equal(adjacency.get(1)?.size, 0)
   })
 
-  void it('leaves out a portal to a room the level does not colour', () => {
+  void it('leaves out a portal to a room the level does not color', () => {
     const adjacency = roomAdjacencyOf([portalBetween(1, 9)], [1])
 
     assert.equal(adjacency.get(1)?.size, 0)
   })
 
-  void it('gives every room a neighbour set, even without a portal', () => {
+  void it('gives every room a neighbor set, even without a portal', () => {
     const adjacency = roomAdjacencyOf([], [4, 5])
 
     assert.deepEqual(adjacency.keys().toArray(), [4, 5])
@@ -75,15 +75,15 @@ void describe('roomAdjacencyOf', () => {
 })
 
 void describe('roomColoringOf', () => {
-  void it('colours no room when there is no room', () => {
+  void it('colors no room when there is no room', () => {
     const coloring = roomColoringOf([])
 
     assert.equal(coloring.colors.size, 0)
     assert.equal(coloring.colorCount, 0)
   })
 
-  void it('ties the colour of a room to its id', () => {
-    // the room 1 is the first colour of the palette, the room 2 the second: the colours of a level stay where they are
+  void it('ties the color of a room to its id', () => {
+    // the room 1 is the first color of the palette, the room 2 the second: the colors of a level stay where they are
     // while it is edited
     const coloring = roomColoringOf([1, 2, 3])
 
@@ -95,8 +95,8 @@ void describe('roomColoringOf', () => {
     assert.equal(coloring.colorCount, 3)
   })
 
-  void it('keeps the colours of the rooms when another one goes', () => {
-    // the owner deleted a room, and the colours of the rooms after it shifted down (2026-11-15)
+  void it('keeps the colors of the rooms when another one goes', () => {
+    // the owner deleted a room, and the colors of the rooms after it shifted down (2026-11-15)
     const before = roomColoringOf([1, 2, 3, 4])
     const after = roomColoringOf([1, 3, 4])
 
@@ -104,8 +104,8 @@ void describe('roomColoringOf', () => {
     assert.equal(after.colors.get(4), before.colors.get(4))
   })
 
-  void it('walks the palette again after its last colour', () => {
-    // the palette is shorter than a level's rooms: two rooms far apart in the ids share a colour
+  void it('walks the palette again after its last color', () => {
+    // the palette is shorter than a level's rooms: two rooms far apart in the ids share a color
     const palette = ROOM_COLORS.length
     const coloring = roomColoringOf([1, palette + 1])
 
@@ -113,8 +113,8 @@ void describe('roomColoringOf', () => {
     assert.equal(coloring.colorCount, 1)
   })
 
-  void it('gives the room 0 the last colour of the palette', () => {
-    // the room 0 is the outside of the game's rooms: the first room the author sees is the first colour
+  void it('gives the room 0 the last color of the palette', () => {
+    // the room 0 is the outside of the game's rooms: the first room the author sees is the first color
     const coloring = roomColoringOf([0, 1])
 
     assert.equal(coloring.colors.get(0), ROOM_COLORS.length - 1)
@@ -127,7 +127,7 @@ void describe('roomColoringOf', () => {
     assert.deepEqual(coloring.colors.keys().toArray(), [2])
   })
 
-  void it('gives the same rooms the same colours every time', () => {
+  void it('gives the same rooms the same colors every time', () => {
     const first = roomColoringForLevel([1, 2, 3])
     const second = roomColoringForLevel([1, 2, 3])
 
@@ -213,21 +213,21 @@ void describe('roomSummaryOf', () => {
 })
 
 void describe('roomPaletteOf', () => {
-  void it('reads the colour of a room from the colouring', () => {
+  void it('reads the color of a room from the coloring', () => {
     const coloring = roomColoringForLevel([1, 2])
 
     assert.notEqual(roomPaletteOf(1, coloring), undefined)
     assert.notEqual(roomPaletteOf(1, coloring), roomPaletteOf(2, coloring))
   })
 
-  void it('gives nothing for a room the colouring does not hold', () => {
+  void it('gives nothing for a room the coloring does not hold', () => {
     const coloring = roomColoringForLevel([1])
 
     assert.equal(roomPaletteOf(9, coloring), undefined)
   })
 
-  void it('keeps the colours of the same level', () => {
-    // the colouring is tied to the room ids: the same level paints the same map on every visit
+  void it('keeps the colors of the same level', () => {
+    // the coloring is tied to the room ids: the same level paints the same map on every visit
     const a = roomColoringForLevel([1, 2, 3])
     const b = roomColoringForLevel([1, 2, 3])
 

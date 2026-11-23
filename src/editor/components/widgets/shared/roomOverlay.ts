@@ -3,17 +3,17 @@ import type { ReadonlyArxMap } from '../../../types/readonly.ts'
 import { ROOM_COLORS, roomColoringForLevel, roomIdsOf, type RoomColoring } from '../../../../generator/rooms.ts'
 
 /**
- * The colour of a face whose room has no colour: a room id that is not in the colouring (a polygon with no room, or
+ * The color of a face whose room has no color: a room id that is not in the coloring (a polygon with no room, or
  * one the level does not know).
  *
  * @remarks
- * The grey is deliberately outside the palette: a face the map can not place is a data problem, and it should not read
+ * The gray is deliberately outside the palette: a face the map can not place is a data problem, and it should not read
  * as a room.
  */
 const UNASSIGNED_COLOR = '#9a9a9a'
 
 /**
- * How many numbers one vertex colour holds.
+ * How many numbers one vertex color holds.
  */
 const COLOR_ITEM_SIZE = 3
 
@@ -27,11 +27,11 @@ const COLOR_ITEM_SIZE = 3
 const VERTICES_PER_TRIANGLE = 3
 
 /**
- * How much of its colour a room keeps while the map does not highlight it.
+ * How much of its color a room keeps while the map does not highlight it.
  *
  * @remarks
  * The map is dark by default: the rooms the author works with (the selection, the hover, the room of the crosshair) are
- * at full colour, and everything else is dimmed, so the eye goes to them. The value is a dim, not a hide: the shape of
+ * at full color, and everything else is dimmed, so the eye goes to them. The value is a dim, not a hide: the shape of
  * the level stays readable around the lit rooms.
  */
 const DIMMED = 0.35
@@ -41,9 +41,9 @@ const DIMMED = 0.35
  *
  * @remarks
  * It is the first piece of the room editing feature: it **shows** the rooms of the level and changes nothing. The mesh
- * owns a **copy** of the positions of the level (the room colours are its own `color` attribute), so the palette of the
+ * owns a **copy** of the positions of the level (the room colors are its own `color` attribute), so the palette of the
  * level (the `color` of the level's geometry, painted by the bake) stays untouched and the textured level keeps its
- * light; the material is flat (a colour per vertex, no texture), so the map reads as the rooms of the level and not as
+ * light; the material is flat (a color per vertex, no texture), so the map reads as the rooms of the level and not as
  * its art.
  */
 export type RoomOverlay = {
@@ -51,32 +51,32 @@ export type RoomOverlay = {
    * The mesh to put into the scene of a view.
    *
    * @remarks
-   * It draws with the colours of {@link RoomOverlay.coloring} while it is visible; a view hides the textured level
+   * It draws with the colors of {@link RoomOverlay.coloring} while it is visible; a view hides the textured level
    * while it shows this one.
    */
   readonly mesh: Mesh
   /**
-   * The colouring the colours were written from.
+   * The coloring the colors were written from.
    */
   readonly coloring: RoomColoring
   /**
-   * Colours the rooms again from the level, and writes the colours into the geometry.
+   * Colors the rooms again from the level, and writes the colors into the geometry.
    *
    * @remarks
-   * An edit (a delete) rebuilds the geometry: the vertex buffers change, and the colour attribute has to follow. The
-   * room graph also changes when a portal does, and the colouring is read again with it.
+   * An edit (a delete) rebuilds the geometry: the vertex buffers change, and the color attribute has to follow. The
+   * room graph also changes when a portal does, and the coloring is read again with it.
    *
    * @param map The level to read.
    */
   readonly repaint: (map: ReadonlyArxMap) => void
   /**
-   * Picks the rooms the map keeps at full colour, or clears the highlight.
+   * Picks the rooms the map keeps at full color, or clears the highlight.
    *
    * @remarks
-   * The colours of the rooms are read again here: the rooms of the faces can change without a repaint (the replay of
-   * the stored steps), and a highlight written from the colouring before that would leave the new rooms grey.
+   * The colors of the rooms are read again here: the rooms of the faces can change without a repaint (the replay of
+   * the stored steps), and a highlight written from the coloring before that would leave the new rooms gray.
    *
-   * @param rooms The rooms to show at full colour; an empty set dims every room.
+   * @param rooms The rooms to show at full color; an empty set dims every room.
    */
   readonly setHighlight: (rooms: ReadonlySet<number>) => void
   /**
@@ -89,18 +89,18 @@ export type RoomOverlay = {
 }
 
 /**
- * Writes the colour of every vertex of the level into its geometry.
+ * Writes the color of every vertex of the level into its geometry.
  *
  * @remarks
- * The geometry is a flat list of triangles, and every triangle has its polygon: the vertex takes the colour of the
- * room of that polygon. The colours go into the `color` attribute of the **overlay's** geometry (a copy of the
+ * The geometry is a flat list of triangles, and every triangle has its polygon: the vertex takes the color of the
+ * room of that polygon. The colors go into the `color` attribute of the **overlay's** geometry (a copy of the
  * positions of the level), so the palette of the level (the `color` of the level's geometry) stays for the textured
  * level.
  *
  * @param geometry The geometry of the overlay, with the positions of the level.
  * @param map The level to read.
- * @param coloring The colour of every room.
- * @param highlight The rooms to keep at full colour; an empty set dims every room.
+ * @param coloring The color of every room.
+ * @param highlight The rooms to keep at full color; an empty set dims every room.
  */
 function writeRoomColors(
   geometry: BufferGeometry,
@@ -122,7 +122,7 @@ function writeRoomColors(
   for (let vertex = 0; vertex < positions.count; vertex++) {
     const triangle = Math.floor(vertex / VERTICES_PER_TRIANGLE)
     const polygon = map.polygons[map.triangleToPolygon[triangle]]
-    // the map is dark by default: only the highlighted rooms keep their full colour
+    // the map is dark by default: only the highlighted rooms keep their full color
     const away = polygon === undefined || !highlight.has(polygon.room)
     let roomPalette = palette
     let color = unassigned
@@ -159,11 +159,11 @@ export type RoomRepaintState = {
    */
   readonly vertexCount: number
   /**
-   * How many colours the attribute of the map has, or `undefined` when it has none yet.
+   * How many colors the attribute of the map has, or `undefined` when it has none yet.
    */
   readonly colorCount: number | undefined
   /**
-   * The revision of the rooms the colours were written from.
+   * The revision of the rooms the colors were written from.
    */
   readonly paintedRevision: number
   /**
@@ -173,11 +173,11 @@ export type RoomRepaintState = {
 }
 
 /**
- * Whether the colours of the room map have to be written again.
+ * Whether the colors of the room map have to be written again.
  *
  * @remarks
- * Two things make the colours stale: an edit that rebuilds the geometry (a delete, an insert: the vertex buffers change
- * and the attribute has to follow), and a write of the rooms of the faces (a move into a room the map has not coloured
+ * Two things make the colors stale: an edit that rebuilds the geometry (a delete, an insert: the vertex buffers change
+ * and the attribute has to follow), and a write of the rooms of the faces (a move into a room the map has not colored
  * yet: the vertex buffers stay the same, so only the revision of the rooms tells it, 2026-11-15).
  *
  * @param state The buffers of the geometry and the two revisions.
@@ -189,11 +189,11 @@ export function roomsNeedRepaint(state: RoomRepaintState): boolean {
 }
 
 /**
- * Reads the colour of the rooms of a level.
+ * Reads the color of the rooms of a level.
  *
  * @param map The level to read.
  *
- * @returns The colour of every room the level has a face in.
+ * @returns The color of every room the level has a face in.
  */
 function coloringOfLevel(map: ReadonlyArxMap): RoomColoring {
   return roomColoringForLevel(
@@ -208,12 +208,12 @@ function coloringOfLevel(map: ReadonlyArxMap): RoomColoring {
 /**
  * Builds the room map of a level.
  *
- * @param map The level to colour.
+ * @param map The level to color.
  *
  * @returns The overlay, ready to be put into a scene.
  */
 export function createRoomOverlay(map: ReadonlyArxMap): RoomOverlay {
-  // the geometry of the overlay is its own: it copies the positions of the level, and the room colours are its `color`
+  // the geometry of the overlay is its own: it copies the positions of the level, and the room colors are its `color`
   // attribute. The level's geometry keeps its own `color` (the palette of the baked light), which the textured level
   // draws with, so the room map never writes over the light
   const geometry = new BufferGeometry()
@@ -227,7 +227,7 @@ export function createRoomOverlay(map: ReadonlyArxMap): RoomOverlay {
   let highlighted: ReadonlySet<number> = new Set()
 
   /**
-   * Colours the rooms of a level and writes the colours into the geometry.
+   * Colors the rooms of a level and writes the colors into the geometry.
    *
    * @param next The level to read.
    */
@@ -262,8 +262,8 @@ export function createRoomOverlay(map: ReadonlyArxMap): RoomOverlay {
       highlighted = rooms
 
       // the rooms of the faces can change without a repaint: the replay of the stored steps writes them, and the
-      // selection that follows comes through here. The colour of a room is read again with the highlight, or the
-      // vertices of the new rooms would fall back to the grey of the faces without a room (2026-11-15)
+      // selection that follows comes through here. The color of a room is read again with the highlight, or the
+      // vertices of the new rooms would fall back to the gray of the faces without a room (2026-11-15)
       coloring = coloringOfLevel(level)
 
       writeRoomColors(geometry, level, coloring, highlighted)

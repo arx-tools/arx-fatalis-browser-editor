@@ -288,7 +288,7 @@ void describe('accelerateRaycast', () => {
     camera.updateMatrixWorld()
 
     const raycaster = new Raycaster()
-    // off the centre: the centre of the plane is the edge the two triangles share, and the ray would hit both
+    // off the center: the center of the plane is the edge the two triangles share, and the ray would hit both
     raycaster.setFromCamera(new Vector2(0.1, 0.05), camera)
 
     assert.equal(raycaster.intersectObjects([mesh], false).length, 1)
@@ -320,7 +320,7 @@ void describe('arxPolygonsToWireframeGeometry', () => {
     assert.deepEqual([first.x, first.y, first.z], [-10, -20, -30])
   })
 
-  void it('carries the normal of the corners when it colours the lines', () => {
+  void it('carries the normal of the corners when it colors the lines', () => {
     const geometry = arxPolygonsToWireframeGeometry([polygon(false)], new Vector3(0, 0, 0), () => {
       return [1, 1, 1]
     })
@@ -385,7 +385,7 @@ void describe('createWireframeMaterial', () => {
     assert.equal(first.type, 'LineBasicMaterial')
   })
 
-  void it('draws in the neutral grey, over the black and over the textures', () => {
+  void it('draws in the neutral gray, over the black and over the textures', () => {
     // a plain #777 (2026-11-08, the owner): it reads over the black of a hidden mesh and over a textured level alike
     const material = createWireframeMaterial()
 
@@ -394,28 +394,28 @@ void describe('createWireframeMaterial', () => {
     assert.equal(material.transparent, true)
   })
 
-  void it('takes the grey of the view when it is asked for one', () => {
+  void it('takes the gray of the view when it is asked for one', () => {
     // the walkable view draws the plain line of the hidden mesh lighter than the fixed views
     const material = createWireframeMaterial({ color: 0x99_99_99 })
 
     assert.equal(material.color.getHex(), 0x99_99_99)
   })
 
-  void it('gives a shader that colours the faces, and greys the back of them', () => {
+  void it('gives a shader that colors the faces, and grays the back of them', () => {
     const material = createColoredWireframeMaterial()
     const backFaceColor = material.uniforms.backFaceColor.value as ThreeColor
 
     assert.equal(material.type, 'ShaderMaterial')
     assert.equal(material.vertexColors, true)
     assert.equal(material.transparent, true)
-    // a face the camera sees from behind belongs to the geometry the game culls, so its line is the grey of the hidden
-    // mesh, not the colour of a texture that is not on the screen
+    // a face the camera sees from behind belongs to the geometry the game culls, so its line is the gray of the hidden
+    // mesh, not the color of a texture that is not on the screen
     assert.equal(backFaceColor.getHex(), 0x99_99_99)
   })
 })
 
 void describe('wireframeColorsOf', () => {
-  void it('gives the colour of the face to both ends of every edge', () => {
+  void it('gives the color of the face to both ends of every edge', () => {
     const colors = wireframeColorsOf([polygon(false)], () => {
       return [0.25, 0.5, 0.75]
     })
@@ -441,14 +441,14 @@ void describe('wireframeColorsOf', () => {
   })
 })
 
-void describe('the colour attribute of the wireframe', () => {
-  void it('is left out without a colour of the faces', () => {
+void describe('the color attribute of the wireframe', () => {
+  void it('is left out without a color of the faces', () => {
     const geometry = arxPolygonsToWireframeGeometry([polygon(false)], new Vector3(0, 0, 0))
 
     assert.equal(geometry.getAttribute('color'), undefined)
   })
 
-  void it('colours the points of the lines from the faces', () => {
+  void it('colors the points of the lines from the faces', () => {
     const geometry = arxPolygonsToWireframeGeometry([polygon(false)], new Vector3(0, 0, 0), () => {
       return [0, 0, 0]
     })

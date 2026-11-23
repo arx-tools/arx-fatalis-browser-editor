@@ -10,15 +10,15 @@ import { fileURLToPath } from 'node:url'
 const sourceRoot = fileURLToPath(new URL('../../src/editor/', import.meta.url))
 
 /**
- * The palette: the only file that may spell out a colour.
+ * The palette: the only file that may spell out a color.
  */
 const paletteFile = path.join(sourceRoot, 'palette.scss')
 
 /**
- * A colour literal: a hex, or an rgb/hsl function with a number inside. A palette token is written as
+ * A color literal: a hex, or an rgb/hsl function with a number inside. A palette token is written as
  * `$name` (or `rgba($name, 0.5)`), so a raw value is easy to spot.
  */
-const colourPattern = /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?)\(\s*(?:\d|#)/gi
+const colorPattern = /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?)\(\s*(?:\d|#)/gi
 
 /**
  * Collects the style sources below a directory.
@@ -72,15 +72,15 @@ function styleOf(file: string, text: string): string {
 }
 
 /**
- * Lists the colour literals of a style source.
+ * Lists the color literals of a style source.
  *
  * @param file The file to read.
  *
- * @returns One `name: literals` line when the file has a raw colour, `null` for a clean file.
+ * @returns One `name: literals` line when the file has a raw color, `null` for a clean file.
  */
-async function offenceOf(file: string): Promise<string | null> {
+async function offenseOf(file: string): Promise<string | null> {
   const style = styleOf(file, await readFile(file, 'utf8'))
-  const matches = style.match(colourPattern)
+  const matches = style.match(colorPattern)
 
   if (matches === null) {
     return null
@@ -90,7 +90,7 @@ async function offenceOf(file: string): Promise<string | null> {
 }
 
 void describe('the palette', () => {
-  void it('is the only file that spells out a colour', async () => {
+  void it('is the only file that spells out a color', async () => {
     const files = await styleFiles(sourceRoot)
     const reported = await Promise.all(
       files.map(async (file) => {
@@ -98,11 +98,11 @@ void describe('the palette', () => {
           return null
         }
 
-        return await offenceOf(file)
+        return await offenseOf(file)
       }),
     )
-    const offenders = reported.filter((offence): offence is string => {
-      return offence !== null
+    const offenders = reported.filter((offense): offense is string => {
+      return offense !== null
     })
 
     assert.deepEqual(offenders, [])

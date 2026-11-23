@@ -32,7 +32,7 @@ const fieldOfView = 75
 const aspect = 1.157
 
 /**
- * A 2000 x 800 x 2000 box: wide enough to cut off on the near side with a centre-distance heuristic.
+ * A 2000 x 800 x 2000 box: wide enough to cut off on the near side with a center-distance heuristic.
  */
 const bounds: CameraBounds = {
   min: { x: -1000, y: -200, z: -500 },
@@ -48,9 +48,9 @@ const frustum: CameraFrustum = {
 }
 
 /**
- * The centre of {@link bounds}, in the game's coordinates.
+ * The center of {@link bounds}, in the game's coordinates.
  */
-const centre: ArxVector3 = { x: 0, y: 200, z: 500 }
+const center: ArxVector3 = { x: 0, y: 200, z: 500 }
 
 /**
  * The modes of the align row.
@@ -74,17 +74,17 @@ function lookDirection(pose: CameraPose): Vector3 {
 }
 
 /**
- * Measures how much a pose misses the centre of the box.
+ * Measures how much a pose misses the center of the box.
  *
  * @param pose The pose of a view.
  *
- * @returns The cosine between the view and the line to the centre, so `1` is a direct hit.
+ * @returns The cosine between the view and the line to the center, so `1` is a direct hit.
  */
-function cosineToCentre(pose: CameraPose): number {
+function cosineToCenter(pose: CameraPose): number {
   const eye = gamePositionToWorld(pose.position, scene)
-  const toCentre = gamePositionToWorld(centre, scene).sub(eye).normalize()
+  const toCenter = gamePositionToWorld(center, scene).sub(eye).normalize()
 
-  return lookDirection(pose).dot(toCentre)
+  return lookDirection(pose).dot(toCenter)
 }
 
 /**
@@ -115,60 +115,60 @@ function projectedCorners(pose: CameraPose): Array<{ x: number; y: number }> {
 }
 
 void describe('alignPose', () => {
-  void it('puts the top view above the centre, looking straight down', () => {
+  void it('puts the top view above the center, looking straight down', () => {
     const pose = alignPose('top', bounds, frustum)
 
-    assert.equal(pose.position.x, centre.x)
-    assert.equal(pose.position.z, centre.z)
+    assert.equal(pose.position.x, center.x)
+    assert.equal(pose.position.z, center.z)
     // the game's Y points down, so "above" is a smaller Y
-    assert.ok(pose.position.y < centre.y)
+    assert.ok(pose.position.y < center.y)
     assert.deepEqual(pose.angle, { pitch: 90, yaw: 0 })
   })
 
   void it('puts the front view on the smaller Z, looking along the positive Z of the game', () => {
     const pose = alignPose('front', bounds, frustum)
 
-    assert.equal(pose.position.x, centre.x)
-    assert.equal(pose.position.y, centre.y)
-    assert.ok(pose.position.z < centre.z)
+    assert.equal(pose.position.x, center.x)
+    assert.equal(pose.position.y, center.y)
+    assert.ok(pose.position.z < center.z)
     assert.deepEqual(pose.angle, { pitch: 0, yaw: 0 })
   })
 
-  void it('puts the left view on the smaller X, looking at the centre', () => {
+  void it('puts the left view on the smaller X, looking at the center', () => {
     const pose = alignPose('left', bounds, frustum)
 
-    assert.ok(pose.position.x < centre.x)
-    assert.equal(pose.position.y, centre.y)
-    assert.equal(pose.position.z, centre.z)
+    assert.ok(pose.position.x < center.x)
+    assert.equal(pose.position.y, center.y)
+    assert.equal(pose.position.z, center.z)
     // 270 and not 90: the game mirrors X, so 90 would look away from the level (TODO 59)
     assert.deepEqual(pose.angle, { pitch: 0, yaw: 270 })
   })
 
-  void it('puts the bottom view below the centre, looking straight up', () => {
+  void it('puts the bottom view below the center, looking straight up', () => {
     const pose = alignPose('bottom', bounds, frustum)
 
-    assert.equal(pose.position.x, centre.x)
-    assert.equal(pose.position.z, centre.z)
+    assert.equal(pose.position.x, center.x)
+    assert.equal(pose.position.z, center.z)
     // the game's Y points down, so "below" is a larger Y
-    assert.ok(pose.position.y > centre.y)
+    assert.ok(pose.position.y > center.y)
     assert.deepEqual(pose.angle, { pitch: -90, yaw: 0 })
   })
 
   void it('puts the back view on the larger Z, looking along the negative Z of the game', () => {
     const pose = alignPose('back', bounds, frustum)
 
-    assert.equal(pose.position.x, centre.x)
-    assert.equal(pose.position.y, centre.y)
-    assert.ok(pose.position.z > centre.z)
+    assert.equal(pose.position.x, center.x)
+    assert.equal(pose.position.y, center.y)
+    assert.ok(pose.position.z > center.z)
     assert.deepEqual(pose.angle, { pitch: 0, yaw: 180 })
   })
 
-  void it('puts the right view on the larger X, looking at the centre', () => {
+  void it('puts the right view on the larger X, looking at the center', () => {
     const pose = alignPose('right', bounds, frustum)
 
-    assert.ok(pose.position.x > centre.x)
-    assert.equal(pose.position.y, centre.y)
-    assert.equal(pose.position.z, centre.z)
+    assert.ok(pose.position.x > center.x)
+    assert.equal(pose.position.y, center.y)
+    assert.equal(pose.position.z, center.z)
     // the pair of the left view, a half turn away
     assert.deepEqual(pose.angle, { pitch: 0, yaw: 90 })
   })
@@ -200,10 +200,10 @@ void describe('alignPose', () => {
     assert.ok(pose.position.z < wide.position.z)
   })
 
-  void it('looks at the centre of the level in every view', () => {
+  void it('looks at the center of the level in every view', () => {
     const misses = modes.filter((mode) => {
       // the dot product of two unit vectors is 1 when they point the same way
-      return cosineToCentre(alignPose(mode, bounds, frustum)) <= 0.999
+      return cosineToCenter(alignPose(mode, bounds, frustum)) <= 0.999
     })
 
     assert.deepEqual(misses, [])
@@ -220,9 +220,9 @@ void describe('alignPose', () => {
       const a = alignPose(first, bounds, frustum)
       const b = alignPose(second, bounds, frustum)
       const between = new Vector3(b.position.x - a.position.x, b.position.y - a.position.y, b.position.z - a.position.z)
-      const way = new Vector3(centre.x - a.position.x, centre.y - a.position.y, centre.z - a.position.z)
+      const way = new Vector3(center.x - a.position.x, center.y - a.position.y, center.z - a.position.z)
 
-      // the two cameras stand on the same line through the centre, on its two sides
+      // the two cameras stand on the same line through the center, on its two sides
       return between.normalize().dot(way.normalize()) < 0.999
     })
 

@@ -20,7 +20,7 @@ export type LightRow = {
    */
   readonly position: ArxVector3
   /**
-   * The colour of the light, as a css hex, for the swatch of the row.
+   * The color of the light, as a css hex, for the swatch of the row.
    */
   readonly color: string
 }
@@ -85,7 +85,7 @@ export function lightIndexLabelOf(index: number): string {
  *
  * @remarks
  * The orientation of the camera is the one it has: the jump only moves the camera, so the light lands in the middle of
- * the view it already looks towards, at {@link LIGHT_JUMP_DISTANCE} units. The light is a row of the list, which
+ * the view it already looks toward, at {@link LIGHT_JUMP_DISTANCE} units. The light is a row of the list, which
  * carries the place in the game's coordinates.
  *
  * @param pose The pose of the camera.
@@ -109,7 +109,7 @@ export function lightPositionLabelOf(position: ArxVector3): string {
 }
 
 /**
- * The two digit hex of one channel of a colour.
+ * The two digit hex of one channel of a color.
  *
  * @param value The channel, from 0 to 255.
  *
@@ -120,7 +120,7 @@ function channelOf(value: number): string {
 }
 
 /**
- * The colour of a light, as a css hex.
+ * The color of a light, as a css hex.
  *
  * @param light The light of the LLF.
  *

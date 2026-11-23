@@ -5,7 +5,7 @@ import PaletteSwatches from './PaletteSwatches.vue'
  * The palette of the editor: the surfaces, the borders, the text and the marks, token by token.
  *
  * @remarks
- * A new colour comes from these tokens and not from a raw value (the `palette.spec.ts` guards it in the sources); the page
+ * A new color comes from these tokens and not from a raw value (the `palette.spec.ts` guards it in the sources); the page
  * is the place where a token is looked at before it is written into a widget.
  */
 const meta = {

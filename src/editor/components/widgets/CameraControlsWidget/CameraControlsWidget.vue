@@ -197,7 +197,7 @@ function onStep(name: CameraFieldName, direction: 1 | -1): void {
   overflow: auto;
   font-size: 13px;
 
-  // the form is centred both ways, always: the `margin` with `auto` centres it when there is free space,
+  // the form is centered both ways, always: the `margin` with `auto` centers it when there is free space,
   // and falls back to the top left when the wrapped form is bigger than the widget (so the start of it
   // stays reachable — `justify-content: center` would clip it)
   .fields {

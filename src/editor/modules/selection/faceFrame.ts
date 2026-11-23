@@ -79,7 +79,7 @@ export type FaceFrame = {
   /**
    * The middle of the face, in the game's coordinates.
    */
-  readonly centre: ArxVector3
+  readonly center: ArxVector3
   /**
    * How far the farthest corner of the face sits from its middle.
    */
@@ -125,19 +125,19 @@ export function faceFrameOf(polygon: ArxPolygon): FaceFrame | undefined {
     sum.z = sum.z + vertex.z
   }
 
-  const centre = { x: sum.x / vertices.length, y: sum.y / vertices.length, z: sum.z / vertices.length }
+  const center = { x: sum.x / vertices.length, y: sum.y / vertices.length, z: sum.z / vertices.length }
   let radius = 0
 
   for (const vertex of vertices) {
-    radius = Math.max(radius, Math.hypot(vertex.x - centre.x, vertex.y - centre.y, vertex.z - centre.z))
+    radius = Math.max(radius, Math.hypot(vertex.x - center.x, vertex.y - center.y, vertex.z - center.z))
   }
 
   const distance = Math.max(radius * DISTANCE_FACTOR, MINIMUM_DISTANCE)
   const offset = { x: normal.x * distance, y: normal.y * distance, z: normal.z * distance }
-  const position = { x: centre.x + offset.x, y: centre.y + offset.y, z: centre.z + offset.z }
+  const position = { x: center.x + offset.x, y: center.y + offset.y, z: center.z + offset.z }
 
   return {
-    centre,
+    center,
     radius,
     pose: { position, angle: gameAngleOf({ x: -normal.x, y: -normal.y, z: -normal.z }) },
   }

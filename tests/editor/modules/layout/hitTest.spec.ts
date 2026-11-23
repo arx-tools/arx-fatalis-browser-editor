@@ -56,20 +56,20 @@ function rect(box: Box): {
 }
 
 void describe('modeAt', () => {
-  const centre = rect({ left: 100, top: 100, width: 200, height: 200 })
+  const center = rect({ left: 100, top: 100, width: 200, height: 200 })
 
   void it('gives the left and the right half', () => {
-    assert.equal(modeAt(centre, 120, 200), 'split-left')
-    assert.equal(modeAt(centre, 280, 200), 'split-right')
+    assert.equal(modeAt(center, 120, 200), 'split-left')
+    assert.equal(modeAt(center, 280, 200), 'split-right')
   })
 
   void it('gives the top and the bottom half', () => {
-    assert.equal(modeAt(centre, 200, 120), 'split-top')
-    assert.equal(modeAt(centre, 200, 280), 'split-bottom')
+    assert.equal(modeAt(center, 200, 120), 'split-top')
+    assert.equal(modeAt(center, 200, 280), 'split-bottom')
   })
 
   void it('prefers the horizontal axis in the diagonal middle', () => {
-    assert.equal(modeAt(centre, 200, 200), 'split-right')
+    assert.equal(modeAt(center, 200, 200), 'split-right')
   })
 })
 

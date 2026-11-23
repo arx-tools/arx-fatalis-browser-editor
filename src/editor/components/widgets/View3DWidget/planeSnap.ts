@@ -24,7 +24,7 @@ const SEARCH_CELLS = 3
  * How far a corner may be from the face it snaps to, in the units of the level, while the landing point is tested.
  *
  * @remarks
- * The corner of one face and the edge of its neighbour share a place, and the float numbers of the FTS carry the two
+ * The corner of one face and the edge of its neighbor share a place, and the float numbers of the FTS carry the two
  * a little apart; the tolerance keeps a landing on the border of a face inside it.
  */
 const FACE_EDGE_TOLERANCE = 0.01
@@ -34,7 +34,7 @@ const FACE_EDGE_TOLERANCE = 0.01
  *
  * @remarks
  * A line that runs in the plane of a face never meets it: the snap would divide by nearly zero and jump along the
- * level. A drag along the floor towards a wall is the reason the check is here: the floor can not take the corner.
+ * level. A drag along the floor toward a wall is the reason the check is here: the floor can not take the corner.
  */
 const PARALLEL_EPSILON = 1e-6
 

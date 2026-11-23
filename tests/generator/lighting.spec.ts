@@ -12,8 +12,8 @@ import { Settings } from '../../src/generator/Settings.ts'
  * A light of the test.
  *
  * @param position Where the light stands, in the frame of the scene.
- * @param options The colour, the intensity, the radii and the flags of the light.
- * @param options.color The colour of the light.
+ * @param options The color, the intensity, the radii and the flags of the light.
+ * @param options.color The RGB the light shines with.
  * @param options.intensity How bright it is.
  * @param options.fallStart The radius of the full light.
  * @param options.fallEnd The radius where the light ends.
@@ -42,7 +42,7 @@ function lightOf(
 }
 
 /**
- * A level of one floor tile, with a palette of four white colours.
+ * A level of one floor tile, with a palette of four white colors.
  *
  * @remarks
  * The scene position of the blank level is `(50, 0, 50)`, so the corners of the tile sit in the scene around the
@@ -118,7 +118,7 @@ void describe('bakeLlfColors', () => {
     ])
   })
 
-  void it('fills every corner with the grey of the flat light', () => {
+  void it('fills every corner with the gray of the flat light', () => {
     const colors = bakeFloor({ flatLuminosity: 0.5 }, 'Flat')
 
     assert.ok(
@@ -148,13 +148,13 @@ void describe('bakeLlfColors', () => {
     )
   })
 
-  void it('takes the value of the colours from the luminosity of the rainbow', () => {
+  void it('takes the value of the colors from the luminosity of the rainbow', () => {
     const dark = bakeFloor({ rainbowLuminosity: 0 }, 'TextureRainbow')
     const half = bakeFloor({ rainbowLuminosity: 0.5 }, 'TextureRainbow')
     const full = bakeFloor({ rainbowLuminosity: 1 }, 'TextureRainbow')
 
     assert.deepEqual(dark[0], { r: 0, g: 0, b: 0, a: 255 })
-    // the only container is the first one, red, at the saturation of the profile: the slider is the value of the colour
+    // the only container is the first one, red, at the saturation of the profile: the slider is the value of the color
     assert.deepEqual(half[0], { r: 128, g: 32, b: 32, a: 255 })
     assert.deepEqual(full[0], { r: 255, g: 64, b: 64, a: 255 })
   })
@@ -253,7 +253,7 @@ type Corner = {
  */
 type AboveOptions = {
   /**
-   * The colour of the light.
+   * The color of the light.
    */
   readonly color?: ArxColor
   /**
@@ -271,7 +271,7 @@ type AboveOptions = {
  * minus the scene position of the level, with the height of the light on the mirrored `y` (the scene's `y` is up).
  *
  * @param corner Which corner of the floor.
- * @param options The colour of the light and how far it reaches.
+ * @param options The color of the light and how far it reaches.
  *
  * @returns The light, 20 units above the corner.
  */
@@ -348,7 +348,7 @@ void describe('bakeLlfColorsAt', () => {
     // the corner the light left goes back to the ambient floor
     assert.deepEqual(around.get(0), { r: 23, g: 23, b: 23, a: 255 })
 
-    // the corner it reaches now takes the colour the full bake of the same lights gives it
+    // the corner it reaches now takes the color the full bake of the same lights gives it
     const reference = litFloor()
 
     reference.llf.lights = [after]

@@ -369,7 +369,7 @@ function applyHiddenPolygons(): void {
   }
 
   // the index of the mesh is the visible faces now: the renderer needs the groups of the runs again, and a level that
-  // was not painted yet gets the colours of the palette anyway
+  // was not painted yet gets the colors of the palette anyway
   repaintLevelView()
 
   if (map.solidMeshes[0]?.geometry.getAttribute('color') === undefined) {

@@ -30,7 +30,7 @@ type Corner = {
  */
 type AboveOptions = {
   /**
-   * The colour of the light.
+   * The color of the light.
    */
   readonly color?: ArxColor
   /**
@@ -40,14 +40,14 @@ type AboveOptions = {
 }
 
 /**
- * The three linear channels of a baked grey, the way the attribute carries them.
+ * The three linear channels of a baked gray, the way the attribute carries them.
  *
- * @param grey The grey in sRGB, from 0 to 255.
+ * @param gray The gray in sRGB, from 0 to 255.
  *
  * @returns The channels, as a float32 array holds them.
  */
-function linearOfGrey(grey: number): number[] {
-  const color = new Color().setRGB(grey / 255, grey / 255, grey / 255, SRGBColorSpace)
+function linearOfGray(gray: number): number[] {
+  const color = new Color().setRGB(gray / 255, gray / 255, gray / 255, SRGBColorSpace)
 
   return [color.r, color.g, color.b].map((channel) => {
     return Math.fround(channel)
@@ -85,7 +85,7 @@ function litFloor(): ArxMap {
  * A light above one corner of the blank floor, 20 units above it.
  *
  * @param corner Which corner of the floor.
- * @param options The colour of the light and how far it reaches.
+ * @param options The color of the light and how far it reaches.
  *
  * @returns The light of the LLF, which reaches down onto the corner.
  */
@@ -179,7 +179,7 @@ void describe('refreshLightPalette', () => {
 
     // the corner the light left goes back to the ambient floor of the profile, in the palette and on the mesh
     assert.deepEqual(map.llf.colors[0], { r: 23, g: 23, b: 23, a: 255 })
-    assert.deepEqual(cornerOf(colorsOf(map), 0), linearOfGrey(23))
+    assert.deepEqual(cornerOf(colorsOf(map), 0), linearOfGray(23))
 
     // the corner it reaches now takes the palette and the attribute of the full bake
     const reference = litFloor()
@@ -208,7 +208,7 @@ void describe('refreshLightPalette', () => {
     refreshLightPalette(map, [{ before, after }])
 
     assert.deepEqual([map.llf.colors[1], map.llf.colors[2]], untouched)
-    // the corner of the light itself took the new colour
+    // the corner of the light itself took the new color
     assert.ok((map.llf.colors[0]?.b ?? 0) > (map.llf.colors[0]?.r ?? 0))
   })
 

@@ -34,7 +34,7 @@ export const MAX_ZOOM = 8
  * @remarks
  * The corners are the **letters** of the face (2026-11-09, the owner's request): the handles on the square and the list
  * under it read A, B, C and D, the way the uv of a face is written down. A face of the level has three or four corners,
- * so only the first three or four names are used, and the colours of the handles follow the order.
+ * so only the first three or four names are used, and the colors of the handles follow the order.
  */
 const CORNER_NAMES = ['A', 'B', 'C', 'D'] as const
 
@@ -93,7 +93,7 @@ export type StagePoint = {
  * The uv in the middle of the corners of a face.
  *
  * @remarks
- * It is where the square is centred **when a face arrives** (the selection, the level, a reload). After that the view
+ * It is where the square is centered **when a face arrives** (the selection, the level, a reload). After that the view
  * stays where it is, and the corners move under it: a face dragged by its yellow must not chase the view (2026-11-06,
  * the owner: *"mindig középre akarja igazítani a kijelölést … csak inicializáláskor igazítsa"*).
  *
@@ -101,7 +101,7 @@ export type StagePoint = {
  *
  * @returns The middle of them, or the middle of the texture when the face has no corner.
  */
-export function centreOfUvs(corners: readonly UvPoint[]): UvPoint {
+export function centerOfUvs(corners: readonly UvPoint[]): UvPoint {
   if (corners.length === 0) {
     return { u: 0.5, v: 0.5 }
   }
@@ -119,7 +119,7 @@ export function centreOfUvs(corners: readonly UvPoint[]): UvPoint {
 }
 
 /**
- * What the mapper draws: the square of the widget, the zoom and the place the view is centred on.
+ * What the mapper draws: the square of the widget, the zoom and the place the view is centered on.
  */
 export type UvView = {
   /**
@@ -135,10 +135,10 @@ export type UvView = {
    *
    * @remarks
    * The drag of a corner keeps the **face** in the middle of the widget: the corners of the face are what the user moves,
-   * so they stay under the eye. A face whose uv runs past the texture (a wall that tiles) is centred the same way, and
+   * so they stay under the eye. A face whose uv runs past the texture (a wall that tiles) is centered the same way, and
    * the texture around it is drawn repeated, the way the game draws it.
    */
-  readonly centre: UvPoint
+  readonly center: UvPoint
 }
 
 /**
@@ -202,15 +202,15 @@ export function clampUv(point: UvPoint): UvPoint {
  *
  * @param size The side of the square, in pixels.
  * @param zoom How far the view is zoomed in.
- * @param corners The corners of the face, whose middle is the place the view is centred on.
+ * @param corners The corners of the face, whose middle is the place the view is centered on.
  * @param pan How far the view was dragged away from that middle, in uv units.
  *
  * @returns The view, ready to map a uv to a pixel.
  */
 export function viewOf(size: number, zoom: number, corners: readonly UvPoint[], pan: UvPoint = NO_PAN): UvView {
-  const centre = centreOfUvs(corners)
+  const center = centerOfUvs(corners)
 
-  return { size, zoom, centre: { u: centre.u + pan.u, v: centre.v + pan.v } }
+  return { size, zoom, center: { u: center.u + pan.u, v: center.v + pan.v } }
 }
 
 /**
@@ -224,8 +224,8 @@ export function viewOf(size: number, zoom: number, corners: readonly UvPoint[], 
 export function screenOfUv(view: UvView, uv: UvPoint): StagePoint {
   const middle = view.size / 2
   const scale = view.size * view.zoom
-  const across = (uv.u - view.centre.u) * scale
-  const down = (uv.v - view.centre.v) * scale
+  const across = (uv.u - view.center.u) * scale
+  const down = (uv.v - view.center.v) * scale
 
   // the v of a level runs **down the file**: the game uploads the image as it is (its first row is the top) and the
   // renderer reads the texture from the bottom, so a v of 0 is the top row of the image — the 3D view draws a face with
@@ -387,18 +387,18 @@ export function uvOfScreen(view: UvView, point: StagePoint): UvPoint {
   const across = (point.x - middle) / scale
   const down = (point.y - middle) / scale
 
-  return clampUv({ u: view.centre.u + across, v: view.centre.v + down })
+  return clampUv({ u: view.center.u + across, v: view.center.v + down })
 }
 
 /**
- * The centre of the view after the texture was dragged.
+ * The center of the view after the texture was dragged.
  *
  * @remarks
  * The drag moves the **content** with the pointer: the texture under the hand stays under it, and the view slides the
- * other way. The drag is in pixels of the square, and the centre is in uv: one pixel of the square is `1 / (size * zoom)`
+ * other way. The drag is in pixels of the square, and the center is in uv: one pixel of the square is `1 / (size * zoom)`
  * of the texture, so a zoomed square pans the same picture with a smaller step of the uv.
  *
- * @param pan The uv the view is centred on now.
+ * @param pan The uv the view is centered on now.
  * @param delta How far the pointer went, in pixels of the square.
  * @param size The side of the square, in pixels.
  * @param zoom How far the view is zoomed in.

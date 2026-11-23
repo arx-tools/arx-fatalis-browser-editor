@@ -408,7 +408,7 @@ onBeforeUnmount(() => {
     }
   }
 
-  // the line under the field: what the value means, in the grey of a caption (the material ui helper text)
+  // the line under the field: what the value means, in the gray of a caption (the material ui helper text)
   .helper {
     margin: 3px 0 0;
     color: $text-subtle;

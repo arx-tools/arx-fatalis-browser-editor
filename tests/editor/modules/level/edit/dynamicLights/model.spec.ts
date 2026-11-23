@@ -20,9 +20,9 @@ import { ArxMap } from '../../../../../../src/generator/ArxMap.ts'
 import { Settings } from '../../../../../../src/generator/Settings.ts'
 
 /**
- * The grey of the palette of the test floor.
+ * The gray of the palette of the test floor.
  */
-const FLOOR_GREY = 128
+const FLOOR_GRAY = 128
 
 /**
  * How far a corner of the blank floor is from a light 200 above its middle.
@@ -43,11 +43,11 @@ const TORCH_WEIGHT = (200 / CORNER_TO_LIGHT) * 0.85 * 0.5
  *
  * @param position Where the light stands, in the scene of the level.
  * @param options The fields of the light.
- * @param options.color The colour of the light.
+ * @param options.color The RGB the light shines with.
  * @param options.intensity How bright it is.
  * @param options.fallStart The radius of the full light.
  * @param options.fallEnd The radius where the light ends.
- * @param options.exFlicker How much of the colour the flicker may take away, channel by channel.
+ * @param options.exFlicker How much of the color the flicker may take away, channel by channel.
  * @param options.flags The bits that mark the light.
  *
  * @returns The light, with the fields an LLF light has.
@@ -80,22 +80,22 @@ function lightOf(
 }
 
 /**
- * A level of one floor tile, with a palette of four grey corners and its baked colours.
+ * A level of one floor tile, with a palette of four gray corners and its baked colors.
  *
  * @param options The palette and the flat light of the level.
- * @param options.grey The grey of the palette, from 0 to 255.
- * @param options.flat The light of the flat profile, when the level draws one grey.
+ * @param options.gray The gray of the palette, from 0 to 255.
+ * @param options.flat The light of the flat profile, when the level draws one gray.
  *
  * @returns The map, ready for the layer.
  *
  * @throws When the blank level has no face.
  */
-function litFloor(options: { grey?: number; flat?: number } = {}): ArxMap {
+function litFloor(options: { gray?: number; flat?: number } = {}): ArxMap {
   const files = createBlankLevelFiles(MINIMAL_PRESET)
   const map = new ArxMap(files.dlf, files.fts, files.llf, new Settings({ seed: '1' }))
-  const grey = options.grey ?? FLOOR_GREY
+  const gray = options.gray ?? FLOOR_GRAY
   const colors: ArxColor[] = Array.from({ length: 4 }, () => {
-    return { r: grey, g: grey, b: grey, a: 255 }
+    return { r: gray, g: gray, b: gray, a: 255 }
   })
   const polygon = map.polygons[0]
 
@@ -139,14 +139,14 @@ function modelOf(map: ArxMap): DynamicLightModel {
 }
 
 /**
- * The linear value of a grey, the way the attribute carries it.
+ * The linear value of a gray, the way the attribute carries it.
  *
- * @param grey The grey in sRGB, from 0 to 255.
+ * @param gray The gray in sRGB, from 0 to 255.
  *
- * @returns The channel in the working colour space.
+ * @returns The channel in the working color space.
  */
-function linearOf(grey: number): number {
-  return new Color().setRGB(grey / 255, grey / 255, grey / 255, SRGBColorSpace).r
+function linearOf(gray: number): number {
+  return new Color().setRGB(gray / 255, gray / 255, gray / 255, SRGBColorSpace).r
 }
 
 /**
@@ -154,17 +154,17 @@ function linearOf(grey: number): number {
  *
  * @param map The level to read.
  * @param vertex Which corner of the geometry.
- * @param channel Which channel of the colour, from 0.
+ * @param channel Which channel of the color, from 0.
  *
  * @returns The value of the attribute.
  *
- * @throws When the level has no colour attribute.
+ * @throws When the level has no color attribute.
  */
 function colorOf(map: ArxMap, vertex: number, channel: number): number {
   const attribute = map.solidMeshes[0]?.geometry.getAttribute('color')
 
   if (!(attribute instanceof BufferAttribute)) {
-    throw new TypeError('the level has no colour attribute')
+    throw new TypeError('the level has no color attribute')
   }
 
   const at = vertex * 3
@@ -237,14 +237,14 @@ void describe('isBurningLight', () => {
 })
 
 void describe('flickerColorOf', () => {
-  void it('keeps the colour when the light has no flicker', () => {
+  void it('keeps the color when the light has no flicker', () => {
     const { random } = randomOf([1, 1, 1])
     const color = flickerColorOf(lightOf({ x: 0, y: 0, z: 0 }), random)
 
     assert.deepEqual(color, { r: 200, g: 200, b: 200 })
   })
 
-  void it('takes up to half of the colour away, channel by channel', () => {
+  void it('takes up to half of the color away, channel by channel', () => {
     const light = lightOf(
       { x: 0, y: 0, z: 0 },
       { color: { r: 100, g: 100, b: 100, a: 255 }, exFlicker: { r: 255, g: 255, b: 255, a: 255 } },
@@ -434,7 +434,7 @@ void describe('createDynamicLightModel', () => {
     assert.equal(modelOf(map).vertices.length, 0)
   })
 
-  void it('follows the grey of the flat profile', () => {
+  void it('follows the gray of the flat profile', () => {
     const map = litFloor({ flat: 0.5 })
 
     map.llf.lights = [lightOf({ x: 0, y: -200, z: 0 })]
@@ -492,7 +492,7 @@ void describe('createDynamicLightModel', () => {
 })
 
 void describe('applyDynamicLightModel', () => {
-  void it('adds the light of the torch to the baked colour', () => {
+  void it('adds the light of the torch to the baked color', () => {
     const map = litFloor()
     const light = lightOf({ x: 0, y: -200, z: 0 }, { color: { r: 200, g: 200, b: 200, a: 255 } })
 
@@ -505,7 +505,7 @@ void describe('applyDynamicLightModel', () => {
     assert.equal(applied, true)
 
     const torchLight = TORCH_WEIGHT * 200
-    const expected = Math.round(FLOOR_GREY + torchLight)
+    const expected = Math.round(FLOOR_GRAY + torchLight)
     const colors = Array.from({ length: 6 }, (_, vertex) => {
       return colorOf(map, vertex, 0)
     })
@@ -581,7 +581,7 @@ void describe('applyDynamicLightModel', () => {
     )
 
     const torchLight = TORCH_WEIGHT * 50
-    const expected = Math.round(FLOOR_GREY + torchLight)
+    const expected = Math.round(FLOOR_GRAY + torchLight)
 
     const actual = colorOf(map, 0, 0)
 
@@ -591,7 +591,7 @@ void describe('applyDynamicLightModel', () => {
     )
   })
 
-  void it('writes nothing without a colour attribute', () => {
+  void it('writes nothing without a color attribute', () => {
     const map = litFloor()
 
     map.llf.lights = [lightOf({ x: 0, y: -200, z: 0 })]
@@ -674,7 +674,7 @@ void describe('blackenDynamicLightModel', () => {
     )
   })
 
-  void it('writes nothing without a colour attribute', () => {
+  void it('writes nothing without a color attribute', () => {
     assert.equal(blackenDynamicLightModel(new BufferGeometry()), false)
   })
 
@@ -784,7 +784,7 @@ void describe('refreshDynamicLightBaseColors', () => {
 })
 
 void describe('refreshDynamicLightLights', () => {
-  void it('takes the new colour of a light without a build', () => {
+  void it('takes the new color of a light without a build', () => {
     const map = litFloor()
     const torch = lightOf({ x: 0, y: -200, z: 0 })
 
@@ -800,7 +800,7 @@ void describe('refreshDynamicLightLights', () => {
     assert.equal(model.lights[0], lighter)
   })
 
-  void it('draws the new colour on the next frame', () => {
+  void it('draws the new color on the next frame', () => {
     const map = litFloor()
     const dim = lightOf({ x: 0, y: -200, z: 0 }, { color: { r: 25, g: 0, b: 0, a: 255 } })
     const bright = lightOf({ x: 0, y: -200, z: 0 }, { color: { r: 200, g: 0, b: 0, a: 255 } })

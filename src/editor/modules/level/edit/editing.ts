@@ -125,7 +125,7 @@ function withRevision(command: HistoryCommand): HistoryCommand {
    * Tells the views, and the paint when the step touched a material.
    *
    * @param step The step that ran.
-   * @param applied Whether the step ran forward: the colours of a paste are baked on the apply, not on the undo.
+   * @param applied Whether the step ran forward: the colors of a paste are baked on the apply, not on the undo.
    */
   function bump(step: HistoryCommand, applied: boolean): void {
     bumpLevelRevision()
@@ -152,7 +152,7 @@ function withRevision(command: HistoryCommand): HistoryCommand {
       }
 
       // a face that moves takes the light of its new place: the corners it owns are baked again, so a pasted or a
-      // dragged face does not keep the colour of the place it came from
+      // dragged face does not keep the color of the place it came from
       case 'rotateFaces':
       case 'scaleFaces':
       case 'translateFaces': {
@@ -160,7 +160,7 @@ function withRevision(command: HistoryCommand): HistoryCommand {
         break
       }
 
-      // the pasted faces get their own colours when they go in: their bake happens on the apply, not on the undo
+      // the pasted faces get their own colors when they go in: their bake happens on the apply, not on the undo
       case 'pasteFaces': {
         if (!applied) {
           break
@@ -183,7 +183,7 @@ function withRevision(command: HistoryCommand): HistoryCommand {
         break
       }
 
-      // the steps that keep the colours of their faces: a group, a room, a texture or a uv changes no light
+      // the steps that keep the colors of their faces: a group, a room, a texture or a uv changes no light
       case 'createFaceGroup':
       case 'deleteFaceGroups':
       case 'deleteFaces':

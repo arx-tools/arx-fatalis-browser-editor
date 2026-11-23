@@ -34,7 +34,7 @@ const QUAD_CORNERS: readonly number[] = [0, 1, 2, 2, 1, 3]
 const TRIANGLE_CORNERS: readonly number[] = [0, 1, 2]
 
 /**
- * The sRGB byte of the white a corner without a palette colour takes.
+ * The sRGB byte of the white a corner without a palette color takes.
  */
 const WHITE = 255
 
@@ -48,10 +48,10 @@ const SRGB_SCALE = 1.055
 const SRGB_CURVE = 2.4
 
 /**
- * The linear value of every sRGB byte, the way three converts a vertex colour.
+ * The linear value of every sRGB byte, the way three converts a vertex color.
  *
  * @remarks
- * The `color` attribute of the level is in the working (linear) colour space, the palette and the game's light are in
+ * The `color` attribute of the level is in the working (linear) color space, the palette and the game's light are in
  * sRGB: the layer adds the two in sRGB and converts the result once. The formula is the one of
  * `three/src/math/ColorManagement.js` (`SRGBToLinear`), read into a table so a frame does not call `Math.pow` three
  * times per corner.
@@ -71,7 +71,7 @@ for (let value = 0; value < SRGB_TO_LINEAR.length; value = value + 1) {
 }
 
 /**
- * A light colour of the layer, in sRGB, from 0 to 255.
+ * A light color of the layer, in sRGB, from 0 to 255.
  */
 export type DynamicLightColor = {
   readonly r: number
@@ -80,7 +80,7 @@ export type DynamicLightColor = {
 }
 
 /**
- * The baked colour of the corners of a level, from the palette or from the flat profile.
+ * The baked color of the corners of a level, from the palette or from the flat profile.
  */
 type BaseLight = {
   readonly flat: number | undefined
@@ -132,8 +132,8 @@ type PairTable = {
  * @remarks
  * The geometry of the level is fixed while the flicker runs, so the work of the layer is split: this model holds what
  * can be computed once (the weight of every light on every corner it reaches) and a frame only multiplies those weights
- * with the flicker colour of the lights. The model is built again when the geometry, the lights or the palette change;
- * the weights are stored per corner of the **drawn** geometry, so the colour attribute can be written without walking
+ * with the flicker color of the lights. The model is built again when the geometry, the lights or the palette change;
+ * the weights are stored per corner of the **drawn** geometry, so the color attribute can be written without walking
  * the polygons again.
  */
 export type DynamicLightModel = {
@@ -160,7 +160,7 @@ export type DynamicLightModel = {
    *
    * @remarks
    * The list is the lights of the map, and a light edit replaces them in the LLF: the entries are the ones the weights
-   * were built from, and a colour that changed only swaps the entries (see {@link refreshDynamicLightLights}).
+   * were built from, and a color that changed only swaps the entries (see {@link refreshDynamicLightLights}).
    */
   readonly lights: ArxLight[]
   /**
@@ -180,26 +180,26 @@ export type DynamicLightModel = {
    */
   readonly pairWeights: Float32Array
   /**
-   * The palette entry of every affected vertex, or `-1` when the corner takes no palette colour (a white one).
+   * The palette entry of every affected vertex, or `-1` when the corner takes no palette color (a white one).
    */
   readonly paletteIndexes: Int32Array
   /**
-   * The baked colour of every affected vertex in sRGB, from 0 to 255, three channels each.
+   * The baked color of every affected vertex in sRGB, from 0 to 255, three channels each.
    *
    * @remarks
    * The palette of the level is the light the game's own editor baked, and the layer adds its light to it. The flat
-   * profile writes one grey on every corner, and the model follows it: the flat value is not a palette entry.
+   * profile writes one gray on every corner, and the model follows it: the flat value is not a palette entry.
    */
   readonly baseColors: Float32Array
   /**
-   * The colour of the lights of the current frame, three channels each, reused by every update.
+   * The color of the lights of the current frame, three channels each, reused by every update.
    */
   readonly lightColors: Float32Array
   /**
    * The box of the corners the layer lights, in the frame of the scene.
    *
    * @remarks
-   * The layer writes the colour of these corners on every frame of the flicker, and the frame is worth it only when a
+   * The layer writes the color of these corners on every frame of the flicker, and the frame is worth it only when a
    * view can see one of them: a walkable view that looks at a room with no burning light has nothing to draw, and the
    * cull of the frame tests this sphere against its frustum (2026-11-18, the owner).
    */
@@ -227,10 +227,10 @@ export function isBurningLight(light: ArxLight): boolean {
 }
 
 /**
- * The colour of a light in one frame of the flicker.
+ * The color of a light in one frame of the flicker.
  *
  * @remarks
- * The game's `TreatBackgroundDynlights` subtracts a random part of the colour every frame:
+ * The game's `TreatBackgroundDynlights` subtracts a random part of the color every frame:
  * `rgb = rgb - rgb * ex_flicker * randomColor3f() * 0.5`, channel by channel, and the result never goes below zero
  * (the random is at least zero). The random of the game is not reproducible, and the flicker follows the frame rate:
  * this is the same formula on the random the caller gives.
@@ -238,7 +238,7 @@ export function isBurningLight(light: ArxLight): boolean {
  * @param light The light of the LLF.
  * @param random A random number from 0 to 1, called three times: once for each channel.
  *
- * @returns The colour of the frame in sRGB, from 0 to 255.
+ * @returns The color of the frame in sRGB, from 0 to 255.
  */
 export function flickerColorOf(light: ArxLight, random: () => number): DynamicLightColor {
   const flicker = {
@@ -278,10 +278,10 @@ function isLightablePolygon(polygon: ArxPolygon): boolean {
 }
 
 /**
- * The baked colour of one corner of the level, in sRGB.
+ * The baked color of one corner of the level, in sRGB.
  *
  * @param paletteIndex The palette entry of the corner, or `-1` for a white one.
- * @param source The palette of the level, or the one grey of the flat profile.
+ * @param source The palette of the level, or the one gray of the flat profile.
  * @param target The array to write the three channels into.
  * @param at The first channel of the corner in the target.
  */
@@ -534,7 +534,7 @@ function boundsOf(vertices: Int32Array, positions: Float32Array): Sphere {
  *
  * The pair list is stored by corner (`starts`): a corner takes the sum of its lights, which is the same order the game's
  * `ApplyTileLights` adds them in. The weights are in the game's units, so a frame multiplies them with the flicker
- * colour of the lights and adds the result to the baked colour.
+ * color of the lights and adds the result to the baked color.
  *
  * @param map The level to read.
  *
@@ -636,14 +636,14 @@ export function isDynamicLightModelStale(model: DynamicLightModel, geometry: Buf
 }
 
 /**
- * Reads the baked colour of the corners of the layer again.
+ * Reads the baked color of the corners of the layer again.
  *
  * @remarks
  * A change of the lighting profile rewrites the palette (and the flat light), but the weights of the layer are the same:
- * the geometry and the lights did not move. The base colours are the palette by the corner, so this is a walk of the
+ * the geometry and the lights did not move. The base colors are the palette by the corner, so this is a walk of the
  * affected corners instead of a build of the whole pair list.
  *
- * @param model The model whose base colours are rewritten.
+ * @param model The model whose base colors are rewritten.
  * @param map The level the model belongs to.
  */
 export function refreshDynamicLightBaseColors(model: DynamicLightModel, map: ArxMap): void {
@@ -659,7 +659,7 @@ export function refreshDynamicLightBaseColors(model: DynamicLightModel, map: Arx
  *
  * @remarks
  * The weights of the layer are the cosine, the falloff, the intensity and the factors of the game, multiplied once: the
- * place, the two radii, the intensity and the flags of a light are what they were built from. The colour and the flicker
+ * place, the two radii, the intensity and the flags of a light are what they were built from. The color and the flicker
  * are read on every frame, so a build is not needed when only those changed.
  *
  * @param one The state the weights were built from.
@@ -680,12 +680,12 @@ function sameWeightsOf(one: ArxLight, other: ArxLight): boolean {
 }
 
 /**
- * Takes the new colour of the lights into a built model, without building it again.
+ * Takes the new color of the lights into a built model, without building it again.
  *
  * @remarks
  * The light editor writes a light on the frame of every input, and the layer draws the light of the model: the build of
- * the pairs is the expensive half of the layer (a good part of a frame on a big level), so a colour that changed only
- * swaps the light the model reads and moves the base colours with the palette. A light that moved, changed its reach,
+ * the pairs is the expensive half of the layer (a good part of a frame on a big level), so a color that changed only
+ * swaps the light the model reads and moves the base colors with the palette. A light that moved, changed its reach,
  * its intensity or its flags gives the same answer as a rebuild: the weights are stale.
  *
  * @param model The model that takes the lights.
@@ -717,20 +717,20 @@ export function refreshDynamicLightLights(model: DynamicLightModel, map: ArxMap)
 }
 
 /**
- * Writes the current light of the layer into the colour attribute of the level.
+ * Writes the current light of the layer into the color attribute of the level.
  *
  * @remarks
- * A frame reads the flicker colour of every light once, then adds the weighted colour of its pairs to the baked colour
- * of the corner, clamps it to the byte range and turns it into the working colour space. The attribute is marked dirty,
+ * A frame reads the flicker color of every light once, then adds the weighted color of its pairs to the baked color
+ * of the corner, clamps it to the byte range and turns it into the working color space. The attribute is marked dirty,
  * so the renderer uploads it on the next frame.
  *
- * The switch of the static lights decides whether the baked colour of the corner is the base of the sum: without it the
+ * The switch of the static lights decides whether the baked color of the corner is the base of the sum: without it the
  * layer draws in the dark, and the whole level is as dark as the corners the torches do not reach.
  *
  * @param model The model of the level.
  * @param geometry The geometry of the solid mesh.
  * @param random A random number from 0 to 1 for the flicker.
- * @param withStaticLights Whether the baked colour of the level is under the layer.
+ * @param withStaticLights Whether the baked color of the level is under the layer.
  *
  * @returns True when the attribute was written, false when the geometry is not the one of the model.
  */
@@ -802,16 +802,16 @@ export function applyDynamicLightModel(
 }
 
 /**
- * Draws the level black: the baked colour of every corner goes away, and nothing lights it.
+ * Draws the level black: the baked color of every corner goes away, and nothing lights it.
  *
  * @remarks
  * The switch of the static lights turns the baked palette off, so the level is dark under the dynamic layer: the whole
- * colour attribute goes to zero, the blended and the water faces included. The palette itself is not changed; turning the
+ * color attribute goes to zero, the blended and the water faces included. The palette itself is not changed; turning the
  * switch back on writes it with `writeBakedColors`.
  *
  * @param geometry The geometry of the solid mesh.
  *
- * @returns True when the attribute was written, false when the geometry has no colour attribute of the layer.
+ * @returns True when the attribute was written, false when the geometry has no color attribute of the layer.
  */
 export function blackenDynamicLightModel(geometry: BufferGeometry): boolean {
   const attribute = geometry.getAttribute('color')

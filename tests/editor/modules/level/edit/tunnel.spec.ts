@@ -93,7 +93,7 @@ function triangleAt(at: number, room: number): ArxPolygon {
  *
  * @param polygons The faces of the level.
  * @param options The palette and the container the level already has.
- * @param options.colors The palette of the level, one colour when it is left out.
+ * @param options.colors The palette of the level, one color when it is left out.
  * @param options.textureId The id of the container the level already has, when it has one.
  *
  * @returns The level as the builder reads it.
@@ -189,7 +189,7 @@ void describe('tunnelPlanOf', () => {
         return polygon.room === 27 && polygon.textureContainerId === 2
       }),
     )
-    // the palette of the test has one colour, so the block of the tunnel starts after it
+    // the palette of the test has one color, so the block of the tunnel starts after it
     assert.deepEqual(
       plan?.added[0]?.vertices.map((vertex) => {
         return vertex.llfColorIdx

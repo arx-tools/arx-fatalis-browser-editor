@@ -167,13 +167,13 @@ void describe('the picker of the browser', () => {
   })
 
   void it('gives nothing when the user closes the picker of the page', async () => {
-    async function cancelled(): Promise<FileSystemDirectoryHandle> {
+    async function canceled(): Promise<FileSystemDirectoryHandle> {
       await Promise.resolve()
 
-      throw new Error('the user cancelled the picker')
+      throw new Error('the user canceled the picker')
     }
 
-    assert.equal(await pickDirectory(cancelled), undefined)
+    assert.equal(await pickDirectory(canceled), undefined)
   })
 })
 

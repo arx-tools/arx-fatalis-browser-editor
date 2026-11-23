@@ -8,7 +8,7 @@ import {
   FLAT_PRESET,
   MINIMAL_PRESET,
 } from '../../../../../src/editor/modules/level/blankLevel.ts'
-import { applyColourKey } from '../../../../../src/editor/modules/textures/image.ts'
+import { applyColorKey } from '../../../../../src/editor/modules/textures/image.ts'
 import { paintKeyOf, type PaintKey } from '../../../../../src/editor/modules/level/edit/levelTextures/paint.ts'
 import { paintLevelTextures, unpaintLevelTextures } from '../../../../../src/editor/modules/level/edit/levelTextures.ts'
 import {
@@ -60,21 +60,21 @@ function blankMap(): ArxMap {
   return new ArxMap(files.dlf, files.fts, files.llf, new Settings({ seed: '1' }))
 }
 
-void describe('applyColourKey', () => {
+void describe('applyColorKey', () => {
   void it('makes the black pixels of a BMP transparent', () => {
-    // one black pixel, with no neighbour to take a colour from
+    // one black pixel, with no neighbor to take a color from
     const pixels = new Uint8ClampedArray([0, 0, 0, 255])
 
-    applyColourKey(pixels, 1, 1)
+    applyColorKey(pixels, 1, 1)
 
     assert.deepEqual([...pixels], [0, 0, 0, 0])
   })
 
-  void it('gives a transparent pixel the colour of an opaque neighbour', () => {
+  void it('gives a transparent pixel the color of an opaque neighbor', () => {
     // the left pixel is opaque, the right one is black: a filter must not mix black into the lit one
     const pixels = new Uint8ClampedArray([10, 20, 30, 255, 0, 0, 0, 255])
 
-    applyColourKey(pixels, 2, 1)
+    applyColorKey(pixels, 2, 1)
 
     assert.deepEqual([...pixels], [10, 20, 30, 255, 10, 20, 30, 0])
   })
@@ -82,14 +82,14 @@ void describe('applyColourKey', () => {
   void it('leaves an image without a black pixel alone', () => {
     const pixels = new Uint8ClampedArray([10, 20, 30, 255, 128, 128, 128, 255])
 
-    applyColourKey(pixels, 2, 1)
+    applyColorKey(pixels, 2, 1)
 
     assert.deepEqual([...pixels], [10, 20, 30, 255, 128, 128, 128, 255])
   })
 })
 
 void describe('faceRunsOf', () => {
-  void it('merges the neighbouring faces of the same texture', () => {
+  void it('merges the neighboring faces of the same texture', () => {
     const runs = faceRunsOf([polygonOf(1, true), polygonOf(1, false), polygonOf(1, true)], () => {
       return opaqueKeyOf('wall')
     })
@@ -159,7 +159,7 @@ void describe('the paint of a level', () => {
     assert.notEqual(materials[0], plain)
     assert.equal(materials[0]?.customProgramCacheKey(), 'arx-rainbow-texture')
 
-    // the same profile again: the materials of the paint are the ones on the screen (a repaint of a colour edit)
+    // the same profile again: the materials of the paint are the ones on the screen (a repaint of a color edit)
     const rainbow = materials[0]
 
     paintLevelTextures(map, textures, undefined, true)

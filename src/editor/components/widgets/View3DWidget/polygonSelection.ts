@@ -71,7 +71,7 @@ function polygonOfHit(
 }
 
 /**
- * The middle of the view, in normalised device coordinates: where the crosshair of the walkable view is.
+ * The middle of the view, in normalized device coordinates: where the crosshair of the walkable view is.
  */
 const MIDDLE = new Vector2(0, 0)
 
@@ -84,7 +84,7 @@ type PickRequest = {
    */
   readonly camera: PerspectiveCamera | OrthographicCamera
   /**
-   * The point of the view, in normalised device coordinates.
+   * The point of the view, in normalized device coordinates.
    */
   readonly point: Vector2
   /**
@@ -170,7 +170,7 @@ export function pickPolygons(
  *
  * @remarks
  * The ray goes through the middle of the canvas, which is where the crosshair of the walkable view is.
- * Only the faces turned towards the camera can be hit: the material of the level is front side only, and
+ * Only the faces turned toward the camera can be hit: the material of the level is front side only, and
  * three skips the faces turned away, so a back face can not be selected (the archived editor only fell back
  * to them when nothing visible was under the crosshair; this one does not).
  *
@@ -192,12 +192,12 @@ export function pickPolygon(
  * Reads the polygon under a point of a view.
  *
  * @remarks
- * The fixed views read the level with an orthographic camera, and the point is the normalised device coordinate of the
- * pointer: the middle is `(0, 0)`, the top left corner `(-1, 1)`. Only the faces turned towards the camera can be hit,
+ * The fixed views read the level with an orthographic camera, and the point is the normalized device coordinate of the
+ * pointer: the middle is `(0, 0)`, the top left corner `(-1, 1)`. Only the faces turned toward the camera can be hit,
  * the same way the crosshair of the walkable view reads them.
  *
  * @param camera The camera of the view.
- * @param point The point of the view, in normalised device coordinates.
+ * @param point The point of the view, in normalized device coordinates.
  * @param meshes The meshes of the level in this view.
  * @param triangleToPolygon The triangle map of the level.
  *
@@ -213,54 +213,54 @@ export function pickPolygonAt(
 }
 
 /**
- * How much of the colour of its room a face keeps under the yellow.
+ * How much of the color of its room a face keeps under the yellow.
  *
  * @remarks
  * A room map painted over with a solid yellow turned every selected room into one patch, so the author could not tell
- * where one room ends and the next one begins (three rooms in one selection, level 11). A hint of the colour of the room
- * keeps the rooms apart under the mark, and a face without a room stays the plain yellow, because it has no colour of
+ * where one room ends and the next one begins (three rooms in one selection, level 11). A hint of the color of the room
+ * keeps the rooms apart under the mark, and a face without a room stays the plain yellow, because it has no color of
  * its own to keep.
  */
 const TINT_OF_ROOM = 0.6
 
 /**
- * How much of the yellow the fill of the faces turned towards the camera paints.
+ * How much of the yellow the fill of the faces turned toward the camera paints.
  */
 const FILL_OPACITY = 0.35
 
 /**
- * How much of the yellow the fill paints while the grey base is under it.
+ * How much of the yellow the fill paints while the gray base is under it.
  *
  * @remarks
- * On the room map there is no art to keep: the base has already taken the colour of the room away, so the yellow can
- * be the mark itself instead of a tint over a colour, which read as a dull olive.
+ * On the room map there is no art to keep: the base has already taken the color of the room away, so the yellow can
+ * be the mark itself instead of a tint over a color, which read as a dull olive.
  */
 const FILL_ON_MAP_OPACITY = 0.85
 
 /**
- * The colour of the base the fill gets while the room map is on.
+ * The color of the base the fill gets while the room map is on.
  *
  * @remarks
- * The room map paints every face with the colour of its room, and a translucent yellow over a blue room read as green:
- * the same selection looked different in every room. The grey base hides the room colour under the yellow, so the mark
- * of the selection is one colour on the map as it is on the level. It is a dark neutral of the palette, so it is not
- * mistaken for the grey of the map that says "this face has no room".
+ * The room map paints every face with the color of its room, and a translucent yellow over a blue room read as green:
+ * the same selection looked different in every room. The gray base hides the room color under the yellow, so the mark
+ * of the selection is one color on the map as it is on the level. It is a dark neutral of the palette, so it is not
+ * mistaken for the gray of the map that says "this face has no room".
  */
 const BACKDROP_COLOR = '#4a4f57'
 
 /**
- * How much of the grey the base paints: nearly opaque, which is the point of it (the room colour must stay out of the
+ * How much of the gray the base paints: nearly opaque, which is the point of it (the room color must stay out of the
  * yellow, a hint of it would be enough to tint the mix again).
  */
 const BACKDROP_OPACITY = 0.92
 
 /**
- * The colour of the fill of the faces of a **group**.
+ * The color of the fill of the faces of a **group**.
  *
  * @remarks
  * A group is a lock: its faces go into the group together and are taken out of it together, and the red mark says the
  * selection is a unit (2026-11-18, the owner: the green of the phantom is the add, the red of the fill is the unit). The
- * material of the fill stays yellow, so the two colours come from the vertices: yellow (1, 1, 0) carries red (1, 0, 0)
+ * material of the fill stays yellow, so the two colors come from the vertices: yellow (1, 1, 0) carries red (1, 0, 0)
  * as it is, and the free faces keep the yellow.
  */
 const GROUP_FILL_COLOR = new ThreeColor(Color.red.getHex())
@@ -276,7 +276,7 @@ const GROUP_FILL_COLOR = new ThreeColor(Color.red.getHex())
  *
  * The fill is **front side only**, like the material of the level (2026-11-10, the owner): a face turned away from the
  * camera is in the selection and is deleted with it, and the panels count it, but painting it would turn the selection
- * into two colours and would read as if the surfaces in front of the camera were selected.
+ * into two colors and would read as if the surfaces in front of the camera were selected.
  *
  * The one exception is the face the level itself draws from both sides (`DoubleSided`): it is painted from both sides,
  * because the level shows it from both, and its mark would vanish exactly when the author walks around it (2026-11-14,
@@ -288,7 +288,7 @@ export type PolygonSelectionOverlay = {
    *
    * @param polygons The polygons to outline (the face under the crosshair, or the whole group of it), or an empty list
    * for none.
-   * @param mode The mode of the click that is about to happen; it colours the outline.
+   * @param mode The mode of the click that is about to happen; it colors the outline.
    */
   readonly setCursor: (polygons: readonly ArxPolygon[], mode: SelectionMode) => void
   /**
@@ -301,8 +301,8 @@ export type PolygonSelectionOverlay = {
    * Shows the fill of the selected polygons.
    *
    * @param polygons The selected polygons, in any order.
-   * @param tintOf The colour of the room of a face, which the mark keeps a hint of, or `undefined` for a face without a
-   * room (and for every face while the level is not coloured).
+   * @param tintOf The color of the room of a face, which the mark keeps a hint of, or `undefined` for a face without a
+   * room (and for every face while the level is not colored).
    */
   readonly setHighlight: (
     polygons: readonly ArxPolygon[],
@@ -310,12 +310,12 @@ export type PolygonSelectionOverlay = {
     inGroup?: (polygon: ArxPolygon) => boolean,
   ) => void
   /**
-   * Draws a grey base under the fill, or takes it away.
+   * Draws a gray base under the fill, or takes it away.
    *
    * @remarks
    * The base belongs to the room map: with the map off the fill lies on the art of the level, and a base would hide it.
    *
-   * @param visible Whether the grey base is drawn.
+   * @param visible Whether the gray base is drawn.
    */
   readonly setBackdrop: (visible: boolean) => void
   /**
@@ -357,9 +357,9 @@ function polygonVertices(polygon: ArxPolygon, offset: Vector3): Vector3[] {
  *
  * @param polygons The polygons to fill.
  * @param offset The scene position of the level, already mirrored.
- * @param tintOf The colour of the room of a face, which the mark keeps a hint of, or `undefined` for every face (and
+ * @param tintOf The color of the room of a face, which the mark keeps a hint of, or `undefined` for every face (and
  * for a face without a room).
- * @param baseOf The colour of the mark of a face, or `undefined` for the yellow of the pick.
+ * @param baseOf The color of the mark of a face, or `undefined` for the yellow of the pick.
  *
  * @returns The triangles, ready for a `Mesh`.
  */
@@ -404,8 +404,8 @@ export function polygonFillGeometry(
         cornerNormals[c].z,
       )
 
-      // the mark of the face: the yellow, with a hint of the colour of its room. A face the file never put into a room
-      // has no colour of its own, so it keeps the plain yellow
+      // the mark of the face: the yellow, with a hint of the color of its room. A face the file never put into a room
+      // has no color of its own, so it keeps the plain yellow
       let room: string | undefined
 
       if (polygon.room >= 0) {
@@ -484,11 +484,11 @@ function fillMaterialOf(side: Side): MeshLambertMaterial {
 }
 
 /**
- * Builds the material of the grey base under the fill.
+ * Builds the material of the gray base under the fill.
  *
  * @param side The sides of a face it paints, the ones of the fill it sits under.
  *
- * @returns The grey, lit, nearly opaque base.
+ * @returns The gray, lit, nearly opaque base.
  */
 function backdropMaterialOf(side: Side): MeshLambertMaterial {
   return new MeshLambertMaterial({
@@ -534,7 +534,7 @@ export function createPolygonSelectionOverlay(
   // face selected from behind the same as a face in front of the camera, and from above the room the back of the
   // ceiling covered the whole view, so the author read a floor as selected while the yellow came from above it.
   //
-  // It is lit (`MeshLambertMaterial`): on the room map the yellow is nearly solid, and a flat colour swallowed the
+  // It is lit (`MeshLambertMaterial`): on the room map the yellow is nearly solid, and a flat color swallowed the
   // beams and the corners of the room (2026-11-10, the owner). The lit yellow keeps the shading of the surfaces it
   // covers, so the mark is bright and the geometry still reads.
   //
@@ -551,10 +551,10 @@ export function createPolygonSelectionOverlay(
   doubleFill.renderOrder = 7
   doubleFill.frustumCulled = false
 
-  // the grey base sits just under the fill: the same geometry with a weaker polygon offset and a lower render order,
+  // the gray base sits just under the fill: the same geometry with a weaker polygon offset and a lower render order,
   // so the yellow is always the one on top
-  // it is lit on purpose (`MeshLambertMaterial`, like the material of the room map): a flat grey hid the beams of a
-  // ceiling and read as one colour, while the lit one keeps the shading of the surfaces and only takes their colour away
+  // it is lit on purpose (`MeshLambertMaterial`, like the material of the room map): a flat gray hid the beams of a
+  // ceiling and read as one color, while the lit one keeps the shading of the surfaces and only takes their color away
   const backdropMaterial = backdropMaterialOf(FrontSide)
   const doubleBackdropMaterial = backdropMaterialOf(DoubleSide)
   const backdrop = new Mesh(new BufferGeometry(), backdropMaterial)
@@ -711,7 +711,7 @@ export type SweepResult = { kind: 'take'; index: number } | { kind: 'cross'; ind
  * the level must not come along. A face that touches nothing is not taken at all, so a drag stops at the
  * islands instead of painting them. With no vertices yet (the first face of a gesture) the touching rule
  * accepts anything, so a click takes what the crosshair is on. `remove` takes the nearest face of all: taking
- * something away does not need a neighbour, and a face the selection holds is exactly the one to take.
+ * something away does not need a neighbor, and a face the selection holds is exactly the one to take.
  *
  * @param sweep The faces of the ray and the state of the gesture.
  *

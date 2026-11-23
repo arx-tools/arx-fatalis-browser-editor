@@ -5,16 +5,16 @@ import ColorSwatch from '../../ColorSwatch.vue'
 import { colorOfHsl, hslOfColor, type LightHsl } from './lightEditor.ts'
 
 /**
- * The three sliders of a colour: the hue, the saturation and the lightness of the light.
+ * The three sliders of a color: the hue, the saturation and the lightness of the light.
  *
  * @remarks
  * The light of the LLF is RGB, and the sliders are HSL: the author turns the hue, and the widget writes the RGB the game
- * reads. The swatch and the hex are the colour the parent holds; a new colour from the parent (another light, an undo)
- * puts the sliders back on it, while the colour the sliders made does not move them.
+ * reads. The swatch and the hex are the color the parent holds; a new color from the parent (another light, an undo)
+ * puts the sliders back on it, while the color the sliders made does not move them.
  */
 const props = defineProps<{
   /**
-   * The colour of the light.
+   * The color of the light.
    */
   readonly modelValue: ArxColor
 }>()
@@ -30,7 +30,7 @@ const emit = defineEmits<{
 const hsl = ref<LightHsl>(hslOfColor(props.modelValue))
 
 /**
- * The colour the sliders would make now.
+ * The color the sliders would make now.
  */
 const ownColor = computed(() => {
   return colorOfHsl(hsl.value)
@@ -50,14 +50,14 @@ watch(
 )
 
 /**
- * The colour of the swatch, in the way CSS writes it.
+ * The color of the swatch, in the way CSS writes it.
  */
 const cssColor = computed(() => {
   return `rgb(${String(props.modelValue.r)} ${String(props.modelValue.g)} ${String(props.modelValue.b)})`
 })
 
 /**
- * The colour of the swatch, in the way the author writes it.
+ * The color of the swatch, in the way the author writes it.
  */
 const hexColor = computed(() => {
   const channels = [props.modelValue.r, props.modelValue.g, props.modelValue.b].map((channel) => {
@@ -79,7 +79,7 @@ function numberOfEvent(event: Event): number {
 }
 
 /**
- * Turns one part of the picker, and gives the parent the colour it makes.
+ * Turns one part of the picker, and gives the parent the color it makes.
  *
  * @param part The part the author moved.
  * @param value The value of the slider.

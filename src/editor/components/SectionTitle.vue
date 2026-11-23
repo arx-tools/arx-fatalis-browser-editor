@@ -4,7 +4,7 @@
  * of the room inspector).
  *
  * @remarks
- * The caption of a group is a small uppercase line with the quiet icon grey; the component is the heading, the widget
+ * The caption of a group is a small uppercase line with the quiet icon gray; the component is the heading, the widget
  * puts the rows under it.
  */
 </script>

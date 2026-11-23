@@ -87,8 +87,8 @@ function toggle(): void {
 // together. The stripe is a step darker than the widget, the hover a step lighter, so a striped row still answers the
 // pointer
 .AccordionRow {
-  // the stripe is the colour of the row, and the hover is an image over it, so a hovered striped row keeps its stripe and
-  // only takes the tint (a hover that replaced the colour would wipe the stripe out)
+  // the stripe is the color of the row, and the hover is an image over it, so a hovered striped row keeps its stripe and
+  // only takes the tint (a hover that replaced the color would wipe the stripe out)
   &.is-stripe > .head {
     background-color: rgba($surface-panel, 0.45);
   }
@@ -108,7 +108,7 @@ function toggle(): void {
   }
 
   // the row with nothing to show: no pointer and no hover tint, but the stripe it may carry stays (2026-11-22, the
-  // owner: the off state must not change the base colour)
+  // owner: the off state must not change the base color)
   &.is-empty > .head {
     cursor: default;
 

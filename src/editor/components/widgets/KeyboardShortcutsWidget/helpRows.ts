@@ -46,7 +46,7 @@ export type HelpRow = {
    */
   readonly toggle?: HelpToggle
   /**
-   * The switch the row sits under: a row under a switch that is off is greyed out, and its eye is disabled.
+   * The switch the row sits under: a row under a switch that is off is grayed out, and its eye is disabled.
    */
   readonly parent?: HelpToggle
   /**

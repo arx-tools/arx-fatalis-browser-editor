@@ -82,8 +82,8 @@ const luminosityLabel = computed<string>(() => {
  * The light of the profile, bound to the slider.
  *
  * @remarks
- * The two profiles that have a light of their own keep their own value: the grey of the flat one, and the value of the
- * colours of the rainbow one. The slider shows the value of the profile on the screen, and writes that one (2026-11-22,
+ * The two profiles that have a light of their own keep their own value: the gray of the flat one, and the value of the
+ * colors of the rainbow one. The slider shows the value of the profile on the screen, and writes that one (2026-11-22,
  * the owner: the rainbow got a slider too).
  */
 const luminosity = computed<number>({

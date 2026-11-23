@@ -62,7 +62,7 @@ function onGo(): void {
   overflow: auto;
   font-size: 13px;
 
-  // centred both ways, always: the `margin` with `auto` centres the caption and the row when there is free
+  // centered both ways, always: the `margin` with `auto` centers the caption and the row when there is free
   // space, and falls back to the top left when the widget is too small for them (the caption and the two
   // pixels under it come from the `FieldLabel` component)
   .field {

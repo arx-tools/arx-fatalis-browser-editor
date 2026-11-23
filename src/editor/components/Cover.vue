@@ -90,7 +90,7 @@ onBeforeUnmount(() => {
 <style scoped lang="scss">
 @use '../palette' as *;
 
-// the grey of a window left alone: it starts invisible, waits five seconds, then darkens over three - the
+// the gray of a window left alone: it starts invisible, waits five seconds, then darkens over three - the
 // screensaver of the editor. Focus takes it away at once, and the next blur starts it from the beginning
 .veil {
   position: fixed;

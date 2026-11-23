@@ -20,13 +20,13 @@ export type CameraBounds = {
 }
 
 /**
- * Reads the centre of a box.
+ * Reads the center of a box.
  *
  * @param bounds The box to read.
  *
  * @returns The point in the middle of it, in the game's coordinates.
  */
-export function centreOfBounds(bounds: CameraBounds): ArxVector3 {
+export function centerOfBounds(bounds: CameraBounds): ArxVector3 {
   return {
     x: (bounds.min.x + bounds.max.x) / 2,
     y: (bounds.min.y + bounds.max.y) / 2,

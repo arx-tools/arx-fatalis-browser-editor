@@ -50,11 +50,11 @@ void describe('jumpTargets', () => {
   })
 
   void it('gives a label to every target', () => {
-    const unlabelled = jumpTargets().filter((target) => {
+    const unlabeled = jumpTargets().filter((target) => {
       return target.label.trim() === ''
     })
 
-    assert.deepEqual(unlabelled, [])
+    assert.deepEqual(unlabeled, [])
   })
 
   void it('gives one id to one target', () => {

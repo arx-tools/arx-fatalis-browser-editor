@@ -143,7 +143,7 @@ const hud = computed(() => {
  * The room of the face under the crosshair, as the readout at the bottom of the view writes it.
  *
  * @remarks
- * It is the room the room map highlights, so the words and the colour say the same thing: the name follows the number
+ * It is the room the room map highlights, so the words and the color say the same thing: the name follows the number
  * when the author gave one (the pair the room list shows). The line is empty while the room map is off, and while the
  * crosshair points at no face or at a face without a room, so the view says nothing there.
  */
@@ -184,11 +184,11 @@ let spikeEntity: Group | undefined
 let portalLines: PortalOverlay | undefined
 
 /**
- * The revision of the rooms the colours of the room map were written from.
+ * The revision of the rooms the colors of the room map were written from.
  *
  * @remarks
- * A move of the faces into another room does not change the geometry, so the buffers can not tell that the colours are
- * stale: the revision of the rooms does (2026-11-15, the owner: the corner moved into a new room stayed grey).
+ * A move of the faces into another room does not change the geometry, so the buffers can not tell that the colors are
+ * stale: the revision of the rooms does (2026-11-15, the owner: the corner moved into a new room stayed gray).
  */
 let paintedRoomRevision = roomRevision.value
 let selection: PolygonSelectionOverlay | undefined
@@ -295,7 +295,7 @@ const unregisterDynamicLights = registerDynamicLightsView(
 )
 
 /**
- * Recolours the outline of the face under the crosshair when a modifier key goes down or up.
+ * Recolors the outline of the face under the crosshair when a modifier key goes down or up.
  *
  * @param event The key event of the window.
  */
@@ -366,7 +366,7 @@ function createScene(): void {
  *
  * @remarks
  * The two faces of the level are exclusive: the textured mesh is what the game draws, and the room map is the flat
- * colour of the rooms, so only one of them is on at a time. The mesh switch of the key help turns off both.
+ * color of the rooms, so only one of them is on at a time. The mesh switch of the key help turns off both.
  */
 function updateVisibility(): void {
   const visible = isMeshVisible.value
@@ -380,8 +380,8 @@ function updateVisibility(): void {
     rooms.mesh.visible = showRooms
   }
 
-  // the line reads the flat colour of the texture of its face: on the room map and with the mesh off there is no
-  // texture under it, so the plain grey stays
+  // the line reads the flat color of the texture of its face: on the room map and with the mesh off there is no
+  // texture under it, so the plain gray stays
   wireframe?.setColored(visible && !isRoomColorsVisible.value)
 
   // the outline of the portals sits under the same switch as the room map: it shows where the game joins two rooms,
@@ -390,13 +390,13 @@ function updateVisibility(): void {
 }
 
 /**
- * Recolours the room map after an edit.
+ * Recolors the room map after an edit.
  *
  * @remarks
- * An edit refills the geometry of the level in place: the colour attribute of the room map is not refilled with it,
- * so the map is coloured again when its vertex count no longer matches the geometry. A texture or a uv edit does not
+ * An edit refills the geometry of the level in place: the color attribute of the room map is not refilled with it,
+ * so the map is colored again when its vertex count no longer matches the geometry. A texture or a uv edit does not
  * change the vertex buffers, so the map is not read again for it — but a move of the faces into another room does not
- * change them either, and the colours of the rooms are stale after it: the revision of the rooms tells that.
+ * change them either, and the colors of the rooms are stale after it: the revision of the rooms tells that.
  */
 function repaintRooms(): void {
   const map = loadedMap
@@ -422,12 +422,12 @@ function repaintRooms(): void {
 }
 
 /**
- * Writes the rooms the room map keeps at full colour into the overlay.
+ * Writes the rooms the room map keeps at full color into the overlay.
  *
  * @remarks
  * The lit set is the selection, the hover of the room inspector and the room under the crosshair ({@link litRooms}),
  * so every view of the map shows the same rooms. The map is the only thing the highlight paints: while it is off the
- * set can change (the camera walks into another room), and repainting the vertex colours for it would be wasted work.
+ * set can change (the camera walks into another room), and repainting the vertex colors for it would be wasted work.
  */
 function applyRoomHighlight(): void {
   if (rooms === undefined || !isRoomColorsVisible.value) {
@@ -462,18 +462,18 @@ function showMap(map: ArxMap): void {
   applyRoomHighlight()
   view.scene.add(rooms.mesh)
 
-  // the wireframe is a switch: the view puts it over the mesh only while it is on, and every line takes the colour of
-  // the flat colour of the texture of its face
+  // the wireframe is a switch: the view puts it over the mesh only while it is on, and every line takes the color of
+  // the flat color of the texture of its face
   wireframe = attachWireframe(view.scene, map.wireframeGeometry, {
     colored: true,
-    grey: WIREFRAME_WITHOUT_MESH,
+    gray: WIREFRAME_WITHOUT_MESH,
   })
   wireframe.setVisible(isWireframeVisible.value)
 
   // the portal outline has no geometry in the level: it is built from the list of the portals, over the same space
   portalLines = attachPortalLines(view.scene, map.fts.portals, arxVector3toVector3(map.scenePosition))
 
-  // the lights of the LLF: a sparkle for each, at the place of the light, with the colour and the fallStart of it
+  // the lights of the LLF: a sparkle for each, at the place of the light, with the color and the fallStart of it
   lightTextures = createLightMarkerTextures()
   lightMarkers = createLightMarkers(map.lights, lightTextures)
   lightMarkers.visible = isLightsVisible.value
@@ -486,7 +486,7 @@ function showMap(map: ArxMap): void {
   view.scene.add(lightSelection.group)
 
   // the switches read the wireframe too (its lines follow the mesh), so they come after it is there: a fresh load
-  // with the mesh on then starts in the inverted look, not in the grey of a hidden level
+  // with the mesh on then starts in the inverted look, not in the gray of a hidden level
   updateVisibility()
 
   loadedMap = map
@@ -671,7 +671,7 @@ onMounted(() => {
   })
 
   // a replay of the stored steps writes the rooms without a level revision (only the room revision moves): the room map
-  // has to be painted again for it, or a map that came back from the storage stays in the colour of the empty rooms
+  // has to be painted again for it, or a map that came back from the storage stays in the color of the empty rooms
   stopWatchingRoomRevision = watch(roomRevision, () => {
     repaintRooms()
     loop.requestRender()
@@ -684,7 +684,7 @@ onMounted(() => {
   })
 
   // the light markers are a switch too: the sparkles stay in the scene, and the switch takes them off the frame
-  // the light markers follow both the switch and an edit of a light: the shape comes from the flags, and the colour, the
+  // the light markers follow both the switch and an edit of a light: the shape comes from the flags, and the color, the
   // size and the place from the fields (the light editor and the history steps of a light bump the revision)
   stopWatchingLights = watch(
     [
@@ -745,7 +745,7 @@ onMounted(() => {
 
   stopWatchingRooms = watch(isRoomColorsVisible, () => {
     updateVisibility()
-    // the fill gets its grey base with the map, so a switch of the map repaints the selection too
+    // the fill gets its gray base with the map, so a switch of the map repaints the selection too
     dragSelection.updateHighlight()
     // the highlight of the map joins the switch: it is painted only while the map is on
     applyRoomHighlight()
@@ -761,7 +761,7 @@ onMounted(() => {
     loop.requestRender()
   })
 
-  // the groups colour the fill (the red of a locked group) and the phantom of the crosshair: making or taking apart a
+  // the groups color the fill (the red of a locked group) and the phantom of the crosshair: making or taking apart a
   // group changes the picture without touching the selection (2026-11-18, the owner)
   stopWatchingGroups = watch(activeFaceGroups, () => {
     dragSelection.updateHighlight()

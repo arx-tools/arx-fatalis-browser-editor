@@ -126,15 +126,15 @@ test('the new room button makes a room of the selected faces, and the undo takes
 })
 
 /**
- * The list of the room inspector is a coloured list, and a search narrows it (TODO 180, from the room mapper).
+ * The list of the room inspector is a colored list, and a search narrows it (TODO 180, from the room mapper).
  *
  * @remarks
- * The rows are the rooms the room map paints, with the colour of the map and the count of their faces. The search reads
+ * The rows are the rooms the room map paints, with the color of the map and the count of their faces. The search reads
  * the number and the name of a room, the list says when nothing matches, and the clear button empties the field. A `3`
  * typed into the field is a character, not the scale gizmo: the field is a field, and a hotkey must not eat its keys
  * (2026-11-15, the owner could not type a 3 into the search).
  */
-test('the room inspector lists the rooms with the colour of the map, and the search narrows them', async ({ page }) => {
+test('the room inspector lists the rooms with the color of the map, and the search narrows them', async ({ page }) => {
   test.setTimeout(120_000)
 
   await seedLayout(page, roomsLayout)
@@ -148,7 +148,7 @@ test('the room inspector lists the rooms with the colour of the map, and the sea
 
   expect(await rows.count()).toBeGreaterThan(1)
 
-  // the row of a room reads the number, the count of the faces, and the colour of the room map
+  // the row of a room reads the number, the count of the faces, and the color of the room map
   const first = rows.filter({ hasText: /room 1(?!\d)/u }).first()
 
   await expect(first).toContainText('room 1')
@@ -335,7 +335,7 @@ test('the pointer previews a room, and the row picks it without a checkbox', asy
  * The view writes the room under the crosshair at the bottom of the canvas while the room map is on.
  *
  * @remarks
- * The map is the overlay that colours the rooms: the line names the room the crosshair is in, so the number and the
+ * The map is the overlay that colors the rooms: the line names the room the crosshair is in, so the number and the
  * bright room of the map say the same thing. It stays away while the map is off. The number of the room comes from the
  * washed row of the list, which follows the crosshair without the map.
  */

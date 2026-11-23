@@ -91,31 +91,31 @@ type PixelImage = {
 }
 
 /**
- * Copies the colour of an opaque neighbour into a transparent pixel.
+ * Copies the color of an opaque neighbor into a transparent pixel.
  *
  * @remarks
  * A texture filter mixes the pixels around a hole, and a black one would draw a dark border around it: the pixel takes
- * the colour of one of its neighbours that is not a hole (the game does the same, `Image::applyColorKeyToAlpha`).
+ * the color of one of its neighbors that is not a hole (the game does the same, `Image::applyColorKeyToAlpha`).
  *
  * @param image The pixels of the image.
  * @param x The column of the transparent pixel.
  * @param y The row of the transparent pixel.
  */
-function copyNeighbourColour(image: PixelImage, x: number, y: number): void {
+function copyNeighborColor(image: PixelImage, x: number, y: number): void {
   const { pixels, width, height } = image
   const row = y * width
   const offset = (row + x) * 4
 
   for (let ny = Math.max(0, y - 1); ny <= Math.min(height - 1, y + 1); ny = ny + 1) {
-    const neighbourRow = ny * width
+    const neighborRow = ny * width
 
     for (let nx = Math.max(0, x - 1); nx <= Math.min(width - 1, x + 1); nx = nx + 1) {
-      const neighbour = (neighbourRow + nx) * 4
+      const neighbor = (neighborRow + nx) * 4
 
-      if (pixels[neighbour + 3] !== 0) {
-        pixels[offset] = pixels[neighbour]
-        pixels[offset + 1] = pixels[neighbour + 1]
-        pixels[offset + 2] = pixels[neighbour + 2]
+      if (pixels[neighbor + 3] !== 0) {
+        pixels[offset] = pixels[neighbor]
+        pixels[offset + 1] = pixels[neighbor + 1]
+        pixels[offset + 2] = pixels[neighbor + 2]
 
         return
       }
@@ -124,7 +124,7 @@ function copyNeighbourColour(image: PixelImage, x: number, y: number): void {
 }
 
 /**
- * Cuts the colour key of a BMP into the alpha channel of its pixels.
+ * Cuts the color key of a BMP into the alpha channel of its pixels.
  *
  * @remarks
  * The textures of the game are 24-bit BMPs without an alpha channel, and the game reads the **black** pixels as the
@@ -132,14 +132,14 @@ function copyNeighbourColour(image: PixelImage, x: number, y: number): void {
  * fence, the windows of a door. A browser decodes such a file as an image without alpha, so the editor has to do what
  * the game does: a black pixel becomes transparent.
  *
- * A transparent pixel takes the colour of an opaque **neighbour** (the game does the same), because a texture filter
+ * A transparent pixel takes the color of an opaque **neighbor** (the game does the same), because a texture filter
  * that mixes a black pixel into a lit one would draw a dark border around every hole.
  *
  * @param pixels The pixels of the image, RGBA, four bytes each.
  * @param width The width of the image, in pixels.
  * @param height The height of the image, in pixels.
  */
-export function applyColourKey(pixels: Uint8ClampedArray, width: number, height: number): void {
+export function applyColorKey(pixels: Uint8ClampedArray, width: number, height: number): void {
   let keyed = false
 
   for (let offset = 0; offset < pixels.length; offset = offset + 4) {
@@ -155,7 +155,7 @@ export function applyColourKey(pixels: Uint8ClampedArray, width: number, height:
     return
   }
 
-  // the transparent pixels take the colour of an opaque neighbour, so a filter does not mix black into a lit pixel
+  // the transparent pixels take the color of an opaque neighbor, so a filter does not mix black into a lit pixel
   for (let y = 0; y < height; y = y + 1) {
     const row = y * width
 
@@ -163,7 +163,7 @@ export function applyColourKey(pixels: Uint8ClampedArray, width: number, height:
       const offset = (row + x) * 4
 
       if (pixels[offset + 3] === 0) {
-        copyNeighbourColour({ pixels, width, height }, x, y)
+        copyNeighborColor({ pixels, width, height }, x, y)
       }
     }
   }
@@ -173,13 +173,13 @@ export function applyColourKey(pixels: Uint8ClampedArray, width: number, height:
  * Decodes the bytes of a texture.
  *
  * @remarks
- * The colour key of a BMP can only be cut into the pixels of the image, and the canvas is where the pixels of a decoded
+ * The color key of a BMP can only be cut into the pixels of the image, and the canvas is where the pixels of a decoded
  * image can be read and written back: a decoded `ImageBitmap` has no pixels of its own to touch.
  *
  * @param name The name of the texture, for the format the bytes do not tell.
  * @param bytes The bytes of the file.
  *
- * @returns The image of the texture, with the colour key of its file when it is a BMP.
+ * @returns The image of the texture, with the color key of its file when it is a BMP.
  *
  * @throws When the browser can not decode the file.
  */
@@ -205,7 +205,7 @@ export async function decodeTextureBitmap(name: string, bytes: ArrayBuffer): Pro
 
   const image = context.getImageData(0, 0, canvas.width, canvas.height)
 
-  applyColourKey(image.data, image.width, image.height)
+  applyColorKey(image.data, image.width, image.height)
   context.putImageData(image, 0, 0)
 
   return await createImageBitmap(canvas)
@@ -252,7 +252,7 @@ export function thumbnailUrlOf(bitmap: ImageBitmap, size = THUMBNAIL_SIZE): stri
 }
 
 /**
- * Reads the average colour of the pixels of an image.
+ * Reads the average color of the pixels of an image.
  *
  * @remarks
  * The average is what the flat mode of the game paints a face with, and the editor reads it for a texture the table of
@@ -301,10 +301,10 @@ export function averageColorOfPixels(pixels: Uint8ClampedArray, width: number, h
 const AVERAGE_SIZE = 64
 
 /**
- * Reads the average colour of a decoded image, through a canvas.
+ * Reads the average color of a decoded image, through a canvas.
  *
  * @remarks
- * A decoded image has no pixels of its own to read: the canvas is where they can be read, the same way the colour key
+ * A decoded image has no pixels of its own to read: the canvas is where they can be read, the same way the color key
  * of a BMP is cut (see `decodeTextureBitmap`).
  *
  * @param image The decoded image.

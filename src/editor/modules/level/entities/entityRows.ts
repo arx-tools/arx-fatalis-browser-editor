@@ -6,7 +6,7 @@ import type { ArxMap } from '../../../../generator/ArxMap.ts'
  *
  * @remarks
  * The same distance the light inspector jumps with (2026-11-22, the owner: 300 units is fine for the first round): the
- * entity lands in the middle of the view the camera already looks towards.
+ * entity lands in the middle of the view the camera already looks toward.
  */
 export const ENTITY_JUMP_DISTANCE = 300
 

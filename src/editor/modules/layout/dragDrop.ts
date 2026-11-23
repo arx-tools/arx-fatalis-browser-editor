@@ -190,7 +190,7 @@ class DragSession {
   /**
    * Waits for the release of the pointer.
    *
-   * @returns The drop target under the pointer at release, or `null` when the drag was cancelled.
+   * @returns The drop target under the pointer at release, or `null` when the drag was canceled.
    */
   async run(): Promise<DropTarget | null> {
     const promise = new Promise<DropTarget | null>((resolve) => {
@@ -209,7 +209,7 @@ class DragSession {
   /**
    * Cleans up the drag and hands the result to the caller.
    *
-   * @param result The drop target at release, or `null` when the drag was cancelled.
+   * @param result The drop target at release, or `null` when the drag was canceled.
    */
   private settle(result: DropTarget | null): void {
     if (this.settled) {
@@ -340,11 +340,11 @@ class DragSession {
 }
 
 /**
- * Runs a widget drag until the pointer is released or the drag is cancelled with `Escape`.
+ * Runs a widget drag until the pointer is released or the drag is canceled with `Escape`.
  *
  * @param options Where the pointer was, the dock, the dragged widget and the label of the ghost.
  *
- * @returns The drop target under the pointer at release, or `null` when the drag was cancelled.
+ * @returns The drop target under the pointer at release, or `null` when the drag was canceled.
  */
 export async function dragWidget(options: DragOptions): Promise<DropTarget | null> {
   const session = new DragSession(options)

@@ -169,7 +169,7 @@ function isToggleEnabled(row: HelpRow): boolean {
  *
  * @param row The row to read.
  *
- * @returns True when the row has a switch under a switch that is off: the row then greys out, so it reads as one
+ * @returns True when the row has a switch under a switch that is off: the row then grays out, so it reads as one
  * block that is waiting for its parent.
  */
 function isRowDisabled(row: HelpRow): boolean {
@@ -312,7 +312,7 @@ function toggleTitle(row: HelpRow): string {
       background: $surface-panel;
     }
 
-    // at the default state there is nothing to put back: the button is greyed out and does not react
+    // at the default state there is nothing to put back: the button is grayed out and does not react
     &:disabled {
       color: $text-subtle;
       background: rgba($surface-app, 0.4);
@@ -349,7 +349,7 @@ function toggleTitle(row: HelpRow): string {
     padding-bottom: 4px;
   }
 
-  // a child of a switch that is off: the whole row greys out, so it reads as one block that waits for its parent
+  // a child of a switch that is off: the whole row grays out, so it reads as one block that waits for its parent
   dt.is-disabled,
   dd.is-disabled {
     opacity: 0.45;

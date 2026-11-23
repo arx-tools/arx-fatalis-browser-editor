@@ -1,10 +1,10 @@
 <script setup lang="ts">
 /**
- * The palette of the editor, token by token: a chip of the colour and the name of the token.
+ * The palette of the editor, token by token: a chip of the color and the name of the token.
  *
  * @remarks
- * A story-only view: the editor never mounts it, it is here so a new colour is picked from the tokens and not from a raw
- * value. The chips take the colour from the same `palette.scss` the widgets use.
+ * A story-only view: the editor never mounts it, it is here so a new color is picked from the tokens and not from a raw
+ * value. The chips take the color from the same `palette.scss` the widgets use.
  */
 const groups = [
   {

@@ -47,7 +47,7 @@ function splitRooms(map: ArxMap): ArxMap {
 }
 
 /**
- * Reads the centre of a room.
+ * Reads the center of a room.
  *
  * @param map The level to read.
  * @param room The room to measure.

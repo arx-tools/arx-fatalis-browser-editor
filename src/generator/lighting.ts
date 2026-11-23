@@ -33,16 +33,16 @@ export type LightingOptions = {
    * The light of the `Flat` profile, from 0 (dark) to 1 (the brightest), in steps of 0.1 on the widget.
    *
    * @remarks
-   * The flat light is one grey for every corner: the slider of the widget sets it, and 0 and 1 are the old darkness and
+   * The flat light is one gray for every corner: the slider of the widget sets it, and 0 and 1 are the old darkness and
    * maximum brightness.
    */
   readonly flatLuminosity?: number
   /**
-   * The value of the colours of the `TextureRainbow` profile, from 0 (black) to 1 (the full colour of the hue).
+   * The value of the colors of the `TextureRainbow` profile, from 0 (black) to 1 (the full color of the hue).
    *
    * @remarks
    * The profile draws a hue per texture container, and this is the value of every one of them: the slider of the widget
-   * sets it, so a darker level keeps the colours of the containers, just darker.
+   * sets it, so a darker level keeps the colors of the containers, just darker.
    *
    * @default 1
    */
@@ -56,7 +56,7 @@ export type LightingOptions = {
    */
   readonly occluders?: readonly Mesh[]
   /**
-   * The lowest value of a baked colour, from 0 to 255.
+   * The lowest value of a baked color, from 0 to 255.
    *
    * @remarks
    * The `Realistic` profile has no floor by default, so a shadowed vertex goes to black; the game's own palette never
@@ -89,7 +89,7 @@ const GLOBAL_LIGHT_FACTOR = 0.85
 const RAINBOW_SATURATION = 0.75
 
 /**
- * The number of colours a polygon owns in the palette: one per corner, so three or four.
+ * The number of colors a polygon owns in the palette: one per corner, so three or four.
  *
  * @param polygon The face to read.
  *
@@ -152,13 +152,13 @@ function falloffOf(light: ArxLight, distance: number): number | undefined {
 }
 
 /**
- * Turns a hue, a saturation and a value into a colour of 0..255.
+ * Turns a hue, a saturation and a value into a color of 0..255.
  *
  * @param hue The hue, in degrees.
  * @param saturation The saturation, from 0 to 1.
  * @param value The brightness, from 0 to 1.
  *
- * @returns The colour.
+ * @returns The color.
  */
 function hsvToRgb(hue: number, saturation: number, value: number): ArxColor {
   const chroma = value * saturation
@@ -207,9 +207,9 @@ function hsvToRgb(hue: number, saturation: number, value: number): ArxColor {
  *
  * @param fts The scene of the level.
  * @param llf The lighting of the level.
- * @param luminosity The value of the colours, from 0 (black) to 1 (the full colour of the hue).
+ * @param luminosity The value of the colors, from 0 (black) to 1 (the full color of the hue).
  *
- * @returns The palette, one colour per entry.
+ * @returns The palette, one color per entry.
  */
 function bakeTextureRainbow(fts: ArxFTS, llf: ArxLLF, luminosity: number): ArxColor[] {
   const containers = fts.textureContainers
@@ -435,7 +435,7 @@ function buildLightGridOf(
  * Tells whether two lists of lights stand where the grid was built.
  *
  * @remarks
- * The place and the reach of every light are what the cells hold. The colour and the intensity of a
+ * The place and the reach of every light are what the cells hold. The color and the intensity of a
  * light do not move it, so a drag of them keeps the grid of the level.
  *
  * @param one The lights the grid was built from.
@@ -506,7 +506,7 @@ function lightGridOf(
 }
 
 /**
- * The lowest value of a baked colour for a profile.
+ * The lowest value of a baked color for a profile.
  *
  * @param mode The profile of the bake.
  * @param ambientFloor The setting of the realistic profile.
@@ -571,7 +571,7 @@ type CornerBake = {
    */
   readonly factor: number
   /**
-   * The lowest value of the baked colour.
+   * The lowest value of the baked color.
    */
   readonly ambient: number
   /**
@@ -659,13 +659,13 @@ function isBlocked(options: CornerBake, from: Vector3, distance: number): boolea
 }
 
 /**
- * Bakes the colour of one corner from the lights.
+ * Bakes the color of one corner from the lights.
  *
  * @param options What the bake of the corner reads, with the corner in {@link CornerBake.position} and its normal in
  * {@link CornerBake.normal}.
  * @param doubleSided Whether the face is drawn from both sides, so the normal turned away still takes the light.
  *
- * @returns The colour, with the ambient floor of the profile.
+ * @returns The color, with the ambient floor of the profile.
  */
 function bakeCornerOf(options: CornerBake, doubleSided: boolean): ArxColor {
   let red = 0
@@ -870,7 +870,7 @@ function moveCornerOf(context: BakeContext, scenePosition: ArxVector3, polygon: 
  * @param llf The lighting of the level.
  * @param options The profile of the bake and what it reads.
  *
- * @returns The steps, and at the end the colours of the palette.
+ * @returns The steps, and at the end the colors of the palette.
  */
 function* bakeLlfColorsSteps(fts: ArxFTS, llf: ArxLLF, options: LightingOptions): Generator<void, ArxColor[], void> {
   if (options.mode === 'MaxBrightness') {
@@ -944,7 +944,7 @@ function* bakeLlfColorsSteps(fts: ArxFTS, llf: ArxLLF, options: LightingOptions)
  * @param llf The lighting of the level, with the lights and the palette.
  * @param options The profile of the bake and what it reads.
  *
- * @returns The colours of the palette, one for every entry of the lighting.
+ * @returns The colors of the palette, one for every entry of the lighting.
  */
 export function bakeLlfColors(fts: ArxFTS, llf: ArxLLF, options: LightingOptions): ArxColor[] {
   const steps = bakeLlfColorsSteps(fts, llf, options)
@@ -969,7 +969,7 @@ export function bakeLlfColors(fts: ArxFTS, llf: ArxLLF, options: LightingOptions
  * @param llf The lighting of the level, with the lights and the palette.
  * @param options The profile of the bake and what it reads.
  *
- * @returns The colours of the palette, when every chunk is done.
+ * @returns The colors of the palette, when every chunk is done.
  */
 export async function bakeLlfColorsInChunks(fts: ArxFTS, llf: ArxLLF, options: LightingOptions): Promise<ArxColor[]> {
   const steps = bakeLlfColorsSteps(fts, llf, options)
@@ -1007,7 +1007,7 @@ export type CornerSpots = {
    */
   readonly doubleSided: Uint8Array
   /**
-   * The palette entry of every corner, or `-1` when the corner takes no colour from the palette.
+   * The palette entry of every corner, or `-1` when the corner takes no color from the palette.
    */
   readonly paletteIndexes: Int32Array
 }
@@ -1021,7 +1021,7 @@ export type CornerSpots = {
  * the corners the light **before** the edit and the light **after** it reach, because a light that shrinks or moves
  * away has to give its old corners back to the other lights).
  *
- * The colour of an entry is the one the full bake would write: every corner is baked from **all** the lights of the
+ * The color of an entry is the one the full bake would write: every corner is baked from **all** the lights of the
  * level, with the same math and in the same order ({@link bakeCornerOf}), and the lights a corner can not take are
  * filtered out by the grid of the level ({@link LightGrid}).
  *
@@ -1033,7 +1033,7 @@ export type CornerSpots = {
  * @param spots The corners of the level, in the frame of the scene.
  * @param entries The corners to bake, by their entry in the spots.
  *
- * @returns The new colour of every affected palette entry, by its index in the palette.
+ * @returns The new color of every affected palette entry, by its index in the palette.
  */
 export function bakeLlfColorsAt(
   llf: ArxLLF,

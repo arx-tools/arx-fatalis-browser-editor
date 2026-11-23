@@ -190,7 +190,7 @@ export const keyboardActions: readonly KeyboardAction[] = [
     id: 'undo',
     label: 'Undo',
     group: 'history',
-    // the character, not the physical key: on the Hungarian (QWERTZ) layout the key labelled Z sits where a US
+    // the character, not the physical key: on the Hungarian (QWERTZ) layout the key labeled Z sits where a US
     // keyboard has Y, and the user presses the label
     keys: [{ key: 'z', mods: ['primary'] }],
   },

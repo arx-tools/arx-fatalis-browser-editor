@@ -98,7 +98,7 @@ export function directoryPickerOf(): DirectoryPicker | undefined {
  *
  * @param picker The picker of the browser, the one of the page by default.
  *
- * @returns The folder, or `undefined` when the browser has no picker or the user cancelled it.
+ * @returns The folder, or `undefined` when the browser has no picker or the user canceled it.
  */
 export async function pickDirectory(
   picker: DirectoryPicker | undefined = directoryPickerOf(),

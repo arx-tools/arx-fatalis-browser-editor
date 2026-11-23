@@ -146,7 +146,7 @@ test('the redo follows the label on the key, not the position of a US keyboard',
     })
     .toBeLessThan(before ?? 0)
 
-  // a Hungarian keyboard is QWERTZ: the key labelled Z sits where a US keyboard has Y, so the browser reports
+  // a Hungarian keyboard is QWERTZ: the key labeled Z sits where a US keyboard has Y, so the browser reports
   // `key: 'z'` with `code: 'KeyY'`. The editor has to follow the label, so this is the undo.
   await page.locator('[data-widget-kind="keyboard-shortcuts"]').evaluate((element) => {
     element.ownerDocument.defaultView?.dispatchEvent(

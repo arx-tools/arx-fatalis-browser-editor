@@ -55,7 +55,7 @@ export type UvMapperDragContext = {
    */
   readonly corners: ShallowRef<readonly UvPoint[]>
   /**
-   * What the square draws: the size, the zoom and the place the view is centred on.
+   * What the square draws: the size, the zoom and the place the view is centered on.
    */
   readonly view: ShallowRef<UvView>
   /**
@@ -67,9 +67,9 @@ export type UvMapperDragContext = {
    */
   readonly zoom: ShallowRef<number>
   /**
-   * The uv the square is centred on: the drag of the texture moves it.
+   * The uv the square is centered on: the drag of the texture moves it.
    */
-  readonly centre: ShallowRef<UvPoint>
+  readonly center: ShallowRef<UvPoint>
   /**
    * Whether the texture is being dragged.
    */
@@ -160,7 +160,7 @@ export function useUvMapperDrag(context: UvMapperDragContext): UvMapperDrag {
     view,
     size,
     zoom,
-    centre,
+    center,
     panning,
     overFace,
     dragged,
@@ -344,7 +344,7 @@ export function useUvMapperDrag(context: UvMapperDragContext): UvMapperDrag {
         return
       }
 
-      centre.value = pannedBy(centre.value, { x: point.x - from.x, y: point.y - from.y }, size.value, zoom.value)
+      center.value = pannedBy(center.value, { x: point.x - from.x, y: point.y - from.y }, size.value, zoom.value)
       panFrom = point
       reframe()
     },

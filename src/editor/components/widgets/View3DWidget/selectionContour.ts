@@ -35,7 +35,7 @@ export type SelectionContour = {
    * Outlines these faces, or takes the outline away.
    *
    * @param polygons The faces to outline; an empty list takes the contour away.
-   * @param mode The mode of the click that is about to happen; it colours the contour.
+   * @param mode The mode of the click that is about to happen; it colors the contour.
    */
   readonly set: (polygons: readonly ArxPolygon[], mode: SelectionMode) => void
   /**
@@ -67,7 +67,7 @@ void main() {
  *
  * @remarks
  * The mask is white where the faces are and black where they are not, and the texture of the target is filtered, so the
- * edge of the mask is a band of a few pixels. The difference of the neighbours is high on that band and zero inside and
+ * edge of the mask is a band of a few pixels. The difference of the neighbors is high on that band and zero inside and
  * outside it, which is the line: the author sees the outline of the faces, a few pixels of the picture wide.
  */
 const CONTOUR_FRAGMENT_SHADER = `
@@ -89,13 +89,13 @@ void main() {
 `
 
 /**
- * The colour of the contour of a mode.
+ * The color of the contour of a mode.
  *
  * @param mode The mode of the click that is about to happen: green adds, red takes away.
  *
- * @returns The colour, as three numbers of red, green and blue.
+ * @returns The color, as three numbers of red, green and blue.
  */
-function colourOf(mode: SelectionMode): readonly [number, number, number] {
+function colorOf(mode: SelectionMode): readonly [number, number, number] {
   if (mode === 'remove') {
     return [1, 0, 0]
   }
@@ -175,10 +175,10 @@ export function createSelectionContour(renderer: WebGLRenderer, offset: Vector3)
 
       mask.geometry = polygonFillGeometry(polygons, offset)
 
-      const colour = colourOf(mode)
+      const color = colorOf(mode)
       const uniform = material.uniforms.color as { value: ThreeColor }
 
-      uniform.value.setRGB(colour[0], colour[1], colour[2])
+      uniform.value.setRGB(color[0], color[1], color[2])
     },
     render: (camera: Camera): void => {
       if (polygons.length === 0) {

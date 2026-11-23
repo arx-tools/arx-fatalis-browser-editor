@@ -71,7 +71,7 @@ export function worldPositionToGame(world: Vector3, scene: ArxVector3): ArxVecto
  *
  * @remarks
  * The camera is flipped by 180 degrees on the vertical axis, because the game's forward is `+Z` and
- * three.js looks towards `-Z`; the pitch is negated for the same reason (a positive game pitch looks
+ * three.js looks toward `-Z`; the pitch is negated for the same reason (a positive game pitch looks
  * down). The roll is not wired in: the editor's camera has no roll.
  *
  * @param camera The camera to turn.

@@ -11,7 +11,7 @@ void describe('averageColorOfPixels', () => {
   })
 
   void it('leaves the transparent pixels out', () => {
-    // the second pixel is transparent: its colour, even a white one, is not part of the average of the fence
+    // the second pixel is transparent: its color, even a white one, is not part of the average of the fence
     const pixels = new Uint8ClampedArray([10, 20, 30, 255, 255, 255, 255, 0])
 
     assert.deepEqual(averageColorOfPixels(pixels, 2, 1), [10, 20, 30])

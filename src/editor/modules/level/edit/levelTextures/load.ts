@@ -204,7 +204,7 @@ export async function zipImageNames(data: ArrayBuffer): Promise<string[]> {
  * Makes the texture of a decoded image.
  *
  * @remarks
- * The image becomes a texture the way the game reads it: the colours are sRGB (`SRGBColorSpace`), and the texture
+ * The image becomes a texture the way the game reads it: the colors are sRGB (`SRGBColorSpace`), and the texture
  * repeats (`RepeatWrapping`), because the coordinates of an Arx polygon run past one on a wall. Every texture of the
  * editor comes through here — the ones of a zip, the ones of the data directory and the ones the user drops — so the
  * filtering is the same wherever the file came from.
@@ -233,21 +233,21 @@ export function createLevelTexture(image: TexImageSource): Texture {
  * @returns The textures, by the same names. A file the browser can not decode is left out.
  */
 /**
- * Learns the flat colour of a texture the table of the game does not know, from the average of its own pixels.
+ * Learns the flat color of a texture the table of the game does not know, from the average of its own pixels.
  *
  * @remarks
  * A level may bring its own textures (the zip of a custom level, a file the user drops, a texture of a modded data
- * directory): the table of the game has no colour for those, so the editor reads the average of the decoded image and
- * registers it. The wireframe takes the colour of the texture from the registry (see `flatColors.ts`), and the level
- * writes its lines again when a colour it did not have arrives (the caller of this function is the texture loading).
+ * directory): the table of the game has no color for those, so the editor reads the average of the decoded image and
+ * registers it. The wireframe takes the color of the texture from the registry (see `flatColors.ts`), and the level
+ * writes its lines again when a color it did not have arrives (the caller of this function is the texture loading).
  *
- * A texture the table knows keeps the colour of the table: the files of the game are what the table was made from, and
+ * A texture the table knows keeps the color of the table: the files of the game are what the table was made from, and
  * a level of the game loads dozens of them.
  *
  * @param name The name the level calls the texture.
  * @param image The decoded image.
  *
- * @returns True when a colour was registered, so the caller can write the colours of the wireframe again.
+ * @returns True when a color was registered, so the caller can write the colors of the wireframe again.
  */
 export function learnFlatColorOfTexture(name: string, image: CanvasImageSource): boolean {
   if (hasGameFlatColor(name)) {
@@ -297,9 +297,9 @@ let missingTexture: Texture | undefined
  *
  * @remarks
  * The textures of the game itself are not in a zip of the generator, so a level opened from a zip would show a flat
- * grey where they belong. The placeholder of the generator (`jorge-[stone].jpg`, the texture `Texture.missingTexture`
+ * gray where they belong. The placeholder of the generator (`jorge-[stone].jpg`, the texture `Texture.missingTexture`
  * of the Arx Level Generator puts under a new map) says "a texture belongs here" and tiles over the surface, so the
- * level reads as a level and not as a patchwork of grey.
+ * level reads as a level and not as a patchwork of gray.
  *
  * @returns The texture of {@link BLANK_LEVEL_TEXTURE}.
  *

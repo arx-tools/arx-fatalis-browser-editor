@@ -32,7 +32,7 @@ const CAMERA_POSE = { x: '715.68', y: '-389.28', z: '628.50', pitch: '55.62', ya
  *
  * @remarks
  * The game's Y looks down, and the arrow of the gizmo on the upper side is the negative end of it: dragging it
- * **towards** the middle moves the face down the level, towards the floor of the pit. The arrow is not in the DOM, so
+ * **toward** the middle moves the face down the level, toward the floor of the pit. The arrow is not in the DOM, so
  * the test presses its pixels; the drag ends five units above the pit, inside the twelve pixel threshold.
  */
 const ARROW_AT = { x: 456, y: 332 }
@@ -295,7 +295,7 @@ test('the plane snap lands the face of the hole on the floor of the pit', async 
   await magnet.click()
   await expect(magnet).toHaveAttribute('aria-pressed', 'true')
 
-  // the upper end of the Y axis points up the level: the drag towards the middle goes down it, to the pit
+  // the upper end of the Y axis points up the level: the drag toward the middle goes down it, to the pit
   await page.mouse.move(box.x + ARROW_AT.x, box.y + ARROW_AT.y)
   await page.mouse.down()
   await page.mouse.move(box.x + ARROW_AT.x + DRAG_PIXELS.x, box.y + ARROW_AT.y + DRAG_PIXELS.y, { steps: 6 })

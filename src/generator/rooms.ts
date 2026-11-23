@@ -2,12 +2,12 @@ import type { ArxPolygon, ArxPortal } from 'arx-convert/types'
 import { connectedAreaOf } from './polygons.ts'
 
 /**
- * The colours a room of the room map takes, in the order a colouring picks them.
+ * The colors a room of the room map takes, in the order a coloring picks them.
  *
  * @remarks
- * The first four are the colours of the map colouring problem (a planar map needs at most four), and the rest are
+ * The first four are the colors of the map coloring problem (a planar map needs at most four), and the rest are
  * the fallback: a room graph is a volume adjacency graph, not a planar one, so a level can need more than four
- * (five rooms around the same point is a `K5`). The colours are far apart on the hue circle, because the map is read
+ * (five rooms around the same point is a `K5`). The colors are far apart on the hue circle, because the map is read
  * at a glance and not looked at.
  *
  * They are a step darker than the pure hues (about twelve percent, 2026-11-10, the owner): the first red, green and
@@ -43,31 +43,31 @@ export type RoomLink = {
 }
 
 /**
- * A colouring of the rooms of a level.
+ * A coloring of the rooms of a level.
  */
 export type RoomColoring = {
   /**
-   * The colour of every room, as the index of {@link ROOM_COLORS}.
+   * The color of every room, as the index of {@link ROOM_COLORS}.
    */
   readonly colors: ReadonlyMap<number, number>
   /**
-   * How many colours the colouring uses.
+   * How many colors the coloring uses.
    */
   readonly colorCount: number
 }
 
 /**
- * Builds the graph of the rooms: two rooms are neighbours when a portal joins them.
+ * Builds the graph of the rooms: two rooms are neighbors when a portal joins them.
  *
  * @remarks
- * The graph is what the room features read (the portals of a level as the rooms they join); the colours of the map are
+ * The graph is what the room features read (the portals of a level as the rooms they join); the colors of the map are
  * keyed with the room ids and do not need it (2026-11-15). A portal that joins a room to itself says nothing about the
  * graph and is left out, and so is a portal to a room the level does not have.
  *
  * @param portals The portals of the level.
- * @param rooms The rooms to colour.
+ * @param rooms The rooms to color.
  *
- * @returns The neighbours of every room, in the order of the rooms given.
+ * @returns The neighbors of every room, in the order of the rooms given.
  */
 export function roomAdjacencyOf(portals: readonly RoomLink[], rooms: readonly number[]): Map<number, Set<number>> {
   const known = new Set(rooms)
@@ -85,36 +85,36 @@ export function roomAdjacencyOf(portals: readonly RoomLink[], rooms: readonly nu
       continue
     }
 
-    const firstNeighbours = adjacency.get(first)
-    const secondNeighbours = adjacency.get(second)
+    const firstNeighbors = adjacency.get(first)
+    const secondNeighbors = adjacency.get(second)
 
-    if (firstNeighbours === undefined || secondNeighbours === undefined) {
+    if (firstNeighbors === undefined || secondNeighbors === undefined) {
       continue
     }
 
-    firstNeighbours.add(second)
-    secondNeighbours.add(first)
+    firstNeighbors.add(second)
+    secondNeighbors.add(first)
   }
 
   return adjacency
 }
 
 /**
- * Colours the rooms of a level.
+ * Colors the rooms of a level.
  *
  * @remarks
- * The colour of a room is its **id** in the palette: the room `1` takes the first colour, the room `2` the second, and
+ * The color of a room is its **id** in the palette: the room `1` takes the first color, the room `2` the second, and
  * the palette starts again after its last one. The binding to the id is what keeps the map readable while the level is
- * edited: a room that is deleted takes its colour with it, and the rooms after it keep theirs (2026-11-15, the owner:
- * deleting a room shifted the colours of the others). The palette is shorter than a level's rooms, so the colours come
- * back after it: two rooms far apart in the ids share one, which is the price of a colour that does not move.
+ * edited: a room that is deleted takes its color with it, and the rooms after it keep theirs (2026-11-15, the owner:
+ * deleting a room shifted the colors of the others). The palette is shorter than a level's rooms, so the colors come
+ * back after it: two rooms far apart in the ids share one, which is the price of a color that does not move.
  *
- * The room `0` is the outside of the game's rooms, and it takes the last colour of the palette, so the first room the
- * author sees is the first colour.
+ * The room `0` is the outside of the game's rooms, and it takes the last color of the palette, so the first room the
+ * author sees is the first color.
  *
- * @param rooms The rooms to colour.
+ * @param rooms The rooms to color.
  *
- * @returns The colour of every room, and how many colours the colouring uses.
+ * @returns The color of every room, and how many colors the coloring uses.
  */
 export function roomColoringOf(rooms: readonly number[]): RoomColoring {
   const colors = new Map<number, number>()
@@ -125,7 +125,7 @@ export function roomColoringOf(rooms: readonly number[]): RoomColoring {
       continue
     }
 
-    // the room 1 is the first colour, and the room 0 (the outside) the last one
+    // the room 1 is the first color, and the room 0 (the outside) the last one
     const index = (((room - 1) % palette) + palette) % palette
 
     colors.set(room, index)
@@ -201,7 +201,7 @@ export function roomAreaOf(polygons: readonly ArxPolygon[], room: number): numbe
  * The connected faces that have no room, starting from one of them.
  *
  * @remarks
- * It is the fill of a double click on the room map over a face the file never put into a room (the grey of the map):
+ * It is the fill of a double click on the room map over a face the file never put into a room (the gray of the map):
  * the piece of mesh that is still to be assigned. The walk stops at the first face that belongs to a room, so no face
  * of a room comes along, and the author can give the piece a room of its own without taking anything away.
  *
@@ -255,23 +255,23 @@ export function roomSummaryOf(polygons: readonly ArxPolygon[]): RoomSummary[] {
 }
 
 /**
- * Colours the rooms of a level: the colour of a room is its id in the palette.
+ * Colors the rooms of a level: the color of a room is its id in the palette.
  *
  * @param rooms The rooms the level has a face in.
  *
- * @returns The colour of every room, tied to its id.
+ * @returns The color of every room, tied to its id.
  */
 export function roomColoringForLevel(rooms: readonly number[]): RoomColoring {
   return roomColoringOf(rooms)
 }
 
 /**
- * The colour of one room in a colouring.
+ * The color of one room in a coloring.
  *
  * @param room The room to read.
- * @param coloring The colouring of the level.
+ * @param coloring The coloring of the level.
  *
- * @returns The css colour of the room, or `undefined` when the colouring does not hold it.
+ * @returns The css color of the room, or `undefined` when the coloring does not hold it.
  */
 export function roomPaletteOf(room: number, coloring: RoomColoring): string | undefined {
   const index = coloring.colors.get(room)

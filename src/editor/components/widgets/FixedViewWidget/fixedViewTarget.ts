@@ -61,7 +61,7 @@ export const DEPTH_AXIS_OF: Record<CameraViewMode, 'x' | 'y' | 'z'> = {
  * @remarks
  * Only the two axes the view shows come from the hit; the third one keeps the value the camera has now.
  * A plan view therefore moves the camera on the floor and leaves its height alone, and an elevation keeps
- * its distance from the level: the fixed view never pulls the camera towards itself or pushes it away.
+ * its distance from the level: the fixed view never pulls the camera toward itself or pushes it away.
  *
  * @param mode The direction of the view.
  * @param hit The place of the level under the pointer, in the game's coordinates.
@@ -173,9 +173,9 @@ export function planePointAt(pixel: CanvasPoint, camera: OrthographicCamera, thr
     return undefined
   }
 
-  const centre = camera.position.clone().add(forward.multiplyScalar(distance))
+  const center = camera.position.clone().add(forward.multiplyScalar(distance))
   const halfWidth = pixel.width / 2
   const halfHeight = pixel.height / 2
 
-  return offsetOnPlane(centre, camera, { x: pixel.x - halfWidth, y: pixel.y - halfHeight }, pixel.height)
+  return offsetOnPlane(center, camera, { x: pixel.x - halfWidth, y: pixel.y - halfHeight }, pixel.height)
 }

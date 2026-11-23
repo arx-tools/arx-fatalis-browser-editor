@@ -132,7 +132,7 @@ function getFalloffFactor(light: ArxLight, distance: number): number | undefined
 }
 
 /**
- * The `TextureRainbow` palette: every vertex takes the colour of its polygon's texture container.
+ * The `TextureRainbow` palette: every vertex takes the color of its polygon's texture container.
  * The order of `fts.textureContainers` is the order the textures were added to the level, so the
  * palette runs from red (the first texture) through yellow and green to blue (the last one).
  */
@@ -200,7 +200,7 @@ function collectLights(llf: ArxLLF, mode: LightingCalculatorMode): Array<{ light
 
 /**
  * The ambient floor of the bake: the `Realistic` mode (the Fred `DistanceAngleShadowNoTransparency`
- * behaviour) has none by default, so the shadowed vertices go all the way to 0 and the shadows are
+ * behavior) has none by default, so the shadowed vertices go all the way to 0 and the shadows are
  * solid black. The `ambientFloor` setting (0..64, from the settings / the URL) lifts that: 23 is the
  * floor of the game's original (Danae) palette, which is why the game never looks fully black.
  */

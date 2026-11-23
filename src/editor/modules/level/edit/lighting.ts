@@ -63,7 +63,7 @@ type CachedPalette = {
    */
   readonly version: number
   /**
-   * The colours of the palette.
+   * The colors of the palette.
    */
   readonly colors: readonly ArxColor[]
 }
@@ -83,7 +83,7 @@ const paletteCache = new WeakMap<ArxMap, Map<string, CachedPalette>>()
  * @param map The level the palette belongs to.
  * @param key The profile (and the luminosity) it was baked with.
  *
- * @returns The colours, or `undefined` when the entry is missing or stale.
+ * @returns The colors, or `undefined` when the entry is missing or stale.
  */
 function cachedPaletteOf(map: ArxMap, key: string): readonly ArxColor[] | undefined {
   const entry = paletteCache.get(map)?.get(key)
@@ -104,7 +104,7 @@ function cachedPaletteOf(map: ArxMap, key: string): readonly ArxColor[] | undefi
  *
  * @param map The level the palette belongs to.
  * @param key The profile (and the luminosity) it was baked with.
- * @param colors The colours of the palette.
+ * @param colors The RGB of every entry of the palette.
  */
 function rememberPaletteOf(map: ArxMap, key: string, colors: ArxColor[]): void {
   let byProfile = paletteCache.get(map)
@@ -122,7 +122,7 @@ function rememberPaletteOf(map: ArxMap, key: string, colors: ArxColor[]): void {
  *
  * @remarks
  * The palette is the light of the level, and the material of the mesh is unlit: the bake writes the palette, and the
- * paint of the textures writes the colours of the geometry after it. The `Realistic` profile runs without the shadow
+ * paint of the textures writes the colors of the geometry after it. The `Realistic` profile runs without the shadow
  * rays: the bake with them costs about five seconds on a big level, and the widget has no switch for it yet.
  *
  * The bake runs in chunks (the spinner of the widget shows it), and a bake that a newer profile change or a newer map
@@ -147,7 +147,7 @@ export async function bakeLighting(): Promise<void> {
   const cached = cachedPaletteOf(map, key)
 
   if (cached !== undefined) {
-    // the palette of the profile is already computed: the colours go onto the mesh, and only the paint runs
+    // the palette of the profile is already computed: the colors go onto the mesh, and only the paint runs
     map.llf.colors = [...cached]
     repaintLevelColors()
 
@@ -163,7 +163,7 @@ export async function bakeLighting(): Promise<void> {
   try {
     const colors = await bakeLlfColorsInChunks(map.fts, map.llf, paletteBakeOptionsOf(map))
 
-    // a newer profile or a newer map owns the palette: the colours of this bake are stale
+    // a newer profile or a newer map owns the palette: the colors of this bake are stale
     if (generation !== bakeGeneration) {
       return
     }
@@ -171,7 +171,7 @@ export async function bakeLighting(): Promise<void> {
     map.llf.colors = colors
     rememberPaletteOf(map, key, colors)
 
-    // the repaint paints the baked colours and the textures again; the bump of the paint asks the views for a render
+    // the repaint paints the baked colors and the textures again; the bump of the paint asks the views for a render
     repaintLevelColors()
   } finally {
     if (generation === bakeGeneration) {
@@ -186,7 +186,7 @@ export async function bakeLighting(): Promise<void> {
  * @remarks
  * The load calls it before the map is published: the new map is built, painted and baked in memory while the views keep
  * the old level, and the store swaps the two when the build is done. The palette of the file is the light of the game's
- * own editor, not the light of the profile, so its colours are thrown away first (the length stays: the vertices index
+ * own editor, not the light of the profile, so its colors are thrown away first (the length stays: the vertices index
  * the palette by `llfColorIdx`) and the bake fills them.
  *
  * @param map The level to bake, before it goes to the views.

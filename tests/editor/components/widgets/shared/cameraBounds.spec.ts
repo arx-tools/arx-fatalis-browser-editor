@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ArxVector3 } from 'arx-convert/types'
-import { centreOfBounds, type CameraBounds } from '../../../../../src/editor/components/widgets/shared/cameraBounds.ts'
+import { centerOfBounds, type CameraBounds } from '../../../../../src/editor/components/widgets/shared/cameraBounds.ts'
 
 /**
  * The box the fixed views frame.
@@ -14,11 +14,11 @@ const bounds: CameraBounds = {
 /**
  * The middle of {@link bounds}.
  */
-const centre: ArxVector3 = { x: 0, y: 200, z: 500 }
+const center: ArxVector3 = { x: 0, y: 200, z: 500 }
 
-void describe('centreOfBounds', () => {
+void describe('centerOfBounds', () => {
   void it('is the middle of the box', () => {
-    assert.deepEqual(centreOfBounds(bounds), centre)
+    assert.deepEqual(centerOfBounds(bounds), center)
   })
 
   void it('follows a box that is on one side of the origin', () => {
@@ -27,6 +27,6 @@ void describe('centreOfBounds', () => {
       max: { x: 300, y: 400, z: 700 },
     }
 
-    assert.deepEqual(centreOfBounds(shifted), { x: 200, y: 300, z: 500 })
+    assert.deepEqual(centerOfBounds(shifted), { x: 200, y: 300, z: 500 })
   })
 })

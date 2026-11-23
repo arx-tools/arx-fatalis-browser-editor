@@ -25,9 +25,9 @@ const bounds: CameraBounds = {
 }
 
 /**
- * The centre of {@link bounds}.
+ * The center of {@link bounds}.
  */
-const centre: ArxVector3 = { x: 0, y: 200, z: 500 }
+const center: ArxVector3 = { x: 0, y: 200, z: 500 }
 
 /**
  * The field of view of the widgets.
@@ -81,15 +81,15 @@ void describe('frameFixedView', () => {
     assert.ok(camera.position.distanceTo(gamePositionToWorld(pose.position, scene)) < 1e-6)
   })
 
-  void it('looks at the centre of the level in every direction', () => {
+  void it('looks at the center of the level in every direction', () => {
     const misses = modes.filter((mode) => {
       const camera = buildCamera()
 
       frameFixedView(camera, { mode, bounds, scene, fieldOfView, aspect })
 
-      const toCentre = gamePositionToWorld(centre, scene).sub(camera.position).normalize()
+      const toCenter = gamePositionToWorld(center, scene).sub(camera.position).normalize()
 
-      return camera.getWorldDirection(new Vector3()).dot(toCentre) <= 0.999
+      return camera.getWorldDirection(new Vector3()).dot(toCenter) <= 0.999
     })
 
     assert.deepEqual(misses, [])
@@ -165,29 +165,29 @@ void describe('frameFixedView with a zoom', () => {
     assert.ok(camera.position.distanceTo(gamePositionToWorld(pose.position, scene)) < 1e-6)
   })
 
-  void it('walks the camera towards the centre of the level', () => {
+  void it('walks the camera toward the center of the level', () => {
     const framed = buildCamera()
     const zoomed = buildCamera()
 
     frameFixedView(framed, { mode: 'top', bounds, scene, fieldOfView, aspect })
     frameFixedView(zoomed, { mode: 'top', bounds, scene, fieldOfView, aspect, zoom: 4 })
 
-    const framedDistance = framed.position.distanceTo(gamePositionToWorld(centre, scene))
-    const zoomedDistance = zoomed.position.distanceTo(gamePositionToWorld(centre, scene))
+    const framedDistance = framed.position.distanceTo(gamePositionToWorld(center, scene))
+    const zoomedDistance = zoomed.position.distanceTo(gamePositionToWorld(center, scene))
 
     const expected = framedDistance / 4
 
     assert.ok(Math.abs(zoomedDistance - expected) < 1e-6)
   })
 
-  void it('keeps the centre of the level in the middle of the canvas', () => {
+  void it('keeps the center of the level in the middle of the canvas', () => {
     const misses = modes.filter((mode) => {
       const camera = buildCamera()
 
       frameFixedView(camera, { mode, bounds, scene, fieldOfView, aspect, zoom: 4 })
       camera.updateMatrixWorld()
 
-      const middle = gamePositionToWorld(centre, scene).project(camera)
+      const middle = gamePositionToWorld(center, scene).project(camera)
 
       return Math.abs(middle.x) > 1e-6 || Math.abs(middle.y) > 1e-6
     })
@@ -213,7 +213,7 @@ void describe('frameFixedView with a zoom', () => {
     assert.deepEqual(misses, [])
   })
 
-  void it('keeps the distance from the level centre the same, whatever the camera does', () => {
+  void it('keeps the distance from the level center the same, whatever the camera does', () => {
     // the point of the anchoring: a click moves the walkable camera, and the fixed view must not move with
     // it, so the framing only depends on the zoom, never on a pose
     const first = buildCamera()
@@ -269,8 +269,8 @@ void describe('frameFixedView with a zoom', () => {
     assert.equal(low.zoom, 1)
     assert.equal(high.zoom, MAX_ZOOM)
 
-    // the camera walks in towards the target as well, so the near plane of a deep zoom does not cut it
-    const target = gamePositionToWorld(centre, scene)
+    // the camera walks in toward the target as well, so the near plane of a deep zoom does not cut it
+    const target = gamePositionToWorld(center, scene)
     const distance = gamePositionToWorld(pose.position, scene).distanceTo(target)
     const expected = distance / MAX_ZOOM
 

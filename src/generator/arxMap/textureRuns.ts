@@ -52,7 +52,7 @@ export type TextureRun = {
    *
    * @remarks
    * It is a number of the faces of the level (`transval`), and a light ray that is dimmer is the same texture with a
-   * lower value: the material of the run carries it as its colour, so a run of one blend mode can hold the faces of
+   * lower value: the material of the run carries it as its color, so a run of one blend mode can hold the faces of
    * one brightness.
    */
   readonly trans: number
@@ -235,7 +235,7 @@ function textureRunOf(key: number, start: number, count: number): TextureRun {
  * The runs are the blocks of the index the paint draws with one material each, so they are read in the order the
  * geometry **draws** them (the BVH of the picking wrote that index): a run is a stretch of the index whose faces share
  * a key, and a key is the container, the side, the blend mode and the brightness of the face
- * ({@link runKeyOfPolygon}). Neighbouring runs of one key are merged, so a texture that came back to a face next to
+ * ({@link runKeyOfPolygon}). Neighboring runs of one key are merged, so a texture that came back to a face next to
  * another face of its own is one run again.
  *
  * A geometry with no index has no draw order to follow: there are no runs, and the paint walks the polygons itself

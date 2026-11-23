@@ -62,7 +62,7 @@ void describe('gameAngleOf', () => {
 
 void describe('faceFrameOf', () => {
   void it('stands in front of the face along its normal, looking at its middle', () => {
-    // a 100 x 100 quad on the z = 0 plane, its normal towards +Z: the eye goes to the +Z side and looks back
+    // a 100 x 100 quad on the z = 0 plane, its normal toward +Z: the eye goes to the +Z side and looks back
     const frame = faceFrameOf(
       polygonOf(
         [
@@ -76,7 +76,7 @@ void describe('faceFrameOf', () => {
     )
 
     assert.notEqual(frame, undefined)
-    assert.deepStrictEqual(frame?.centre, { x: 50, y: 50, z: 0 })
+    assert.deepStrictEqual(frame?.center, { x: 50, y: 50, z: 0 })
     assert.ok(Math.abs((frame?.radius ?? 0) - 70.71) < 0.01)
 
     // the radius decides the distance: three of them, and the eye is on the normal side

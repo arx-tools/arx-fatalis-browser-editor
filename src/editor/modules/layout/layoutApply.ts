@@ -339,7 +339,7 @@ export function createLayoutApply(context: LayoutApplyContext): LayoutApply {
    * @remarks
    * This is the **managed** layout: lumino keeps a slot at the size the shares give it and only clamps the node into
    * it, so a widget pinned with a css `max-height` would leave a hole in its column instead of handing the space to
-   * its neighbours. Instead, the sizes are worked out for the whole tree (`planLayout`), where a lock is the maximum
+   * its neighbors. Instead, the sizes are worked out for the whole tree (`planLayout`), where a lock is the maximum
    * of a child, and the dock is rebuilt from those sizes. A lock therefore keeps its box, the flexible widgets share
    * the rest by their ratios, and everything shrinks when the window has no room — no hole and no overflow.
    */

@@ -90,14 +90,14 @@ void describe('buildMaterial', () => {
     assert.equal(material.transparent, false)
   })
 
-  void it('draws the flat colour when there is no placeholder', () => {
+  void it('draws the flat color when there is no placeholder', () => {
     const material = buildMaterial(keyOf({ name: 'a.bmp' }), new Map(), undefined)
 
     assert.equal(material.map, null)
     assert.equal(material.transparent, false)
   })
 
-  void it('draws a face without a texture and without a placeholder as the flat colour', () => {
+  void it('draws a face without a texture and without a placeholder as the flat color', () => {
     const material = buildMaterial(keyOf(), new Map(), undefined)
 
     assert.equal(material.map, null)

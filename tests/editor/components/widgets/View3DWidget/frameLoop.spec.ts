@@ -249,7 +249,7 @@ void describe('the frame loop of the walkable view', () => {
     assert.equal(loop.isRunning, false)
     assert.equal(frames.size, 0)
 
-    // the frame was cancelled: a stale timestamp does not draw anything
+    // the frame was canceled: a stale timestamp does not draw anything
     assert.equal(counts.draws, 0)
   })
 })

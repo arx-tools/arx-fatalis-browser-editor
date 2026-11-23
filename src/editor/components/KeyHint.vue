@@ -22,7 +22,7 @@ defineProps<{
 <style scoped lang="scss">
 @use '../palette' as *;
 
-// the hint of a key: the same size as the label it follows, a fainter colour, and it never wraps away from it
+// the hint of a key: the same size as the label it follows, a fainter color, and it never wraps away from it
 .KeyHint {
   color: $text-muted;
   white-space: nowrap;

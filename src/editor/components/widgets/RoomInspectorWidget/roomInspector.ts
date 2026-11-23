@@ -28,7 +28,7 @@ export type RoomProblem = {
  * The list is the same wherever the problems are shown (the panel now, the export dialog later): one line per thing the
  * author can not see in the view. The wording has to say **when** a thing is a problem, because a level can be right
  * with one room (an open one, without walls to reach through) and a level with many rooms can be wrong (a face in a room
- * its neighbours are not in).
+ * its neighbors are not in).
  *
  * @param map The level to read.
  *

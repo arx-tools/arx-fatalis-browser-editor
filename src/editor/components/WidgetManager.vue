@@ -147,9 +147,9 @@ function placePicker(): void {
   const middle = gear.left + halfGear
   const lowest = half + margin
   const highest = window.innerWidth - half - margin
-  const centre = Math.min(Math.max(middle, lowest), highest)
+  const center = Math.min(Math.max(middle, lowest), highest)
 
-  pickerLeft.value = centre - frame.left
+  pickerLeft.value = center - frame.left
 }
 
 /**
@@ -310,7 +310,7 @@ onBeforeUnmount(() => {
     opacity: 0.65;
   }
 
-  // the divider between the groups of the right side: the colour of the header's quiet dots, drawn as a circle instead of
+  // the divider between the groups of the right side: the color of the header's quiet dots, drawn as a circle instead of
   // the glyph, so it stands in the middle of the row of a button and a label and not on their baseline
   .dot {
     flex: none;

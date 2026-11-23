@@ -1,8 +1,8 @@
-// The colour palette of the editor. Every colour of the shell comes from here: a component never
-// writes a raw value, so the same colour is the same token everywhere, and a new variant shows up as
+// The color palette of the editor. Every color of the shell comes from here: a component never
+// writes a raw value, so the same color is the same token everywhere, and a new variant shows up as
 // a new token instead of a fourth copy of the same hex.
 //
-// The values are spelled out instead of a `$hue` token: the editor draws the colour swatch next to a
+// The values are spelled out instead of a `$hue` token: the editor draws the color swatch next to a
 // literal value and can not evaluate a variable, so the palette stays visible in the source.
 //
 // The file is one grid: `hsl(` starts at the 50th character on every line, and inside it the hue takes
@@ -19,7 +19,7 @@
 // accent (211 = 31 + 180). An analogue of a role would be a small step on its hue; the danger sits 22°
 // below the accent, which is why it is only used on small surfaces (an icon, a thin border, a glyph).
 //
-// The translucency is `rgba($token, $alpha)` at the call site, never a second colour with a baked in
+// The translucency is `rgba($token, $alpha)` at the call site, never a second color with a baked in
 // alpha.
 
 // the levels of the surface, darkest first

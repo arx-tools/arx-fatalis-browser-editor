@@ -139,7 +139,7 @@ function fakeLevel(count: number): {
       },
       rotatePolygons: (faces: readonly number[], pivot: ArxVector3, axis: ArxVector3, angle: number): void => {
         const turn = new Quaternion().setFromAxisAngle(new Vector3(axis.x, axis.y, axis.z).normalize(), angle)
-        const centre = new Vector3(pivot.x, pivot.y, pivot.z)
+        const center = new Vector3(pivot.x, pivot.y, pivot.z)
         const point = new Vector3()
 
         for (const index of faces) {
@@ -162,7 +162,7 @@ function fakeLevel(count: number): {
               continue
             }
 
-            point.set(vertex.x, vertex.y, vertex.z).sub(centre).applyQuaternion(turn).add(centre)
+            point.set(vertex.x, vertex.y, vertex.z).sub(center).applyQuaternion(turn).add(center)
             vertex.x = point.x
             vertex.y = point.y
             vertex.z = point.z
@@ -374,7 +374,7 @@ void describe('createPasteFacesRecord', () => {
     assert.equal(record.kind, 'pasteFaces')
   })
 
-  void it('keeps the colours of the corners when the clipboard has them', () => {
+  void it('keeps the colors of the corners when the clipboard has them', () => {
     const record = createPasteFacesRecord(
       [triangle(1)],
       [
@@ -413,7 +413,7 @@ void describe('commandOf', () => {
     assert.equal(polygons.length, 2)
   })
 
-  void it('moves the colours of the pasted faces into a block of their own', () => {
+  void it('moves the colors of the pasted faces into a block of their own', () => {
     const { level, polygons, lighting } = fakeLevel(2)
     const record = createPasteFacesRecord(
       [triangle(9)],
@@ -999,7 +999,7 @@ void describe('createBuildTunnelRecord', () => {
 })
 
 void describe('commandOf a tunnel', () => {
-  void it('takes the wall out, adds the tunnel, the container and the colours', () => {
+  void it('takes the wall out, adds the tunnel, the container and the colors', () => {
     const { level, polygons, containers, lighting, portals } = fakeLevel(3)
     const command = commandOf(tunnelRecord(), level)
 
@@ -1019,7 +1019,7 @@ void describe('commandOf a tunnel', () => {
     assert.deepEqual([portals[0]?.room1, portals[0]?.room2], [17, 27])
   })
 
-  void it('puts the wall back and takes the tunnel, the container and the colours out', () => {
+  void it('puts the wall back and takes the tunnel, the container and the colors out', () => {
     const { level, polygons, containers, lighting, portals } = fakeLevel(3)
     const command = commandOf(tunnelRecord(), level)
 

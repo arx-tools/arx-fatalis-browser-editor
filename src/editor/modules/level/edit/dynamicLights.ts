@@ -70,7 +70,7 @@ export const isDynamicLightsVisible = persistedRef<boolean>({
  *
  * @remarks
  * The static switch takes the palette of the level away, and the palette is what the profiles that read the lights
- * baked. The `Flat` and the `Texture Rainbow` profiles read no light: their colour is the light of the map, and there is
+ * baked. The `Flat` and the `Texture Rainbow` profiles read no light: their color is the light of the map, and there is
  * nothing under it to take away, so the level keeps its light while one of them is on (2026-11-22, the owner).
  *
  * @returns True when the palette of the profile lights the level.
@@ -94,7 +94,7 @@ const views = new Map<() => void, () => Camera | undefined>()
 let model: DynamicLightModel | undefined
 
 /**
- * Whether the level is dark under the layer: the static switch is off, and the colour attribute is zero.
+ * Whether the level is dark under the layer: the static switch is off, and the color attribute is zero.
  *
  * @remarks
  * The attribute has to go back to the baked palette when the switch goes on, and the store may hold no map to restore
@@ -103,7 +103,7 @@ let model: DynamicLightModel | undefined
 let isBlackened = false
 
 /**
- * Whether the light of the layer is on the colour attribute right now.
+ * Whether the light of the layer is on the color attribute right now.
  */
 let isApplied = false
 
@@ -161,7 +161,7 @@ function renderViews(): void {
 }
 
 /**
- * Puts the static light of the level on the colour attribute, or takes it away.
+ * Puts the static light of the level on the color attribute, or takes it away.
  *
  * @remarks
  * With the switch on, the palette is the base of the layer, and the bake of the level writes it: the controller only
@@ -218,7 +218,7 @@ function restoreStaticLights(): void {
 /**
  * Draws a frame of the layer, when the model still belongs to the geometry.
  *
- * @returns True when the colour attribute was written.
+ * @returns True when the color attribute was written.
  */
 function applyFrame(): boolean {
   const map = levelStore.map.value
@@ -300,7 +300,7 @@ function currentModel(): DynamicLightModel | undefined {
  * Tells whether a view can see any of the corners the layer lights.
  *
  * @remarks
- * The layer writes the colour of its corners on every frame, and that is worth doing only while one of them is in front
+ * The layer writes the color of its corners on every frame, and that is worth doing only while one of them is in front
  * of a camera: a walkable view inside a room without a burning light sees the same picture, frame after frame. The box
  * of the lit corners is tested against the frustum of the first registered view (the views of the editor show the same
  * level from their own cameras; the walkable view is the one that draws the layer).
@@ -577,7 +577,7 @@ export function startDynamicLights(): void {
       return
     }
 
-    // the bake may have written the colour attribute again: the static base goes back on it
+    // the bake may have written the color attribute again: the static base goes back on it
     paintStaticLights()
 
     if (!isDynamicLightsVisible.value) {
@@ -593,7 +593,7 @@ export function startDynamicLights(): void {
     }
 
     if (isStaticLightsVisible.value) {
-      // the palette may have been baked again with another profile: the base colours follow it, the weights do not
+      // the palette may have been baked again with another profile: the base colors follow it, the weights do not
       refreshDynamicLightBaseColors(model, map)
     }
 
@@ -608,7 +608,7 @@ export function startDynamicLights(): void {
     const map = levelStore.map.value
     const geometry = map?.solidMeshes[0]?.geometry
 
-    // a colour edit of a light keeps its weights: the layer takes the new light and draws it on the next frame, so the
+    // a color edit of a light keeps its weights: the layer takes the new light and draws it on the next frame, so the
     // drag of the light editor is live even with the layer on (a move, an intensity or a flag still needs the build)
     if (
       map !== undefined &&

@@ -8,7 +8,7 @@ import type { ArxMap } from '../../../../generator/ArxMap.ts'
  */
 export type FaceGroupExtent = {
   /**
-   * The middle of the group: the median of the centres of its faces, in the game's coordinates.
+   * The middle of the group: the median of the centers of its faces, in the game's coordinates.
    */
   readonly center: ArxVector3
   /**
@@ -57,7 +57,7 @@ function medianOf(values: readonly number[]): number {
  * @returns The middle and the size, or `undefined` when no face of the group is on the level.
  */
 export function faceGroupExtentOf(map: ArxMap, indices: readonly number[]): FaceGroupExtent | undefined {
-  const centres: ArxVector3[] = []
+  const centers: ArxVector3[] = []
 
   for (const index of indices) {
     const polygon = map.polygons[index]
@@ -79,32 +79,32 @@ export function faceGroupExtentOf(map: ArxMap, indices: readonly number[]): Face
     const count = polygon.vertices.length
 
     if (count > 0) {
-      centres.push({ x: x / count, y: y / count, z: z / count })
+      centers.push({ x: x / count, y: y / count, z: z / count })
     }
   }
 
-  if (centres.length === 0) {
+  if (centers.length === 0) {
     return undefined
   }
 
   const center = {
     x: medianOf(
-      centres.map((point) => {
+      centers.map((point) => {
         return point.x
       }),
     ),
     y: medianOf(
-      centres.map((point) => {
+      centers.map((point) => {
         return point.y
       }),
     ),
     z: medianOf(
-      centres.map((point) => {
+      centers.map((point) => {
         return point.z
       }),
     ),
   }
-  const distances = centres.map((point) => {
+  const distances = centers.map((point) => {
     return Math.hypot(point.x - center.x, point.y - center.y, point.z - center.z)
   })
 

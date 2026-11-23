@@ -20,9 +20,9 @@ import { ArxMap } from '../../../../../src/generator/ArxMap.ts'
 import { Settings } from '../../../../../src/generator/Settings.ts'
 
 /**
- * The grey of the palette of the test floor.
+ * The gray of the palette of the test floor.
  */
-const FLOOR_GREY = 128
+const FLOOR_GRAY = 128
 
 /**
  * The weight of the torch of the test on a corner of the blank floor.
@@ -88,14 +88,14 @@ function nextFrame(step = 100): void {
 }
 
 /**
- * The linear value of a grey, the way the attribute carries it.
+ * The linear value of a gray, the way the attribute carries it.
  *
- * @param grey The grey in sRGB, from 0 to 255.
+ * @param gray The gray in sRGB, from 0 to 255.
  *
- * @returns The channel in the working colour space.
+ * @returns The channel in the working color space.
  */
-function linearOf(grey: number): number {
-  return new Color().setRGB(grey / 255, grey / 255, grey / 255, SRGBColorSpace).r
+function linearOf(gray: number): number {
+  return new Color().setRGB(gray / 255, gray / 255, gray / 255, SRGBColorSpace).r
 }
 
 /**
@@ -105,13 +105,13 @@ function linearOf(grey: number): number {
  *
  * @returns The value of the attribute.
  *
- * @throws When the level has no colour attribute.
+ * @throws When the level has no color attribute.
  */
 function firstColorOf(map: ArxMap): number {
   const attribute = map.solidMeshes[0]?.geometry.getAttribute('color')
 
   if (!(attribute instanceof BufferAttribute)) {
-    throw new TypeError('the level has no colour attribute')
+    throw new TypeError('the level has no color attribute')
   }
 
   return attribute.array[0]
@@ -142,7 +142,7 @@ function lightOf(position: ArxVector3): ArxLight {
 }
 
 /**
- * A level of one floor tile, with its baked colours and a burning torch above it.
+ * A level of one floor tile, with its baked colors and a burning torch above it.
  *
  * @param options The light of the level.
  * @param options.burning Whether the torch burns at all.
@@ -155,7 +155,7 @@ function litFloor(options: { burning?: boolean } = {}): ArxMap {
   const files = createBlankLevelFiles(MINIMAL_PRESET)
   const map = new ArxMap(files.dlf, files.fts, files.llf, new Settings({ seed: '1' }))
   const colors: ArxColor[] = Array.from({ length: 4 }, () => {
-    return { r: FLOOR_GREY, g: FLOOR_GREY, b: FLOOR_GREY, a: 255 }
+    return { r: FLOOR_GRAY, g: FLOOR_GRAY, b: FLOOR_GRAY, a: 255 }
   })
   const polygon = map.polygons[0]
 
@@ -253,7 +253,7 @@ void describe('the dynamic light layer', () => {
 
     const view = await startLayer()
 
-    assert.ok(firstColorOf(map) > linearOf(FLOOR_GREY))
+    assert.ok(firstColorOf(map) > linearOf(FLOOR_GRAY))
     assert.ok(view.renders.count > 0)
 
     await stopLayer(view)
@@ -274,18 +274,18 @@ void describe('the dynamic light layer', () => {
     await stopLayer(view)
   })
 
-  void it('puts the baked colour back when the switch goes off', async () => {
+  void it('puts the baked color back when the switch goes off', async () => {
     const map = litFloor()
 
     levelStore.map.value = map
 
     const view = await startLayer()
 
-    assert.ok(firstColorOf(map) > linearOf(FLOOR_GREY))
+    assert.ok(firstColorOf(map) > linearOf(FLOOR_GRAY))
 
     await stopLayer(view)
 
-    assert.ok(Math.abs(firstColorOf(map) - linearOf(FLOOR_GREY)) < 1e-6)
+    assert.ok(Math.abs(firstColorOf(map) - linearOf(FLOOR_GRAY)) < 1e-6)
   })
 
   void it('follows a palette baked again', async () => {
@@ -371,7 +371,7 @@ void describe('the dynamic light layer', () => {
       renders.count = renders.count + 1
     })
 
-    assert.ok(firstColorOf(map) > linearOf(FLOOR_GREY))
+    assert.ok(firstColorOf(map) > linearOf(FLOOR_GRAY))
     assert.ok(renders.count > 0)
 
     unregister()
@@ -419,7 +419,7 @@ void describe('the dynamic light layer', () => {
 
     await nextTick()
 
-    assert.ok(Math.abs(firstColorOf(map) - linearOf(FLOOR_GREY)) < 1e-6)
+    assert.ok(Math.abs(firstColorOf(map) - linearOf(FLOOR_GRAY)) < 1e-6)
 
     isStaticLightsVisible.value = false
 
@@ -431,7 +431,7 @@ void describe('the dynamic light layer', () => {
 
     await nextTick()
 
-    assert.ok(Math.abs(firstColorOf(map) - linearOf(FLOOR_GREY)) < 1e-6)
+    assert.ok(Math.abs(firstColorOf(map) - linearOf(FLOOR_GRAY)) < 1e-6)
 
     await stopLayer(view)
   })
@@ -449,14 +449,14 @@ void describe('the dynamic light layer', () => {
 
     await nextTick()
 
-    assert.ok(Math.abs(firstColorOf(map) - linearOf(FLOOR_GREY)) < 1e-6)
+    assert.ok(Math.abs(firstColorOf(map) - linearOf(FLOOR_GRAY)) < 1e-6)
 
     isStaticLightsVisible.value = false
 
     await nextTick()
 
     // the palette of the flat profile is the light of the map: the static switch has nothing to take away
-    assert.ok(Math.abs(firstColorOf(map) - linearOf(FLOOR_GREY)) < 1e-6)
+    assert.ok(Math.abs(firstColorOf(map) - linearOf(FLOOR_GRAY)) < 1e-6)
 
     await stopLayer(view)
   })
@@ -504,7 +504,7 @@ void describe('the dynamic light layer', () => {
 
     await nextTick()
 
-    assert.ok(Math.abs(firstColorOf(map) - linearOf(FLOOR_GREY)) < 1e-6)
+    assert.ok(Math.abs(firstColorOf(map) - linearOf(FLOOR_GRAY)) < 1e-6)
   })
 
   void it('draws the dark level again after a bake', async () => {
@@ -654,7 +654,7 @@ void describe('the dynamic light layer', () => {
     await stopLayer(view)
   })
 
-  void it('waits for a build after an edit without a colour attribute', async (t: TestContext) => {
+  void it('waits for a build after an edit without a color attribute', async (t: TestContext) => {
     t.mock.timers.enable({ apis: ['setTimeout'] })
 
     const map = litFloor()

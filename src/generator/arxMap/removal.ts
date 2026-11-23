@@ -118,7 +118,7 @@ export function refillGeometry(target: BufferGeometry, slices: readonly Geometry
   }
 
   // the names come from the target and from the slices: a target that is built for the first time has none yet, and an
-  // edit can add an attribute of its own (the colour of the area map) that a polygon rebuilt for an undo does not
+  // edit can add an attribute of its own (the color of the area map) that a polygon rebuilt for an undo does not
   // bring. An attribute a slice does not have is dropped: it can not be assembled from the slices, and the reader of
   // it puts it back.
   const names = new Set([...Object.keys(target.attributes), ...Object.keys(first.geometry.attributes)])

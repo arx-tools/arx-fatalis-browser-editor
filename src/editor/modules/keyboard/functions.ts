@@ -21,7 +21,7 @@ export type KeyboardModifierInput = KeyboardModifier | 'primary'
  * - **exactly one** of `code` and `key` is set. `code` is the **physical key** (`KeyboardEvent.code`, named after
  * the US layout), so a hotkey like `M` follows the same key wherever it sits. `key` is the **character** the key
  * types (`KeyboardEvent.key`, lower case), so a hotkey like `Ctrl+Z` follows the **label** on the key — and that
- * is what a shortcut like undo needs: the Hungarian keyboard is QWERTZ, so the key labelled `Z` sits where a US
+ * is what a shortcut like undo needs: the Hungarian keyboard is QWERTZ, so the key labeled `Z` sits where a US
  * keyboard has `Y` (its `code` is `KeyY`, its `key` is `z`), and a user presses the label, not the position.
  */
 export type KeyCombo = {
@@ -241,7 +241,7 @@ export function pressedModifiers(event: KeyboardEventLike): KeyboardModifier[] {
  * @returns True when the event is that combo.
  */
 export function matchesCombo(event: KeyboardEventLike, combo: KeyCombo): boolean {
-  // the label on the key, not the position of the key: the Hungarian layout is QWERTZ, so the key labelled Z is a
+  // the label on the key, not the position of the key: the Hungarian layout is QWERTZ, so the key labeled Z is a
   // `KeyY` on the US layout the codes are named after (and vice versa)
   const typed = combo.key
 

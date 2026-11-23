@@ -64,7 +64,7 @@ function normalizeRootShare(dock: DockPanel, widget: Widget, share: number): voi
  *
  * @param dock The dock to add the widget to.
  * @param widget The widget to add.
- * @param target The drop target under the pointer, or `null` when the drag was cancelled.
+ * @param target The drop target under the pointer, or `null` when the drag was canceled.
  */
 export function placeWidget(dock: DockPanel, widget: Widget, target: DropTarget | null): void {
   if (target === null) {

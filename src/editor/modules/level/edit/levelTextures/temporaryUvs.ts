@@ -95,7 +95,7 @@ function planeDirectionOf(normal: Vector3): Vector3 {
  *
  * @remarks
  * Such a face has **no uv** in the level (all of its corners stand on one texel), so the placeholder the editor draws on
- * it would sample that one texel and read as a flat colour. The placeholder says "a texture belongs here", so the face
+ * it would sample that one texel and read as a flat color. The placeholder says "a texture belongs here", so the face
  * gets the whole texture: its corners are projected onto its plane, and the square around them is the 0..1 space of the
  * uv. The square keeps the shape of the face (the longer side spans the whole texture), so the picture is not stretched.
  *

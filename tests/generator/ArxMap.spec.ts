@@ -77,7 +77,7 @@ void describe('ArxMap', () => {
     })
 
     void it('puts a face back when the geometry carries an attribute of the editor', () => {
-      // the area map writes its colours into a `color` attribute of the solid geometry, and the undo splices the kept
+      // the area map writes its colors into a `color` attribute of the solid geometry, and the undo splices the kept
       // faces with the ones it rebuilds: the rebuilt ones bring only the attributes of the generator. An attribute the
       // slices can not provide is dropped instead of failing the step (the reader of it writes it back)
       const map = flatMap()
@@ -250,11 +250,11 @@ void describe('ArxMap', () => {
         return
       }
 
-      const centre = box.getCenter(new Vector3())
+      const center = box.getCenter(new Vector3())
       const raycaster = new Raycaster()
 
       raycaster.firstHitOnly = true
-      raycaster.set(new Vector3(centre.x, box.max.y + 100, centre.z), new Vector3(0, -1, 0))
+      raycaster.set(new Vector3(center.x, box.max.y + 100, center.z), new Vector3(0, -1, 0))
 
       const [hit] = raycaster.intersectObject(mesh, false)
 
@@ -704,17 +704,17 @@ void describe('scalePolygons', () => {
   })
 })
 
-void describe('the wireframe colours of the map', () => {
-  void it('takes the flat colour of the texture of every face', () => {
+void describe('the wireframe colors of the map', () => {
+  void it('takes the flat color of the texture of every face', () => {
     const map = flatMap()
     const colors = map.wireframeGeometry.getAttribute('color')
 
-    // the blank level's own texture is not in the table of the flat colours: its faces take the white line of the
+    // the blank level's own texture is not in the table of the flat colors: its faces take the white line of the
     // textures the table does not know
     assert.deepEqual([colors.getX(0), colors.getY(0), colors.getZ(0)], [1, 1, 1])
   })
 
-  void it('writes the colours again when a face takes another texture', () => {
+  void it('writes the colors again when a face takes another texture', () => {
     const map = flatMap()
 
     map.addTextureContainer(7, '(fabric)_gobelin_bed.bmp')
@@ -748,7 +748,7 @@ void describe('refreshWireframeColors', () => {
     clearRegisteredFlatColors()
   })
 
-  void it('writes the colours again when a custom flat colour arrives', () => {
+  void it('writes the colors again when a custom flat color arrives', () => {
     const map = flatMap()
     const before = map.wireframeGeometry.getAttribute('color')
 

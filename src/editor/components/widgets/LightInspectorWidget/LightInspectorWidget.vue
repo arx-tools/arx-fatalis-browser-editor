@@ -56,7 +56,7 @@ const shapes: ReadonlyArray<{ value: 'all' | LightMarkerShape; label: string }> 
  * The lights of the level, as the list reads them.
  *
  * @remarks
- * The level and the revision of the lights are the signals of the list: an edit of a light (the colour, the flags, the
+ * The level and the revision of the lights are the signals of the list: an edit of a light (the color, the flags, the
  * place) rebuilds the rows the way the markers of the view follow it.
  */
 const rows = shallowRef<LightRow[]>([])

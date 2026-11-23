@@ -29,7 +29,7 @@ const CAMERA_DISTANCE = 1.6
  * Adds the light the flat material needs.
  *
  * @remarks
- * This is **not** the lighting of the level: the LLF round will bring the baked vertex colours and the
+ * This is **not** the lighting of the level: the LLF round will bring the baked vertex colors and the
  * point lights. Here a hemisphere-like pair of an ambient and a directional light just makes the
  * geometry readable.
  *
@@ -48,20 +48,20 @@ export function addPreviewLights(scene: Scene): void {
  *
  * @remarks
  * The level is a few thousand units wide, so a fixed camera position would be either inside the ground
- * or far above it. The camera looks at the centre of the bounding box from a corner, at a distance
+ * or far above it. The camera looks at the center of the bounding box from a corner, at a distance
  * derived from the size of the box and the field of view.
  *
  * @param camera The camera to move.
  * @param box The bounding box of the level.
  */
 export function frameLevel(camera: PerspectiveCamera, box: Box3): void {
-  const centre = box.getCenter(new Vector3())
+  const center = box.getCenter(new Vector3())
   const size = box.getSize(new Vector3())
   const radius = Math.max(size.length() / 2, 1)
   const distance = (radius * CAMERA_DISTANCE) / Math.sin((camera.fov * Math.PI) / 360)
 
-  camera.position.copy(centre).add(new Vector3(1, 0.8, 1).normalize().multiplyScalar(distance))
-  camera.lookAt(centre)
+  camera.position.copy(center).add(new Vector3(1, 0.8, 1).normalize().multiplyScalar(distance))
+  camera.lookAt(center)
   camera.near = Math.max(distance / 1000, 0.1)
   camera.far = distance * 4
   camera.updateProjectionMatrix()
@@ -163,7 +163,7 @@ export function viewMeshesOf(meshes: readonly Mesh[], material?: Material): Mesh
 }
 
 /**
- * The flat colour of the fixed views.
+ * The flat color of the fixed views.
  *
  * @remarks
  * It is spelled out here on purpose: the small views are a map of the level, and they keep this neutral
@@ -208,9 +208,9 @@ export type LevelWireframe = {
    */
   readonly setVisible: (visible: boolean) => void
   /**
-   * Draws the lines in the colour of the faces (the flat colour of their textures) or in the plain grey.
+   * Draws the lines in the color of the faces (the flat color of their textures) or in the plain gray.
    *
-   * @param colored Whether the lines should read the colour of the faces.
+   * @param colored Whether the lines should read the color of the faces.
    */
   readonly setColored: (colored: boolean) => void
   /**
@@ -224,22 +224,22 @@ export type LevelWireframe = {
  */
 export type WireframeOptions = {
   /**
-   * Whether the view can draw the lines in the colour of the faces.
+   * Whether the view can draw the lines in the color of the faces.
    *
    * @remarks
-   * The walkable view reads the colours of its faces (the flat colour of their textures), so it asks for the second
-   * material; the fixed views keep the plain grey. The colours are on the geometry of the map, so the material only
+   * The walkable view reads the colors of its faces (the flat color of their textures), so it asks for the second
+   * material; the fixed views keep the plain gray. The colors are on the geometry of the map, so the material only
    * has to read them.
    */
   readonly colored?: boolean
   /**
-   * The colour of the plain grey line; `#777` when it is left out.
+   * The color of the plain gray line; `#777` when it is left out.
    *
    * @remarks
-   * The walkable view asks for a lighter grey than the fixed views (the line over the black of a hidden mesh), see
+   * The walkable view asks for a lighter gray than the fixed views (the line over the black of a hidden mesh), see
    * `WIREFRAME_WITHOUT_MESH`.
    */
-  readonly grey?: number
+  readonly gray?: number
 }
 
 /**
@@ -251,16 +251,16 @@ export type WireframeOptions = {
  *
  * @param scene The scene of the widget.
  * @param geometry The wireframe geometry of the map.
- * @param options Whether the lines can take the colour of the faces; the plain grey when it is left out.
+ * @param options Whether the lines can take the color of the faces; the plain gray when it is left out.
  *
- * @returns The handle that shows, colours and disposes it.
+ * @returns The handle that shows, colors and disposes it.
  */
 export function attachWireframe(
   scene: Scene,
   geometry: BufferGeometry,
   options: WireframeOptions = {},
 ): LevelWireframe {
-  const plainMaterial = createWireframeMaterial({ color: options.grey })
+  const plainMaterial = createWireframeMaterial({ color: options.gray })
   let coloredMaterial: ShaderMaterial | undefined
 
   if (options.colored === true) {

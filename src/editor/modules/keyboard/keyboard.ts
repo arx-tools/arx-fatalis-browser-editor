@@ -50,7 +50,7 @@ const FUNCTION_KEY = /^F(?:[1-9]|1[0-2])$/u
 const pressedCodes = new Set<string>()
 
 /**
- * The listeners which want to know about any key change (the cursor colour reads the modifiers).
+ * The listeners which want to know about any key change (the cursor color reads the modifiers).
  */
 const activityListeners = new Set<() => void>()
 
@@ -404,7 +404,7 @@ export function clearPressedKeys(): void {
 
 /**
  * Subscribes to every key change, for the parts of the ui which react to a modifier (the cursor
- * colour).
+ * color).
  *
  * @param listener What to call after a key went down or up.
  * @returns A function which removes the listener.

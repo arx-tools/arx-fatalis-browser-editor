@@ -14,7 +14,7 @@ import { persistedRef } from '../../persistedRef/persistedRef.ts'
  * profile puts them into the palette (2026-11-16, the owner's decision). `TextureRainbow` is a check of the textures,
  * not a look for a level.
  *
- * The `Flat` profile is one grey on every corner, set by a slider of its own (0 is dark, 1 is the brightest, in steps
+ * The `Flat` profile is one gray on every corner, set by a slider of its own (0 is dark, 1 is the brightest, in steps
  * of 0.1): it covers the old max brightness and darkness in one control, and its light is the same whatever the lamps
  * of the level do.
  */
@@ -55,7 +55,7 @@ export function isLightingProfile(value: unknown): value is LightingProfile {
  * @remarks
  * The profile is a fact of the author, not of the level (the same as the name of the export): it stays in the browser
  * between the maps. A stored value this build does not know falls back to the default one. The `Flat` one draws one
- * grey on every corner, and its slider sets how bright that grey is.
+ * gray on every corner, and its slider sets how bright that gray is.
  */
 export const lightingProfile = persistedRef<LightingProfile>({
   key: 'lightingProfile',
@@ -95,11 +95,11 @@ export const flatLuminosity = persistedRef<number>({
 })
 
 /**
- * The value of the colours of the `TextureRainbow` profile, from 0 (black) to 1 (the full colour of the hue).
+ * The value of the colors of the `TextureRainbow` profile, from 0 (black) to 1 (the full color of the hue).
  *
  * @remarks
  * The profile has a light of its own, like the `Flat` one: the slider of the widget sets the value of every hue, and
- * the bake reads it, so a darker level keeps the colours of the containers, just darker. It is a fact of the author,
+ * the bake reads it, so a darker level keeps the colors of the containers, just darker. It is a fact of the author,
  * like the profile: it stays in the browser, and its default is the 70% of the flat one (2026-11-22, the owner).
  */
 export const rainbowLuminosity = persistedRef<number>({
@@ -121,7 +121,7 @@ export const rainbowLuminosity = persistedRef<number>({
  * Whether a profile has a light of its own, with a luminosity slider.
  *
  * @remarks
- * The `Flat` one draws one grey and the `Texture Rainbow` one a hue per texture: neither reads the lights of the level,
+ * The `Flat` one draws one gray and the `Texture Rainbow` one a hue per texture: neither reads the lights of the level,
  * so the slider of the widget is the light of the map for both (2026-11-22, the owner: the rainbow got one too).
  *
  * @param profile The profile of the widget.
@@ -136,7 +136,7 @@ export function hasLuminosity(profile: LightingProfile): boolean {
  * Whether a profile is the `Texture Rainbow` one.
  *
  * @remarks
- * The profile keeps the textures of the level, but lightened: its palette is the colour of the containers, and the
+ * The profile keeps the textures of the level, but lightened: its palette is the color of the containers, and the
  * texture may not drown it (`paint.ts` `RAINBOW_TEXTURE_STRENGTH`). The other profiles draw the textures as the game
  * has them.
  *
@@ -149,10 +149,10 @@ export function isRainbowProfile(profile: LightingProfile): boolean {
 }
 
 /**
- * Whether a profile of the bake draws the palette of the level, or a colour of its own.
+ * Whether a profile of the bake draws the palette of the level, or a color of its own.
  *
  * @remarks
- * The `Arx` and the `Realistic` profiles bake the palette from the lights; the `Flat` one draws one grey, and the
+ * The `Arx` and the `Realistic` profiles bake the palette from the lights; the `Flat` one draws one gray, and the
  * `TextureRainbow` one a hue per texture, so a light edit does not change what those two show.
  *
  * @param mode The mode of the bake.
@@ -169,7 +169,7 @@ export function readsPalette(mode: LightingCalculatorMode): boolean {
  * @param profile Which profile bakes the map now.
  * @param luminosity The slider of the widget, 0 to 1.
  *
- * @returns The grey it draws with, or `undefined` when the palette does.
+ * @returns The gray it draws with, or `undefined` when the palette does.
  */
 export function flatLightOfProfile(profile: LightingProfile, luminosity: number): number | undefined {
   if (profile === 'Flat') {

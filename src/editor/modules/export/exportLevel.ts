@@ -91,11 +91,11 @@ async function nextPaint(): Promise<void> {
 }
 
 /**
- * The white a vertex takes when the level's palette has no colour for it.
+ * The white a vertex takes when the level's palette has no color for it.
  *
  * @remarks
  * A palette is a list the polygons point into: a vertex whose base is past the end of it has no light, and the game
- * draws such a vertex black. The editor writes white instead, so a missing colour reads as a lit face and not as a
+ * draws such a vertex black. The editor writes white instead, so a missing color reads as a lit face and not as a
  * black hole (the same value the archived editor used).
  */
 const MISSING_COLOR: ArxColor = { r: 255, g: 255, b: 255, a: 255 }
@@ -106,11 +106,11 @@ const MISSING_COLOR: ArxColor = { r: 255, g: 255, b: 255, a: 255 }
 const DARK_COLOR: ArxColor = { r: 0, g: 0, b: 0, a: 255 }
 
 /**
- * The number of colours a polygon owns in the palette of the LLF.
+ * The number of colors a polygon owns in the palette of the LLF.
  *
  * @param polygon The polygon to read.
  *
- * @returns Three for a triangle, four for a quad: the fourth corner is a colour too.
+ * @returns Three for a triangle, four for a quad: the fourth corner is a color too.
  */
 function colorCountOf(polygon: ArxPolygon): number {
   if (isQuad(polygon)) {
@@ -126,7 +126,7 @@ function colorCountOf(polygon: ArxPolygon): number {
  * @remarks
  * The FTS stores its polygons **by cell**, and `FTS.load` gives every polygon its `llfColorIdx` as it reads them: the
  * index is **not** in the file, it is the running count of the polygons the loader has seen. The palette of the LLF has
- * to be built in this same order, or the game reads the colour of another face — the first cells usually match the map,
+ * to be built in this same order, or the game reads the color of another face — the first cells usually match the map,
  * so a level can look right until the first cell where the two orders part.
  *
  * `FTS.save` walks the polygons in their order, pushes each into its cell, and then writes the cells in the order of
@@ -301,10 +301,10 @@ function isExportedLight(light: ArxLight, withStaticLights: boolean, withDynamic
  * Rebuilds the lighting of a level from the palette it was loaded with.
  *
  * @remarks
- * The palette of the LLF is a flat list **in the order of the polygons of the file**: a polygon owns three colours (one
- * per corner) or four (the fourth corner of a quad). The FTS does **not** store the index of the first colour:
+ * The palette of the LLF is a flat list **in the order of the polygons of the file**: a polygon owns three colors (one
+ * per corner) or four (the fourth corner of a quad). The FTS does **not** store the index of the first color:
  * `FTS.load` gives every polygon its `llfColorIdx` as it reads the polygons, in the order `FTS.save` wrote them (the
- * cells of the grid, see {@link cellOrderedPolygonsOf}). The list is rebuilt in that same order from the colours the
+ * cells of the grid, see {@link cellOrderedPolygonsOf}). The list is rebuilt in that same order from the colors the
  * vertices already point at — the **light** of a face is kept, it is not baked again.
  *
  * The switches of the light layer decide what the file keeps: the lights of a layer that is off are left out, and a level
@@ -325,7 +325,7 @@ export function buildExportLlf(llf: ArxLLF, polygons: readonly ArxPolygon[], lig
     return isExportedLight(light, withStaticLights, withDynamicLights)
   })
 
-  // a level without a palette (a blank one, or one of the generator) has no colour to follow: the file keeps none
+  // a level without a palette (a blank one, or one of the generator) has no color to follow: the file keeps none
   if (llf.colors.length === 0) {
     return { ...llf, header, lights: exportedLights, colors: [] }
   }
@@ -365,7 +365,7 @@ export function buildExportLlf(llf: ArxLLF, polygons: readonly ArxPolygon[], lig
  * @param polygons The polygons of the scene, in the order the export writes them.
  * @param options Which layers of the light the export writes.
  *
- * @returns The colours of the palette, by the index of the level.
+ * @returns The colors of the palette, by the index of the level.
  */
 function freshPaletteOf(map: ArxMap, polygons: readonly ArxPolygon[], options: ExportLights): ArxColor[] {
   // a level without its static light gets a black palette from `buildExportLlf`, so the bake would be thrown away
@@ -387,7 +387,7 @@ function freshPaletteOf(map: ArxMap, polygons: readonly ArxPolygon[], options: E
  * @param polygons The polygons of the scene, in the order the export writes them.
  * @param options Which layers of the light the export writes.
  *
- * @returns The colours of the palette, when the bake is done.
+ * @returns The colors of the palette, when the bake is done.
  */
 async function freshPaletteInChunksOf(
   map: ArxMap,
@@ -524,7 +524,7 @@ export function buildExportDlf(dlf: ArxDLF, polygonCount: number, levelIndex?: n
  * lighting has none: the whole file is compressed.
  *
  * The palette of the lighting is **baked again** from the scene the files hold ({@link freshPaletteOf}): a step that
- * moved faces and did not bake their colours leaves the palette at the light of the old place, and the game would light
+ * moved faces and did not bake their colors leaves the palette at the light of the old place, and the game would light
  * the copied block with it. The palette of the editor is not touched.
  *
  * @param map The map to write.

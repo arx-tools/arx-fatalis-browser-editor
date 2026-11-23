@@ -109,7 +109,7 @@ function toggleLock(): void {
 <style scoped lang="scss">
 @use '../palette' as *;
 
-// The overlay of a widget in the edit mode: a grey plate, the name on a chip and the trash in the
+// The overlay of a widget in the edit mode: a gray plate, the name on a chip and the trash in the
 // top right corner. It covers the whole widget, so the entire surface is the drag handle.
 .WidgetOverlay {
   position: absolute;

@@ -7,7 +7,7 @@ import { splitSizes, sum, type ChildFit, type LayoutSpace, type WidgetFit } from
  * @remarks
  * The editor lays the dock out itself, not lumino: lumino keeps a slot at the share the tree gives a child and only
  * clamps the node into it, so a widget pinned with a css limit leaves a hole in its column instead of handing the space
- * to its neighbours. The walk here gives every split its box, asks the allocator ([`split.ts`](split.ts)) for the size
+ * to its neighbors. The walk here gives every split its box, asks the allocator ([`split.ts`](split.ts)) for the size
  * of its children, and goes on with the box each child got.
  */
 

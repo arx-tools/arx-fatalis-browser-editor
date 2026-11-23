@@ -10,7 +10,7 @@ import { paintKeyOf, paintKeyOfPolygon, type PaintKey } from './paint.ts'
  *
  * @remarks
  * The geometry of a level is one buffer in the order of the polygons, but the renderer draws a **group** of it with one
- * material: a run is a block of neighbouring faces that share a paint key (the texture, the side, the blend mode and the
+ * material: a run is a block of neighboring faces that share a paint key (the texture, the side, the blend mode and the
  * brightness, see [`paint.ts`](paint.ts)), and a run is one draw call. The paint builds the groups from these runs, and
  * the map keeps them (`ArxMap.textureRuns`) so the paint does not walk all the triangles of the index again (level 11:
  * 123 485 triangles, 52 ms).
@@ -70,7 +70,7 @@ export function neededKeysOf(map: ArxMap, polygons: readonly ArxPolygon[]): Pain
  *
  * @remarks
  * The geometry of the level is one buffer in the order of the polygons (three or six vertices each), so a material is
- * drawn with a **group** of the geometry: a run of the neighbouring faces that draw with it. The picking reads the
+ * drawn with a **group** of the geometry: a run of the neighboring faces that draw with it. The picking reads the
  * triangle order, which the groups do not touch, so it stays right.
  *
  * @param polygons The polygons of the level, in the order of the geometry.
@@ -185,8 +185,8 @@ export function runsCoverIndex(runs: readonly TextureRun[], index: BufferAttribu
  * Adds the groups of a geometry from the runs of a level.
  *
  * @remarks
- * Two containers may share a name (`textureNames`), so the neighbouring runs of the same material are merged, the way
- * {@link drawnRunsOf} merges the neighbouring triangles: the number of the draw calls is the number of the materials.
+ * Two containers may share a name (`textureNames`), so the neighboring runs of the same material are merged, the way
+ * {@link drawnRunsOf} merges the neighboring triangles: the number of the draw calls is the number of the materials.
  *
  * @param geometry The geometry of the level.
  * @param map The map of the level.

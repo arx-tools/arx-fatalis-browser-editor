@@ -72,7 +72,7 @@ void describe('lightWindowOf', () => {
 })
 
 void describe('lightRowsOf', () => {
-  void it('names the lights by their index, with the shape and the colour of the light', () => {
+  void it('names the lights by their index, with the shape and the color of the light', () => {
     const rows = lightRowsOf(
       [light(), light({ flags: ArxLightFlags.SemiDynamic, color: { r: 0, g: 0, b: 255, a: 1 } })],
       SCENE,

@@ -23,12 +23,12 @@ function mapOf(): ArxMap {
 }
 
 /**
- * Reads the colour of a vertex of the room map.
+ * Reads the color of a vertex of the room map.
  *
  * @param overlay The room map to read.
  * @param vertex The index of the vertex.
  *
- * @returns The colour the map gives that vertex.
+ * @returns The color the map gives that vertex.
  */
 function colorOf(overlay: RoomOverlay, vertex: number): Color {
   const attribute = overlay.mesh.geometry.getAttribute('color')
@@ -37,10 +37,10 @@ function colorOf(overlay: RoomOverlay, vertex: number): Color {
 }
 
 /**
- * Tells whether a colour is not brighter than another one, channel by channel.
+ * Tells whether a color is not brighter than another one, channel by channel.
  *
- * @param first The colour to read.
- * @param second The colour it is compared to.
+ * @param first The color to read.
+ * @param second The color it is compared to.
  *
  * @returns True when no channel of the first is above the second.
  */
@@ -53,10 +53,10 @@ void describe('createRoomOverlay', () => {
     const map = mapOf()
     const overlay = createRoomOverlay(map)
 
-    // the map starts dark: the first vertex is the dimmed colour of room 1
+    // the map starts dark: the first vertex is the dimmed color of room 1
     const dimmed = colorOf(overlay, 0)
 
-    // the room in the highlight keeps its full colour
+    // the room in the highlight keeps its full color
     overlay.setHighlight(new Set([1]))
 
     const full = colorOf(overlay, 0)
@@ -75,7 +75,7 @@ void describe('createRoomOverlay', () => {
 
 void describe('roomsNeedRepaint', () => {
   void it('repaints when the geometry of the level was rebuilt', () => {
-    // a delete or an insert: the attribute still has the colours of the old buffers
+    // a delete or an insert: the attribute still has the colors of the old buffers
     assert.equal(roomsNeedRepaint({ vertexCount: 9, colorCount: 6, paintedRevision: 3, revision: 3 }), true)
   })
 
@@ -84,7 +84,7 @@ void describe('roomsNeedRepaint', () => {
     assert.equal(roomsNeedRepaint({ vertexCount: 9, colorCount: 9, paintedRevision: 3, revision: 4 }), true)
   })
 
-  void it('keeps the colours of a texture or a uv edit', () => {
+  void it('keeps the colors of a texture or a uv edit', () => {
     assert.equal(roomsNeedRepaint({ vertexCount: 9, colorCount: 9, paintedRevision: 4, revision: 4 }), false)
   })
 })
@@ -108,7 +108,7 @@ void describe('createRoomOverlay and the palette of the level', () => {
 })
 
 void describe('createRoomOverlay with a new room', () => {
-  void it('colours a room the level did not have when the map was built', () => {
+  void it('colors a room the level did not have when the map was built', () => {
     // the blank level has room 1 only; a face moves into room 2 (the same buffers), and a repaint has to know the room
     const map = mapOf()
 
@@ -124,7 +124,7 @@ void describe('createRoomOverlay with a new room', () => {
 void describe('createRoomOverlay with a moved room', () => {
   void it('reads the rooms again when the highlight arrives after the rooms changed', () => {
     // the replay of the stored steps writes the rooms without a repaint, and the selection that follows is the first
-    // highlight: the colouring the overlay was built with is stale by then, and the new room would read as no room
+    // highlight: the coloring the overlay was built with is stale by then, and the new room would read as no room
     const map = mapOf()
     const overlay = createRoomOverlay(map)
 

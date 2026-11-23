@@ -86,7 +86,7 @@ export type BorderDragContext = {
    */
   readonly spacing: number
   /**
-   * Called when a drag ended (or was cancelled): the caller lays the dock out again from the locks and writes the
+   * Called when a drag ended (or was canceled): the caller lays the dock out again from the locks and writes the
    * layout down.
    */
   readonly onEnded: () => void
@@ -159,7 +159,7 @@ function placeNode(element: HTMLElement, box: DragRect, origin: DragRect): void 
  *
  * @remarks
  * The split is laid out inside the box it has now, so the parts of the dock around it stay where the drag put them. The
- * sizes are scaled to fill that box exactly, otherwise a fraction of a pixel would leave a seam next to the neighbour of
+ * sizes are scaled to fill that box exactly, otherwise a fraction of a pixel would leave a seam next to the neighbor of
  * the split.
  *
  * @param hold The split to lay out.
@@ -589,10 +589,10 @@ export function watchBorderDrag(host: HTMLElement, context: BorderDragContext): 
   /**
    * Ends the drag: the locks the border resized are written, and the caller lays the dock out again.
    *
-   * @param cancelled Whether the drag was cancelled (the escape key): nothing is written then, and the layout goes back
+   * @param canceled Whether the drag was canceled (the escape key): nothing is written then, and the layout goes back
    * to the sizes of the locks.
    */
-  function end(cancelled = false): void {
+  function end(canceled = false): void {
     const current = state
 
     if (current === undefined) {
@@ -609,7 +609,7 @@ export function watchBorderDrag(host: HTMLElement, context: BorderDragContext): 
       return
     }
 
-    if (!cancelled) {
+    if (!canceled) {
       applyDragEdges(current.targets, (kind) => {
         return current.widgets.get(kind)
       })

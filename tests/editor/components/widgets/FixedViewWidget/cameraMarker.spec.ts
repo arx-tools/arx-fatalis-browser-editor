@@ -169,7 +169,7 @@ function referenceDirection(pose: CameraPose, camera: OrthographicCamera): { x: 
   const from = point.clone().project(camera)
   const to = ahead.clone().project(camera)
 
-  // the normalised device coordinates say nothing about the shape of the canvas on their own: a delta is
+  // the normalized device coordinates say nothing about the shape of the canvas on their own: a delta is
   // turned into pixels first, which is where the angle of the arrow lives
   return { x: (to.x - from.x) * (CANVAS_WIDTH / 2), y: (to.y - from.y) * (CANVAS_HEIGHT / 2) }
 }
@@ -266,7 +266,7 @@ void describe('markerState in a plan view', () => {
   })
 
   void it('leaves the arrow out when the camera looks along the axis of the view', () => {
-    // the game yaw 0 looks towards +Z, straight into this fixed view: the direction has nothing on the canvas
+    // the game yaw 0 looks toward +Z, straight into this fixed view: the direction has nothing on the canvas
     const state = markerState(inputOf('top', poseAt(0)))
 
     assert.equal(state.arrow, false)

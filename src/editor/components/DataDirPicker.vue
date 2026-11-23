@@ -607,7 +607,7 @@ async function reconnectDir(): Promise<void> {
 // the dialog of the setup: `Modal.vue` teleports its content to the body, so these elements are **not** under
 // `.DataDirPicker` — a nested selector would not reach them, and the styles live at the top level of the block
 
-// the one line of the dialog that says what the folder is for, in the grey of a caption (the links of the subject live in
+// the one line of the dialog that says what the folder is for, in the gray of a caption (the links of the subject live in
 // the title, this line carries only the promise that nothing is uploaded)
 .lead {
   margin: 0;
@@ -715,7 +715,7 @@ async function reconnectDir(): Promise<void> {
 }
 
 // the info block under the button of the folder: the warning of a browser that can not keep the folder, the browsers
-// that can, and the box of the question. The block is the quiet part of the dialog, so it keeps the grey of the caption
+// that can, and the box of the question. The block is the quiet part of the dialog, so it keeps the gray of the caption
 // and the small letters, and one gap between its lines
 .data-dir-info {
   margin-top: 12px;
@@ -741,7 +741,7 @@ async function reconnectDir(): Promise<void> {
     flex: none;
   }
 
-  // the link of the detail keeps the colour of the warning, and only the underline says it is a link
+  // the link of the detail keeps the color of the warning, and only the underline says it is a link
   .warning-link {
     color: inherit;
     text-decoration: underline;
@@ -781,7 +781,7 @@ async function reconnectDir(): Promise<void> {
     gap: 3px;
   }
 
-  // the mark of the browser: the ok colour of the palette for the one that keeps the folder, the danger for the other
+  // the mark of the browser: the ok color of the palette for the one that keeps the folder, the danger for the other
   .is-ok {
     color: $ok;
   }
@@ -806,7 +806,7 @@ async function reconnectDir(): Promise<void> {
   }
 }
 
-// the link of the title: an icon of the subject (the wiki, the video), in the colour of the title and the interactive
+// the link of the title: an icon of the subject (the wiki, the video), in the color of the title and the interactive
 // blue under the pointer
 .title-link {
   display: inline-flex;
@@ -817,7 +817,7 @@ async function reconnectDir(): Promise<void> {
   }
 }
 
-// a link of the dialog (the wiki, the video): the interactive blue of the palette, the only colour a link may have. The
+// a link of the dialog (the wiki, the video): the interactive blue of the palette, the only color a link may have. The
 // words of it stay on one line: a link split between two lines is read as two sentences
 .text-link {
   color: $interactive;

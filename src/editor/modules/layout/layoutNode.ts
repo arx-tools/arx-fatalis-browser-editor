@@ -132,7 +132,7 @@ export type LayoutNodeWidget = {
    * split above it and the height from the vertical one. A widget that ends up as a direct child of a horizontal split
    * (the column around it collapsed, or a level of the tree went away) has no vertical ancestor to remember its height,
    * so the lock would be lost on the next load — and a lost lock turns the `fixed` pixels of the split into an `auto`
-   * share, which is a very different number (400 shares against the 1 of a flexible neighbour fills the screen). The
+   * share, which is a very different number (400 shares against the 1 of a flexible neighbor fills the screen). The
    * box lives here, on the widget, so both sides survive whatever the tree looks like.
    */
   readonly lock?: LockBox

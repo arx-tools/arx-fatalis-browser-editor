@@ -30,7 +30,7 @@ export type LightPaletteChange = {
  * @remarks
  * The reach of a light is its `fallEnd` around its position, in the frame of the scene (the bake mirrors the position of
  * the light, the way the mesh is mirrored). Two states with the same place and the same end are the same sphere: a
- * colour or an intensity edit gives one sphere instead of two, and the walk of the corners is the same.
+ * color or an intensity edit gives one sphere instead of two, and the walk of the corners is the same.
  *
  * @param changed The lights the edit touched.
  *
@@ -130,7 +130,7 @@ export function refreshLightPaletteOfFaces(map: ArxMap, faces: readonly number[]
  * The light editor writes a light on the frame of every input, and the level has to follow it without the bake of the
  * whole palette (about half a second on a big level). Only the corners the **old** and the **new** sphere of a changed
  * light reach are baked, with the math and the light order of the full bake, and only those entries of the palette and
- * of the `color` attribute of the mesh are written. The corners no light of the edit reaches keep their colour: the edit
+ * of the `color` attribute of the mesh are written. The corners no light of the edit reaches keep their color: the edit
  * can not reach them.
  *
  * The bake follows the profile of the widget: the flat and the rainbow ones do not read the lights, so there is nothing

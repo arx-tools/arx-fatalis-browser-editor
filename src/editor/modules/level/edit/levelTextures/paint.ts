@@ -40,7 +40,7 @@ export const ALPHA_CUTOUT = 0.5
  * The game draws nothing where the level gives a face no texture: such a face is an invisible blocker (the two faces that
  * keep the player out of the room of a cutscene). The editor has to say where the face is without hiding what stands
  * behind it, so the placeholder of the generator is drawn **half see-through** — at a distance the tiled checkerboard
- * reads as one flat colour, and a solid one would look like a wall of the level.
+ * reads as one flat color, and a solid one would look like a wall of the level.
  */
 const NO_TEXTURE_OPACITY = 0.5
 
@@ -156,21 +156,21 @@ function sideOf(doubleSided: boolean): Side {
 }
 
 /**
- * The grey the game multiplies the texture of a face with.
+ * The gray the game multiplies the texture of a face with.
  *
  * @remarks
- * The game sets the vertex colour of a blended face to `gray(trans)` (`ComputePortalVertexBuffer`), which is why a light
- * ray is dim and a torch's flame is not. The value is an **sRGB** grey: the game works on the bytes of the texture, and
+ * The game sets the vertex color of a blended face to `gray(trans)` (`ComputePortalVertexBuffer`), which is why a light
+ * ray is dim and a torch's flame is not. The value is an **sRGB** gray: the game works on the bytes of the texture, and
  * the texture of the renderer is sRGB too.
  *
  * @param trans The brightness of the key.
  *
- * @returns The colour of the material.
+ * @returns The color of the material.
  */
 function transColorOf(trans: number): Color {
-  const grey = Math.min(1, Math.max(0, trans))
+  const gray = Math.min(1, Math.max(0, trans))
 
-  return new Color().setRGB(grey, grey, grey, SRGBColorSpace)
+  return new Color().setRGB(gray, gray, gray, SRGBColorSpace)
 }
 
 /**
@@ -180,7 +180,7 @@ function transColorOf(trans: number): Color {
  * The modes are the ones of the game:
  *
  * - `opaque` draws as it is;
- * - `alpha` blends with the alpha of the texture, which is the colour key of the BMP (its black pixels are the holes);
+ * - `alpha` blends with the alpha of the texture, which is the color key of the BMP (its black pixels are the holes);
  * - `additive` adds the texture to what is behind it (a light ray, a glow) — black adds nothing, so it is invisible;
  * - `multiplicative` multiplies the two;
  * - `subtractive` darkens what is behind it with the texture (`dst * (1 - src)`), the way a flame darkens a wall.
@@ -250,7 +250,7 @@ export function paintedNamesOf(keys: readonly PaintKey[], textures: ReadonlyMap<
  * @remarks
  * The placeholder of the generator says "a texture belongs here", and it is drawn see-through ({@link NO_TEXTURE_OPACITY}):
  * the face is invisible in the game, so the editor may not hide the level with it. Without a placeholder the face keeps
- * the flat colour of the generator, which is opaque, and the blend mode of its key is kept on both: a torch's flame
+ * the flat color of the generator, which is opaque, and the blend mode of its key is kept on both: a torch's flame
  * without its texture still darkens the wall.
  *
  * @param key What the faces draw with, with no name.
@@ -287,7 +287,7 @@ function noTextureMaterialOf(key: PaintKey, missing: Texture | undefined): MeshB
  * Builds the material of a water face.
  *
  * @remarks
- * The texture of a water face is drawn as a translucent sheet at its own brightness (`WATER_OPACITY`): the colour is
+ * The texture of a water face is drawn as a translucent sheet at its own brightness (`WATER_OPACITY`): the color is
  * not modulated by the `transval` of the face, because the game's water pass does not read it either, and no alpha test
  * cuts the texture (the game draws the water without one).
  *
@@ -314,16 +314,16 @@ function waterMaterialOf(key: PaintKey, texture: Texture): MeshBasicMaterial {
 }
 
 /**
- * How much of the texture the `TextureRainbow` profile keeps under the colour of the faces.
+ * How much of the texture the `TextureRainbow` profile keeps under the color of the faces.
  *
  * @remarks
- * The palette of the profile is a colour per container, and the material multiplies it with the texture: the palette is
+ * The palette of the profile is a color per container, and the material multiplies it with the texture: the palette is
  * written at the value of 1, but the textures of the game are dark (the mean of their texels is 22-56%), so a vivid
- * colour of the palette came out as a dark, muddy one (2026-11-20, the owner: *„élénkebb, jobban elüssenek"*). The
- * profile keeps a third of the texture: the rest of the surface is white, so the colour of the face keeps its brightness
+ * color of the palette came out as a dark, muddy one (2026-11-20, the owner: *„élénkebb, jobban elüssenek"*). The
+ * profile keeps a third of the texture: the rest of the surface is white, so the color of the face keeps its brightness
  * and the texture is a detail on it, not the layer under it (2026-11-22, the owner's choice).
  *
- * The value is read in the colour space of the shader (the texture and the palette are both linear there), so a texel of
+ * The value is read in the color space of the shader (the texture and the palette are both linear there), so a texel of
  * 0.25 comes out as 0.74.
  */
 export const RAINBOW_TEXTURE_STRENGTH = 0.35
@@ -343,8 +343,8 @@ const LIGHTENED_TEXTURE_STEP = `#ifdef USE_MAP
  * Replaces the texture step of a fragment shader with the lightened one of the `TextureRainbow` profile.
  *
  * @remarks
- * The shader of `MeshBasicMaterial` multiplies the colour of the face with the texture (`map_fragment`). The profile
- * needs the same product with the texture **towards white**: the step becomes a mix, and the alpha of the texture (the
+ * The shader of `MeshBasicMaterial` multiplies the color of the face with the texture (`map_fragment`). The profile
+ * needs the same product with the texture **toward white**: the step becomes a mix, and the alpha of the texture (the
  * holes of a fence, the shape of a glow) is kept as it is.
  *
  * @param fragmentShader The fragment shader of the material the paint built.
@@ -385,7 +385,7 @@ function lightenTextureOf(material: MeshBasicMaterial): void {
  * because the game draws nothing there. A face whose texture the level names but the session has no file for draws the
  * placeholder **as it is**: a whole level without a data directory is that case, and a see-through level would say less
  * than the opaque placeholder does (the texture list names the missing ones). Without a placeholder the face keeps the
- * flat colour of the generator, and every one of them keeps the blend mode of its key: a torch's flame without its
+ * flat color of the generator, and every one of them keeps the blend mode of its key: a torch's flame without its
  * texture still darkens the wall.
  *
  * @param key What the faces draw with.
@@ -422,7 +422,7 @@ function materialOf(
   // the game cuts the holes of a texture with the alpha it has (`BackgroundRenderOpaque`:
   // `setAlphaCutout(texture->hasAlpha())`), so a wall whose texture has a black background shows what stands behind
   // it — the iron logo of a level 0 wall is the ornament of the texture, not a black panel. The alpha of a 24-bit BMP
-  // is the colour key (`applyColourKey`), which is 0 or 255, so the cut is exact.
+  // is the color key (`applyColorKey`), which is 0 or 255, so the cut is exact.
   material.alphaTest = ALPHA_CUTOUT
 
   applyBlend(material, key)
@@ -435,13 +435,13 @@ function materialOf(
  *
  * @remarks
  * The material draws the texture of the key as the game has it. The `TextureRainbow` profile keeps its texture **under**
- * its colour, lightened ({@link RAINBOW_TEXTURE_STRENGTH}): the palette of the profile is the point of it, and the
+ * its color, lightened ({@link RAINBOW_TEXTURE_STRENGTH}): the palette of the profile is the point of it, and the
  * texture is the detail over it.
  *
  * @param key What the faces draw with.
  * @param textures The textures of the level, by the name it calls them.
  * @param missing The texture the containers the level has none for draw with, when there is one.
- * @param rainbow Whether the profile of the bake is the `TextureRainbow`, whose colours the texture may not drown.
+ * @param rainbow Whether the profile of the bake is the `TextureRainbow`, whose colors the texture may not drown.
  *
  * @returns The material of the key.
  */

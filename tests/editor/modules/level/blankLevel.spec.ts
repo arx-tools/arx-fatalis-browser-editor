@@ -99,7 +99,7 @@ void describe('createBlankLevelFiles', () => {
     // (2026-11-20, the owner); the game's Y axis points down, so the light hangs over the floor at a negative one
     assert.equal(map.lights.length, 1)
     assert.deepEqual(map.lights[0]?.position, { x: 0, y: -400, z: 0 })
-    // the file keeps the three channels of a light's colour: the alpha comes back as the reader normalises it
+    // the file keeps the three channels of a light's color: the alpha comes back as the reader normalizes it
     assert.deepEqual([map.lights[0]?.color.r, map.lights[0]?.color.g, map.lights[0]?.color.b], [255, 230, 190])
   })
 })

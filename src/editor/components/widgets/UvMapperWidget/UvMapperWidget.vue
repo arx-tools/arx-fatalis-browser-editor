@@ -22,7 +22,7 @@ import ToolButton from '../../ToolButton.vue'
 import {
   DEFAULT_ZOOM,
   mismatchMessageOf,
-  centreOfUvs,
+  centerOfUvs,
   cornerNameOf,
   perimeterOf,
   screenOfUv,
@@ -52,7 +52,7 @@ const props = defineProps<{
 const hint = shallowRef('Select one face to edit its texture coordinates.')
 
 /**
- * The stage: the box the square is centred in.
+ * The stage: the box the square is centered in.
  */
 const stage = useTemplateRef<HTMLDivElement>('stage')
 
@@ -126,14 +126,14 @@ const size = shallowRef(240)
 const zoom = shallowRef(DEFAULT_ZOOM)
 
 /**
- * The uv the square is centred on.
+ * The uv the square is centered on.
  *
  * @remarks
- * It is the middle of the face **when a face arrives** (a selection, a level, a reload) — `centreOnFace` —, and after
+ * It is the middle of the face **when a face arrives** (a selection, a level, a reload) — `centerOnFace` —, and after
  * that it only moves when the texture is dragged or the wheel zooms: the corners move under a picture that stays, so
  * dragging the yellow of a face does not chase the view (2026-11-06, the owner's request).
  */
-const centre = shallowRef<UvPoint>({ u: 0.5, v: 0.5 })
+const center = shallowRef<UvPoint>({ u: 0.5, v: 0.5 })
 
 /**
  * Whether the texture is being dragged.
@@ -162,9 +162,9 @@ const active = shallowRef<number | undefined>(undefined)
 let redrawFrame = 0
 
 /**
- * What the view draws: the zoom, and the uv the square is centred on.
+ * What the view draws: the zoom, and the uv the square is centered on.
  */
-const view = shallowRef<UvView>({ size: size.value, zoom: zoom.value, centre: centre.value })
+const view = shallowRef<UvView>({ size: size.value, zoom: zoom.value, center: center.value })
 
 /**
  * The corner handles, at their place on the square.
@@ -234,7 +234,7 @@ function showMessage(message: string, name: string | undefined): void {
   // the view is only worth placing when there is a texture to look at: a selection of faces on many textures has none
   if (name !== undefined && (wasEditing || isNewTexture)) {
     zoom.value = DEFAULT_ZOOM
-    centre.value = { u: 0.5, v: 0.5 }
+    center.value = { u: 0.5, v: 0.5 }
   }
 }
 
@@ -299,7 +299,7 @@ function refresh(): void {
   // a new face is the one time the square goes back to the middle of the face: after that the picture stays where the
   // user left it (2026-11-06, the owner: the view must not chase a drag)
   if (isNewFace) {
-    centre.value = centreOfUvs(corners.value)
+    center.value = centerOfUvs(corners.value)
   }
 
   const name = map.textureNameOf(polygon.textureContainerId)
@@ -397,7 +397,7 @@ function draw(): void {
  * Turns the model write into a frame, so a drag of the pointer does not re-render the views on every event.
  *
  * @remarks
- * A frame that is already asked for is cancelled and asked again: a browser that freezes a tab in the background may
+ * A frame that is already asked for is canceled and asked again: a browser that freezes a tab in the background may
  * drop the callback it owes, and the id would stay set forever, which would stop the views from following the mapper
  * (see the same guard in the fixed view).
  */
@@ -413,14 +413,14 @@ function requestRedraw(): void {
 }
 
 /**
- * Moves the view and the handles to the centre, the zoom and the corners.
+ * Moves the view and the handles to the center, the zoom and the corners.
  *
  * @remarks
- * The view is the zoom and the uv the square is centred on — **not** the corners: a corner that moves stays on the
+ * The view is the zoom and the uv the square is centered on — **not** the corners: a corner that moves stays on the
  * screen, and a face that is dragged does not drag the picture with it.
  */
 function reframe(): void {
-  const next: UvView = { size: size.value, zoom: zoom.value, centre: centre.value }
+  const next: UvView = { size: size.value, zoom: zoom.value, center: center.value }
 
   view.value = next
   handles.value = corners.value.map((corner, index) => {
@@ -459,7 +459,7 @@ const drag = useUvMapperDrag({
   view,
   size,
   zoom,
-  centre,
+  center,
   panning,
   overFace,
   dragged,
@@ -476,7 +476,7 @@ const { onPointerDown, onPointerMove, onPointerUp, onPanStart, onPanMove, onPanE
  * @remarks
  * Picking a corner from the list is the way to edit a corner without the mouse: the drag sets the same one, so the two
  * ways meet on {@link active}. The list is drawn by the widget and not by the `select` of the browser: the items of a
- * native select are painted by the system on Firefox, so the colours of the corners never reached them (2026-11-09,
+ * native select are painted by the system on Firefox, so the colors of the corners never reached them (2026-11-09,
  * the owner's report).
  */
 const activeCornerNumber = computed((): number => {
@@ -924,7 +924,7 @@ watch(
 // the right (2026-11-05, the owner: they were in the footer, where the uv numbers are the thing to read).
 .head {
   display: grid;
-  // the label, the name, the count of the faces and the zoom: the two `1fr` sides centre the name, and the zoom is
+  // the label, the name, the count of the faces and the zoom: the two `1fr` sides center the name, and the zoom is
   // placed on the last column by itself (the count is only there for a selection of many faces, and the columns must not
   // shift when it is missing)
   grid-template-columns: 1fr auto auto 1fr;
@@ -1013,7 +1013,7 @@ watch(
   }
 }
 
-// A corner of the face: a round handle with its **number** in it, and one colour per corner (2026-11-05, the owner:
+// A corner of the face: a round handle with its **number** in it, and one color per corner (2026-11-05, the owner:
 // four green dots can not be told apart). The palette has four hues that are far enough: the ok green, the interactive
 // blue, the accent orange and the marker red.
 .corner {
@@ -1112,7 +1112,7 @@ watch(
   }
 
   // The list of the corners is drawn by the widget: the items of a native select are painted by the system on Firefox,
-  // so the colours of the corners never reached them (2026-11-09, the owner's report). It opens upwards, over the square,
+  // so the colors of the corners never reached them (2026-11-09, the owner's report). It opens upwards, over the square,
   // so it stays inside the widget.
   .corner-list {
     position: absolute;
@@ -1145,7 +1145,7 @@ watch(
     }
   }
 
-  // the button of the list and its items carry the colour of the handle on the square (A green, B blue, C orange and D
+  // the button of the list and its items carry the color of the handle on the square (A green, B blue, C orange and D
   // red, the hues of the handles), and the text on them is the dark of a widget
   .corner-select,
   .corner-item {

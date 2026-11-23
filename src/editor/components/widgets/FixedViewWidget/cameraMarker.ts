@@ -138,7 +138,7 @@ export function markerPoint(pose: CameraPose | undefined, player: ArxVector3, sc
  * @param height The height of the canvas in CSS pixels.
  *
  * The marker is **always on the canvas**: a fixed view is a window on the level, and the camera of the
- * walkable view can stand outside of it (a zoomed view shows the centre, not the camera). Such a marker is
+ * walkable view can stand outside of it (a zoomed view shows the center, not the camera). Such a marker is
  * pulled to the edge of the canvas, so the eye always finds it, and {@link MarkerPlacement.clamped} says
  * that it is out of the frame.
  *

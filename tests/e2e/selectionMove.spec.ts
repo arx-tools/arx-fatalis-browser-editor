@@ -334,7 +334,7 @@ test('a move and its undo leave the red fill of a group on the fixed views', asy
   await expect(undo).toBeEnabled()
 
   // the move is a repaint of the fixed view: the red of the group has to stay (the green arrow moves the face up, which
-  // the plan of the top view does not show, so the colour is what the undo below reads)
+  // the plan of the top view does not show, so the color is what the undo below reads)
   await page.waitForTimeout(400)
 
   // the undo puts the face back (the group of the `Ctrl+G` is a step of its own, so the undo has one more to give)

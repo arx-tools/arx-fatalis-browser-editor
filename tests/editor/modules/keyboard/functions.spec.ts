@@ -212,7 +212,7 @@ void describe('isEditableTarget', () => {
 
 void describe('matchesCombo with a character', () => {
   void it('matches the label on the key, whatever the physical position is', () => {
-    // a Hungarian keyboard is QWERTZ: the key labelled Z reports `key: 'z'` with the code of the US `Y`
+    // a Hungarian keyboard is QWERTZ: the key labeled Z reports `key: 'z'` with the code of the US `Y`
     const combo = { key: 'z', mods: ['ctrl' as const] }
 
     assert.equal(

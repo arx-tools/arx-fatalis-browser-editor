@@ -24,7 +24,7 @@ export function isDoubleSided(polygon: Pick<ArxPolygon, 'flags'>): boolean {
  *
  * @remarks
  * The level marks the faces that give their own light with the `Glow` bit (a lamp, the flame of a torch, the glow of a
- * window). The game draws such a face with a **white** vertex colour, so the light of the scene does not darken it and
+ * window). The game draws such a face with a **white** vertex color, so the light of the scene does not darken it and
  * the `trans` of the face does not dim its texture: the face is the light.
  *
  * @param polygon The polygon to read.
@@ -61,7 +61,7 @@ export function isWater(polygon: Pick<ArxPolygon, 'flags'>): boolean {
  *
  * - `2` or more: multiplicative (the face darkens/multiplies what is behind it);
  * - `1` or more: additive (a light ray, a glow — black adds nothing, so it is invisible);
- * - above `0`: the normal alpha blend of the game (the texture's own alpha, from its colour key, cuts the face);
+ * - above `0`: the normal alpha blend of the game (the texture's own alpha, from its color key, cuts the face);
  * - `0` or less: **subtractive** — the game draws `dst * (1 - src)`, so a flame darkens the wall instead of covering
  * it with the black of its background.
  *
@@ -112,16 +112,16 @@ export function blendModeOf(polygon: Pick<ArxPolygon, 'flags' | 'transval'>): Po
  * The brightness the game multiplies the texture of a blended face with.
  *
  * @remarks
- * The game sets every vertex colour of a `Transparent` face to `gray(trans)` before it draws them, which is why a light
+ * The game sets every vertex color of a `Transparent` face to `gray(trans)` before it draws them, which is why a light
  * ray is dim and a torch flame is not: the values are the ones of `ComputePortalVertexBuffer`.
  *
- * A **Glow** face is the exception: the render sets its vertex colour to white (`Scene.cpp`), because the face is the
+ * A **Glow** face is the exception: the render sets its vertex color to white (`Scene.cpp`), because the face is the
  * light and the scene must not dim it. The lamp of the minigame is one of these — its `transval` is `1.005`, which would
  * be almost black as a `gray(trans)`, and the game still draws its full texture.
  *
  * @param polygon The polygon to read.
  *
- * @returns The grey of the face, `1` for an opaque or a glowing one.
+ * @returns The gray of the face, `1` for an opaque or a glowing one.
  */
 export function blendTransOf(polygon: Pick<ArxPolygon, 'flags' | 'transval'>): number {
   const mode = blendModeOf(polygon)
@@ -273,7 +273,7 @@ export function vertexKeyOf(vertex: ArxVector3): string {
  * Groups the polygons by the positions of their vertices.
  *
  * @remarks
- * Two polygons that share a vertex are neighbours: this is the rule the dragged selection and the texture
+ * Two polygons that share a vertex are neighbors: this is the rule the dragged selection and the texture
  * fill follow, so both walk the welds of the mesh and stop where the mesh is not welded.
  *
  * @param polygons The polygons of the level, in their own order.
@@ -385,19 +385,19 @@ export function connectedAreaOf(
     area.push(polygonIndex)
 
     for (const vertex of usedVerticesOf(polygon)) {
-      for (const neighbour of vertexToPolygons.get(vertexKeyOf(vertex)) ?? []) {
-        if (visited.has(neighbour)) {
+      for (const neighbor of vertexToPolygons.get(vertexKeyOf(vertex)) ?? []) {
+        if (visited.has(neighbor)) {
           continue
         }
 
-        const next = polygons[neighbour]
+        const next = polygons[neighbor]
 
         if (next === undefined || !keep(next)) {
           continue
         }
 
-        visited.add(neighbour)
-        queue.push(neighbour)
+        visited.add(neighbor)
+        queue.push(neighbor)
       }
     }
   }

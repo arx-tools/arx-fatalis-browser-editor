@@ -256,7 +256,7 @@ export type LevelMaterialOptions = {
  *
  * @remarks
  * The material is **unlit**: the light of the level is baked into the palette of the LLF, and the `color` attribute of
- * the geometry carries it (the paint writes it), so the mesh has to show that colour and not the light of the scene.
+ * the geometry carries it (the paint writes it), so the mesh has to show that color and not the light of the scene.
  * Without a palette the attribute is white, which is the flat look of a level that has no lighting yet.
  *
  * @param options How the material draws; the two sides of a face are the default (`FrontSide`).
@@ -274,23 +274,23 @@ export function createLevelMaterial(options: LevelMaterialOptions = {}): MeshBas
 }
 
 /**
- * The colour of the plain wireframe of the fixed views: a neutral grey.
+ * The color of the plain wireframe of the fixed views: a neutral gray.
  *
  * @remarks
  * A plain `#777` (2026-11-08, the owner): it reads over the black of a hidden mesh and over the textures of a shown one
- * alike, and it is quiet on the dark faces (a lighter grey shouted over them). The owner tried `#ccc` (too bright), `#aaa`
+ * alike, and it is quiet on the dark faces (a lighter gray shouted over them). The owner tried `#ccc` (too bright), `#aaa`
  * (still loud on the dark) and the complement of the surface under the line (it disappears on the mid tones, which reads
- * as a broken outline), and kept this one. The fixed views draw their level with the light preview material, so the grey
+ * as a broken outline), and kept this one. The fixed views draw their level with the light preview material, so the gray
  * stays here.
  */
 const WIREFRAME_OVER_BLACK = 0x77_77_77
 
 /**
- * The colour of the plain wireframe of the walkable view, while the mesh is off.
+ * The color of the plain wireframe of the walkable view, while the mesh is off.
  *
  * @remarks
- * A lighter grey than the fixed views' `#777` (2026-11-15, the owner, after the coloured wireframe of the textured view):
- * over the black of the hidden mesh the quiet grey read a bit too dark, so the plain line of this view is `#999`.
+ * A lighter gray than the fixed views' `#777` (2026-11-15, the owner, after the colored wireframe of the textured view):
+ * over the black of the hidden mesh the quiet gray read a bit too dark, so the plain line of this view is `#999`.
  */
 export const WIREFRAME_WITHOUT_MESH = 0x99_99_99
 
@@ -299,7 +299,7 @@ export const WIREFRAME_WITHOUT_MESH = 0x99_99_99
  */
 export type WireframeMaterialOptions = {
   /**
-   * The colour of the plain grey line, `#777` by default.
+   * The color of the plain gray line, `#777` by default.
    */
   readonly color?: number
 }
@@ -311,7 +311,7 @@ export type WireframeMaterialOptions = {
  * A new instance per view: the level meshes share their geometry, and the wireframe is a `LineSegments` wrapper like
  * them, but a disposed wrapper takes its material with it.
  *
- * @param options How the lines draw; the plain grey of `#777` by default.
+ * @param options How the lines draw; the plain gray of `#777` by default.
  *
  * @returns The material of the wireframe lines.
  */
@@ -328,10 +328,10 @@ export function createWireframeMaterial(options: WireframeMaterialOptions = {}):
 }
 
 /**
- * The vertex shader of the coloured wireframe: the colour of the face and the normal it faces the camera with.
+ * The vertex shader of the colored wireframe: the color of the face and the normal it faces the camera with.
  *
  * @remarks
- * The geometry carries the colour of every face (see `wireframeColorsOf`) and the normal of the corner of every point
+ * The geometry carries the color of every face (see `wireframeColorsOf`) and the normal of the corner of every point
  * (`arxPolygonsToWireframeGeometry`), so the line knows which side of its face the camera sees.
  */
 const COLORED_WIREFRAME_VERTEX_SHADER = `
@@ -353,12 +353,12 @@ void main() {
 `
 
 /**
- * The fragment shader of the coloured wireframe: the line of a back face takes the grey of the hidden geometry.
+ * The fragment shader of the colored wireframe: the line of a back face takes the gray of the hidden geometry.
  *
  * @remarks
  * The game culls a face it sees from behind (the texture runs draw the one-sided faces from the front only), so the
- * lines of those faces belong to geometry that is not on the screen: they take the plain grey of the hidden mesh. A
- * face the level draws from both sides (`DoubleSided`) keeps its colour, because the level draws it from behind too.
+ * lines of those faces belong to geometry that is not on the screen: they take the plain gray of the hidden mesh. A
+ * face the level draws from both sides (`DoubleSided`) keeps its color, because the level draws it from behind too.
  */
 const COLORED_WIREFRAME_FRAGMENT_SHADER = `
 uniform vec3 backFaceColor;
@@ -383,14 +383,14 @@ void main() {
 `
 
 /**
- * Builds the material of a wireframe that takes the colour of its faces.
+ * Builds the material of a wireframe that takes the color of its faces.
  *
  * @remarks
- * The lines are drawn from the vertex colours the geometry of the level carries, and a line of a face the camera sees
- * from behind is drawn in the grey of the hidden mesh (`WIREFRAME_WITHOUT_MESH`), so the back of the ceiling reads as
+ * The lines are drawn from the vertex colors the geometry of the level carries, and a line of a face the camera sees
+ * from behind is drawn in the gray of the hidden mesh (`WIREFRAME_WITHOUT_MESH`), so the back of the ceiling reads as
  * the geometry the game culls, not as the texture that is not there.
  *
- * @returns The material of the coloured wireframe lines.
+ * @returns The material of the colored wireframe lines.
  */
 export function createColoredWireframeMaterial(): ShaderMaterial {
   return new ShaderMaterial({
@@ -405,16 +405,16 @@ export function createColoredWireframeMaterial(): ShaderMaterial {
 }
 
 /**
- * Reads the colour of every vertex of the wireframe, from the colour of its polygon.
+ * Reads the color of every vertex of the wireframe, from the color of its polygon.
  *
  * @remarks
  * The wireframe has two vertices per edge of a polygon, and the polygons walk it in the order they are stored in: this
  * is the same walk as {@link arxPolygonsToWireframeGeometry}, so the two buffers stay in step.
  *
  * @param polygons The faces of the level.
- * @param colorOf The colour of a face, in the colour of the vertices.
+ * @param colorOf The color of a face, in the color of the vertices.
  *
- * @returns The colours, in the order of the positions of the wireframe.
+ * @returns The colors, in the order of the positions of the wireframe.
  */
 export function wireframeColorsOf(
   polygons: readonly ArxPolygon[],
@@ -438,13 +438,13 @@ export function wireframeColorsOf(
  * Builds the wireframe of the level: the perimeter of every polygon, as segments.
  *
  * @remarks
- * A view that colours its lines (a `colorOf` is given) gets the colour of the face on every point, and with it the
+ * A view that colors its lines (a `colorOf` is given) gets the color of the face on every point, and with it the
  * normal of the corner and the two-sided flag of the face: the material needs the two to draw the line of a face the
- * camera sees from behind in the grey of the hidden geometry.
+ * camera sees from behind in the gray of the hidden geometry.
  *
  * @param polygons The faces of the level.
  * @param offset The scene position of the level, already mirrored.
- * @param colorOf The colour of a face, in the colour of the vertices; without it the geometry has only its points.
+ * @param colorOf The color of a face, in the color of the vertices; without it the geometry has only its points.
  *
  * @returns The geometry of the lines.
  */

@@ -220,7 +220,7 @@ onMounted(async () => {
           })
       } else {
         // the blank level of the start is painted like any other: the containers it has draw with the placeholder (the
-        // editor has no texture of the game at hand), so the floor is the jorge pattern and not the bare grey of a mesh
+        // editor has no texture of the game at hand), so the floor is the jorge pattern and not the bare gray of a mesh
         await levelStore
           .openLevel(source, async (map): Promise<void> => {
             await prepareLoadedMap(map)

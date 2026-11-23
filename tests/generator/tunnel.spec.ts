@@ -342,7 +342,7 @@ void describe('tunnelPolygonsOf', () => {
     )
   })
 
-  void it('turns the quads towards the inside of the tube', () => {
+  void it('turns the quads toward the inside of the tube', () => {
     const from = squareAt(0)
     const to = squareAt(10)
     const axis = { x: 5, y: 0.5, z: 0.5 }

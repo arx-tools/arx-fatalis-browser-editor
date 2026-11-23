@@ -1,6 +1,6 @@
 import type { ArxVector3 } from 'arx-convert/types'
 import { Vector3 } from 'three'
-import { centreOfBounds, type CameraBounds } from '../shared/cameraBounds.ts'
+import { centerOfBounds, type CameraBounds } from '../shared/cameraBounds.ts'
 import type { CameraPose, GameAngle } from '../camera/cameraPose.ts'
 
 /**
@@ -68,7 +68,7 @@ export function frustumOf(fieldOfView: number, aspect: number): CameraFrustum {
  * One fixed view: where it looks along, which way is up on the screen, and the angle the camera gets.
  *
  * @remarks
- * The vectors are in the game's coordinate system. The classic heuristic (a distance from the centre)
+ * The vectors are in the game's coordinate system. The classic heuristic (a distance from the center)
  * cuts a wide level off at the near side, so the distance is computed from the corners instead.
  */
 type View = {
@@ -144,8 +144,8 @@ function cornersOf(bounds: CameraBounds): ArxVector3[] {
  */
 export function alignPose(mode: CameraViewMode, bounds: CameraBounds, frustum: CameraFrustum): CameraPose {
   const view = VIEWS[mode]
-  const middle = centreOfBounds(bounds)
-  const centre = new Vector3(middle.x, middle.y, middle.z)
+  const middle = centerOfBounds(bounds)
+  const center = new Vector3(middle.x, middle.y, middle.z)
   const axis = new Vector3(view.axis.x, view.axis.y, view.axis.z)
   const up = new Vector3(view.up.x, view.up.y, view.up.z)
   const right = new Vector3().crossVectors(axis, up)
@@ -155,7 +155,7 @@ export function alignPose(mode: CameraViewMode, bounds: CameraBounds, frustum: C
   let distance = MINIMUM_DISTANCE
 
   for (const corner of cornersOf(bounds)) {
-    const offset = new Vector3(corner.x - centre.x, corner.y - centre.y, corner.z - centre.z)
+    const offset = new Vector3(corner.x - center.x, corner.y - center.y, corner.z - center.z)
     const along = offset.dot(axis)
     const horizontal = Math.abs(offset.dot(right)) / tanHorizontal
     const vertical = Math.abs(offset.dot(up)) / tanVertical
@@ -166,7 +166,7 @@ export function alignPose(mode: CameraViewMode, bounds: CameraBounds, frustum: C
   const offset = axis.clone().multiplyScalar(distance)
 
   return {
-    position: { x: centre.x - offset.x, y: centre.y - offset.y, z: centre.z - offset.z },
+    position: { x: center.x - offset.x, y: center.y - offset.y, z: center.z - offset.z },
     angle: view.angle,
   }
 }
@@ -202,7 +202,7 @@ export type FrameSize = {
  */
 export function frameOf(mode: CameraViewMode, bounds: CameraBounds, aspect: number): FrameSize {
   const view = VIEWS[mode]
-  const middle = centreOfBounds(bounds)
+  const middle = centerOfBounds(bounds)
   const axis = new Vector3(view.axis.x, view.axis.y, view.axis.z)
   const up = new Vector3(view.up.x, view.up.y, view.up.z)
   const right = new Vector3().crossVectors(axis, up)

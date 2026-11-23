@@ -50,7 +50,7 @@ type GraphEdge = {
 }
 
 /**
- * The neighbours of every node of the graph.
+ * The neighbors of every node of the graph.
  */
 type Graph = GraphEdge[][]
 
@@ -143,7 +143,7 @@ function centerOfPortal(portal: DistancePortal): ArxVector3 {
  * @param roomCount How many room nodes the graph starts with.
  * @param positions The position of every node.
  *
- * @returns The neighbours of every node.
+ * @returns The neighbors of every node.
  */
 function buildEdges(
   portals: readonly DistancePortal[],
@@ -253,7 +253,7 @@ function pathBetween(from: number, to: number, previous: ReadonlyArray<number | 
  * the code stays without a heap.
  *
  * @param from The node to start from.
- * @param edges The neighbours of every node.
+ * @param edges The neighbors of every node.
  * @param nodeCount How many nodes the graph has.
  *
  * @returns The node every reached node came from.

@@ -430,7 +430,7 @@ async function onDrop(event: DragEvent): Promise<void> {
   }
 }
 
-// the pager: the range of the page, with the two buttons of the neighbouring pages
+// the pager: the range of the page, with the two buttons of the neighboring pages
 .pager {
   display: flex;
   align-items: center;

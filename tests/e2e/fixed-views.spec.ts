@@ -128,14 +128,14 @@ async function zoomOf(page: Page, kind: string): Promise<number> {
 }
 
 /**
- * The centre of the camera marker of a view.
+ * The center of the camera marker of a view.
  *
  * @param page The page to read.
  * @param kind Which direction the view shows.
  *
- * @returns The centre in the pixels of the page, or `undefined` while the marker is not shown.
+ * @returns The center in the pixels of the page, or `undefined` while the marker is not shown.
  */
-async function markerCentreOf(page: Page, kind: string): Promise<Point | undefined> {
+async function markerCenterOf(page: Page, kind: string): Promise<Point | undefined> {
   const mark = viewOf(page, kind).locator('.camera-mark')
 
   // the marker is an `svg` that is not in the document when there is nothing to mark (a pose, a level)
@@ -212,13 +212,13 @@ async function pointOf(canvas: Locator, alongX: number, alongY: number): Promise
 }
 
 /**
- * The centre of a canvas.
+ * The center of a canvas.
  *
  * @param canvas The canvas to read.
  *
- * @returns The centre in the pixels of the page.
+ * @returns The center in the pixels of the page.
  */
-async function centreOf(canvas: Locator): Promise<Point> {
+async function centerOf(canvas: Locator): Promise<Point> {
   return await pointOf(canvas, 0.5, 0.5)
 }
 
@@ -230,9 +230,9 @@ async function centreOf(canvas: Locator): Promise<Point> {
  * @param steps How many units the wheel turns: negative turns the zoom up, positive down.
  */
 async function wheel(page: Page, kind: string, steps: number): Promise<void> {
-  const centre = await centreOf(canvasOf(page, kind))
+  const center = await centerOf(canvasOf(page, kind))
 
-  await page.mouse.move(centre.x, centre.y)
+  await page.mouse.move(center.x, center.y)
   await page.mouse.wheel(0, steps)
   await page.waitForTimeout(200)
 }
@@ -253,7 +253,7 @@ async function openTheViews(page: Page): Promise<void> {
   await expect
     .poll(
       async () => {
-        return await markerCentreOf(page, WIDGET_KINDS.topView)
+        return await markerCenterOf(page, WIDGET_KINDS.topView)
       },
       { timeout: 10_000 },
     )
@@ -294,7 +294,7 @@ test('a click at the framed view puts the marker under the pointer, and moves th
     await page.mouse.click(point.x, point.y)
     await expectPositionChange(page, before)
 
-    const marker = await markerCentreOf(page, kind)
+    const marker = await markerCenterOf(page, kind)
 
     // the pointer is read on the plane of the walkable camera, so the marker lands where the pointer is
     expect(Math.abs((marker?.x ?? 0) - point.x)).toBeLessThanOrEqual(2)
@@ -312,7 +312,7 @@ test('a click outside the level moves the camera too', async ({ page }) => {
     await page.mouse.click(point.x, point.y)
     await expectPositionChange(page, before)
 
-    const marker = await markerCentreOf(page, kind)
+    const marker = await markerCenterOf(page, kind)
 
     // the plane of the view has no end: the corner of the canvas is a place as well, and the marker is there
     expect(Math.abs((marker?.x ?? 0) - point.x)).toBeLessThanOrEqual(2)
@@ -338,14 +338,14 @@ test('a drag at the framed view follows the pointer, and the mapping is linear',
   await page.waitForTimeout(300)
 
   const atMiddle = positionOf(page)
-  const atMiddleMarker = await markerCentreOf(page, WIDGET_KINDS.topView)
+  const atMiddleMarker = await markerCenterOf(page, WIDGET_KINDS.topView)
 
   await page.mouse.move(end.x, end.y, { steps: 5 })
   await page.mouse.up()
   await page.waitForTimeout(300)
 
   const atEnd = positionOf(page)
-  const atEndMarker = await markerCentreOf(page, WIDGET_KINDS.topView)
+  const atEndMarker = await markerCenterOf(page, WIDGET_KINDS.topView)
 
   // the pointer follows the drag: the marker is where the pointer is, without a raycast in the way
   expect(Math.abs((atMiddleMarker?.x ?? 0) - middle.x)).toBeLessThanOrEqual(2)
@@ -388,7 +388,7 @@ test('a click lands under the pointer in a landscape and in a portrait view', as
     await page.mouse.click(point.x, point.y)
     await expectPositionChange(page, before)
 
-    const marker = await markerCentreOf(page, WIDGET_KINDS.leftView)
+    const marker = await markerCenterOf(page, WIDGET_KINDS.leftView)
 
     expect(Math.abs((marker?.x ?? 0) - point.x)).toBeLessThanOrEqual(2)
     expect(Math.abs((marker?.y ?? 0) - point.y)).toBeLessThanOrEqual(2)
@@ -398,13 +398,13 @@ test('a click lands under the pointer in a landscape and in a portrait view', as
 test('the jump moves the marker in the views', async ({ page }) => {
   await openTheViews(page)
 
-  const spawnMarker = await markerCentreOf(page, WIDGET_KINDS.topView)
+  const spawnMarker = await markerCenterOf(page, WIDGET_KINDS.topView)
   const point = await pointOf(canvasOf(page, WIDGET_KINDS.topView), 0.3, 0.6)
 
   await page.mouse.click(point.x, point.y)
   await page.waitForTimeout(500)
 
-  const clickedMarker = await markerCentreOf(page, WIDGET_KINDS.topView)
+  const clickedMarker = await markerCenterOf(page, WIDGET_KINDS.topView)
 
   expect(clickedMarker).toBeDefined()
   expect(Math.abs((clickedMarker?.x ?? 0) - point.x)).toBeLessThanOrEqual(2)
@@ -413,7 +413,7 @@ test('the jump moves the marker in the views', async ({ page }) => {
   await page.locator('[data-widget-kind="jump-to-location"] button').click()
   await page.waitForTimeout(700)
 
-  const backMarker = await markerCentreOf(page, WIDGET_KINDS.topView)
+  const backMarker = await markerCenterOf(page, WIDGET_KINDS.topView)
 
   expect(backMarker).toBeDefined()
   expect(Math.abs((backMarker?.x ?? 0) - (spawnMarker?.x ?? 0))).toBeLessThanOrEqual(2)
@@ -430,7 +430,7 @@ test('a zoomed view is a magnifier: the click moves the camera, and the marker s
   expect(await zoomOf(page, WIDGET_KINDS.topView)).toBeGreaterThan(3)
 
   const canvas = canvasOf(page, WIDGET_KINDS.topView)
-  const centre = await centreOf(canvas)
+  const center = await centerOf(canvas)
   const before = positionOf(page)
   const point = await pointOf(canvas, 0.3, 0.35)
 
@@ -438,10 +438,10 @@ test('a zoomed view is a magnifier: the click moves the camera, and the marker s
   await expectPositionChange(page, before)
 
   // the zoomed view is framed again around the camera: the marker lands in the middle of the canvas
-  const marker = await markerCentreOf(page, WIDGET_KINDS.topView)
+  const marker = await markerCenterOf(page, WIDGET_KINDS.topView)
 
-  expect(Math.abs((marker?.x ?? 0) - centre.x)).toBeLessThanOrEqual(2)
-  expect(Math.abs((marker?.y ?? 0) - centre.y)).toBeLessThanOrEqual(2)
+  expect(Math.abs((marker?.x ?? 0) - center.x)).toBeLessThanOrEqual(2)
+  expect(Math.abs((marker?.y ?? 0) - center.y)).toBeLessThanOrEqual(2)
 
   // the click still goes somewhere: the canvas keeps the crosshair, framed or zoomed
   const cursor = await canvas.evaluate((element) => {
@@ -475,11 +475,11 @@ test('a zoomed view does not drag, and a jump re-frames it', async ({ page }) =>
 
   expect(positionOf(page)).toEqual(before)
 
-  const centre = await centreOf(canvas)
-  const marker = await markerCentreOf(page, WIDGET_KINDS.topView)
+  const center = await centerOf(canvas)
+  const marker = await markerCenterOf(page, WIDGET_KINDS.topView)
 
-  expect(Math.abs((marker?.x ?? 0) - centre.x)).toBeLessThanOrEqual(2)
-  expect(Math.abs((marker?.y ?? 0) - centre.y)).toBeLessThanOrEqual(2)
+  expect(Math.abs((marker?.x ?? 0) - center.x)).toBeLessThanOrEqual(2)
+  expect(Math.abs((marker?.y ?? 0) - center.y)).toBeLessThanOrEqual(2)
 
   // a jump moves the camera, and the zoomed view follows it: the picture of the level changes, and the marker
   // stays in the middle (this is what makes a zoomed view a magnifier of the camera, not of the level)
@@ -492,8 +492,8 @@ test('a zoomed view does not drag, and a jump re-frames it', async ({ page }) =>
 
   expect(pictureAfter.equals(pictureBefore)).toBe(false)
 
-  const movedMarker = await markerCentreOf(page, WIDGET_KINDS.topView)
+  const movedMarker = await markerCenterOf(page, WIDGET_KINDS.topView)
 
-  expect(Math.abs((movedMarker?.x ?? 0) - centre.x)).toBeLessThanOrEqual(2)
-  expect(Math.abs((movedMarker?.y ?? 0) - centre.y)).toBeLessThanOrEqual(2)
+  expect(Math.abs((movedMarker?.x ?? 0) - center.x)).toBeLessThanOrEqual(2)
+  expect(Math.abs((movedMarker?.y ?? 0) - center.y)).toBeLessThanOrEqual(2)
 })

@@ -19,7 +19,7 @@ export type SelectionFill = 'rooms' | 'textures'
  * @remarks
  * The answer depends on what the view shows. On the textured level the walk takes the connected faces that share the
  * texture of the click. On the room map it takes the **whole** room of the face, in all the pieces the mesh holds it;
- * and for a face the file never put into a room (the grey of the map) it takes the connected piece of such faces,
+ * and for a face the file never put into a room (the gray of the map) it takes the connected piece of such faces,
  * which stops at the first face of a room: that piece is what the author has to assign anyway.
  *
  * @param fill What the view shows.

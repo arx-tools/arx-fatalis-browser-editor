@@ -70,7 +70,7 @@ test('the picker lists the widgets in three columns', async ({ page }) => {
  *
  * @remarks
  * The slider is only there for the flat light (0 is dark, 1 is the brightest, in steps of 0.1), and its value is a fact
- * of the browser like the profile: the next visit starts with the same grey.
+ * of the browser like the profile: the next visit starts with the same gray.
  */
 test('the flat profile brings a luminosity slider, and the value stays', async ({ page }) => {
   await page.goto(editorUrl())
@@ -273,15 +273,15 @@ test('the throbber of the bake turns in place', async ({ page }) => {
 })
 
 /**
- * The `Texture Rainbow` profile draws the level with the colour of its containers.
+ * The `Texture Rainbow` profile draws the level with the color of its containers.
  *
  * @remarks
- * The profile multiplies its palette with the texture of the face, and the textures of the game are dark, so the colour
- * came out muddy (2026-11-20, the owner). The material keeps a third of the texture under the colour (2026-11-22),
+ * The profile multiplies its palette with the texture of the face, and the textures of the game are dark, so the color
+ * came out muddy (2026-11-20, the owner). The material keeps a third of the texture under the color (2026-11-22),
  * which is a fragment shader of its own: a shader the renderer can not compile draws nothing, and the console says so,
  * so the test reads the picture and the console together.
  */
-test('the Texture Rainbow draws the level with the colour of its containers', async ({ page }) => {
+test('the Texture Rainbow draws the level with the color of its containers', async ({ page }) => {
   const errors: string[] = []
 
   page.on('console', (message) => {
@@ -304,7 +304,7 @@ test('the Texture Rainbow draws the level with the colour of its containers', as
 
   await nextFrames(page, 3)
 
-  // the palette of the profile colours every face: the view is not the grey the flat profile leaves, and not black
+  // the palette of the profile colors every face: the view is not the gray the flat profile leaves, and not black
   const stage = page.locator('[data-widget-kind="3d-view"] canvas.stage')
   const lit = await litPixels(stage)
 
@@ -353,13 +353,13 @@ test('the switch of the static lights is only there for the profiles that read t
 })
 
 /**
- * The luminosity of the rainbow darkens the colours of the level.
+ * The luminosity of the rainbow darkens the colors of the level.
  *
  * @remarks
  * The profile bakes a hue per texture container at the value of the slider: a step of the slider is a step of the light
  * of the whole level, without a role for the lights of the map (2026-11-22, the owner).
  */
-test('the luminosity of the rainbow darkens the colours of the level', async ({ page }) => {
+test('the luminosity of the rainbow darkens the colors of the level', async ({ page }) => {
   await page.goto(editorUrl())
 
   await page.locator('header button[aria-label="Presets"]').click()

@@ -33,7 +33,7 @@ import { levelStore } from './levelStore.ts'
  * The textures of a level: where they come from, and how they land on the faces.
  *
  * @remarks
- * A level of the original game draws with the flat grey of the generator, because the textures of the game are in the
+ * A level of the original game draws with the flat gray of the generator, because the textures of the game are in the
  * PAK files the editor does not read. The zip of a custom level carries its own textures (the ones that are not the
  * game's), and its manifest lists them — so a level opened from a zip can be **painted**, and the containers the zip
  * does not have stay flat. The paint puts one material per container on the solid mesh, grouped on the geometry the
@@ -133,7 +133,7 @@ let current: PaintedTextures | undefined
  *
  * @param map The map to paint.
  * @param textures The textures, by the name the level calls them.
- * @param missing The texture the containers the zip has none for draw with; without it they stay the flat colour.
+ * @param missing The texture the containers the zip has none for draw with; without it they stay the flat color.
  * @param rainbow Whether the materials are the ones of the `TextureRainbow` profile, which lightens the textures.
  *
  * @returns How many containers got a texture.
@@ -199,7 +199,7 @@ export function paintLevelTextures(
 
   // the groups follow the order the geometry **draws**: the picking builds a BVH on the mesh and its tree writes an
   // index, which reorders the triangles (`ArxMap.refillGeometry` says the index belongs to the BVH). A group of the
-  // plain vertex order would cut the faces in the wrong places — the material of a neighbour on half of them.
+  // plain vertex order would cut the faces in the wrong places — the material of a neighbor on half of them.
   const index = geometry.getIndex()
 
   geometry.clearGroups()
@@ -258,7 +258,7 @@ export function unpaintLevelTextures(map: ArxMap): void {
  *
  * @remarks
  * The containers the zip does not have are the textures of the game itself, which the editor does not read yet: they
- * stay the flat colour of the generator (TODO 11).
+ * stay the flat color of the generator (TODO 11).
  *
  * @param map The map to paint.
  * @param textures The textures of the zip, by the name the level calls them.
@@ -317,9 +317,9 @@ export async function paintLevel(map: ArxMap, zipData?: ArrayBuffer): Promise<vo
 
   const textures = await decodeTextures(files)
 
-  // a texture the table of the game does not know got its flat colour from the decoded file (a custom texture of the
+  // a texture the table of the game does not know got its flat color from the decoded file (a custom texture of the
   // zip, a file of the data directory): the wireframe was built before the textures arrived, so it writes its lines
-  // again, with the colours of the textures on the screen
+  // again, with the colors of the textures on the screen
   map.refreshWireframeColors()
 
   // the containers left without a texture take the placeholder of the generator
@@ -341,7 +341,7 @@ export async function paintLevel(map: ArxMap, zipData?: ArrayBuffer): Promise<vo
     `Textures: ${String(painted)} of ${String(names.length)} painted, ${String(zipFiles.size)} from the zip, ${String(fromDataDir.length)} from the data dir.`,
   )
 
-  // the paint changed the colours under the views (and the base grey of a load): without the step the view keeps the
+  // the paint changed the colors under the views (and the base gray of a load): without the step the view keeps the
   // frame it drew before the paint, the level unlit, until a mouse move asks for a render
   bumpLevelRevision()
 }
@@ -374,8 +374,8 @@ export async function registerLevelTexture(name: string, bytes: ArrayBuffer): Pr
 
     current.textures.set(name, createLevelTexture(bitmap))
 
-    // a texture the table of the game does not know arrives with its flat colour (the average of its pixels): the lines
-    // of the faces that draw with it take that colour from now on
+    // a texture the table of the game does not know arrives with its flat color (the average of its pixels): the lines
+    // of the faces that draw with it take that color from now on
     if (learnFlatColorOfTexture(name, bitmap)) {
       current.map.refreshWireframeColors()
     }
@@ -477,7 +477,7 @@ async function repaintForRevision(): Promise<void> {
  * @remarks
  * The spike paints one level: a new level starts flat (its textures are the ones of the zip it came with), and an edit
  * of the painted level builds the groups of the geometry again, because the faces moved. Without this a delete would
- * draw the faces with the textures of their neighbours.
+ * draw the faces with the textures of their neighbors.
  */
 export function startLevelTextures(): void {
   watch(
@@ -508,11 +508,11 @@ export function startLevelTextures(): void {
 }
 
 /**
- * Paints the baked colours of the level on the screen again, without reading the textures.
+ * Paints the baked colors of the level on the screen again, without reading the textures.
  *
  * @remarks
  * A profile change only changes the palette: the textures and the materials of the painted level are the ones on the
- * screen, and reading the data directory again would cost more than the bake. The paint writes the colours of the
+ * screen, and reading the data directory again would cost more than the bake. The paint writes the colors of the
  * geometry, and the views are asked for a frame.
  */
 export function repaintLevelColors(): void {
@@ -529,8 +529,8 @@ export function repaintLevelColors(): void {
  *
  * @remarks
  * A group that hides its faces changes the **index** of the solid mesh (its triangles are the visible faces), and a group
- * is a range of the index: the renderer needs the groups again. The vertices, the materials and the baked colours are the
- * same (the faces a group hides keep their place in the buffers), so the textures are not read again and the colour
+ * is a range of the index: the renderer needs the groups again. The vertices, the materials and the baked colors are the
+ * same (the faces a group hides keep their place in the buffers), so the textures are not read again and the color
  * attribute is not written: this is the cheap half of a paint, for a change of the view alone.
  */
 export function repaintLevelView(): void {

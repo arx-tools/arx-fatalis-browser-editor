@@ -62,11 +62,11 @@ function walkCornersOf(map: ArxMap, visit: CornerVisit): number {
 }
 
 /**
- * The linear values of a palette colour, the way the attribute carries them.
+ * The linear values of a palette color, the way the attribute carries them.
  *
- * @param entry The colour of the palette, in sRGB.
+ * @param entry The color of the palette, in sRGB.
  *
- * @returns The three channels in the working colour space.
+ * @returns The three channels in the working color space.
  */
 function linearOf(entry: ArxColor): readonly [number, number, number] {
   const color = new Color().setRGB(entry.r / 255, entry.g / 255, entry.b / 255, SRGBColorSpace)
@@ -93,7 +93,7 @@ export type BakedCorners = {
    */
   readonly normals: Float32Array
   /**
-   * The palette entry of every corner, or `-1` when the corner takes no colour from the palette.
+   * The palette entry of every corner, or `-1` when the corner takes no color from the palette.
    */
   readonly paletteIndexes: Int32Array
   /**
@@ -314,24 +314,24 @@ export function cornersWithin(corners: BakedCorners, spheres: readonly LightSphe
  *
  * @remarks
  * The palette of the LLF is the light of the level, corner by corner: the game multiplies the texture of a face with
- * the colour its `llfColorIdx` names. The material of the level is unlit and takes that colour from the geometry, so
+ * the color its `llfColorIdx` names. The material of the level is unlit and takes that color from the geometry, so
  * the editor shows the same light the export writes (and the game draws).
  *
  * The palette is **sRGB**, the renderer works in linear: every entry is turned into linear once, and the corners copy
- * it. A corner without a colour (a face the palette does not reach) is white, which is what a level without a palette
+ * it. A corner without a color (a face the palette does not reach) is white, which is what a level without a palette
  * shows.
  *
- * A **blended** face does not take the palette: the game sets its vertex colour to `gray(trans)` (the material of the
- * editor carries that colour already), so the corner is white there and the material's colour does the dimming. The
+ * A **blended** face does not take the palette: the game sets its vertex color to `gray(trans)` (the material of the
+ * editor carries that color already), so the corner is white there and the material's color does the dimming. The
  * water is drawn by a pass of the game of its own, so it is white too.
  *
  * The `color` attribute of the level's geometry is the light of the level, and the bake owns it: a mode that draws
  * something else (the room map) keeps a geometry of its own (see `roomOverlay.ts`) instead of writing this one.
  *
- * The **flat** profile is not read from the palette: its one grey goes on every corner, the levels without a palette
+ * The **flat** profile is not read from the palette: its one gray goes on every corner, the levels without a palette
  * (a blank one) included, so its slider moves the whole level and not only the faces the palette reaches.
  *
- * @param map The level whose mesh gets the colours.
+ * @param map The level whose mesh gets the colors.
  */
 export function writeBakedColors(map: ArxMap): void {
   // the paint that writes the attribute is what the index of the corners describes: it goes with it
@@ -348,13 +348,13 @@ export function writeBakedColors(map: ArxMap): void {
   const flat = flatLightOf(map)
 
   if (flat !== undefined) {
-    const grey = new Color().setRGB(flat, flat, flat, SRGBColorSpace)
+    const gray = new Color().setRGB(flat, flat, flat, SRGBColorSpace)
     const lights = new Float32Array(positions.count * 3)
 
     for (let index = 0; index < lights.length; index = index + 3) {
-      lights[index] = grey.r
-      lights[index + 1] = grey.g
-      lights[index + 2] = grey.b
+      lights[index] = gray.r
+      lights[index + 1] = gray.g
+      lights[index + 2] = gray.b
     }
 
     geometry.setAttribute('color', new BufferAttribute(lights, 3))
@@ -399,16 +399,16 @@ export function writeBakedColors(map: ArxMap): void {
 }
 
 /**
- * Writes the colour of some corners of the level into the `color` attribute.
+ * Writes the color of some corners of the level into the `color` attribute.
  *
  * @remarks
  * The light editor bakes the palette entries its light touches on every frame of a drag, and the mesh has to follow
  * without the paint of the whole level: this writes the corners the edit reached and leaves every other corner of the
  * attribute as it is. A corner of a **blended** or a **water** face is white whatever the palette says (the material
- * dims it), so it is left alone. The **flat** profile does not read the palette either: its grey is already on every
+ * dims it), so it is left alone. The **flat** profile does not read the palette either: its gray is already on every
  * corner, and the light of a light does not change it.
  *
- * @param map The level whose mesh takes the colours.
+ * @param map The level whose mesh takes the colors.
  * @param corners The index of the corners of the level.
  * @param reached The entries of the index to write.
  *

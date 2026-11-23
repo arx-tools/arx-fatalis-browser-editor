@@ -24,7 +24,7 @@ export type LevelFiles = {
    */
   readonly fts: ArrayBuffer
   /**
-   * The lighting: the lights and their colours.
+   * The lighting: the lights and their colors.
    */
   readonly llf: ArrayBuffer
 }

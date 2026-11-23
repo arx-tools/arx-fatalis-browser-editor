@@ -67,17 +67,17 @@ void describe('addPreviewLights', () => {
 })
 
 void describe('frameLevel', () => {
-  void it('puts the camera outside the box and aims it at the centre', () => {
+  void it('puts the camera outside the box and aims it at the center', () => {
     const camera = new PerspectiveCamera(75, 1, 0.1, 10_000)
     const box = new Box3(new Vector3(-100, -50, -100), new Vector3(100, 50, 100))
 
     frameLevel(camera, box)
 
-    const centre = box.getCenter(new Vector3())
+    const center = box.getCenter(new Vector3())
 
-    assert.ok(camera.position.distanceTo(centre) > 100)
+    assert.ok(camera.position.distanceTo(center) > 100)
     assert.ok(camera.near > 0)
-    assert.ok(camera.far > camera.position.distanceTo(centre))
+    assert.ok(camera.far > camera.position.distanceTo(center))
   })
 
   void it('keeps a working camera for a tiny level', () => {
@@ -273,8 +273,8 @@ void describe('attachWireframe', () => {
   })
 })
 
-void describe('the colour of the wireframe', () => {
-  void it('keeps the plain grey when the view can not colour the lines', () => {
+void describe('the color of the wireframe', () => {
+  void it('keeps the plain gray when the view can not color the lines', () => {
     const scene = new Scene()
     const wireframe = attachWireframe(scene, new BufferGeometry())
 
@@ -287,7 +287,7 @@ void describe('the colour of the wireframe', () => {
     assert.equal(lines.material.color.getHex(), 0x77_77_77)
   })
 
-  void it('swaps to the colour of the faces when the view asks for it', () => {
+  void it('swaps to the color of the faces when the view asks for it', () => {
     const scene = new Scene()
     const wireframe = attachWireframe(scene, new BufferGeometry(), { colored: true })
 
@@ -304,9 +304,9 @@ void describe('the colour of the wireframe', () => {
     assert.ok(lines.material instanceof LineBasicMaterial)
   })
 
-  void it('draws the plain line in the grey the view asks for', () => {
+  void it('draws the plain line in the gray the view asks for', () => {
     const scene = new Scene()
-    const wireframe = attachWireframe(scene, new BufferGeometry(), { grey: 0x99_99_99 })
+    const wireframe = attachWireframe(scene, new BufferGeometry(), { gray: 0x99_99_99 })
 
     wireframe.setVisible(true)
 

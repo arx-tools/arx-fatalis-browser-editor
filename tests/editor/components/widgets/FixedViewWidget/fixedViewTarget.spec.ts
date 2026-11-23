@@ -155,7 +155,7 @@ void describe('offsetOnPlane', () => {
 })
 
 void describe('planePointAt', () => {
-  void it('reads the canvas centre as the point of the plane on the axis of the camera', () => {
+  void it('reads the canvas center as the point of the plane on the axis of the camera', () => {
     const place = planePointAt(
       { x: CANVAS / 2, y: CANVAS / 2, width: CANVAS, height: CANVAS },
       camera(),

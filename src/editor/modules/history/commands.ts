@@ -52,7 +52,7 @@ function addPolygonsAtTheEndOf(level: MutableLevel, polygons: readonly ArxPolygo
  * @remarks
  * The two halves are the two states of the level: the step takes the faces of the wall out and puts the faces of the
  * tunnel at the end of the list (adding the texture container and the lighting block first, when the step added them);
- * the undo takes the tunnel out, puts the wall back at its indices, and drops the container and the colours. The
+ * the undo takes the tunnel out, puts the wall back at its indices, and drops the container and the colors. The
  * polygons of the tunnel are the ones of the record, so the redo puts the same objects back.
  *
  * **Parked with the tunnel POC (2026-11-17):** the editor has no UI for it any more; the CSG-based tunnel digging will
@@ -462,19 +462,19 @@ function scaleFacesCommandOf(record: ScaleFacesRecord, level: MutableLevel): His
  * @returns The command, or undefined when the record can not be read by this build.
  */
 /**
- * The colours a pasted face takes from the palette of the level.
+ * The colors a pasted face takes from the palette of the level.
  *
  * @remarks
- * A record written before the colours travelled in it has no block of its own: the faces name the palette entries of
- * the level, and the paste takes those (the colours of the place they came from).
+ * A record written before the colors travelled in it has no block of its own: the faces name the palette entries of
+ * the level, and the paste takes those (the colors of the place they came from).
  *
  * @param polygons The faces of the record.
  * @param palette The palette of the level.
  *
- * @returns The colours of the corners, in the order of the polygons.
+ * @returns The colors of the corners, in the order of the polygons.
  */
-function coloursOf(polygons: readonly ArxPolygon[], palette: readonly ArxColor[]): ArxColor[] {
-  const colours: ArxColor[] = []
+function colorsOf(polygons: readonly ArxPolygon[], palette: readonly ArxColor[]): ArxColor[] {
+  const colors: ArxColor[] = []
 
   for (const polygon of polygons) {
     const base = polygon.vertices[0]?.llfColorIdx ?? 0
@@ -485,11 +485,11 @@ function coloursOf(polygons: readonly ArxPolygon[], palette: readonly ArxColor[]
     }
 
     for (let vertex = 0; vertex < count; vertex = vertex + 1) {
-      colours.push({ ...(palette[base + vertex] ?? { r: 255, g: 255, b: 255, a: 255 }) })
+      colors.push({ ...(palette[base + vertex] ?? { r: 255, g: 255, b: 255, a: 255 }) })
     }
   }
 
-  return colours
+  return colors
 }
 
 /**
@@ -519,18 +519,18 @@ function pasteFacesCommandOf(record: PasteFacesRecord, level: MutableLevel): His
     record,
     apply: (): void => {
       const start = level.llf.colors.length
-      let colours: readonly ArxColor[]
+      let colors: readonly ArxColor[]
 
       if (record.colors === undefined) {
-        colours = coloursOf(record.polygons, level.llf.colors)
+        colors = colorsOf(record.polygons, level.llf.colors)
       } else {
-        colours = record.colors
+        colors = record.colors
       }
 
       let offset = 0
 
-      level.addLightingColors(colours)
-      appended = colours.length
+      level.addLightingColors(colors)
+      appended = colors.length
 
       inserted = record.polygons.map((polygon) => {
         const copy = structuredClone(polygon)
@@ -541,14 +541,14 @@ function pasteFacesCommandOf(record: PasteFacesRecord, level: MutableLevel): His
         }
 
         for (let vertex = 0; vertex < copy.vertices.length; vertex = vertex + 1) {
-          let colourIndex = start + offset
+          let colorIndex = start + offset
 
-          // the fourth vertex of a triangle has no colour of its own: it takes the first one, which the game does not read
+          // the fourth vertex of a triangle has no color of its own: it takes the first one, which the game does not read
           if (vertex < count) {
-            colourIndex = colourIndex + vertex
+            colorIndex = colorIndex + vertex
           }
 
-          copy.vertices[vertex].llfColorIdx = colourIndex
+          copy.vertices[vertex].llfColorIdx = colorIndex
         }
 
         offset = offset + count

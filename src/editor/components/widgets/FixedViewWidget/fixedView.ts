@@ -1,6 +1,6 @@
 import type { ArxVector3 } from 'arx-convert/types'
 import type { OrthographicCamera, Vector3 } from 'three'
-import { centreOfBounds, type CameraBounds } from '../shared/cameraBounds.ts'
+import { centerOfBounds, type CameraBounds } from '../shared/cameraBounds.ts'
 import { applyGameAngle, gamePositionToWorld, type CameraPose } from '../camera/cameraPose.ts'
 import { alignPose, frameOf, frustumOf, type CameraViewMode } from './cameraAlign.ts'
 
@@ -23,7 +23,7 @@ const NEAR_DIVISOR = 1000
  *
  * @remarks
  * The zoom is a multiple of the framed distance: `1` is the whole level (the view as it is without any
- * wheel), and the camera walks in towards the marker from there.
+ * wheel), and the camera walks in toward the marker from there.
  */
 export const MAX_ZOOM = 20
 
@@ -57,7 +57,7 @@ export type FixedViewOptions = {
   readonly zoom?: number
   /**
    * The point the camera looks at when it is zoomed in, in the space of the meshes: the marker of the
-   * walkable camera. Left out, the view keeps the centre of the level.
+   * walkable camera. Left out, the view keeps the center of the level.
    */
   readonly target?: Vector3
 }
@@ -95,11 +95,11 @@ function clampZoom(zoom: number | undefined): number {
  */
 export function frameFixedView(camera: OrthographicCamera, options: FixedViewOptions): CameraPose {
   const pose = alignPose(options.mode, options.bounds, frustumOf(options.fieldOfView, options.aspect))
-  const centre = gamePositionToWorld(centreOfBounds(options.bounds), options.scene)
+  const center = gamePositionToWorld(centerOfBounds(options.bounds), options.scene)
   const framed = gamePositionToWorld(pose.position, options.scene)
-  const distance = framed.distanceTo(centre)
+  const distance = framed.distanceTo(center)
   const zoom = clampZoom(options.zoom)
-  const target = options.target ?? centre
+  const target = options.target ?? center
 
   if (zoom === 1 || distance === 0) {
     camera.position.copy(framed)
@@ -108,7 +108,7 @@ export function frameFixedView(camera: OrthographicCamera, options: FixedViewOpt
     // target stays in the middle of the canvas
     const away = framed
       .clone()
-      .sub(centre)
+      .sub(center)
       .normalize()
       .multiplyScalar(distance / zoom)
 

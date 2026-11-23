@@ -405,5 +405,5 @@ function removeGroup(row: FaceGroupRow): void {
 }
 
 // the pencil of a row: a rename without the double click, quiet until the row is under the pointer
-// the trash of a row: quiet until the row is under the pointer, then the colour of a delete
+// the trash of a row: quiet until the row is under the pointer, then the color of a delete
 </style>

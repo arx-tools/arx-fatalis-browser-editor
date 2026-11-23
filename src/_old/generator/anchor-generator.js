@@ -24,7 +24,7 @@
  * decision in this file is expressed as a *height above the floor* and converted with
  * {@link above}, never by adding to `y` directly. Evidence: the floors of the original levels have
  * `norm.y ~ -1` (checked on level 11 at a known player position), `FAST_ANCHOR_DATA.height` is
- * -165 (the height of the NPC, measured upwards), the anchors' debug ticks are drawn towards
+ * -165 (the height of the NPC, measured upwards), the anchors' debug ticks are drawn toward
  * `pos.y + height` and they point at the sky, and the level generators place the moon at a
  * negative Y.
  */
@@ -144,7 +144,7 @@ export const ANCHOR_DEFAULTS = {
   anchorClearance: true,
   /**
    * The radius of the free space an anchor needs. It is deliberately smaller than `linkBodyRadius`:
-   * the NPC's centre does not have to be a full body away from the wall to *stand* there (the
+   * the NPC's center does not have to be a full body away from the wall to *stand* there (the
    * collision pushes it), but the link between two anchors has to fit the body. A smaller value
    * keeps the grid closer to the walls, which matches the density of the original levels.
    */
@@ -180,7 +180,7 @@ export const ANCHOR_DEFAULTS = {
   repairMinRadius: 5,
   repairRadiusStep: 5,
   /**
-   * Retry the unlinked grid neighbours with a reduced body radius (the local holes of the strict
+   * Retry the unlinked grid neighbors with a reduced body radius (the local holes of the strict
    * body test). `gapFillDistance` should stay around the grid diagonal so it does not create long
    * shortcuts.
    */
@@ -1289,8 +1289,8 @@ export function generateAnchors(polygons, options = {}) {
   // 4a2. local gap fill
   //
   // The global repair only attaches whole components. A *single* missing connection inside the main
-  // component (a grid neighbour that the strict body test rejected, e.g. a doorway narrower than the
-  // body) is not covered by it. Every unlinked grid neighbour pair is retried with a reduced body
+  // component (a grid neighbor that the strict body test rejected, e.g. a doorway narrower than the
+  // body) is not covered by it. Every unlinked grid neighbor pair is retried with a reduced body
   // radius, so the local holes close up like in the original levels' graph.
   if (settings.gapFill) {
     const spatialCell = settings.linkDistance

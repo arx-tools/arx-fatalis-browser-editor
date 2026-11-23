@@ -279,7 +279,7 @@ void describe('gapBetween', () => {
     assert.deepEqual(gapBetween(first, second, 'height', SPACING), { left: 258, top: 81, width: 763, height: 4 })
   })
 
-  void it('gives nothing when the two are not neighbours', () => {
+  void it('gives nothing when the two are not neighbors', () => {
     const first = { left: 258, top: 31, width: 455, height: 50 }
     const second = { left: 1026, top: 31, width: 254, height: 212 }
 

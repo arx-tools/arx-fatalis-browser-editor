@@ -36,8 +36,8 @@ export const isMeshVisible = persistedRef<boolean>({
  *
  * @remarks
  * It is a view preference like the wireframe: a `persistedRef` in the `localStorage`, so the editor comes back
- * the way it was left. The rooms are coloured so that two rooms joined by a portal never share a colour (see
- * `generator/rooms.ts`), and every face takes a flat colour of its room: the textures are not drawn while the map
+ * the way it was left. The rooms are colored so that two rooms joined by a portal never share a color (see
+ * `generator/rooms.ts`), and every face takes a flat color of its room: the textures are not drawn while the map
  * is on, because the point is to see the rooms of the level.
  */
 export const isRoomColorsVisible = persistedRef<boolean>({
@@ -64,7 +64,7 @@ export const isPortalsVisible = persistedRef<boolean>({
  * Whether the light sources of the level are drawn as markers.
  *
  * @remarks
- * The lights are the `map.lights` of the LLF: the walkable view draws them as sparkles that keep the colour of the light
+ * The lights are the `map.lights` of the LLF: the walkable view draws them as sparkles that keep the color of the light
  * and take their size from its `fallStart`, and the fixed views as fixed yellow dots. It is a view preference like the
  * others, in the `localStorage`, so the editor comes back the way it was left. The default is off: the markers are a
  * debug aid, not the look of the level.

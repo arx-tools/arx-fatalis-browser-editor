@@ -122,10 +122,10 @@ void describe('the view of the widget', () => {
     { u: 0.4, v: 0.6 },
   ]
 
-  void it('centres the view on the middle of the face', () => {
+  void it('centers the view on the middle of the face', () => {
     const view = viewOf(200, 1, corners)
 
-    assert.deepEqual(view.centre, { u: 0.5, v: 0.5 })
+    assert.deepEqual(view.center, { u: 0.5, v: 0.5 })
     // the middle of the square is the middle of the face, and one unit of the uv is the side of the square
     assert.deepEqual(screenOfUv(view, { u: 0.5, v: 0.5 }), { x: 100, y: 100 })
     // the v goes down the file: a bigger v is lower on the square
@@ -158,7 +158,7 @@ void describe('the view of the widget', () => {
   void it('pans the middle of the view away from the face', () => {
     const view = viewOf(200, 1, corners, { u: 0.1, v: -0.05 })
 
-    assert.deepEqual(view.centre, { u: 0.6, v: 0.45 })
+    assert.deepEqual(view.center, { u: 0.6, v: 0.45 })
     assert.deepEqual(screenOfUv(view, { u: 0.6, v: 0.45 }), { x: 100, y: 100 })
   })
 
@@ -770,8 +770,8 @@ void describe('containsFacePoint', () => {
    *
    * @returns The view of the test, the whole texture on the hundred pixels.
    */
-  function view(): { size: number; zoom: number; centre: { u: number; v: number } } {
-    return { size: 100, zoom: 1, centre: { u: 0.5, v: 0.5 } }
+  function view(): { size: number; zoom: number; center: { u: number; v: number } } {
+    return { size: 100, zoom: 1, center: { u: 0.5, v: 0.5 } }
   }
 
   void it('takes a point inside the quad', () => {

@@ -332,7 +332,7 @@ export class ArxMap {
    * The polygons grouped by the positions of their vertices.
    *
    * @remarks
-   * The neighbours of a face: the drag of the walkable view and the texture fill both walk these, so they
+   * The neighbors of a face: the drag of the walkable view and the texture fill both walk these, so they
    * follow the welds of the mesh and stop where the mesh is not welded.
    *
    * It is **built on the first read** and dropped on every edit: walking ~70 000 polygons and hashing their
@@ -612,27 +612,27 @@ export class ArxMap {
   }
 
   /**
-   * Adds colours to the lighting palette of the level.
+   * Adds colors to the lighting palette of the level.
    *
    * @remarks
-   * The palette is the flat list of the LLF: a face owns as many colours as it has corners, starting at the index its
-   * first corner names (`llfColorIdx`). A step that makes faces adds the colours they read, and the export copies them
+   * The palette is the flat list of the LLF: a face owns as many colors as it has corners, starting at the index its
+   * first corner names (`llfColorIdx`). A step that makes faces adds the colors they read, and the export copies them
    * in the order of the polygons.
    *
-   * @param colors The colours to append to the palette.
+   * @param colors The colors to append to the palette.
    */
   addLightingColors(colors: readonly ArxColor[]): void {
     this.llf.colors.push(...colors)
   }
 
   /**
-   * Takes the last colours of the lighting palette out.
+   * Takes the last colors of the lighting palette out.
    *
    * @remarks
-   * It is the inverse of {@link ArxMap.addLightingColors}: a step that added a block of colours at the end of the
+   * It is the inverse of {@link ArxMap.addLightingColors}: a step that added a block of colors at the end of the
    * palette takes it back when it is undone. The history is linear, so the block of the step is the last one.
    *
-   * @param count How many colours to take out.
+   * @param count How many colors to take out.
    */
   removeLightingColors(count: number): void {
     this.llf.colors.splice(Math.max(0, this.llf.colors.length - count), count)
@@ -671,16 +671,16 @@ export class ArxMap {
   }
 
   /**
-   * Writes the colour of every vertex of the wireframe again, from the flat colour of the texture of its polygon.
+   * Writes the color of every vertex of the wireframe again, from the flat color of the texture of its polygon.
    *
    * @remarks
-   * The colour of a line follows the texture of its face, so a paint, and the undo of a paint, has to write it again:
+   * The color of a line follows the texture of its face, so a paint, and the undo of a paint, has to write it again:
    * the positions do not move, so the attribute is replaced in place and the geometry is not built again (a build of
    * the big level is ~260 ms, a paint is a click).
    *
-   * A texture the table of the game does not know gets its flat colour when the editor decodes its file, which can be
-   * after the level was built (a custom texture of a zip, a dropped file): the caller writes the colours again then, so
-   * the lines of those faces take the colour of the texture on the screen.
+   * A texture the table of the game does not know gets its flat color when the editor decodes its file, which can be
+   * after the level was built (a custom texture of a zip, a dropped file): the caller writes the colors again then, so
+   * the lines of those faces take the color of the texture on the screen.
    */
   refreshWireframeColors(): void {
     if (this.wireframeGeometry.getAttribute('color') === undefined) {
@@ -700,7 +700,7 @@ export class ArxMap {
    * @remarks
    * The room of a face is the id of its room in the FTS, and it is read by the room map, the inspector and the export
    * (the epdata of the file). It is not a part of the geometry the level is built from, so a step that moves a face
-   * changes nothing the meshes draw: the colour attribute of the room map is written again by its
+   * changes nothing the meshes draw: the color attribute of the room map is written again by its
    * {@link RoomOverlay.repaint} (the views do it when the level revision moves).
    *
    * @param changes The faces and the room each of them takes.
@@ -1439,11 +1439,11 @@ export class ArxMap {
   }
 
   /**
-   * Reads the colour of the wireframe of a polygon, from the flat colour of its texture.
+   * Reads the color of the wireframe of a polygon, from the flat color of its texture.
    *
    * @param polygon The face to read.
    *
-   * @returns The colour of the line, in the colour of the vertices.
+   * @returns The color of the line, in the color of the vertices.
    */
   private wireframeColorOf(polygon: ArxPolygon): readonly [number, number, number] {
     return wireframeLineColorOf(this.textureNameOf(polygon.textureContainerId))

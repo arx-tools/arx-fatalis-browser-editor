@@ -38,7 +38,7 @@ export type FaceUvsTarget = {
  * The first triangle of a face in the index of the mesh.
  *
  * @remarks
- * The triangle map is a running total of the faces, so it is sorted: a face with two triangles is two neighbouring
+ * The triangle map is a running total of the faces, so it is sorted: a face with two triangles is two neighboring
  * entries. The binary search finds its first triangle without walking the level (a drag of a corner asks for it on
  * every frame).
  *

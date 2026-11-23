@@ -102,7 +102,7 @@ void describe('applyGameAngle and readGameAngle', () => {
     )
   })
 
-  void it('looks towards minus Z at a game yaw of 180', () => {
+  void it('looks toward minus Z at a game yaw of 180', () => {
     const camera = new PerspectiveCamera()
     applyGameAngle(camera, { pitch: 0, yaw: 180 })
 
@@ -142,7 +142,7 @@ void describe('setCameraPose and readCameraPose', () => {
     setCameraPose(camera, scene, pose)
 
     assert.deepEqual(rounded(camera.position), [6966.36, 840.6, 877.66])
-    // a game yaw of 270 looks towards the negative X of three, which is the positive X of the game
+    // a game yaw of 270 looks toward the negative X of three, which is the positive X of the game
     const direction = camera.getWorldDirection(new Vector3())
     assert.ok(Math.abs(direction.x + 1) < 1e-9)
   })

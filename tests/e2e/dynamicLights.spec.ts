@@ -60,17 +60,17 @@ function stageOf(page: Page): Locator {
 }
 
 /**
- * The colours of the dots on the marker overlay of the top view.
+ * The colors of the dots on the marker overlay of the top view.
  *
  * @remarks
  * The dots are circles, and the canvas antialiases their edge into a ring of shades: the test reads the pixels the dot
- * paints fully, which is the colour it is drawn with.
+ * paints fully, which is the color it is drawn with.
  *
  * @param page The page of the editor.
  *
- * @returns The colours of the solid pixels, as `r,g,b`, in order.
+ * @returns The colors of the solid pixels, as `r,g,b`, in order.
  */
-async function dotColoursOf(page: Page): Promise<string[]> {
+async function dotColorsOf(page: Page): Promise<string[]> {
   return await page.locator('[data-widget-kind="top-view"] canvas.lights').evaluate((node) => {
     const canvas = node as HTMLCanvasElement
     const context = canvas.getContext('2d')
@@ -80,17 +80,17 @@ async function dotColoursOf(page: Page): Promise<string[]> {
     }
 
     const { data } = context.getImageData(0, 0, canvas.width, canvas.height)
-    const colours = new Set<string>()
+    const colors = new Set<string>()
 
     for (let index = 0; index < data.length; index = index + 4) {
       if ((data[index + 3] ?? 0) < 255) {
         continue
       }
 
-      colours.add(`${String(data[index])},${String(data[index + 1])},${String(data[index + 2])}`)
+      colors.add(`${String(data[index])},${String(data[index + 1])},${String(data[index + 2])}`)
     }
 
-    return [...colours].toSorted()
+    return [...colors].toSorted()
   })
 }
 
@@ -149,7 +149,7 @@ test('the dynamic light layer lights the level like the game, and goes off again
   const offAgain = await stageOf(page).screenshot()
   const back = await screenshotDifference(page, off, offAgain)
 
-  // the baked colour comes back exactly: a still camera draws the same picture without the layer
+  // the baked color comes back exactly: a still camera draws the same picture without the layer
   expect(back.differing).toBe(0)
 })
 
@@ -211,7 +211,7 @@ test('the dynamic light switch stays in the browser', async ({ page }) => {
   await expect(page.locator('#static-lights')).toHaveAttribute('aria-pressed', 'false')
 })
 
-test('the small views draw the yellow dots of the lights, and grey the ones a switch took out', async ({ page }) => {
+test('the small views draw the yellow dots of the lights, and gray the ones a switch took out', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
   await openTorch(page, { flatZero: false, readsLights: true })
   await page.waitForTimeout(800)
@@ -222,39 +222,39 @@ test('the small views draw the yellow dots of the lights, and grey the ones a sw
   const statics = page.locator('#static-lights')
   const dynamic = page.locator('#dynamic-lights')
 
-  // the plan draws two colours and no more: the fixed yellow of a light that lights the level, and the grey of the
-  // ones the switches took out (2026-11-19, the owner: the coloured shapes read as a smudge on a plan, and the dots are
-  // a colour of their own)
+  // the plan draws two colors and no more: the fixed yellow of a light that lights the level, and the gray of the
+  // ones the switches took out (2026-11-19, the owner: the colored shapes read as a smudge on a plan, and the dots are
+  // a color of their own)
   await expect
     .poll(async () => {
-      return await dotColoursOf(page)
+      return await dotColorsOf(page)
     })
     .toEqual(['140,140,140', '255,213,74'])
 
-  // static off, dynamic off: every light of the level is out, so every dot is grey, and the level keeps its marks
+  // static off, dynamic off: every light of the level is out, so every dot is gray, and the level keeps its marks
   await statics.click()
 
   await expect
     .poll(async () => {
-      return await dotColoursOf(page)
+      return await dotColorsOf(page)
     })
     .toEqual(['140,140,140'])
 
-  // the dynamic lights on, the static off: the semi-dynamic ones are lit again, the others stay grey
+  // the dynamic lights on, the static off: the semi-dynamic ones are lit again, the others stay gray
   await dynamic.click()
 
   await expect
     .poll(async () => {
-      return await dotColoursOf(page)
+      return await dotColorsOf(page)
     })
     .toEqual(['140,140,140', '255,213,74'])
 
-  // both off: grey again
+  // both off: gray again
   await dynamic.click()
 
   await expect
     .poll(async () => {
-      return await dotColoursOf(page)
+      return await dotColorsOf(page)
     })
     .toEqual(['140,140,140'])
 

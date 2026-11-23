@@ -40,7 +40,7 @@ const SELECT_AT = { x: 481, y: 423 }
  * Where the red arrow of the X axis is on the canvas, and how far the drag goes along it.
  *
  * @remarks
- * The arrow is the game's X: the drag moves the face towards the hole edge that stands 12.068 units to its right. Nine
+ * The arrow is the game's X: the drag moves the face toward the hole edge that stands 12.068 units to its right. Nine
  * pixels are about eight units, so the raw end of the drag is 4 units short of the edge, inside the 12 pixel threshold:
  * the edge rail is expected to pull the face onto the edge exactly.
  */
@@ -267,7 +267,7 @@ test('the edge rail snaps the face of the hole onto the edge of the hole along X
   await magnet.click()
   await expect(magnet).toHaveAttribute('aria-pressed', 'true')
 
-  // the red arrow of the gizmo: the drag runs along it, towards the edge of the hole
+  // the red arrow of the gizmo: the drag runs along it, toward the edge of the hole
   await page.mouse.move(box.x + ARROW_AT.x, box.y + ARROW_AT.y)
   await page.mouse.down()
   await page.mouse.move(box.x + ARROW_AT.x + DRAG_PIXELS.x, box.y + ARROW_AT.y + DRAG_PIXELS.y, { steps: 6 })

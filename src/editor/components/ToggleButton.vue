@@ -30,7 +30,7 @@ const props = withDefaults(
      */
     readonly disabled?: boolean
     /**
-     * The colour pair of the switch: the accent of a setting, the green of a lock, or the quiet grey of a tool.
+     * The color pair of the switch: the accent of a setting, the green of a lock, or the quiet gray of a tool.
      */
     readonly tone?: 'accent' | 'ok' | 'quiet'
     /**
@@ -81,7 +81,7 @@ function toggle(): void {
 @use '../palette' as *;
 
 // the switch of a setting (2026-11-18, the owner): no plate of its own, the dark background of the panel shows
-// through; a faint border and a grey icon while it is off, a lighter border and the accent while it is on, and the grey
+// through; a faint border and a gray icon while it is off, a lighter border and the accent while it is on, and the gray
 // of the panel under the pointer. A disabled switch keeps its state visible and dims itself: the kinds of the snap stay
 // where the author left them while the master is off.
 .ToggleButton {

@@ -76,16 +76,16 @@ test('a corner dragged on the texture moves the uv of the face, and the undo tak
   await expect(mapper.locator('.corner')).toHaveCount(4)
   await expect(mapper.locator('.head .name')).toHaveText(/\.(?:bmp|jpg|png)$/iu)
 
-  // every corner has its own number and colour, so four handles can be told apart
+  // every corner has its own number and color, so four handles can be told apart
   await expect(mapper.locator('.corner .index')).toHaveText(['A', 'B', 'C', 'D'])
 
-  const colours = await mapper.locator('.corner').evaluateAll((nodes) => {
+  const colors = await mapper.locator('.corner').evaluateAll((nodes) => {
     return nodes.map((node) => {
       return getComputedStyle(node).backgroundColor
     })
   })
 
-  expect(new Set(colours).size).toBe(4)
+  expect(new Set(colors).size).toBe(4)
 
   // the corner to edit is a list next to the fields, and the numbers of it are the two fields under the square
   const cornerSelect = mapper.locator('button[aria-label="Corner to edit"]')
@@ -117,8 +117,8 @@ test('a corner dragged on the texture moves the uv of the face, and the undo tak
 
   expect(await uField.inputValue()).toMatch(/^\d\.\d{3}$/u)
 
-  // the list carries the colours of the handles (2026-11-09): the item of a corner is the colour of its handle, and the
-  // select shows the colour of the corner it holds
+  // the list carries the colors of the handles (2026-11-09): the item of a corner is the color of its handle, and the
+  // select shows the color of the corner it holds
   async function backgroundOf(element: Locator): Promise<string> {
     return await element.evaluate((node) => {
       return getComputedStyle(node).backgroundColor
@@ -132,16 +132,16 @@ test('a corner dragged on the texture moves the uv of the face, and the undo tak
     await cornerSelect.click()
 
     const item = mapper.locator(`.corner-item[data-corner="${selector}"]`)
-    const handleColour = await backgroundOf(handle)
-    const itemColour = await backgroundOf(item)
+    const handleColor = await backgroundOf(handle)
+    const itemColor = await backgroundOf(item)
 
-    expect(itemColour).toBe(handleColour)
+    expect(itemColor).toBe(handleColor)
 
     await item.click()
 
-    const selectColour = await backgroundOf(cornerSelect)
+    const selectColor = await backgroundOf(cornerSelect)
 
-    expect(selectColour).toBe(handleColour)
+    expect(selectColor).toBe(handleColor)
   }
 
   // the drag below works on the corner A, and the fields show the corner the list holds
@@ -159,12 +159,12 @@ test('a corner dragged on the texture moves the uv of the face, and the undo tak
 
   const halfWidth = box.width / 2
   const halfHeight = box.height / 2
-  const centreX = box.x + halfWidth
-  const centreY = box.y + halfHeight
+  const centerX = box.x + halfWidth
+  const centerY = box.y + halfHeight
 
-  await page.mouse.move(centreX, centreY)
+  await page.mouse.move(centerX, centerY)
   await page.mouse.down()
-  await page.mouse.move(centreX + 24, centreY + 16, { steps: 8 })
+  await page.mouse.move(centerX + 24, centerY + 16, { steps: 8 })
   await page.mouse.up()
 
   // the corner moved: the model, and the numbers under the square with it
@@ -338,7 +338,7 @@ test('a corner dragged on the texture moves the uv of the face, and the undo tak
     })
     .toBe('0.500')
 
-  // the handle follows the numbers: the corner of the model is the corner of the square (the view is centred on the
+  // the handle follows the numbers: the corner of the model is the corner of the square (the view is centered on the
   // middle of the face, so the handle need not land on the middle of the square)
   const movedBox = await corner.boundingBox()
   const boxBeforeFields = cornerBeforeFieldsBox

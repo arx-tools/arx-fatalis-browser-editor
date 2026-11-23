@@ -10,10 +10,10 @@ import { formatCount } from '../format.ts'
 import { nameOf } from './roomNames.ts'
 
 /**
- * The colour a room without one takes in the list.
+ * The color a room without one takes in the list.
  *
  * @remarks
- * The same grey the room map paints a face without a room with, so the list and the view agree.
+ * The same gray the room map paints a face without a room with, so the list and the view agree.
  */
 const UNKNOWN_COLOR = '#9a9a9a'
 
@@ -32,7 +32,7 @@ export const NO_ROOM = -1
  */
 export type RoomRow = RoomSummary & {
   /**
-   * The colour the room map paints the room with.
+   * The color the room map paints the room with.
    */
   readonly color: string
 }
@@ -41,7 +41,7 @@ export type RoomRow = RoomSummary & {
  * Builds the rows of a list of rooms.
  *
  * @remarks
- * The colour is the one the room map paints the room with: the same colouring, keyed with the room id, so the list and
+ * The color is the one the room map paints the room with: the same coloring, keyed with the room id, so the list and
  * the view can not disagree. The rows are the rooms a face of the level is in: a room without a face is not a room of
  * the level. The faces no room holds come first, under {@link NO_ROOM}, so the list can pick them like a room.
  *

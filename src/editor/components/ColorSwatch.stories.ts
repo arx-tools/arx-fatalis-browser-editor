@@ -26,7 +26,7 @@ type Story = StoryObj<typeof meta>
 export const Row: Story = {}
 
 /**
- * The patch with the line of a row: the edge separates the colour from the panel.
+ * The patch with the line of a row: the edge separates the color from the panel.
  */
 export const Bordered: Story = {
   args: {

@@ -83,13 +83,13 @@ async function dropWidget(page: Page, kind: string, target: Box): Promise<void> 
 
   const halfWidth = box.width / 2
   const halfHeight = box.height / 2
-  const rowCentre = { x: box.x + halfWidth, y: box.y + halfHeight }
+  const rowCenter = { x: box.x + halfWidth, y: box.y + halfHeight }
   const targetHalf = target.width / 2
-  const targetCentre = { x: target.left + targetHalf, y: target.top + target.height - 20 }
+  const targetCenter = { x: target.left + targetHalf, y: target.top + target.height - 20 }
 
-  await page.mouse.move(rowCentre.x, rowCentre.y)
+  await page.mouse.move(rowCenter.x, rowCenter.y)
   await page.mouse.down()
-  await page.mouse.move(targetCentre.x, targetCentre.y, { steps: 12 })
+  await page.mouse.move(targetCenter.x, targetCenter.y, { steps: 12 })
   await page.waitForTimeout(150)
   await page.mouse.up()
 }
@@ -352,7 +352,7 @@ test('a smaller window squeezes the widgets, it does not cut them', async ({ pag
   expect(await heightOf(page, 'top-view')).toBe(locked)
   expect(await columnHeight()).toBeLessThanOrEqual(await dockHeight())
 
-  // and when even the floors of the neighbours do not fit, the lock shrinks too instead of pushing the column out: with
+  // and when even the floors of the neighbors do not fit, the lock shrinks too instead of pushing the column out: with
   // the 260 high plan the 400 high window still fits, so the window goes lower than the plan
   await page.setViewportSize({ width: 1280, height: 300 })
   await page.waitForTimeout(700)

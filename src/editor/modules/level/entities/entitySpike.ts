@@ -29,7 +29,7 @@ import { readDataFile } from '../source/dataDir.ts'
 const SPIKE_ENTITY = { name: 'fix_inter/light_door', identifier: 113 } as const
 
 /**
- * The colour of a model the spike does not texture yet.
+ * The color of a model the spike does not texture yet.
  */
 const SPIKE_MATERIAL_COLOR = 0x8a_7a_66
 
@@ -110,14 +110,14 @@ async function materialsOf(ftl: ArxFTL, fetchImpl: typeof fetch): Promise<MeshBa
       try {
         map = createLevelTexture(await decodeTextureBitmap(container.filename, bytes))
       } catch {
-        // a texture the browser can not read stays the flat colour of the spike
+        // a texture the browser can not read stays the flat color of the spike
       }
     }
 
     const material = new MeshBasicMaterial({ map: map ?? null, side: DoubleSide })
 
     // The game cuts the holes of a texture with the alpha it has (`PopOneTriangleList` in `AnimationRender.cpp`), and a
-    // BMP's black pixels are the colour key of the file (`applyColourKey`): without the cut, the ring handle of the
+    // BMP's black pixels are the color key of the file (`applyColorKey`): without the cut, the ring handle of the
     // door draws the black panel of its texture atlas instead of the wood behind it.
     material.alphaTest = ALPHA_CUTOUT
 
@@ -135,7 +135,7 @@ async function materialsOf(ftl: ArxFTL, fetchImpl: typeof fetch): Promise<MeshBa
  * Loads the model of the spike entity, and puts it at the place and the angle of the entity.
  *
  * @remarks
- * The POC reads one FTL from the data directory, builds a mesh from its triangles and gives it a flat colour: no
+ * The POC reads one FTL from the data directory, builds a mesh from its triangles and gives it a flat color: no
  * animation, no texture and no group of the model (TODO 235). The FTL is the game's own model file, so the shape is the
  * one the game draws.
  *

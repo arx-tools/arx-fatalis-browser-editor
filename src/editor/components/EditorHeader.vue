@@ -128,8 +128,8 @@ const build = ` (${EDITOR_INFO.commit}, ${EDITOR_INFO.builtAt})`
       }
     }
 
-    // the mark of the source: it reads as a part of the version line, so it takes its colour, and it lights
-    // up to the colour of the title when the pointer is over it
+    // the mark of the source: it reads as a part of the version line, so it takes its color, and it lights
+    // up to the color of the title when the pointer is over it
     .source,
     .support {
       display: inline-flex;
@@ -138,7 +138,7 @@ const build = ` (${EDITOR_INFO.commit}, ${EDITOR_INFO.builtAt})`
       text-decoration: none;
 
       // the brand is a baseline aligned row, and a replaced element has its bottom edge on that baseline:
-      // centring this one on the line puts the mark level with the text instead of riding above it
+      // centering this one on the line puts the mark level with the text instead of riding above it
       align-self: center;
 
       &:hover {

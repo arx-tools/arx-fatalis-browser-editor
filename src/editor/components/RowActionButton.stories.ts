@@ -69,7 +69,7 @@ export const Muted: Story = {
 }
 
 /**
- * The delete of a row: the danger colour on the hover.
+ * The delete of a row: the danger color on the hover.
  */
 export const Danger: Story = {
   render: (args) => {

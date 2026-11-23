@@ -24,7 +24,7 @@ import {
  * meets two faces. That case — a face the selection holds, with another one behind it — is the one the bug of
  * 2026-10-31 was about, and it is covered by the unit tests of `faceToSweep` (two candidates, the first one
  * selected). This test covers the wiring around it: the click takes one face, `shift` on the same face leaves
- * the count alone, `ctrl` takes it away, and the area click still adds the same-texture neighbours.
+ * the count alone, `ctrl` takes it away, and the area click still adds the same-texture neighbors.
  *
  * It runs only in chromium: the walkable view selects with a pointer lock, and the headless firefox of the
  * suite does not keep one.

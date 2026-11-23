@@ -230,7 +230,7 @@ export function modeAt(rect: ClientRect, clientX: number, clientY: number): Dock
  * Tells which edge of the dock the pointer is in the hotspot of, for a root edge drop.
  *
  * @remarks
- * - every edge has a hotspot centred on its middle: {@link EDGE_HOTSPOT_LENGTH} long along the edge and
+ * - every edge has a hotspot centered on its middle: {@link EDGE_HOTSPOT_LENGTH} long along the edge and
  * {@link EDGE_HOTSPOT_DEPTH} deep into the dock, so the top and the bottom one is `200 × 100` and the left and
  * the right one is `100 × 200`
  * - inside it the edge wins, so a thin widget at the edge keeps everything but the hotspot

@@ -836,7 +836,7 @@ test('the magnifier of a group goes to it, and picks its faces', async ({ page }
  * The fill of a group is red, and taking the group apart puts the yellow back without a click.
  *
  * @remarks
- * The colour of the fill follows the groups and not only the faces: a group is a lock and its mark says so, and the red
+ * The color of the fill follows the groups and not only the faces: a group is a lock and its mark says so, and the red
  * has to appear when the group is made and go when it is taken apart, with the selection the same all along (2026-11-18,
  * the owner: the two bugs of the first round).
  */
@@ -858,10 +858,10 @@ test('a group is red in the fill, and taking it apart puts the yellow back', asy
   await nextFrames(page, 2)
 
   const red = await view.screenshot()
-  const recoloured = await screenshotDifference(page, yellow, red)
+  const recolored = await screenshotDifference(page, yellow, red)
 
   // the faces of the group are red now: the picture of the same selection is another picture
-  expect(recoloured.differing).toBeGreaterThan(50)
+  expect(recolored.differing).toBeGreaterThan(50)
 
   // the same key takes the group apart: the faces stay in the selection, and the mark is yellow again
   await groupTheSelection(page)

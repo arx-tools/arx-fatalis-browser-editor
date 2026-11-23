@@ -4,8 +4,8 @@
  * notice under the uv square.
  *
  * @remarks
- * The sentences are one line of text with the grey of a note. The widget owns where the sentence sits and how wide it is
- * (the padding, the centre of the uv square); the component is the text.
+ * The sentences are one line of text with the gray of a note. The widget owns where the sentence sits and how wide it is
+ * (the padding, the center of the uv square); the component is the text.
  */
 </script>
 

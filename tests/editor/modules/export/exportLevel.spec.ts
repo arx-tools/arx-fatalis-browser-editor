@@ -40,10 +40,10 @@ function flatMap(): ArxMap {
 /**
  * A polygon of the test, with the fields the palette reads.
  *
- * @param colorIndex The place of its first colour in the palette of the LLF.
- * @param quad Whether it is a quad (four colours) or a triangle (three).
+ * @param colorIndex The place of its first color in the palette of the LLF.
+ * @param quad Whether it is a quad (four colors) or a triangle (three).
  *
- * @returns The polygon, with the place of its colours in the palette.
+ * @returns The polygon, with the place of its colors in the palette.
  */
 function polygonOf(colorIndex: number, quad: boolean): ArxPolygon {
   let flags = 0
@@ -65,11 +65,11 @@ function polygonOf(colorIndex: number, quad: boolean): ArxPolygon {
 }
 
 /**
- * A colour of the test, from its red channel.
+ * A color of the test, from its red channel.
  *
  * @param red The red channel.
  *
- * @returns The colour, grey.
+ * @returns The color, gray.
  */
 function colorOf(red: number): ArxColor {
   return { r: red, g: red, b: red, a: 255 }
@@ -106,7 +106,7 @@ void describe('buildExportLlf', () => {
       lights: [],
       colors: [colorOf(1), colorOf(2), colorOf(3), colorOf(4), colorOf(5), colorOf(6), colorOf(7)],
     }
-    // the second polygon (a quad, four colours from index 3) comes first, then the first (a triangle, from 0)
+    // the second polygon (a quad, four colors from index 3) comes first, then the first (a triangle, from 0)
     const polygons = [polygonOf(3, true), polygonOf(0, false)]
     const exported = buildExportLlf(llf, polygons)
 
@@ -547,7 +547,7 @@ void describe('exportLevelFiles', () => {
       )
       const reference = buildExportLlf({ ...map.llf, colors: baked }, cellOrderedPolygonsOf(map.visiblePolygons))
 
-      // the alpha of a colour is a byte of the file and a fraction in the reader: the light is its three channels
+      // the alpha of a color is a byte of the file and a fraction in the reader: the light is its three channels
       assert.deepEqual(
         exported.colors.map((color) => {
           return [color.r, color.g, color.b]
@@ -564,7 +564,7 @@ void describe('exportLevelFiles', () => {
   void it('writes the palette in the order the FTS file writes the polygons', () => {
     const map = flatMap()
 
-    // a palette block of its own for every face, so a colour tells which face it belongs to
+    // a palette block of its own for every face, so a color tells which face it belongs to
     let at = 0
 
     for (const polygon of map.polygons) {
@@ -608,7 +608,7 @@ void describe('exportLevelFiles', () => {
 
       assert.notEqual(moved, undefined)
 
-      // the loader numbers the palette in the order it reads the file: the face must find its own colour there
+      // the loader numbers the palette in the order it reads the file: the face must find its own color there
       const base = moved?.vertices[0]?.llfColorIdx ?? 0
       const color = lighting.colors[base]
 

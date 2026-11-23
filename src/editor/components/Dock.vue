@@ -42,7 +42,7 @@ onBeforeUnmount(() => {
 <template>
   <main ref="host" class="Dock">
     <p v-if="isEmpty" class="empty-hint">
-      <!-- one span around the sentence: the grid of the hint centres the span, and the gear stays inside its line (a
+      <!-- one span around the sentence: the grid of the hint centers the span, and the gear stays inside its line (a
            bare text run next to an element would be a grid item of its own, one row per piece) -->
       <span>
         Drag and drop widgets from the widget list

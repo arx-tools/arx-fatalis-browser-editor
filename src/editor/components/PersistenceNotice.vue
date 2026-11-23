@@ -125,7 +125,7 @@ function dismiss(): void {
 
 // the list of the problems: one sentence and the key and the target that failed, and the list scrolls when a broken
 // storage leaves a few dozen of them. The rows are close (no gap between them), and every second one is a stripe of
-// the panel colour: a dozen rows of two lines are read by the stripe, not by a line between them
+// the panel color: a dozen rows of two lines are read by the stripe, not by a line between them
 // (2026-11-22, the owner)
 .problems {
   display: flex;

@@ -40,14 +40,14 @@ function levelOf(polygons: readonly ArxPolygon[], portals: readonly RoomLink[] =
  *
  * @param room The id of the room.
  *
- * @returns A row with no colour and no face.
+ * @returns A row with no color and no face.
  */
 function rowOf(room: number): RoomRow {
   return { room, faceCount: 0, color: '#000000' }
 }
 
 void describe('roomRowsOf', () => {
-  void it('lists the rooms of the level with their faces and their colour', () => {
+  void it('lists the rooms of the level with their faces and their color', () => {
     const level = levelOf([faceOf(2), faceOf(1), faceOf(2)], [{ room1: 1, room2: 2 }])
     const rows = roomRowsOf(level)
 
@@ -63,7 +63,7 @@ void describe('roomRowsOf', () => {
     assert.notEqual(rows[0].color, rows[1].color)
   })
 
-  void it('gives the same rooms the same colours as the room map of the level', () => {
+  void it('gives the same rooms the same colors as the room map of the level', () => {
     const level = levelOf([faceOf(1), faceOf(2)], [{ room1: 1, room2: 2 }])
     const first = roomRowsOf(level)
     const second = roomRowsOf(level)

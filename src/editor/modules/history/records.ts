@@ -59,11 +59,11 @@ export type PasteFacesRecord = {
    */
   readonly polygons: readonly ArxPolygon[]
   /**
-   * The colours of the corners, in the order of the polygons: three or four per face.
+   * The colors of the corners, in the order of the polygons: three or four per face.
    *
    * @remarks
-   * The pasted faces get their own colours (a block appended to the palette), so a light rebake can move them with the
-   * faces. The field is optional: a record written before the colours existed reads its colours from the palette of the
+   * The pasted faces get their own colors (a block appended to the palette), so a light rebake can move them with the
+   * faces. The field is optional: a record written before the colors existed reads its colors from the palette of the
    * level, at the indices the polygons name.
    */
   readonly colors?: readonly ArxColor[]
@@ -484,10 +484,10 @@ export type BuildTunnelRecord = {
    */
   readonly addedTexture: boolean
   /**
-   * The block of lighting colours the new faces read, appended to the palette of the level.
+   * The block of lighting colors the new faces read, appended to the palette of the level.
    *
    * @remarks
-   * A face reads as many colours as it has corners (four for a quad), so the block has four entries per face in the
+   * A face reads as many colors as it has corners (four for a quad), so the block has four entries per face in the
    * palette the export reads. An empty block means the step did not touch the palette.
    */
   readonly lighting: readonly ArxColor[]
@@ -613,7 +613,7 @@ export type MutableLevel = {
    */
   readonly polygons: readonly ArxPolygon[]
   /**
-   * The lighting of the level: the palette the faces read their colour from.
+   * The lighting of the level: the palette the faces read their color from.
    */
   readonly llf: { readonly colors: ArxColor[] }
   /**
@@ -664,15 +664,15 @@ export type MutableLevel = {
    */
   removeTextureContainer(id: number): void
   /**
-   * Adds a block of colours to the lighting palette of the level.
+   * Adds a block of colors to the lighting palette of the level.
    *
-   * @param colors The colours to append.
+   * @param colors The colors to append.
    */
   addLightingColors(colors: readonly ArxColor[]): void
   /**
-   * Takes the last colours of the lighting palette out.
+   * Takes the last colors of the lighting palette out.
    *
-   * @param count How many colours to take out.
+   * @param count How many colors to take out.
    */
   removeLightingColors(count: number): void
   /**
@@ -745,7 +745,7 @@ export function createDeleteFacesRecord(faces: Iterable<number>): DeleteFacesRec
  * level) must not move it.
  *
  * @param polygons The faces the clipboard holds.
- * @param colors The colours of the corners, when the clipboard has them.
+ * @param colors The colors of the corners, when the clipboard has them.
  *
  * @returns The record of the step.
  */
@@ -1016,7 +1016,7 @@ export type BuildTunnelOptions = {
    */
   readonly addedTexture: boolean
   /**
-   * The colours the new faces read, appended to the palette.
+   * The colors the new faces read, appended to the palette.
    */
   readonly lighting: readonly ArxColor[]
   /**
@@ -1030,7 +1030,7 @@ export type BuildTunnelOptions = {
  *
  * @remarks
  * The faces of the wall are sorted and made unique, so the same selection gives the same record. The polygons of the
- * tunnel are the ones the builder made; the block of colours is copied, so the record does not share the palette of the
+ * tunnel are the ones the builder made; the block of colors is copied, so the record does not share the palette of the
  * level.
  *
  * **Parked with the tunnel POC (2026-11-17):** the editor has no UI for it any more; the CSG-based tunnel digging will

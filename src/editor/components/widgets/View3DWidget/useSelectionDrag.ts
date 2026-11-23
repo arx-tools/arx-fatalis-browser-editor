@@ -83,11 +83,11 @@ export type SelectionDragContext = {
    */
   readonly controls: () => CameraControls | undefined
   /**
-   * The colour of the room of a face, on the room map.
+   * The color of the room of a face, on the room map.
    *
    * @param polygon The face to read.
    *
-   * @returns The colour the room map paints the room of the face with, or `undefined` for a face without a room.
+   * @returns The color the room map paints the room of the face with, or `undefined` for a face without a room.
    */
   readonly roomColorOf: (polygon: ArxPolygon) => string | undefined
 }
@@ -165,7 +165,7 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
    *
    * @remarks
    * The keys are tracked by the keyboard module, not by the mouse events: under a pointer lock the browser does not
-   * send a move for every key change, and the outline has to colour itself as the modifier changes.
+   * send a move for every key change, and the outline has to color itself as the modifier changes.
    *
    * @returns The mode the next click would have.
    */
@@ -484,10 +484,10 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
         return
       }
 
-      // the base and the hint of the room colour belong to the room map: it paints every face with the colour of its
-      // room, so the fill needs a grey base to keep that colour out of the yellow, and a face keeps a hint of its room
+      // the base and the hint of the room color belong to the room map: it paints every face with the color of its
+      // room, so the fill needs a gray base to keep that color out of the yellow, and a face keeps a hint of its room
       // under the mark (three selected rooms read as one patch of yellow without it). On the level the yellow is a tint
-      // over the art, and the room colour has no meaning there.
+      // over the art, and the room color has no meaning there.
       let tintOf: ((polygon: ArxPolygon) => string | undefined) | undefined
 
       if (isRoomColorsVisible.value) {

@@ -164,7 +164,7 @@ export function createFrameLoop(context: FrameLoopContext): FrameLoop {
    * Draws one frame: the scene, then the orientation compass in its own corner.
    *
    * @remarks
-   * The crosshair is the centre of the canvas, so the pick runs here, on every frame that is drawn: a look around moves
+   * The crosshair is the center of the canvas, so the pick runs here, on every frame that is drawn: a look around moves
    * the outline with the camera. The gizmo has a canvas of its own over the corner, so it draws after the scene and
    * never touches its frame.
    *
@@ -205,7 +205,7 @@ export function createFrameLoop(context: FrameLoopContext): FrameLoop {
       return
     }
 
-    // a frame already asked for is cancelled and asked again: a browser that freezes a tab in the background may drop
+    // a frame already asked for is canceled and asked again: a browser that freezes a tab in the background may drop
     // the callback it owes, and the id would stay set forever, which would leave the view on the picture of the load
     // (2026-11-19, the owner: the dots of a fixed view kept the state of the load)
     if (redrawFrame !== 0) {
@@ -246,7 +246,7 @@ export function createFrameLoop(context: FrameLoopContext): FrameLoop {
     cameraControls.update(deltaSeconds)
 
     // a frame costs a raycast and a render, and on a big level that is a real part of a frame's time: the pick only
-    // changes when the camera moves (the crosshair is the centre of the canvas) or when the level under it changes, so
+    // changes when the camera moves (the crosshair is the center of the canvas) or when the level under it changes, so
     // a locked view that stands still draws nothing
     const viewScene = view()
     let pose = ''
@@ -286,7 +286,7 @@ export function createFrameLoop(context: FrameLoopContext): FrameLoop {
   }
 
   /**
-   * Recolours the outline of the face under the crosshair after a modifier key went down or up.
+   * Recolors the outline of the face under the crosshair after a modifier key went down or up.
    *
    * @remarks
    * The mode of the next click is read from the keys, and the keys change without a mouse move: a `Ctrl` pressed over a

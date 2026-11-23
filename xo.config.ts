@@ -17,11 +17,11 @@ const xoConfig: XoConfigItem[] = [
   }),
   {
     // the old app is archived under `src/_old/`: it is not built, not typechecked and not linted, it
-    // only has to stay readable as the reference of the previous behaviour
+    // only has to stay readable as the reference of the previous behavior
     ignores: ['src/_old/**'],
   },
   {
-    // the flat colours are a data table of the game's textures (1727 entries on one line): prettier would
+    // the flat colors are a data table of the game's textures (1727 entries on one line): prettier would
     // spread it over the file, and the table is read by name, not by eye
     ignores: ['src/generator/flat-colors.json'],
   },
@@ -75,7 +75,7 @@ const xoConfig: XoConfigItem[] = [
     },
     rules: {
       ...rules,
-      // the jsdoc plugin does not recognise the typescript script block of an SFC and would ask for
+      // the jsdoc plugin does not recognize the typescript script block of an SFC and would ask for
       // the types inside the tags: the signature carries them
       'jsdoc/require-param-type': 'off',
       'jsdoc/require-returns-type': 'off',

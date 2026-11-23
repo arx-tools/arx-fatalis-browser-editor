@@ -5,7 +5,7 @@
  * A split of the dock hands out the space along its axis, and every child has three limits: a **minimum** (the height its
  * content wants, or the floor of the css), a **maximum** (the lock of the widget, when it has one), and a **share** (the
  * ratio the layout asks for). The allocator fits those into the space: it takes the minimums first, grows the children
- * towards their hints, gives the locks their pixels and shares the rest, and when the space is too small it shrinks
+ * toward their hints, gives the locks their pixels and shares the rest, and when the space is too small it shrinks
  * everything down to the floors instead of cutting a child off.
  *
  * The tree walk that asks for these numbers is [`plan.ts`](plan.ts).

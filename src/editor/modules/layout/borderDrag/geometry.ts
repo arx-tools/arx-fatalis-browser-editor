@@ -131,14 +131,14 @@ export function borderAxisOf(handle: DragRect): BorderAxis {
 }
 
 /**
- * Reads the box a gap between two neighbouring children of a split takes.
+ * Reads the box a gap between two neighboring children of a split takes.
  *
  * @param first The child before the gap, in the order of the split.
  * @param second The child after the gap.
  * @param axis The axis the split distributes.
  * @param spacing The room a gap takes.
  *
- * @returns The box of the gap, or `undefined` when the two are not neighbours along that axis.
+ * @returns The box of the gap, or `undefined` when the two are not neighbors along that axis.
  */
 export function gapBetween(first: DragRect, second: DragRect, axis: BorderAxis, spacing: number): DragRect | undefined {
   if (axis === 'width') {

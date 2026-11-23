@@ -49,11 +49,11 @@ export type TunnelOptions = {
    */
   readonly room: number
   /**
-   * The first index of the lighting palette the faces read their colours from.
+   * The first index of the lighting palette the faces read their colors from.
    *
    * @remarks
-   * A face reads as many colours as it has corners, so the palette has to have four entries from this index on. Every
-   * face of the tunnel points here, and the export copies the colours in the order of the faces.
+   * A face reads as many colors as it has corners, so the palette has to have four entries from this index on. Every
+   * face of the tunnel points here, and the export copies the colors in the order of the faces.
    */
   readonly lightingBase: number
   /**
@@ -490,7 +490,7 @@ type TunnelCorner = {
  * Builds the closed tube of a tunnel between two rims.
  *
  * @remarks
- * The tube is a **closed quad strip**: every pair of neighbouring corners of the two rims gives one quad, around the
+ * The tube is a **closed quad strip**: every pair of neighboring corners of the two rims gives one quad, around the
  * whole perimeter, so the floor, the ceiling and the two sides of the tunnel come from the same walk. Two rims with a
  * different number of corners are paired corner by corner (see the pairing), and the tube therefore has as many quads
  * as the longer rim.

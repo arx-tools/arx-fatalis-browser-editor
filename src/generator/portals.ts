@@ -6,7 +6,7 @@ import { polygonPerimeter } from './polygons.ts'
  * The height of a portal a generator makes when the level carries no height of its own, in game units.
  *
  * @remarks
- * The game measures in centimetres (`1 m = 100`), so this is **2 m**: the height of a door, and the median of the short
+ * The game measures in centimeters (`1 m = 100`), so this is **2 m**: the height of a door, and the median of the short
  * side of the portals of the original levels. The owner's default (2026-11-15); a later round puts it in a field of the
  * editor, and a generated portal can be raised over it.
  */
@@ -76,11 +76,11 @@ export type PortalGenerationOptions = {
 }
 
 /**
- * Reads the centre of a polygon, as the average of its corners.
+ * Reads the center of a polygon, as the average of its corners.
  *
  * @param polygon The polygon to read.
  *
- * @returns Its centre, in the game's coordinates.
+ * @returns Its center, in the game's coordinates.
  */
 function centerOf(polygon: ArxPolygon): ArxVector3 {
   let x = 0
@@ -452,7 +452,7 @@ function portalOfRun(run: BoundaryRun, height: number): ArxPortal | undefined {
  * - the bottom of the quad is the run, the top is {@link PortalGenerationOptions.height} above it (the game's Y axis
  * points down, so the top has the smaller Y);
  * - the normal comes from the order of the corners, and `room1` is the room on its side, as the game reads it;
- * - the radius in the first vertex is the average of the largest and the smallest corner distance from the centre, the
+ * - the radius in the first vertex is the average of the largest and the smallest corner distance from the center, the
  * way the game's own bake writes it; the other vertices carry zero.
  *
  * The rooms 0 and below are the outside and the faces without a room: a run that touches one of them is not a portal

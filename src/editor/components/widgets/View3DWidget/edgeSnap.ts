@@ -574,7 +574,7 @@ export function createEdgeSnap(map: ArxMap, faces: readonly number[], options: E
       return undefined
     }
 
-    // the edge the drag is moving towards wins over the one it is sliding along: the sliding edge has a correction
+    // the edge the drag is moving toward wins over the one it is sliding along: the sliding edge has a correction
     // across the drag, so its along part is zero, and it would hide the crossing edge forever
     const alongX = (point.x - probe.x) * dragDirection.x
     const alongY = (point.y - probe.y) * dragDirection.y

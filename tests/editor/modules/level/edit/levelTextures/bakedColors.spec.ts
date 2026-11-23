@@ -15,7 +15,7 @@ import { ArxMap } from '../../../../../../src/generator/ArxMap.ts'
 import { Settings } from '../../../../../../src/generator/Settings.ts'
 
 /**
- * Builds a level of one flat floor: the smallest map the paint can give a colour attribute.
+ * Builds a level of one flat floor: the smallest map the paint can give a color attribute.
  *
  * @returns The map, with its solid mesh.
  */
@@ -45,11 +45,11 @@ function firstPolygonOf(map: ArxMap): ArxPolygon {
 }
 
 /**
- * The linear values of a palette colour, the way the attribute carries them.
+ * The linear values of a palette color, the way the attribute carries them.
  *
- * @param color The colour of the palette, in sRGB.
+ * @param color The color of the palette, in sRGB.
  *
- * @returns The three channels in the working colour space.
+ * @returns The three channels in the working color space.
  */
 function linearOf(color: ArxColor): number[] {
   const converted = new Color().setRGB(color.r / 255, color.g / 255, color.b / 255, SRGBColorSpace)
@@ -58,12 +58,12 @@ function linearOf(color: ArxColor): number[] {
 }
 
 /**
- * The colours of the first corners of the solid mesh.
+ * The colors of the first corners of the solid mesh.
  *
  * @param map The level to read.
  * @param count How many corners to read.
  *
- * @returns The colours, three channels each.
+ * @returns The colors, three channels each.
  */
 function firstColorsOf(map: ArxMap, count: number): number[] {
   const attribute = map.solidMeshes[0]?.geometry.getAttribute('color')
@@ -89,7 +89,7 @@ void describe('writeBakedColors', () => {
     assert.deepEqual(firstColorsOf(map, 6), [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
   })
 
-  void it('takes the palette colour of every corner of a face', () => {
+  void it('takes the palette color of every corner of a face', () => {
     const map = flatMap()
     const palette: ArxColor[] = [
       { r: 255, g: 0, b: 0, a: 255 },
@@ -123,7 +123,7 @@ void describe('writeBakedColors', () => {
     const values = firstColorsOf(map, 6)
     const [red, green, blue] = values
 
-    // the blank level has no palette: the flat light is one grey over the whole level, not a palette entry
+    // the blank level has no palette: the flat light is one gray over the whole level, not a palette entry
     assert.deepEqual([green, blue], [red, red])
     assert.ok((red ?? 0) > 0.1)
     assert.ok(
@@ -335,7 +335,7 @@ void describe('writeBakedCornerColors', () => {
     assert.equal(written, true)
     assert.deepEqual(values.slice(3, 6), linear)
     assert.deepEqual(values.slice(12, 15), linear)
-    // the corners the writer was not told about keep the colour of the full write
+    // the corners the writer was not told about keep the color of the full write
     assert.deepEqual(values.slice(0, 3), linearOf(palette[0] ?? { r: 0, g: 0, b: 0, a: 255 }))
     assert.deepEqual(values.slice(6, 9), linearOf(palette[2] ?? { r: 0, g: 0, b: 0, a: 255 }))
     assert.deepEqual(values.slice(15, 18), linearOf(palette[3] ?? { r: 0, g: 0, b: 0, a: 255 }))
@@ -368,7 +368,7 @@ void describe('writeBakedCornerColors', () => {
     setFlatLight(map, undefined)
   })
 
-  void it('gives up when the mesh has no colour attribute yet', () => {
+  void it('gives up when the mesh has no color attribute yet', () => {
     const map = flatMap()
     const palette = paintPalette(map)
     const geometry = map.solidMeshes[0]?.geometry

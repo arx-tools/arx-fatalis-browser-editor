@@ -23,7 +23,7 @@ const clipboard = shallowRef<{
 }>({ polygons: [], colors: [] })
 
 /**
- * The colour a corner takes when the palette has none at its index.
+ * The color a corner takes when the palette has none at its index.
  */
 const WHITE: ArxColor = { r: 255, g: 255, b: 255, a: 255 }
 

@@ -3,11 +3,11 @@ import type { ArxPortal } from 'arx-convert/types'
 import { portalLinePositions } from '../../../../generator/meshes.ts'
 
 /**
- * The colour of the outline of a portal: the cyan of the game's own debug view.
+ * The color of the outline of a portal: the cyan of the game's own debug view.
  *
  * @remarks
  * The later room and portal round gives the line a state (the game draws a portal it can see through in green and the
- * blocked ones in red), so this is the plain colour of the first slice, not a decision about the states.
+ * blocked ones in red), so this is the plain color of the first slice, not a decision about the states.
  */
 const PORTAL_COLOR = 0x00_ff_ff
 

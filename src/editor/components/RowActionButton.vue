@@ -3,7 +3,7 @@
  * One action of a row: the eye, the magnifier, the pencil and the trash of the group and room lists.
  *
  * @remarks
- * The two lists had the same four buttons six times: the 20 pixel square, the quiet grey of an icon, the panel under the
+ * The two lists had the same four buttons six times: the 20 pixel square, the quiet gray of an icon, the panel under the
  * pointer, the accent of the eye that is on, and the danger of the trash. The component is the button and the look; the
  * icon is the slot, the row keeps the action and its condition (the rename, the jump, the delete).
  *
@@ -29,7 +29,7 @@ withDefaults(
      */
     readonly muted?: boolean
     /**
-     * Whether the hover of the action is the danger colour: the delete of a row.
+     * Whether the hover of the action is the danger color: the delete of a row.
      */
     readonly danger?: boolean
     /**
@@ -66,7 +66,7 @@ withDefaults(
 
 // the action of a row: no plate of its own while the pointer is away, the panel under it, and the text of the row under
 // the pointer. The eye that is on takes the accent; the rename, the jump and the delete are quieter (0.6) and come
-// forward under the pointer; the delete takes the danger colour on the hover.
+// forward under the pointer; the delete takes the danger color on the hover.
 .RowActionButton {
   display: inline-flex;
   flex: none;

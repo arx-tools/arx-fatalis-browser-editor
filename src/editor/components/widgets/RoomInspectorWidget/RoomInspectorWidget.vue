@@ -69,7 +69,7 @@ const toggleTooltip = computed(() => {
 })
 
 /**
- * The rooms of the level, with the colour the room map paints them with.
+ * The rooms of the level, with the color the room map paints them with.
  */
 const rows = shallowRef<RoomRow[]>([])
 
@@ -770,7 +770,7 @@ function removeRowRoom(room: number): void {
   }
 }
 
-// the colour square: the same one the room map paints the room with, so the row and the view read together
+// the color square: the same one the room map paints the room with, so the row and the view read together
 .name {
   flex: 1;
   min-width: 0;
@@ -795,7 +795,7 @@ function removeRowRoom(room: number): void {
 }
 
 // the pencil of a row: a rename without the double click, quiet until the row is under the pointer
-// the trash of a row: quiet until the row is under the pointer, then the colour of a delete
+// the trash of a row: quiet until the row is under the pointer, then the color of a delete
 // the search found no room: the list keeps its place, the line stands in it
 // the three things the selection can become, one under the other: a new room, the room of the dropdown, or none. A
 // quiet `or` between them says it is one choice, and the dropdown keeps the other two one click away
@@ -903,7 +903,7 @@ function removeRowRoom(room: number): void {
   font-size: 12px;
   line-height: 1.35;
 
-  // the line the author has to fix reads in the warning colour, the one that explains the level stays quiet
+  // the line the author has to fix reads in the warning color, the one that explains the level stays quiet
   &.is-warning {
     color: $accent;
   }

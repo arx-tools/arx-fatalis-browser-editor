@@ -111,7 +111,7 @@ test('the custom preset empties the dock and shows the invitation in the middle'
   }
 
   // the invitation is printed in the middle of the whole dock: the box of the text is read with a range, because the
-  // element itself fills the dock (the text is what the grid centres)
+  // element itself fills the dock (the text is what the grid centers)
   const text = await hint.evaluate((node) => {
     const range = document.createRange()
 

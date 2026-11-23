@@ -8,7 +8,7 @@ import { useTemplateRef } from 'vue'
  * @remarks
  * The light, the room and the texture lists had the same field three times, down to the focus that selects the whole
  * word (the author types over the filter, 2026-11-12) and the clear button that leaves the focus on the field. The
- * field owns that behaviour; the widget owns the query (`v-model`), the placeholder and the name the screen reader
+ * field owns that behavior; the widget owns the query (`v-model`), the placeholder and the name the screen reader
  * hears.
  *
  * The field is a flex item without a size of its own: the row it sits in sets the width (the light list next to the
@@ -118,7 +118,7 @@ function clear(): void {
     appearance: none;
   }
 
-  // the clear button of the field: the quiet grey of an icon, the bright text under the pointer
+  // the clear button of the field: the quiet gray of an icon, the bright text under the pointer
   .clear {
     position: absolute;
     right: 4px;

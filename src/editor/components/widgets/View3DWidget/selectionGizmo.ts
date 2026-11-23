@@ -369,7 +369,7 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
    * The edge rail wins when it has a target: the side of the selection rides on the edge of the level, and the vertex of
    * a corner would pull it off the rail on every frame (the zig-zag of a drag along the edge). The vertex is the target
    * when no edge is near, which is the precise snap of a corner. The plane snap is the last of the three: it lands a
-   * corner on a face, which is the loose target of a drag towards a surface, and the two precise ones go before it. The
+   * corner on a face, which is the loose target of a drag toward a surface, and the two precise ones go before it. The
    * marker of the one that lost is put away.
    *
    * @param total The raw translation of the drag, in the coordinates of the level.

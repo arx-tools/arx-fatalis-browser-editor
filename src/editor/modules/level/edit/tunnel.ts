@@ -37,7 +37,7 @@ export const TUNNEL_ROOM_NAME = 'Tunnel'
  * The neutral medium light of a tunnel, on a scale of 255.
  *
  * @remarks
- * The tunnel has no light of its own (2026-11-16, the owner): its faces take a flat, medium colour, so the inside of the
+ * The tunnel has no light of its own (2026-11-16, the owner): its faces take a flat, medium color, so the inside of the
  * tunnel reads neither as the dark wall it goes through nor as a hole in the mesh. The baked light of the two rooms is
  * darker than this (measured: room 17 is about 25, room 26 about 44-50), which is what a hole through a wall would look
  * like; the owner asked for the neutral medium instead.
@@ -97,7 +97,7 @@ export type TunnelPlan = {
    */
   readonly addedTexture: boolean
   /**
-   * The colours the new faces read at the end of the palette.
+   * The colors the new faces read at the end of the palette.
    */
   readonly lighting: readonly ArxColor[]
   /**
@@ -186,17 +186,17 @@ export function faceGroupsOf(polygons: readonly ArxPolygon[], faces: readonly nu
     }
   }
 
-  const neighbours = new Map<number, Set<number>>()
+  const neighbors = new Map<number, Set<number>>()
 
   for (const face of faces) {
-    neighbours.set(face, new Set())
+    neighbors.set(face, new Set())
   }
 
   for (const facesOfAnEdge of byEdge.values()) {
     for (const one of facesOfAnEdge) {
       for (const other of facesOfAnEdge) {
         if (one !== other) {
-          neighbours.get(one)?.add(other)
+          neighbors.get(one)?.add(other)
         }
       }
     }
@@ -206,7 +206,7 @@ export function faceGroupsOf(polygons: readonly ArxPolygon[], faces: readonly nu
   const groups: number[][] = []
 
   for (const face of faces) {
-    if (seen.has(face) || !neighbours.has(face)) {
+    if (seen.has(face) || !neighbors.has(face)) {
       continue
     }
 
@@ -223,10 +223,10 @@ export function faceGroupsOf(polygons: readonly ArxPolygon[], faces: readonly nu
 
       group.push(current)
 
-      for (const neighbour of neighbours.get(current) ?? []) {
-        if (!seen.has(neighbour)) {
-          seen.add(neighbour)
-          queue.push(neighbour)
+      for (const neighbor of neighbors.get(current) ?? []) {
+        if (!seen.has(neighbor)) {
+          seen.add(neighbor)
+          queue.push(neighbor)
         }
       }
     }

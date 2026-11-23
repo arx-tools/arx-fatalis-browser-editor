@@ -69,7 +69,7 @@ export type LayoutApplyContext = {
  */
 export type LayoutApply = {
   /**
-   * Creates the widgets of a tree, decorates them and rebuilds the dock from them.
+   * Keeps the widgets the tree has a place for, creates the missing ones and rebuilds the dock from them.
    *
    * @param node The tree to build.
    * @param fallback `false` when the default layout is already being applied (no second fallback).
@@ -369,14 +369,18 @@ export function createLayoutApply(context: LayoutApplyContext): LayoutApply {
   }
 
   /**
-   * Takes every widget off the dock, so the empty layout of the `Custom` preset has a screen to be dropped onto.
+   * Takes every widget off the dock and disposes it, so the empty layout of the `Custom` preset has a screen to be
+   * dropped onto.
    *
    * @remarks
-   * An empty layout is not a config: `restoreLayout({ main: null })` is what lumino calls an unparented dock. The widgets
-   * were disposed by the caller already, so this is the half of the rebuild that has no widget and no size to work out.
+   * An empty layout is not a config: `restoreLayout({ main: null })` is what lumino calls an unparented dock. The
+   * restore unparents the widgets first, and the disposal comes after it, so the widgets leave the layout once and not
+   * one by one: the dock has no tree while they are thrown away.
    */
   function clearDock(): void {
     pendingTree = null
+
+    const previous = dockWidgets(dock)
 
     isRebuilding = true
 
@@ -389,31 +393,47 @@ export function createLayoutApply(context: LayoutApplyContext): LayoutApply {
     // the echo of this rebuild is not a change of the user (the `layoutModified` of the removed widgets arrives a
     // message later, when the flag above is already down)
     appliedTree = toLayoutNode(dock.saveLayout(), widgetKind)
+
+    for (const widget of previous) {
+      undecorate(widget)
+      widget.dispose()
+    }
+
     syncLayout()
   }
 
   /**
-   * Creates the widgets of the tree, decorates them for the edit mode and rebuilds the dock from them.
+   * Keeps the widgets the tree has a place for, creates the missing ones and rebuilds the dock from them.
    *
    * @remarks
-   * A kind that is no longer in the registry is dropped with its share; when nothing is left, the
-   * default layout takes over, so the screen is never empty by accident. An **empty** tree is not an
-   * accident: it clears the dock and leaves it bare, with the placeholder of the dock in the middle
-   * (`Dock.vue`) as the only thing on it.
+   * The kinds of the tree decide what happens to the widgets that are already on the dock. A widget of a kind the tree
+   * has is **kept**: a preset switch rearranges the dock instead of throwing the Vue apps away, so the walkable view
+   * keeps its canvas, its camera and the pointer lock (TODO 281). A widget of a kind the tree has no place for is
+   * unparented by the restore and disposed below. A kind without a live widget is created and decorated.
+   *
+   * A kind that is no longer in the registry is dropped with its share; when nothing is left, the default layout takes
+   * over, so the screen is never empty by accident. An **empty** tree is not an accident: it clears the dock and
+   * leaves it bare, with the placeholder of the dock in the middle (`Dock.vue`) as the only thing on it.
    *
    * @param node The tree to build.
    * @param fallback `false` when the default layout is already being applied (no second fallback).
    */
   function applyLayout(node: LayoutNode, fallback = true): void {
-    for (const widget of dockWidgets(dock)) {
-      undecorate(widget)
-      widget.dispose()
-    }
-
     if (node.type === 'empty') {
       clearDock()
 
       return
+    }
+
+    const previous = dockWidgets(dock)
+    const kept = new Map<string, Widget>()
+
+    for (const widget of previous) {
+      const kind = widgetKind(widget)
+
+      if (kind !== undefined && !kept.has(kind)) {
+        kept.set(kind, widget)
+      }
     }
 
     const widgets = new Map<string, Widget>()
@@ -427,6 +447,18 @@ export function createLayoutApply(context: LayoutApplyContext): LayoutApply {
         continue
       }
 
+      const existing = kept.get(kind)
+
+      if (existing !== undefined) {
+        // the box of the old tree does not belong to this one: the locks are written after the restore, and the plan
+        // below must not read the old lock either (a preset leaves a widget free that the previous one pinned)
+        lockWidgetTo(existing, undefined)
+        widgets.set(kind, existing)
+        kept.delete(kind)
+
+        continue
+      }
+
       const widget = createWidget(definition)
       decorate(widget)
       widgets.set(kind, widget)
@@ -435,7 +467,7 @@ export function createLayoutApply(context: LayoutApplyContext): LayoutApply {
     // the first layout of the dock is the plan of the tree, not the weights of its sizes: a flexible child is a share
     // of the space the locks leave, and lumino reads every weight as a share of the whole split — a ratio of 0.36 next
     // to a locked pixel size would collapse to the css minimums and the pass would read the collapsed ratios back. The
-    // locks are not on the new widgets yet (the walk below writes them after the restore), so the plan is the one of the
+    // locks are not on the widgets yet (the walk below writes them after the restore), so the plan is the one of the
     // tree alone; the pass that follows works it out again with the real limits of the widgets.
     const box = host.getBoundingClientRect()
     let sizes: ReadonlyMap<LayoutNode, number> | undefined
@@ -455,7 +487,7 @@ export function createLayoutApply(context: LayoutApplyContext): LayoutApply {
     const main = config?.main
 
     if (main === null || main === undefined) {
-      for (const widget of widgets.values()) {
+      for (const widget of new Set([...previous, ...widgets.values()])) {
         undecorate(widget)
         widget.dispose()
       }
@@ -486,10 +518,10 @@ export function createLayoutApply(context: LayoutApplyContext): LayoutApply {
     appliedTree = toLayoutNode(dock.saveLayout(), widgetKind)
 
     // a widget that ended up nowhere (the tree changed under it) is thrown away, not left alive
-    const live = dockWidgets(dock)
+    const live = new Set(dockWidgets(dock))
 
-    for (const widget of widgets.values()) {
-      if (!live.includes(widget)) {
+    for (const widget of new Set([...previous, ...widgets.values()])) {
+      if (!live.has(widget)) {
         undecorate(widget)
         widget.dispose()
       }

@@ -89,17 +89,21 @@ test('a step back to another ratio of two free widgets keeps the layout and the 
   expect(share).toBeGreaterThan(0.37)
   expect(share).toBeLessThan(0.43)
 
-  // and the step is where it went: the history has two states, and the cursor is on the first one
-  const stored = await page.evaluate(() => {
-    return localStorage.getItem('layoutHistories')
-  })
+  // and the step is where it went: the history has two states, and the cursor is on the first one. The write of the
+  // histories is debounced, so the storage is asked until it has the step (a kept dock settles faster than a rebuilt one)
+  await expect
+    .poll(async () => {
+      const stored = await page.evaluate(() => {
+        return localStorage.getItem('layoutHistories')
+      })
 
-  expect(stored).not.toBeNull()
+      if (stored === null) {
+        return undefined
+      }
 
-  if (stored !== null) {
-    const entry = (JSON.parse(stored) as { lighter: { states: unknown[]; index: number } }).lighter
+      const entry = (JSON.parse(stored) as { lighter: { states: unknown[]; index: number } }).lighter
 
-    expect(entry.states.length).toBe(2)
-    expect(entry.index).toBe(0)
-  }
+      return { states: entry.states.length, index: entry.index }
+    })
+    .toEqual({ states: 2, index: 0 })
 })

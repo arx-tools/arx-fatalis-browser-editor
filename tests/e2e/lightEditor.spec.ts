@@ -277,6 +277,13 @@ test('the Light Editor bakes the palette live, and the undo takes it back', asyn
   await nextFrames(page, 3)
   await page.waitForTimeout(500)
 
+  // the entities are off: their markers are a display of their own, and the white ring of the one under the crosshair
+  // would change the picture between the two screenshots (2026-11-24, the owner: the hover of a marker stays when the
+  // pointer is let go, the way the hover of a light does)
+  await page.keyboard.press('e')
+  await nextFrames(page, 3)
+  await page.waitForTimeout(200)
+
   const stage = page.locator('[data-widget-kind="3d-view"] canvas.stage')
   const before = await stage.screenshot()
   const intensity = page.locator('[data-widget-kind="light-editor"] input[aria-label="Intensity"]')

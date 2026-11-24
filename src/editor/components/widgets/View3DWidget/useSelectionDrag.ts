@@ -368,6 +368,7 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
         // still separate; the unified selection is the 254)
         if (mode === 'replace') {
           selectionStore.clear()
+          entitySelectionStore.clear()
         }
 
         lightSelectionStore.selectMany([light], mode)
@@ -470,16 +471,11 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
 
       lightHoverStore.set(undefined)
 
-      // the marker of an entity under the crosshair opens, but it does not take the crosshair: a ring is a small mark on
-      // the face behind it, and the outline of that face is still what the author reads (the click does pick the entity,
-      // and stops there). The hover belongs to the locked pointer: it is the aim of the walkable view, and a picture the
-      // camera stands still on must not change under an author who is not aiming (2026-11-24, the owner: the hover
-      // comes first)
-      let entityHover: number | undefined
-
-      if (controls()?.isLocked === true) {
-        entityHover = entityUnderCrosshair()
-      }
+      // the marker of an entity under the crosshair opens, and it is what the click would take: the outline of the face
+      // behind it goes while an entity is aimed at. The hover stays when the pointer is let go, the way the hover of a
+      // light does: a crosshair that points at an entity is a read of the view, locked or not (2026-11-24, the owner:
+      // the phantom outline came back on the entity after the lock was left)
+      const entityHover = entityUnderCrosshair()
 
       entitySelectionStore.setHover(entityHover)
 

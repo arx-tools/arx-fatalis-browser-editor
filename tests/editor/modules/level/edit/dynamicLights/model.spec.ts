@@ -6,12 +6,14 @@ import { createBlankLevelFiles, MINIMAL_PRESET } from '../../../../../../src/edi
 import {
   applyDynamicLightModel,
   blackenDynamicLightModel,
+  changedWeightLightsOf,
   createDynamicLightModel,
   flickerColorOf,
   isBurningLight,
   isDynamicLightModelStale,
   refreshDynamicLightBaseColors,
   refreshDynamicLightLights,
+  setDynamicLightWeightsLive,
   type DynamicLightModel,
 } from '../../../../../../src/editor/modules/level/edit/dynamicLights/model.ts'
 import { writeBakedColors } from '../../../../../../src/editor/modules/level/edit/levelTextures/bakedColors.ts'
@@ -213,6 +215,15 @@ function randomOf(values: readonly number[]): { random: () => number; calls: () 
       return calls
     },
   }
+}
+
+/**
+ * A random that gives the light its full color, so a test reads the light of a frame without a flicker.
+ *
+ * @returns Zero, the number of a random that takes nothing away from the color.
+ */
+function zero(): number {
+  return 0
 }
 
 void describe('isBurningLight', () => {
@@ -810,27 +821,13 @@ void describe('refreshDynamicLightLights', () => {
     const model = modelOf(map)
     const geometry = geometryOf(map)
 
-    applyDynamicLightModel(
-      model,
-      geometry,
-      () => {
-        return 0
-      },
-      true,
-    )
+    applyDynamicLightModel(model, geometry, zero, true)
 
     const dimRed = colorOf(map, 0, 0)
 
     map.setLights([{ index: 0, light: bright }])
     refreshDynamicLightLights(model, map)
-    applyDynamicLightModel(
-      model,
-      geometry,
-      () => {
-        return 0
-      },
-      true,
-    )
+    applyDynamicLightModel(model, geometry, zero, true)
 
     assert.ok(colorOf(map, 0, 0) > dimRed)
   })
@@ -872,5 +869,146 @@ void describe('refreshDynamicLightLights', () => {
     })
 
     assert.deepEqual(needsBuild, [false, false, false])
+  })
+})
+
+void describe('changedWeightLightsOf', () => {
+  void it('tells the light whose weights changed', () => {
+    const map = litFloor()
+    const torch = lightOf({ x: 0, y: -200, z: 0 })
+
+    map.llf.lights = [torch]
+
+    const model = modelOf(map)
+
+    torch.position.x = 20
+
+    assert.deepEqual(changedWeightLightsOf(model, map), [0])
+  })
+
+  void it('leaves the weights when only the color changed', () => {
+    const map = litFloor()
+
+    map.llf.lights = [lightOf({ x: 0, y: -200, z: 0 })]
+
+    const model = modelOf(map)
+
+    map.setLights([{ index: 0, light: lightOf({ x: 0, y: -200, z: 0 }, { color: { r: 255, g: 0, b: 0, a: 255 } }) }])
+
+    assert.deepEqual(changedWeightLightsOf(model, map), [])
+    // the lights of the model follow the level
+    assert.equal(model.lights.length, 1)
+  })
+
+  void it('asks for a build when a light appears or goes out', () => {
+    const map = litFloor()
+
+    map.llf.lights = [lightOf({ x: 0, y: -200, z: 0 })]
+
+    const model = modelOf(map)
+
+    map.llf.lights = [lightOf({ x: 0, y: -200, z: 0 }), lightOf({ x: 30, y: -200, z: 30 })]
+
+    assert.equal(changedWeightLightsOf(model, map), undefined)
+  })
+})
+
+void describe('setDynamicLightWeightsLive', () => {
+  void it('takes the light of a corner away when the light walks off it', () => {
+    const map = litFloor()
+    const torch = lightOf({ x: 0, y: -200, z: 0 })
+
+    map.llf.lights = [torch]
+
+    const model = modelOf(map)
+    const geometry = geometryOf(map)
+
+    applyDynamicLightModel(model, geometry, zero, true)
+
+    assert.ok(colorOf(map, 0, 0) > linearOf(FLOOR_GRAY))
+
+    // the gizmo of the lights writes the place of the light it holds on every frame of the drag
+    torch.position = { x: 2000, y: -200, z: 0 }
+
+    const changed = changedWeightLightsOf(model, map)
+
+    assert.deepEqual(changed, [0])
+
+    setDynamicLightWeightsLive(model, changed ?? [])
+    applyDynamicLightModel(model, geometry, zero, true)
+
+    // the corner keeps the palette of the level: the attribute carries the linear value of a float table, so the gray
+    // comes back with the last bits of a float
+    assert.ok(Math.abs(colorOf(map, 0, 0) - linearOf(FLOOR_GRAY)) < 1e-6)
+  })
+
+  void it('lights a corner the build did not light', () => {
+    const map = litFloor()
+    const torch = lightOf({ x: 0, y: -200, z: 0 }, { fallEnd: 1 })
+
+    map.llf.lights = [torch]
+
+    const model = modelOf(map)
+    const geometry = geometryOf(map)
+
+    // the light reached nothing at the build, so the layer has no corner of its own
+    assert.equal(model.vertices.length, 0)
+
+    // the scale gizmo grows the light over the floor
+    torch.fallEnd = 400
+
+    setDynamicLightWeightsLive(model, [0])
+
+    assert.equal(applyDynamicLightModel(model, geometry, zero, true), true)
+    assert.ok(colorOf(map, 0, 0) > linearOf(FLOOR_GRAY))
+  })
+
+  void it('draws a light that moved the way a build at its new place does', () => {
+    const map = litFloor()
+    const torch = lightOf({ x: 0, y: -200, z: 0 })
+
+    map.llf.lights = [torch]
+
+    const model = modelOf(map)
+    const geometry = geometryOf(map)
+
+    applyDynamicLightModel(model, geometry, zero, true)
+
+    torch.position = { x: 100, y: -200, z: 0 }
+
+    setDynamicLightWeightsLive(model, [0])
+    applyDynamicLightModel(model, geometry, zero, true)
+
+    const live = colorOf(map, 0, 0)
+    const rebuilt = modelOf(map)
+
+    applyDynamicLightModel(rebuilt, geometry, zero, true)
+
+    assert.equal(live, colorOf(map, 0, 0))
+  })
+
+  void it('keeps the light of a still light beside a moved one', () => {
+    const map = litFloor()
+    const first = lightOf({ x: 0, y: -200, z: 0 })
+    const second = lightOf({ x: 0, y: -200, z: 0 }, { color: { r: 255, g: 0, b: 0, a: 255 } })
+
+    map.llf.lights = [first, second]
+
+    const model = modelOf(map)
+    const geometry = geometryOf(map)
+
+    applyDynamicLightModel(model, geometry, zero, true)
+
+    first.position = { x: 2000, y: -200, z: 0 }
+
+    setDynamicLightWeightsLive(model, [0])
+    applyDynamicLightModel(model, geometry, zero, true)
+
+    const live = colorOf(map, 0, 0)
+    const rebuilt = modelOf(map)
+
+    applyDynamicLightModel(rebuilt, geometry, zero, true)
+
+    assert.equal(live, colorOf(map, 0, 0))
   })
 })

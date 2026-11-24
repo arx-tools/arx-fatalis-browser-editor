@@ -10,10 +10,11 @@ import { writeBakedColors } from './levelTextures/bakedColors.ts'
 import {
   applyDynamicLightModel,
   blackenDynamicLightModel,
+  changedWeightLightsOf,
   createDynamicLightModel,
   isDynamicLightModelStale,
   refreshDynamicLightBaseColors,
-  refreshDynamicLightLights,
+  setDynamicLightWeightsLive,
   type DynamicLightModel,
 } from './dynamicLights/model.ts'
 
@@ -334,7 +335,12 @@ function isLayerInView(): boolean {
     new Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse),
   )
 
-  return frustum.intersectsSphere(model.bounds)
+  if (frustum.intersectsSphere(model.bounds)) {
+    return true
+  }
+
+  // a light of a drag may walk out of the box of the build: the frame draws it as long as one of the two boxes is seen
+  return model.live !== undefined && frustum.intersectsSphere(model.live.bounds)
 }
 
 /**
@@ -608,23 +614,40 @@ export function startDynamicLights(): void {
     const map = levelStore.map.value
     const geometry = map?.solidMeshes[0]?.geometry
 
-    // a color edit of a light keeps its weights: the layer takes the new light and draws it on the next frame, so the
-    // drag of the light editor is live even with the layer on (a move, an intensity or a flag still needs the build)
     if (
-      map !== undefined &&
-      geometry !== undefined &&
-      model?.map === map &&
-      isDynamicLightsVisible.value &&
-      !isDynamicLightModelStale(model, geometry) &&
-      refreshDynamicLightLights(model, map)
+      map === undefined ||
+      geometry === undefined ||
+      model?.map !== map ||
+      !isDynamicLightsVisible.value ||
+      isDynamicLightModelStale(model, geometry)
     ) {
-      if (applyFrame()) {
-        renderViews()
-      }
+      scheduleRebuild()
 
       return
     }
 
-    scheduleRebuild()
+    const changed = changedWeightLightsOf(model, map)
+
+    if (changed === undefined) {
+      scheduleRebuild()
+
+      return
+    }
+
+    // a color edit of a light keeps its weights: the layer takes the new light and draws it on the next frame, so the
+    // drag of the light editor is live even with the layer on
+    if (changed.length > 0) {
+      // a moved light is drawn over the table of the build, so the drag follows the pointer; the build takes the lights
+      // in once the gesture settles (2026-11-24, the owner)
+      setDynamicLightWeightsLive(model, changed)
+      startTicker()
+      scheduleRebuild()
+
+      return
+    }
+
+    if (applyFrame()) {
+      renderViews()
+    }
   })
 }

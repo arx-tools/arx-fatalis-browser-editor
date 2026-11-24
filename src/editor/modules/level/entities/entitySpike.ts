@@ -11,7 +11,7 @@ import {
   type Texture,
 } from 'three'
 import { FTL } from 'arx-convert'
-import type { ArxFTL, ArxInteractiveObject } from 'arx-convert/types'
+import type { ArxFTL, ArxInteractiveObject, ArxRotation } from 'arx-convert/types'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { decodeTextureBitmap } from '../../textures/image.ts'
@@ -132,33 +132,26 @@ async function materialsOf(ftl: ArxFTL, fetchImpl: typeof fetch): Promise<MeshBa
 }
 
 /**
- * Loads the model of the spike entity, and puts it at the place and the angle of the entity.
+ * Loads the model of an interactive object: its mesh and its textures.
  *
  * @remarks
- * The POC reads one FTL from the data directory, builds a mesh from its triangles and gives it a flat color: no
- * animation, no texture and no group of the model (TODO 235). The FTL is the game's own model file, so the shape is the
- * one the game draws.
+ * The FTL is the game's own model file, so the shape is the one the game draws. The faces of the model are grouped by
+ * their texture (one material for each), and the model is put in a group at the origin: the caller moves it to the place
+ * and the angle of the thing it draws (an entity, or the player of the level).
  *
- * @param map The map the store loaded.
+ * @param modelPath The path of the FTL inside the data directory.
  * @param fetchImpl The fetch to read the data directory with.
  *
- * @returns The group of the model, or `undefined` when the level has no such entity.
+ * @returns The group of the model, or `undefined` when the data directory has no such file.
  */
-export async function loadSpikeEntityModel(map: ArxMap, fetchImpl: typeof fetch = fetch): Promise<Group | undefined> {
-  const entity = map.dlf.interactiveObjects.find((object) => {
-    return object.name === SPIKE_ENTITY.name && object.identifier === SPIKE_ENTITY.identifier
-  })
-
-  if (entity === undefined) {
-    return undefined
-  }
-
-  const modelName = entity.name.split('/').at(-1) ?? entity.name
-  const modelPath = await modelOf(entity, modelName, fetchImpl)
+export async function loadInteractiveModel(
+  modelPath: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<Group | undefined> {
   const bytes = await readDataFile(modelPath, fetchImpl)
 
   if (bytes === undefined) {
-    throw new Error(`The model of ${SPIKE_ENTITY.name} is not in the data directory.`)
+    return undefined
   }
 
   const ftl = FTL.load(bytes)
@@ -210,24 +203,70 @@ export async function loadSpikeEntityModel(map: ArxMap, fetchImpl: typeof fetch 
   const model = new Mesh(geometry, materials)
   const group = new Group()
 
-  group.name = 'entity-spike'
+  group.name = 'interactive-model'
   group.add(model)
-  // the DLF position is the local space of the level: the scene position of the FTS is the offset the camera adds at
-  // load, and the map's own polygons are drawn in this same local space (`ArxMap.finalize` keeps the two together)
-  group.position.copy(arxVector3toVector3(entity.position))
-  // The game does not turn a static entity with `toRotationMatrix`: `RenderInter` (`Interactive.cpp`) sets the yaw to
-  // `270 - yaw` first, and then builds the rotation of `toQuaternion`, which is `Rz(-roll) * Rx(pitch) * Ry(yaw)`.
-  // The editor's mesh is `M(x, y, z) = (-x, -y, z)`, a half turn around the z axis, and the game's scene goes through
-  // the same `M`, so the rotation of the entity is `M * R * M^-1`: the roll keeps its sign, and the pitch and the yaw
-  // turn to the other side. The double door of the throne room then stands in the plane of its arch, facing the stairs.
-  const pitch = degreesToRadians(-entity.orientation.a)
-  const yaw = degreesToRadians(entity.orientation.b - 270)
-  const roll = degreesToRadians(-entity.orientation.g)
+
+  return group
+}
+
+/**
+ * Turns a model the way the game turns a static entity.
+ *
+ * @remarks
+ * The game does not turn a static entity with `toRotationMatrix`: `RenderInter` (`Interactive.cpp`) sets the yaw to
+ * `270 - yaw` first, and then builds the rotation of `toQuaternion`, which is `Rz(-roll) * Rx(pitch) * Ry(yaw)`.
+ * The editor's mesh is `M(x, y, z) = (-x, -y, z)`, a half turn around the z axis, and the game's scene goes through
+ * the same `M`, so the rotation of the entity is `M * R * M^-1`: the roll keeps its sign, and the pitch and the yaw
+ * turn to the other side. The double door of the throne room then stands in the plane of its arch, facing the stairs.
+ *
+ * @param group The model to turn.
+ * @param orientation The orientation of the entity, in degrees.
+ */
+export function placeByEntityAngles(group: Group, orientation: ArxRotation): void {
+  const pitch = degreesToRadians(-orientation.a)
+  const yaw = degreesToRadians(orientation.b - 270)
+  const roll = degreesToRadians(-orientation.g)
 
   group.quaternion
     .setFromAxisAngle(Z_AXIS, roll)
     .multiply(new Quaternion().setFromAxisAngle(X_AXIS, pitch))
     .multiply(new Quaternion().setFromAxisAngle(Y_AXIS, yaw))
+}
+
+/**
+ * Loads the model of the spike entity, and puts it at the place and the angle of the entity.
+ *
+ * @remarks
+ * The POC reads one FTL from the data directory, builds a mesh from its triangles and gives it a flat color: no
+ * animation, no texture and no group of the model (TODO 235). The FTL is the game's own model file, so the shape is the
+ * one the game draws.
+ *
+ * @param map The map the store loaded.
+ * @param fetchImpl The fetch to read the data directory with.
+ *
+ * @returns The group of the model, or `undefined` when the level has no such entity.
+ */
+export async function loadSpikeEntityModel(map: ArxMap, fetchImpl: typeof fetch = fetch): Promise<Group | undefined> {
+  const entity = map.dlf.interactiveObjects.find((object) => {
+    return object.name === SPIKE_ENTITY.name && object.identifier === SPIKE_ENTITY.identifier
+  })
+
+  if (entity === undefined) {
+    return undefined
+  }
+
+  const modelName = entity.name.split('/').at(-1) ?? entity.name
+  const modelPath = await modelOf(entity, modelName, fetchImpl)
+  const group = await loadInteractiveModel(modelPath, fetchImpl)
+
+  if (group === undefined) {
+    return undefined
+  }
+
+  // the DLF position is the local space of the level: the scene position of the FTS is the offset the camera adds at
+  // load, and the map's own polygons are drawn in this same local space (`ArxMap.finalize` keeps the two together)
+  group.position.copy(arxVector3toVector3(entity.position))
+  placeByEntityAngles(group, entity.orientation)
 
   return group
 }

@@ -28,6 +28,7 @@ import {
   type ViewScene,
 } from '../shared/viewScene.ts'
 import ToggleButton from '../../ToggleButton.vue'
+import { spawnRevision } from '../../../modules/level/entities/playerSpawn.ts'
 import type { CameraControls } from './cameraControls.ts'
 import { createFrameLoop } from './frameLoop.ts'
 import { useSelectionDrag } from './useSelectionDrag.ts'
@@ -40,6 +41,7 @@ import { cancelNormalsRebuild, type OverlayHost } from './overlays.ts'
 import { hasLevel, hud, roomReadout, snapActive, status, toggleMagnet } from './readout.ts'
 import { bindViewWatches, type ViewWatchesHost } from './viewWatches.ts'
 import { attachLevel, detachLevel, loadEntitySpikeOf } from './levelAttach.ts'
+import { loadPlayerModel, type PlayerModel } from './playerModel.ts'
 
 const host = useTemplateRef<HTMLElement>('host')
 const canvas = useTemplateRef<HTMLCanvasElement>('canvas')
@@ -70,6 +72,7 @@ let lightRadiusSpheres: LightRadiusSpheres | undefined
 
 let lightTextures: LightMarkerTextures | undefined
 let spikeEntity: Group | undefined
+let playerModel: PlayerModel | undefined
 let portalLines: PortalOverlay | undefined
 
 let selection: PolygonSelectionOverlay | undefined
@@ -406,6 +409,23 @@ function showMap(map: ArxMap): void {
       // the spike is a debug aid: a level without one is not an error of the view
     })
 
+  // the model of the player: the spawn of the level, drawn as the human the game puts there (2026-11-24, the owner)
+  loadPlayerModel({ scene: scene.scene })
+    .then((model) => {
+      if (loadedMap !== map) {
+        model?.dispose()
+
+        return
+      }
+
+      playerModel = model
+      model?.placeAt(map)
+      loop.requestRender()
+    })
+    .catch(() => {
+      // a data directory without the model is not an error of the view: the spawn is still editable in the list
+    })
+
   loop.requestRender()
 }
 
@@ -442,6 +462,8 @@ function hideMap(): void {
   lightRadiusSpheres = undefined
   selection = undefined
   controls = undefined
+  playerModel?.dispose()
+  playerModel = undefined
   loadedMap = undefined
   spikeEntity = undefined
 }
@@ -493,6 +515,27 @@ onMounted(() => {
 
   // the switches and the revisions of the view: the same wiring for every widget, in `viewWatches.ts`
   stopWatches = bindViewWatches(watchHost)
+
+  // the model of the player follows the spawn, and fades while the camera stands on it
+  stopWatches.push(
+    watch(spawnRevision, () => {
+      if (loadedMap !== undefined && playerModel !== undefined) {
+        playerModel.placeAt(loadedMap)
+        loop.requestRender()
+      }
+    }),
+    watch(
+      () => {
+        return cameraStore.pose.value
+      },
+      () => {
+        if (playerModel !== undefined && view !== undefined) {
+          playerModel.fadeFor(view.camera.position)
+          loop.requestRender()
+        }
+      },
+    ),
+  )
 
   globalThis.addEventListener('keydown', onModifierKey)
   globalThis.addEventListener('keyup', onModifierKey)

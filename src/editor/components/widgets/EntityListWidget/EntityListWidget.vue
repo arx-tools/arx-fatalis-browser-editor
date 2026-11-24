@@ -10,6 +10,7 @@ import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { cameraStore } from '../camera/cameraStore.ts'
 import { worldPositionToGame } from '../camera/cameraPose.ts'
 import { jumpPoseOf } from '../camera/jumpPose.ts'
+import { isPlayerSelected, playerSpawnOf } from '../../../modules/level/entities/playerSpawn.ts'
 import {
   ENTITY_JUMP_DISTANCE,
   entityRowsOf,
@@ -125,6 +126,39 @@ function jumpTo(row: EntityRow): void {
 }
 
 /**
+ * Moves the camera to the spawn of the player.
+ *
+ * @remarks
+ * The spawn is not an entity of the DLF: it is the `player` of the header, and the row of the list jumps to it the way
+ * the rows of the entities do (the camera keeps its own orientation).
+ */
+function jumpToPlayer(): void {
+  const pose = cameraStore.pose.value
+  const map = levelStore.map.value
+
+  if (pose === undefined || map === undefined) {
+    return
+  }
+
+  const spawn = playerSpawnOf(map)
+  const target = worldPositionToGame(arxVector3toVector3(spawn.position), map.scenePosition)
+
+  cameraStore.moveCamera(jumpPoseOf(pose, target, ENTITY_JUMP_DISTANCE))
+}
+
+/**
+ * Picks the player of the level, or lets it go.
+ */
+function togglePlayerSelection(): void {
+  isPlayerSelected.value = !isPlayerSelected.value
+}
+
+/**
+ * Whether the section of the player is open: it starts open, so the spawn is the first thing the list shows.
+ */
+const isPlayerOpen = shallowRef(true)
+
+/**
  * Reads the entities of the level into the list.
  */
 function rebuild(): void {
@@ -150,6 +184,33 @@ watch(levelStore.map, rebuild, { immediate: true })
       </template>
     </WidgetHeading>
     <SearchField v-if="rows.length > 0" v-model="query" placeholder="Search entities" label="Search entities" />
+    <div class="sections">
+      <AccordionRow label="Player" value="spawn" :open="isPlayerOpen" @toggle="isPlayerOpen = !isPlayerOpen">
+        <ul class="rows">
+          <li class="row player-row" :class="{ 'is-selected': isPlayerSelected }">
+            <button
+              class="name player"
+              type="button"
+              :aria-pressed="isPlayerSelected"
+              aria-label="Select the player of the level"
+              v-tooltip="'Select the player of the level'"
+              @click="togglePlayerSelection"
+            >
+              player
+            </button>
+            <button
+              class="jump"
+              type="button"
+              aria-label="Jump to the player"
+              v-tooltip="'Jump to the player'"
+              @click="jumpToPlayer"
+            >
+              <ScanSearch :size="13" />
+            </button>
+          </li>
+        </ul>
+      </AccordionRow>
+    </div>
     <div v-if="rows.length > 0 && shown.length > 0" class="sections">
       <AccordionRow
         v-for="(section, index) in sections"

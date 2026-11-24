@@ -27,12 +27,24 @@ test('the entity list shows the entities of the level, and the search filters th
   await expect(list).toBeVisible()
 
   // the level 8 of the game carries interactive objects, and the list fills as the level arrives (the layout has no
-  // statistics widget to wait on: the list itself is the signal)
+  // statistics widget to wait on: the list itself is the signal). The first row is the **player** of the level, the
+  // spawn, which every level has: the four folders of the entities come after it
   await expect
     .poll(async () => {
       return await list.locator('.AccordionRow').count()
     })
-    .toBe(4)
+    .toBe(5)
+
+  await expect(list.locator('.AccordionRow').first()).toContainText('Player')
+
+  // the row of the player is the spawn of the level: it is clickable, and it says it is picked (TODO 172)
+  const playerRow = list.locator('.player-row')
+
+  await expect(playerRow.locator('.name')).toHaveAttribute('aria-pressed', 'false')
+  await playerRow.locator('.name').click()
+  await expect(playerRow.locator('.name')).toHaveAttribute('aria-pressed', 'true')
+  await playerRow.locator('.name').click()
+  await expect(playerRow.locator('.name')).toHaveAttribute('aria-pressed', 'false')
 
   // the total of the level sits in the heading, on the right
   await expect(list.locator('.total')).toHaveText(/^Total: \d+$/u)
@@ -42,8 +54,8 @@ test('the entity list shows the entities of the level, and the search filters th
 
   expect(total).toBeGreaterThan(0)
 
-  // the four folders the game places entities from are the rows, all of them closed to start with
-  await expect(list.locator('.AccordionRow')).toHaveCount(4)
+  // the player, and the four folders the game places entities from; the folders start closed
+  await expect(list.locator('.AccordionRow')).toHaveCount(5)
 
   for (const category of ['items', 'npc', 'system']) {
     await expect(list.locator('.AccordionRow', { hasText: category }).locator('.head')).toHaveAttribute(
@@ -60,7 +72,7 @@ test('the entity list shows the entities of the level, and the search filters th
   await expect(fixedRow.locator('.chevron')).toHaveCount(0)
 
   await fixedRow.locator('.head').click()
-  await expect(list.locator('.row')).toHaveCount(0)
+  await expect(list.locator('.row:not(.player-row)')).toHaveCount(0)
 
   // opening a row shows its entities, and the arrow says it (the level 8 has items, npcs and system objects, and no
   // fixed one)
@@ -71,11 +83,11 @@ test('the entity list shows the entities of the level, and the search filters th
   await expect(itemsRow.locator('.head')).toHaveAttribute('aria-expanded', 'true')
   await expect
     .poll(async () => {
-      return await list.locator('.row').count()
+      return await list.locator('.row:not(.player-row)').count()
     })
     .toBeGreaterThan(0)
 
-  const rows = await list.locator('.row').count()
+  const rows = await list.locator('.row:not(.player-row)').count()
 
   expect(rows).toBeGreaterThan(0)
 
@@ -87,7 +99,7 @@ test('the entity list shows the entities of the level, and the search filters th
 
   const spawnPosition = positionOf(page.url())
 
-  await list.locator('.row .jump').first().click()
+  await list.locator('.row:not(.player-row) .jump').first().click()
 
   await expect
     .poll(() => {
@@ -101,15 +113,15 @@ test('the entity list shows the entities of the level, and the search filters th
 
   await expect
     .poll(async () => {
-      return await list.locator('.row').count()
+      return await list.locator('.row:not(.player-row)').count()
     })
     .toBeLessThan(total)
 
-  expect(await list.locator('.row').count()).toBeGreaterThan(0)
+  expect(await list.locator('.row:not(.player-row)').count()).toBeGreaterThan(0)
 
   // nothing matches: the list says so, and the count goes to zero
   await list.getByRole('searchbox', { name: 'Search entities' }).fill('no-such-entity')
 
-  await expect(list.locator('.row')).toHaveCount(0)
+  await expect(list.locator('.row:not(.player-row)')).toHaveCount(0)
   await expect(list).toContainText('No entity matches the search.')
 })

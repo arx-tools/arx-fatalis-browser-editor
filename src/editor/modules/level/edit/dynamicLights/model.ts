@@ -127,6 +127,23 @@ type PairTable = {
 }
 
 /**
+ * The inputs of the weights of one light, as the model read them at its build.
+ *
+ * @remarks
+ * The lights of the model are the **live** objects of the level (their colors follow the editor without a build), so a
+ * light that moved can not be told from its own object: the model keeps what the weights were built from, and a light
+ * that reads another place, reach, intensity or flag is a build of its own (2026-11-23, the owner: the flicker of a
+ * moved torch stayed at the place it started from).
+ */
+export type LightWeightSnapshot = {
+  readonly fallEnd: number
+  readonly fallStart: number
+  readonly flags: number
+  readonly intensity: number
+  readonly position: { readonly x: number; readonly y: number; readonly z: number }
+}
+
+/**
  * The dynamic light layer of a level: which corner takes how much light from which semi-dynamic light.
  *
  * @remarks
@@ -163,6 +180,10 @@ export type DynamicLightModel = {
    * were built from, and a color that changed only swaps the entries (see {@link refreshDynamicLightLights}).
    */
   readonly lights: ArxLight[]
+  /**
+   * The weights every light was built with, in the order of {@link lights}.
+   */
+  readonly weightSnapshot: readonly LightWeightSnapshot[]
   /**
    * The vertices the layer touches, in ascending order of the geometry.
    */
@@ -540,6 +561,30 @@ function boundsOf(vertices: Int32Array, positions: Float32Array): Sphere {
  *
  * @returns The model, or `undefined` when the level has no solid geometry to light.
  */
+/**
+ * Reads the inputs the weights of a light are built from.
+ *
+ * @param light The light of the level.
+ *
+ * @returns What a later move, reach, intensity or flag change can tell apart.
+ */
+function weightsOfLight(light: ArxLight): LightWeightSnapshot {
+  return {
+    fallEnd: light.fallEnd,
+    fallStart: light.fallStart,
+    flags: light.flags,
+    intensity: light.intensity,
+    position: { x: light.position.x, y: light.position.y, z: light.position.z },
+  }
+}
+
+/**
+ * Builds the layer of a level: the weights of the lights on every corner they reach.
+ *
+ * @param map The level to read.
+ *
+ * @returns The model, or `undefined` when the level has no solid geometry to light.
+ */
 export function createDynamicLightModel(map: ArxMap): DynamicLightModel | undefined {
   const mesh = map.solidMeshes[0]
 
@@ -596,6 +641,9 @@ export function createDynamicLightModel(map: ArxMap): DynamicLightModel | undefi
     normalAttribute,
     normalVersion: normalAttribute.version,
     lights,
+    weightSnapshot: lights.map((light) => {
+      return weightsOfLight(light)
+    }),
     vertices: table.vertices,
     starts: table.starts,
     pairLights: table.pairLights,
@@ -662,20 +710,24 @@ export function refreshDynamicLightBaseColors(model: DynamicLightModel, map: Arx
  * place, the two radii, the intensity and the flags of a light are what they were built from. The color and the flicker
  * are read on every frame, so a build is not needed when only those changed.
  *
- * @param one The state the weights were built from.
- * @param other The state of the level now.
+ * @param snapshot The state the weights were built from.
+ * @param light The light of the level now.
  *
  * @returns True when the two give the same weights.
  */
-function sameWeightsOf(one: ArxLight, other: ArxLight): boolean {
+function sameWeightsOf(snapshot: LightWeightSnapshot | undefined, light: ArxLight): boolean {
+  if (snapshot === undefined) {
+    return false
+  }
+
   return (
-    one.position.x === other.position.x &&
-    one.position.y === other.position.y &&
-    one.position.z === other.position.z &&
-    one.fallStart === other.fallStart &&
-    one.fallEnd === other.fallEnd &&
-    one.intensity === other.intensity &&
-    one.flags === other.flags
+    snapshot.position.x === light.position.x &&
+    snapshot.position.y === light.position.y &&
+    snapshot.position.z === light.position.z &&
+    snapshot.fallStart === light.fallStart &&
+    snapshot.fallEnd === light.fallEnd &&
+    snapshot.intensity === light.intensity &&
+    snapshot.flags === light.flags
   )
 }
 
@@ -705,7 +757,7 @@ export function refreshDynamicLightLights(model: DynamicLightModel, map: ArxMap)
   for (const [index, light] of burning.entries()) {
     const built = model.lights[index]
 
-    if (built === undefined || !sameWeightsOf(built, light)) {
+    if (built === undefined || !sameWeightsOf(model.weightSnapshot[index], light)) {
       return false
     }
   }

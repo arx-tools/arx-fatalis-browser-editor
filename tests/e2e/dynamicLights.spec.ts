@@ -20,10 +20,14 @@ import {
  */
 async function openTorch(page: Page, options: { flatZero?: boolean; readsLights?: boolean } = {}): Promise<void> {
   await seedLayout(page, testLayout)
+  // the layer is drawn on the flat light of the level: the tests that read the lights take the Arx one instead
+  let profile = 'Flat'
 
   if (options.readsLights === true) {
-    await seedLightingProfile(page)
+    profile = 'Arx'
   }
+
+  await seedLightingProfile(page, profile)
 
   await page.goto(editorUrl())
   await waitForLevel(page)

@@ -33,8 +33,12 @@ export const LIGHTING_PROFILES: ReadonlyArray<{ readonly value: LightingProfile;
 
 /**
  * The profile a level starts with.
+ *
+ * @remarks
+ * The owner asked for the look of the game on a fresh browser (2026-11-23): the `Arx` profile is the light the game's
+ * own editor baked, and the other profiles are a choice the author makes on the lighting controls.
  */
-export const DEFAULT_LIGHTING_PROFILE: LightingProfile = 'Flat'
+export const DEFAULT_LIGHTING_PROFILE: LightingProfile = 'Arx'
 
 /**
  * Tells whether a value is a profile the widget knows.

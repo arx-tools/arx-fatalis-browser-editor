@@ -1,5 +1,12 @@
 import { expect, test } from '@playwright/test'
-import { editorUrl, litPixels, nextFrames, screenshotDifference, waitForLayoutSettled } from './support/editor.ts'
+import {
+  editorUrl,
+  litPixels,
+  nextFrames,
+  screenshotDifference,
+  seedLightingProfile,
+  waitForLayoutSettled,
+} from './support/editor.ts'
 
 /**
  * The lighting controls: the `Lighter` preset carries them, and the profile of the bake is a fact of the browser.
@@ -22,7 +29,7 @@ test('the Lighter preset brings the lighting controls, and the profile stays in 
 
   const select = controls.locator('select')
 
-  await expect(select).toHaveValue('Flat')
+  await expect(select).toHaveValue('Arx')
 
   await select.selectOption('Realistic')
 
@@ -119,6 +126,7 @@ test('the flat profile brings a luminosity slider, and the value stays', async (
  * 100%) would slide the slider under the hand of the author while the light is dragged.
  */
 test('the flat light reads out as a percentage of a fixed width', async ({ page }) => {
+  await seedLightingProfile(page, 'Flat')
   await page.goto(editorUrl())
 
   await page.locator('header button[aria-label="Presets"]').click()
@@ -165,6 +173,7 @@ test('the flat light reads out as a percentage of a fixed width', async ({ page 
  * so the flat profile shows three rows in a box of 130.
  */
 test('the fields start at the same column, and the rows fit the Lighter preset', async ({ page }) => {
+  await seedLightingProfile(page, 'Flat')
   await page.goto(editorUrl())
 
   await page.locator('header button[aria-label="Presets"]').click()
@@ -325,6 +334,7 @@ test('the Texture Rainbow draws the level with the color of its containers', asy
  * the lights keep the switch and have no slider.
  */
 test('the switch of the static lights is only there for the profiles that read the lights', async ({ page }) => {
+  await seedLightingProfile(page, 'Flat')
   await page.goto(editorUrl())
 
   await page.locator('header button[aria-label="Presets"]').click()
@@ -416,6 +426,7 @@ test('the luminosity of the rainbow darkens the colors of the level', async ({ p
  * have no slider, and a dropdown of its own width would move the captions and the controls under the hand of the author.
  */
 test('a profile change does not move the controls of the widget', async ({ page }) => {
+  await seedLightingProfile(page, 'Flat')
   await page.goto(editorUrl())
 
   await page.locator('header button[aria-label="Presets"]').click()

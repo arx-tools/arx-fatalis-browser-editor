@@ -835,6 +835,22 @@ void describe('refreshDynamicLightLights', () => {
     assert.ok(colorOf(map, 0, 0) > dimRed)
   })
 
+  void it('asks for a build when the light of the level moved in its own object', () => {
+    const map = litFloor()
+    const torch = lightOf({ x: 0, y: -200, z: 0 })
+
+    map.llf.lights = [torch]
+
+    const model = modelOf(map)
+
+    // the gizmo of the lights writes the place of the light it holds, without making a new object: the model keeps the
+    // same object, so its own place is the one the weights were built with (2026-11-23, the owner: the flicker of a
+    // moved torch stayed at the place it started from)
+    torch.position.x = 200
+
+    assert.equal(refreshDynamicLightLights(model, map), false)
+  })
+
   void it('asks for a build when a light moved, grew brighter or changed its flags', () => {
     const map = litFloor()
     const torch = lightOf({ x: 0, y: -200, z: 0 })

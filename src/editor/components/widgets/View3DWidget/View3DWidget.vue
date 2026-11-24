@@ -1,40 +1,20 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
 import { Magnet } from 'lucide-vue-next'
-import type { ArxLight } from 'arx-convert/types'
 import { PerspectiveCamera, type Group, type Mesh } from 'three'
 import Crosshair from '../../Crosshair.vue'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { WIREFRAME_WITHOUT_MESH, arxVector3toVector3 } from '../../../../generator/meshes.ts'
-import {
-  isDynamicLightsVisible,
-  isStaticLightsVisible,
-  registerDynamicLightsView,
-} from '../../../modules/level/edit/dynamicLights.ts'
-import { lightingProfile } from '../../../modules/level/edit/lightingProfile.ts'
-import { fallEndSphereVisible, fallStartSphereVisible } from '../../../modules/level/edit/lightSpheres.ts'
-import { activeFaceGroups } from '../../../modules/groups/groupStore.ts'
+import { registerDynamicLightsView } from '../../../modules/level/edit/dynamicLights.ts'
 import { registerParticlesView } from '../../../modules/particles/controller.ts'
-import { levelRevision } from '../../../modules/level/edit/editing.ts'
-import { lightsRevision } from '../../../modules/level/edit/lightEditing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { getModifierOfKey } from '../../../modules/keyboard/functions.ts'
 import { lightHoverStore } from '../../../modules/selection/lightHoverStore.ts'
 import { lightSelectionStore } from '../../../modules/selection/lightSelectionStore.ts'
-import { selectionStore } from '../../../modules/selection/selectionStore.ts'
-import { litRooms } from '../../../modules/rooms/roomStore.ts'
 import { cameraStore } from '../camera/cameraStore.ts'
 import { renderPerformanceStore } from '../shared/renderPerformance.ts'
 import { transformVisible } from '../shared/editModes.ts'
-import {
-  isEntitiesVisible,
-  isLightsVisible,
-  isMeshVisible,
-  isNormalsVisible,
-  isPortalsVisible,
-  isRoomColorsVisible,
-  isWireframeVisible,
-} from '../shared/levelDisplay.ts'
+import { isEntitiesVisible, isLightsVisible, isNormalsVisible, isWireframeVisible } from '../shared/levelDisplay.ts'
 import { snapModifierHeld } from '../shared/snapping.ts'
 import { addPreviewLights, attachWireframe, viewMeshesOf, type LevelWireframe } from '../shared/levelScene.ts'
 import { attachNormals, normalsLayers, type NormalsOverlay } from '../shared/normalsOverlay.ts'
@@ -43,15 +23,12 @@ import {
   createLightMarkers,
   createLightMarkerTextures,
   disposeLightMarkers,
-  updateLightMarkers,
   type LightMarkerTextures,
 } from '../shared/lightMarkers.ts'
 import { createLightSelectionOverlay, type LightSelectionOverlay } from '../shared/lightSelectionOverlay.ts'
 import { createLightRadiusSpheres, type LightRadiusSpheres } from '../shared/lightRadiusSpheres.ts'
 import { attachPortalLines, type PortalOverlay } from '../shared/portalOverlay.ts'
 import { roomPaletteOf } from '../../../../generator/rooms.ts'
-import { roomRevision } from '../../../modules/rooms/roomRevision.ts'
-import { portalRevision } from '../../../modules/rooms/portalSync.ts'
 import { createRoomOverlay, type RoomOverlay } from '../shared/roomOverlay.ts'
 import {
   FIELD_OF_VIEW,
@@ -73,13 +50,13 @@ import {
   applyRoomHighlight,
   cancelNormalsRebuild,
   markRoomsPainted,
-  repaintRooms,
-  scheduleNormals,
   selectedPolygonsOf,
   updateVisibility,
   type OverlayHost,
 } from './overlays.ts'
 import { hasLevel, hud, roomReadout, snapActive, status, toggleMagnet } from './readout.ts'
+import { editedLightOf } from './editedLight.ts'
+import { bindViewWatches, type ViewWatchesHost } from './viewWatches.ts'
 
 const host = useTemplateRef<HTMLElement>('host')
 const canvas = useTemplateRef<HTMLCanvasElement>('canvas')
@@ -108,23 +85,6 @@ let lightSelection: LightSelectionOverlay | undefined
  */
 let lightRadiusSpheres: LightRadiusSpheres | undefined
 
-/**
- * The light the editor edits, when it edits one: the walkable view draws the debug spheres of that light.
- *
- * @param lights The lights of the level, in the order of the LLF.
- *
- * @returns The light, or `undefined` when the selection is empty or holds more than one.
- */
-function editedLightOf(lights: readonly ArxLight[]): ArxLight | undefined {
-  if (lightSelectionStore.lights.value.size !== 1) {
-    return undefined
-  }
-
-  const [index] = lightSelectionStore.lights.value
-
-  return lights[index]
-}
-
 let lightTextures: LightMarkerTextures | undefined
 let spikeEntity: Group | undefined
 let portalLines: PortalOverlay | undefined
@@ -133,23 +93,10 @@ let selection: PolygonSelectionOverlay | undefined
 
 let loadedMap: ArxMap | undefined
 
-let stopWatchingSelection: (() => void) | undefined
-let stopWatchingGroups: (() => void) | undefined
 let controls: CameraControls | undefined
 let observer: ResizeObserver | undefined
 let stopWatching: (() => void) | undefined
-let stopWatchingWireframe: (() => void) | undefined
-let stopWatchingNormals: (() => void) | undefined
-let stopWatchingNormalsLayers: (() => void) | undefined
-let stopWatchingMesh: (() => void) | undefined
-let stopWatchingPortals: (() => void) | undefined
-let stopWatchingLights: (() => void) | undefined
-let stopWatchingEntities: (() => void) | undefined
-let stopWatchingPortalRevision: (() => void) | undefined
-let stopWatchingRooms: (() => void) | undefined
-let stopWatchingRoom: (() => void) | undefined
-let stopWatchingEdit: (() => void) | undefined
-let stopWatchingRoomRevision: (() => void) | undefined
+let stopWatches: Array<() => void> = []
 
 /**
  * The input of the view: the pick of the crosshair, the sweep of the selection and the double click.
@@ -250,6 +197,46 @@ const overlays: OverlayHost = {
   },
   shown: () => {
     return shown
+  },
+  wireframe: () => {
+    return wireframe
+  },
+}
+
+/**
+ * What the watches of the view read: the bindings of this widget, as getters.
+ */
+const watchHost: ViewWatchesHost = {
+  dragSelection: () => {
+    return dragSelection
+  },
+  lightMarkers: () => {
+    return lightMarkers
+  },
+  lightRadiusSpheres: () => {
+    return lightRadiusSpheres
+  },
+  lightSelection: () => {
+    return lightSelection
+  },
+  lightTextures: () => {
+    return lightTextures
+  },
+  loadedMap: () => {
+    return loadedMap
+  },
+  loop: () => {
+    return loop
+  },
+  normals: () => {
+    return normals
+  },
+  overlays,
+  portalLines: () => {
+    return portalLines
+  },
+  spikeEntity: () => {
+    return spikeEntity
   },
   wireframe: () => {
     return wireframe
@@ -624,149 +611,8 @@ onMounted(() => {
     { immediate: true },
   )
 
-  // the wireframe is a switch of every view at once: the same ref is read by the six fixed ones
-  stopWatchingWireframe = watch(isWireframeVisible, (visible) => {
-    wireframe?.setVisible(visible)
-    loop.requestRender()
-  })
-
-  // the normals are a switch of this view: the lines stay in the scene, and the switch takes them off the frame (the
-  // first time it asks for them the lines are built, so a level that never showed them never pays for them)
-  stopWatchingNormals = watch(isNormalsVisible, (visible) => {
-    normals?.setVisible(visible)
-    loop.requestRender()
-  })
-
-  // the two layers of the normals are switches too: the one they ask for and the one they leave are two flags on the
-  // scene
-  stopWatchingNormalsLayers = watch(normalsLayers, (layers) => {
-    normals?.setLayers(layers)
-    loop.requestRender()
-  })
-
-  // an edit changes the polygons, but not the objects this view holds: the level refills its geometry in
-  // place, so the mesh and the wireframe of the scene already draw the new faces. What an edit does need is a
-  // frame: the view draws on demand, so without this the canvas would keep the picture of the level before
-  // the edit (a walk away and back would refresh it, which is exactly what a still picture can not do)
-  stopWatchingEdit = watch(levelRevision, () => {
-    repaintRooms(overlays)
-    // the normals are built from the polygons: a moved or deleted face is a new line (and a group that hid a face takes
-    // its normal with it). A drag runs this on every frame, so the build waits between two frames of the burst
-    scheduleNormals(overlays)
-    // a moved face is a new fill: the overlay is built from the polygons of the selection
-    dragSelection.updateHighlight()
-    loop.requestRender()
-  })
-
-  // a replay of the stored steps writes the rooms without a level revision (only the room revision moves): the room map
-  // has to be painted again for it, or a map that came back from the storage stays in the color of the empty rooms
-  stopWatchingRoomRevision = watch(roomRevision, () => {
-    repaintRooms(overlays)
-    loop.requestRender()
-  })
-
-  // the mesh is a switch too: off, the level keeps the wireframe and the overlays only
-  stopWatchingMesh = watch(isMeshVisible, () => {
-    updateVisibility(overlays)
-    loop.requestRender()
-  })
-
-  // the light markers are a switch too: the sparkles stay in the scene, and the switch takes them off the frame
-  // the light markers follow both the switch and an edit of a light: the shape comes from the flags, and the color, the
-  // size and the place from the fields (the light editor and the history steps of a light bump the revision)
-  stopWatchingLights = watch(
-    [
-      isLightsVisible,
-      lightsRevision,
-      lightSelectionStore.lights,
-      lightHoverStore.light,
-      isStaticLightsVisible,
-      isDynamicLightsVisible,
-      lightingProfile,
-      fallStartSphereVisible,
-      fallEndSphereVisible,
-    ],
-    ([visible]) => {
-      if (lightMarkers !== undefined) {
-        lightMarkers.visible = visible
-
-        if (lightTextures !== undefined && loadedMap !== undefined) {
-          updateLightMarkers(lightMarkers, loadedMap.lights, lightTextures)
-        }
-      }
-
-      if (lightSelection !== undefined && loadedMap !== undefined) {
-        lightSelection.group.visible = visible
-        lightSelection.update(loadedMap.lights, lightSelectionStore.lights.value, lightHoverStore.light.value)
-      }
-
-      if (lightRadiusSpheres !== undefined && loadedMap !== undefined) {
-        lightRadiusSpheres.update(editedLightOf(loadedMap.lights))
-      }
-
-      loop.requestRender()
-    },
-  )
-
-  // the entities of the level are a switch like the lights: they stay in the scene, and the switch takes them off the
-  // frame (TODO 239: the door of level 0 is the first one)
-  stopWatchingEntities = watch(isEntitiesVisible, (visible) => {
-    if (spikeEntity !== undefined) {
-      spikeEntity.visible = visible
-    }
-
-    loop.requestRender()
-  })
-
-  // the portal outline is a switch of every view at once: the same ref is read by the six fixed ones
-  stopWatchingPortals = watch(isPortalsVisible, () => {
-    updateVisibility(overlays)
-    loop.requestRender()
-  })
-
-  // the portals of a flat level come from its rooms: a room edit rebuilds them, and the outline follows without a new
-  // level
-  stopWatchingPortalRevision = watch(portalRevision, () => {
-    const map = loadedMap
-
-    if (map !== undefined) {
-      portalLines?.setPortals(map.fts.portals, arxVector3toVector3(map.scenePosition))
-    }
-
-    updateVisibility(overlays)
-    loop.requestRender()
-  })
-
-  stopWatchingRooms = watch(isRoomColorsVisible, () => {
-    updateVisibility(overlays)
-    // the fill gets its gray base with the map, so a switch of the map repaints the selection too
-    dragSelection.updateHighlight()
-    // the highlight of the map joins the switch: it is painted only while the map is on
-    applyRoomHighlight(overlays)
-    loop.requestRender()
-  })
-
-  // the room inspector picks a room: the map dims the others, so the picked room reads at a glance
-  stopWatchingRoom = watch(litRooms, () => {
-    applyRoomHighlight(overlays)
-  })
-
-  // the selection is shared with the statistics widget: a change draws the fill of the polygons, and gives the lines of
-  // the selected faces their color (the rebuild waits between two frames of a sweep, like an edit does)
-  stopWatchingSelection = watch(selectionStore.polygons, () => {
-    dragSelection.updateHighlight()
-    scheduleNormals(overlays)
-    loop.requestRender()
-  })
-
-  // the groups color the fill (the red of a locked group) and the phantom of the crosshair: making or taking apart a
-  // group changes the picture without touching the selection (2026-11-18, the owner)
-  stopWatchingGroups = watch(activeFaceGroups, () => {
-    dragSelection.updateHighlight()
-    // a hidden group takes its faces out of the mesh, and the normals follow the faces the mesh draws
-    scheduleNormals(overlays)
-    loop.requestRender()
-  })
+  // the switches and the revisions of the view: the same wiring for every widget, in `viewWatches.ts`
+  stopWatches = bindViewWatches(watchHost)
 
   globalThis.addEventListener('keydown', onModifierKey)
   globalThis.addEventListener('keyup', onModifierKey)
@@ -778,43 +624,15 @@ onMounted(() => {
 // the level is not the widget's: it may have been loaded before this widget was even mounted, and it
 // stays loaded when the widget goes away (a layout reset rebuilds the dock, not the map)
 onBeforeUnmount(() => {
-  const stops = [
-    stopWatching,
-    stopWatchingWireframe,
-    stopWatchingNormals,
-    stopWatchingNormalsLayers,
-    stopWatchingMesh,
-    stopWatchingPortals,
-    stopWatchingLights,
-    stopWatchingEntities,
-    stopWatchingPortalRevision,
-    stopWatchingRooms,
-    stopWatchingRoom,
-    stopWatchingEdit,
-    stopWatchingRoomRevision,
-    stopWatchingSelection,
-    stopWatchingGroups,
-  ]
+  stopWatching?.()
+  stopWatching = undefined
 
-  for (const stop of stops) {
-    stop?.()
+  for (const stop of stopWatches) {
+    stop()
   }
 
-  stopWatching = undefined
-  stopWatchingWireframe = undefined
-  stopWatchingNormals = undefined
-  stopWatchingNormalsLayers = undefined
-  stopWatchingMesh = undefined
-  stopWatchingPortals = undefined
-  stopWatchingLights = undefined
-  stopWatchingEntities = undefined
-  stopWatchingPortalRevision = undefined
-  stopWatchingRooms = undefined
-  stopWatchingRoom = undefined
-  stopWatchingEdit = undefined
-  stopWatchingRoomRevision = undefined
-  stopWatchingSelection = undefined
-  stopWatchingGroups = undefined
+  stopWatches = []
+
   unregisterDynamicLights()
   unregisterParticles()
 

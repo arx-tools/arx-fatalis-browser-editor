@@ -183,6 +183,37 @@ function isRowDisabled(row: HelpRow): boolean {
  *
  * @returns The tooltip of its eye button.
  */
+/**
+ * The character of the branch of a row under its switch.
+ *
+ * @remarks
+ * The children of a switch are a tree with the line on the right of their labels: a child that has a sibling after it
+ * keeps the line going (`┤`), and the last one closes it (`┘`). The section of the view context is the one that has
+ * children today (the portals, the rooms and the textures under the mesh).
+ *
+ * @param rows The rows of the section the child is in.
+ * @param index The position of the row in the section.
+ *
+ * @returns The character of its branch.
+ */
+function branchOf(rows: readonly HelpRow[], index: number): string {
+  const row = rows[index]
+
+  if (row === undefined || row.parent === undefined) {
+    return ''
+  }
+
+  const sibling = rows.slice(index + 1).some((next) => {
+    return next.parent === row.parent
+  })
+
+  if (sibling) {
+    return '┤'
+  }
+
+  return '┘'
+}
+
 function toggleTitle(row: HelpRow): string {
   if (row.toggle === undefined) {
     return ''
@@ -215,7 +246,7 @@ function toggleTitle(row: HelpRow): string {
         </button>
       </div>
       <dl>
-        <template v-for="row in section.rows" :key="row.action">
+        <template v-for="(row, rowIndex) in section.rows" :key="row.action">
           <dt :class="{ 'is-disabled': isRowDisabled(row) }">
             <template v-for="(key, index) in keysOf(row)" :key="index">
               <span v-if="index > 0" class="plus">+</span>
@@ -226,7 +257,9 @@ function toggleTitle(row: HelpRow): string {
           </dt>
           <dd :class="{ 'is-disabled': isRowDisabled(row) }">
             <span class="action">{{ row.action }}</span>
-            <span v-if="row.parent !== undefined" class="branch" aria-hidden="true">┘</span>
+            <span v-if="row.parent !== undefined" class="branch" aria-hidden="true">{{
+              branchOf(section.rows, rowIndex)
+            }}</span>
             <button
               v-if="row.button !== undefined"
               class="history-button"

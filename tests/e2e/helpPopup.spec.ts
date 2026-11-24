@@ -103,6 +103,15 @@ test('the textures sit under the mesh, and the T of the help flips them', async 
     'Textures',
   ])
 
+  // the tree of the rows under the mesh: the line goes on through the first children and closes on the last one
+  const branches = await dialog.locator('dd .branch').evaluateAll((nodes) => {
+    return nodes.map((node) => {
+      return node.textContent?.trim() ?? ''
+    })
+  })
+
+  expect(branches).toEqual(['┤', '┤', '┘'])
+
   // the textures start on, and the row says so
   const textures = dialog.getByRole('button', { name: 'Hide the textures' })
 

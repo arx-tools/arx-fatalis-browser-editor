@@ -1,4 +1,4 @@
-import type { ArxLight } from 'arx-convert/types'
+import { ArxLightFlags, type ArxLight } from 'arx-convert/types'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { bakeLlfColorsAt } from '../../../../generator/lighting.ts'
 import { bakedCornersOf, cornersWithin, writeBakedCornerColors, type LightSphere } from './levelTextures/bakedColors.ts'
@@ -32,6 +32,10 @@ export type LightPaletteChange = {
  * the light, the way the mesh is mirrored). Two states with the same place and the same end are the same sphere: a
  * color or an intensity edit gives one sphere instead of two, and the walk of the corners is the same.
  *
+ * A **semidynamic** light is left out: the palette of a level is the light of its static lights (a torch is lit at
+ * runtime), so a bake for one would write the static light of the corners over the layer that draws the torch, which
+ * blinked the torch on every frame of a drag (2026-11-23, the owner).
+ *
  * @param changed The lights the edit touched.
  *
  * @returns The spheres whose corners the bake takes.
@@ -42,6 +46,10 @@ function spheresOf(changed: readonly LightPaletteChange[]): LightSphere[] {
 
   for (const change of changed) {
     for (const light of [change.before, change.after]) {
+      if ((light.flags & ArxLightFlags.SemiDynamic) !== 0) {
+        continue
+      }
+
       const { x, y, z } = light.position
       const key = `${String(x)},${String(y)},${String(z)},${String(light.fallEnd)}`
 

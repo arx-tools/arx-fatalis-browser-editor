@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { beforeEach, describe, it } from 'node:test'
-import type { ArxColor, ArxLight } from 'arx-convert/types'
+import { ArxLightFlags, type ArxColor, type ArxLight } from 'arx-convert/types'
 import { Color, SRGBColorSpace } from 'three'
 import { createBlankLevelFiles, MINIMAL_PRESET } from '../../../../../src/editor/modules/level/blankLevel.ts'
 import { refreshLightPalette } from '../../../../../src/editor/modules/level/edit/lightPalette.ts'
@@ -37,6 +37,10 @@ type AboveOptions = {
    * How far the light reaches, in the units of the level.
    */
   readonly fallEnd?: number
+  /**
+   * The flags of the light, without them a light is static.
+   */
+  readonly flags?: number
 }
 
 /**
@@ -102,7 +106,7 @@ function lightAbove(corner: Corner, options: AboveOptions = {}): ArxLight {
     exSize: 0,
     exSpeed: 0,
     exFlareSize: 0,
-    flags: 0,
+    flags: options.flags ?? 0,
   }
 }
 
@@ -228,6 +232,26 @@ void describe('refreshLightPalette', () => {
 
     // the sphere of the light before the edit is what takes the corners it no longer reaches back to the floor
     assert.deepEqual(map.llf.colors[2], { r: 23, g: 23, b: 23, a: 255 })
+  })
+
+  void it('leaves the palette alone for a semidynamic light, which the layer of the torches draws', () => {
+    const map = litFloor()
+    const before = lightAbove({ x: 0, y: 0, z: 0 }, { flags: ArxLightFlags.SemiDynamic })
+    const after = lightAbove({ x: 100, y: 0, z: 100 }, { flags: ArxLightFlags.SemiDynamic })
+
+    map.llf.lights = [before]
+    bakeAndPaint(map)
+
+    const palette = [map.llf.colors[0], map.llf.colors[3]]
+    const corners = [cornerOf(colorsOf(map), 0), cornerOf(colorsOf(map), 3)]
+
+    map.setLights([{ index: 0, light: after }])
+    refreshLightPalette(map, [{ before, after }])
+
+    // a bake here would write the static light of the corners over the layer of the torch, and the torch blinked on
+    // every frame of a drag (2026-11-23, the owner)
+    assert.deepEqual([map.llf.colors[0], map.llf.colors[3]], palette)
+    assert.deepEqual([cornerOf(colorsOf(map), 0), cornerOf(colorsOf(map), 3)], corners)
   })
 
   void it('does nothing on the flat profile, which does not read the palette', () => {

@@ -17,6 +17,8 @@ test('the view draws the level with the particles on', async ({ page }) => {
   await seedLayout(page, testLayout)
   await page.addInitScript(() => {
     localStorage.setItem('particlesVisible', 'true')
+    // the particles are the emitters of the dynamic lights: the layer of the light has to be on for them (2026-11-24)
+    localStorage.setItem('dynamicLightsVisible', 'true')
   })
   // the blank level needs no data dir: the layer runs on any level, with the jorge pattern for the particles
   await page.goto('/?map=blank-flat')

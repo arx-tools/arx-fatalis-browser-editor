@@ -3,6 +3,7 @@ import type { Vector3 } from 'three'
 import { watch } from 'vue'
 import { arxVector3toVector3 } from '../../../generator/meshes.ts'
 import { persistedRef } from '../persistedRef/persistedRef.ts'
+import { isDynamicLightsVisible } from '../level/edit/dynamicLights.ts'
 import { levelStore } from '../level/edit/levelStore.ts'
 import {
   advanceParticles,
@@ -103,12 +104,27 @@ function isPageHidden(): boolean {
 }
 
 /**
+ * Tells whether the switch of the particles draws anything: the author turned them on, and the dynamic light layer they
+ * belong to is on as well.
+ *
+ * @remarks
+ * The fire, the smoke and the fog are the emitters of the **dynamic lights** (TODO 256): a light without its fizz is as
+ * false as a fizz without its light, so the switch of the light layer takes them both away (2026-11-24, the owner). The
+ * particles follow the state of the layer, and their own switch comes back with it, the way it was left.
+ *
+ * @returns True when the layer may draw.
+ */
+function isLayerOn(): boolean {
+  return particlesVisible.value && isDynamicLightsVisible.value
+}
+
+/**
  * Tells whether the layer has a view to draw into.
  *
  * @returns True when a view of the walkable view is on the screen.
  */
 function isOn(): boolean {
-  return particlesVisible.value && views.size > 0 && levelStore.map.value !== undefined && !isPageHidden()
+  return isLayerOn() && views.size > 0 && levelStore.map.value !== undefined && !isPageHidden()
 }
 
 /**
@@ -224,7 +240,7 @@ function sync(): void {
   const on = isOn()
 
   for (const view of views) {
-    view.setVisible(particlesVisible.value)
+    view.setVisible(isLayerOn())
   }
 
   if (on && ticker === undefined) {
@@ -272,7 +288,7 @@ export function registerParticlesView(view: ParticleView): () => void {
  * go to every view that took part in the layer.
  */
 export function startParticles(): void {
-  watch([particlesVisible, levelStore.map], sync, { immediate: true })
+  watch([particlesVisible, isDynamicLightsVisible, levelStore.map], sync, { immediate: true })
 
   // a browser tab in the background draws nothing the author can see: the fire stops with the tab, and comes back with it
   if (typeof document !== 'undefined') {

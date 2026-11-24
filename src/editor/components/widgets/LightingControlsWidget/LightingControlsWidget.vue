@@ -156,6 +156,10 @@ const dynamicLights = computed<boolean>({
  * The fire of the fireplaces, the smoke of a fire and the fog of a level are the layer of the particles: the author turns
  * it on to see the level the way the game draws it. It is a view preference of the author, kept in the browser like the
  * profile.
+ *
+ * The particles are the emitters of the **dynamic lights**, so the switch is disabled and the layer is hidden while the
+ * light layer is off: a fizz without its light is as false as the other way round (2026-11-24, the owner). The state of
+ * the switch is kept, so turning the lights back on brings the particles back the way they were left.
  */
 const particles = computed<boolean>({
   get: (): boolean => {
@@ -230,7 +234,13 @@ const particles = computed<boolean>({
 
     <FieldLabel class="field" inline label="Particles" for="particles">
       <div class="row">
-        <ToggleButton id="particles" :pressed="particles" label="Particles" @update:pressed="particles = $event">
+        <ToggleButton
+          id="particles"
+          :pressed="particles"
+          :disabled="!dynamicLights"
+          label="Particles"
+          @update:pressed="particles = $event"
+        >
           <Power :size="14" aria-hidden="true" />
         </ToggleButton>
       </div>

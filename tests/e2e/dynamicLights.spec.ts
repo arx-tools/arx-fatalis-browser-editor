@@ -356,3 +356,32 @@ test('the flicker stops while the tab is hidden, and comes back with it', async 
 
   expect(await rafCalls()).toBeGreaterThan(5)
 })
+
+test('the particles are the fizz of the dynamic lights: their switch is disabled while the layer is off', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1631, height: 850 })
+  await openTorch(page, { flatZero: false })
+  await page.waitForTimeout(300)
+
+  const dynamic = page.locator('#dynamic-lights')
+  const particles = page.locator('#particles')
+
+  // the layer is off to start with, and the particles belong to it (2026-11-24, the owner)
+  await expect(dynamic).toHaveAttribute('aria-pressed', 'false')
+  await expect(particles).toBeDisabled()
+
+  await dynamic.click()
+
+  await expect(particles).toBeEnabled()
+
+  // a light layer that goes off takes the fizz with it, and the switch keeps its state for the way back
+  await particles.click()
+
+  await expect(particles).toHaveAttribute('aria-pressed', 'true')
+
+  await dynamic.click()
+
+  await expect(particles).toBeDisabled()
+  await expect(particles).toHaveAttribute('aria-pressed', 'true')
+})

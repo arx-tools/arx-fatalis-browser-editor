@@ -10,6 +10,7 @@ import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { cameraStore } from '../camera/cameraStore.ts'
 import { worldPositionToGame } from '../camera/cameraPose.ts'
 import { jumpPoseOf } from '../camera/jumpPose.ts'
+import { entitySelectionStore } from '../../../modules/selection/entitySelectionStore.ts'
 import { isPlayerSelected, playerSpawnOf } from '../../../modules/level/entities/playerSpawn.ts'
 import {
   ENTITY_JUMP_DISTANCE,
@@ -126,6 +127,27 @@ function jumpTo(row: EntityRow): void {
 }
 
 /**
+ * Picks the entity of a row in the view, or lets it go.
+ *
+ * @remarks
+ * The selection is the index of the entity in the DLF list, the same one the markers of the walkable view write: a click
+ * on the row and a pick of the crosshair are the two doors of one selection (2026-11-24, the owner).
+ *
+ * @param row The row of the list.
+ */
+function selectRow(row: EntityRow): void {
+  const selected = entitySelectionStore.entity.value === row.index
+
+  if (selected) {
+    entitySelectionStore.clear()
+
+    return
+  }
+
+  entitySelectionStore.select(row.index)
+}
+
+/**
  * Moves the camera to the spawn of the player.
  *
  * @remarks
@@ -219,14 +241,21 @@ watch(levelStore.map, rebuild, { immediate: true })
         @toggle="toggleSection(section.category)"
       >
         <ul class="rows">
-          <li v-for="row in section.rows" :key="row.index" class="row">
+          <li
+            v-for="row in section.rows"
+            :key="row.index"
+            class="row"
+            :class="{ 'is-selected': entitySelectionStore.entity.value === row.index }"
+            :data-selected="entitySelectionStore.entity.value === row.index"
+            @click="selectRow(row)"
+          >
             <span class="name">{{ row.entityName }}</span>
             <button
               class="jump"
               type="button"
               :aria-label="`Jump to entity ${row.entityName}`"
               v-tooltip="`Jump to entity ${row.entityName}`"
-              @click="jumpTo(row)"
+              @click.stop="jumpTo(row)"
             >
               <ScanSearch :size="13" />
             </button>
@@ -287,14 +316,12 @@ watch(levelStore.map, rebuild, { immediate: true })
       background-color: rgba($surface-panel, 0.45);
     }
 
-    // the player of the level is the one row a click picks: it takes the soft accent of a selected row, the same the
-    // group inspector uses (2026-11-24, the owner: no button, just a row that says spawn and jumps with its eye)
-    &.player-row {
-      cursor: pointer;
+    // a click picks the row: the entity (or the player of the level) takes the soft accent of a selected row, the same
+    // the group inspector uses (2026-11-24, the owner: no button, just a row that says its name and jumps with its eye)
+    cursor: pointer;
 
-      &.is-selected {
-        background-color: rgba($accent, 0.15);
-      }
+    &.is-selected {
+      background-color: rgba($accent, 0.15);
     }
 
     .name {

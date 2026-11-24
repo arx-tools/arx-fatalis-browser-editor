@@ -73,6 +73,7 @@ let lightRadiusSpheres: LightRadiusSpheres | undefined
 let lightTextures: LightMarkerTextures | undefined
 let spikeEntity: Group | undefined
 let playerModel: PlayerModel | undefined
+let entityMarkers: Group | undefined
 let portalLines: PortalOverlay | undefined
 
 let selection: PolygonSelectionOverlay | undefined
@@ -92,6 +93,9 @@ let stopWatches: Array<() => void> = []
  * overlay and the camera controls to it.
  */
 const dragSelection = useSelectionDrag({
+  entityMarkers: () => {
+    return entityMarkers
+  },
   view: () => {
     return view
   },
@@ -220,6 +224,9 @@ const watchHost: ViewWatchesHost = {
   overlays,
   portalLines: () => {
     return portalLines
+  },
+  entityMarkers: () => {
+    return entityMarkers
   },
   spikeEntity: () => {
     return spikeEntity
@@ -384,6 +391,7 @@ function showMap(map: ArxMap): void {
   selection = handles.selection
   controls = handles.controls
   loadedMap = map
+  entityMarkers = handles.entityMarkers
 
   const scene = view
 
@@ -462,6 +470,7 @@ function hideMap(): void {
   lightRadiusSpheres = undefined
   selection = undefined
   controls = undefined
+  entityMarkers = undefined
   playerModel?.dispose()
   playerModel = undefined
   loadedMap = undefined

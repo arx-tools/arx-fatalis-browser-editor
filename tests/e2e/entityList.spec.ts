@@ -92,6 +92,15 @@ test('the entity list shows the entities of the level, and the search filters th
 
   expect(rows).toBeGreaterThan(0)
 
+  // a click picks the entity of the row, and a second one lets it go: the same selection the markers of the view write
+  const firstRow = list.locator('.row:not(.player-row)').first()
+
+  await expect(firstRow).toHaveAttribute('data-selected', 'false')
+  await firstRow.locator('.name').click()
+  await expect(firstRow).toHaveAttribute('data-selected', 'true')
+  await firstRow.locator('.name').click()
+  await expect(firstRow).toHaveAttribute('data-selected', 'false')
+
   // the jump at the end of a row takes the camera to the entity: the pose of the camera is in the url, so the move is
   // the parameter it writes (the layout has no camera form to read)
   function positionOf(url: string): string | undefined {

@@ -110,6 +110,9 @@ void describe('useSelectionDrag.pickUnderCrosshair', () => {
           },
         } as unknown as PolygonSelectionOverlay
       },
+      entityMarkers: () => {
+        return undefined
+      },
       lightMarkers: () => {
         return markers
       },
@@ -160,6 +163,9 @@ void describe('useSelectionDrag.pickUnderCrosshair', () => {
           },
         } as unknown as PolygonSelectionOverlay
       },
+      entityMarkers: () => {
+        return undefined
+      },
       lightMarkers: () => {
         return markers
       },
@@ -205,6 +211,9 @@ void describe('useSelectionDrag.pickUnderCrosshair', () => {
             // the light click writes the stores, not the outline
           },
         } as unknown as PolygonSelectionOverlay
+      },
+      entityMarkers: () => {
+        return undefined
       },
       lightMarkers: () => {
         return markers
@@ -252,6 +261,9 @@ void describe('useSelectionDrag.pickUnderCrosshair', () => {
           },
         } as unknown as PolygonSelectionOverlay
       },
+      entityMarkers: () => {
+        return undefined
+      },
       lightMarkers: () => {
         return markers
       },
@@ -296,6 +308,9 @@ void describe('useSelectionDrag.pickUnderCrosshair', () => {
             // the double click on a light must not touch the outline either
           },
         } as unknown as PolygonSelectionOverlay
+      },
+      entityMarkers: () => {
+        return undefined
       },
       lightMarkers: () => {
         return markers
@@ -342,6 +357,9 @@ void describe('useSelectionDrag.pickUnderCrosshair', () => {
             calls.push(polygons)
           },
         } as unknown as PolygonSelectionOverlay
+      },
+      entityMarkers: () => {
+        return undefined
       },
       lightMarkers: () => {
         return markers

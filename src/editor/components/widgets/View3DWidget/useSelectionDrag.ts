@@ -7,11 +7,13 @@ import { faceGroupOfFace, faceIndicesWithGroupsOf } from '../../../modules/group
 import { inGroupOf, selectedGroupPolygons } from '../../../modules/groups/groupSelection.ts'
 import { isKeyDown } from '../../../modules/keyboard/keyboard.ts'
 import { fillAreaOf, type SelectionFill } from '../../../modules/selection/fillArea.ts'
+import { entitySelectionStore } from '../../../modules/selection/entitySelectionStore.ts'
 import { lightHoverStore } from '../../../modules/selection/lightHoverStore.ts'
 import { lightSelectionStore } from '../../../modules/selection/lightSelectionStore.ts'
 import { selectionModeOf, selectionStore, type SelectionMode } from '../../../modules/selection/selectionStore.ts'
-import { isLightsVisible, isRoomColorsVisible } from '../shared/levelDisplay.ts'
+import { isLightsVisible, isRoomColorsVisible, isEntitiesVisible } from '../shared/levelDisplay.ts'
 import type { ViewScene } from '../shared/viewScene.ts'
+import { entityMarkerIndexAt } from '../shared/entityMarkers.ts'
 import { lightMarkerIndexAt } from '../shared/lightMarkers.ts'
 import type { CameraControls } from './cameraControls.ts'
 import {
@@ -70,6 +72,12 @@ export type SelectionDragContext = {
    * @returns The overlay, or `undefined` while there is no level.
    */
   readonly overlay: () => PolygonSelectionOverlay | undefined
+  /**
+   * The markers of the entities of the level.
+   *
+   * @returns The group of the markers, or `undefined` while there is no level.
+   */
+  readonly entityMarkers: () => Group | undefined
   /**
    * The markers of the lights of the level.
    *
@@ -139,7 +147,7 @@ export type SelectionDrag = {
  * @returns The handlers the widget binds.
  */
 export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
-  const { view, map, meshes, overlay, lightMarkers, controls } = context
+  const { view, map, meshes, overlay, entityMarkers, lightMarkers, controls } = context
 
   /**
    * What a running drag does with the faces it sweeps over.
@@ -317,6 +325,22 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
     return lightMarkerIndexAt(scene.camera, markers)
   }
 
+  /**
+   * Reads the entity whose marker the crosshair points at.
+   *
+   * @returns The index of the entity in the DLF list, or `undefined` when no marker is under the crosshair.
+   */
+  function entityUnderCrosshair(): number | undefined {
+    const scene = view()
+    const markers = entityMarkers()
+
+    if (scene === undefined || markers === undefined || !isEntitiesVisible.value) {
+      return undefined
+    }
+
+    return entityMarkerIndexAt(scene.camera, markers)
+  }
+
   return {
     onMouseDown: (event): void => {
       if (controls()?.isLocked !== true) {
@@ -350,6 +374,19 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
 
         return
       }
+
+      // the markers of the entities: the same rule as the lights, one target (an entity has no group to gather)
+      const entity = entityUnderCrosshair()
+
+      if (entity !== undefined) {
+        entitySelectionStore.select(entity)
+        selectionStore.clear()
+        lightSelectionStore.clear()
+
+        return
+      }
+
+      entitySelectionStore.clear()
 
       dragMode = selectionModeOf(event)
       dragVertices = []

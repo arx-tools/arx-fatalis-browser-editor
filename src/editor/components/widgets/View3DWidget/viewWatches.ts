@@ -12,6 +12,7 @@ import { portalRevision } from '../../../modules/rooms/portalSync.ts'
 import { roomRevision } from '../../../modules/rooms/roomRevision.ts'
 import { litRooms } from '../../../modules/rooms/roomStore.ts'
 import { lightHoverStore } from '../../../modules/selection/lightHoverStore.ts'
+import { entitySelectionStore } from '../../../modules/selection/entitySelectionStore.ts'
 import { lightSelectionStore } from '../../../modules/selection/lightSelectionStore.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import {
@@ -23,6 +24,7 @@ import {
   isRoomColorsVisible,
   isWireframeVisible,
 } from '../shared/levelDisplay.ts'
+import { setEntityMarkerHighlight } from '../shared/entityMarkers.ts'
 import { updateLightMarkers, type LightMarkerTextures } from '../shared/lightMarkers.ts'
 import type { LevelWireframe } from '../shared/levelScene.ts'
 import type { LightRadiusSpheres } from '../shared/lightRadiusSpheres.ts'
@@ -43,6 +45,7 @@ import type { SelectionDrag } from './useSelectionDrag.ts'
  */
 export type ViewWatchesHost = {
   readonly dragSelection: () => SelectionDrag
+  readonly entityMarkers: () => Group | undefined
   readonly lightMarkers: () => Group | undefined
   readonly lightRadiusSpheres: () => LightRadiusSpheres | undefined
   readonly lightSelection: () => LightSelectionOverlay | undefined
@@ -164,15 +167,25 @@ export function bindViewWatches(host: ViewWatchesHost): Array<() => void> {
   // the entities of the level are a switch like the lights: they stay in the scene, and the switch takes them off the
   // frame (TODO 239: the door of level 0 is the first one)
 
-  const stopEntities = watch(isEntitiesVisible, (visible) => {
-    const entity = host.spikeEntity()
+  const stopEntities = watch(
+    [isEntitiesVisible, entitySelectionStore.entity, entitySelectionStore.hover],
+    ([visible, selected, hover]) => {
+      const entity = host.spikeEntity()
 
-    if (entity !== undefined) {
-      entity.visible = visible
-    }
+      if (entity !== undefined) {
+        entity.visible = visible
+      }
 
-    host.loop().requestRender()
-  })
+      const markers = host.entityMarkers()
+
+      if (markers !== undefined) {
+        markers.visible = visible
+        setEntityMarkerHighlight(markers, selected, hover)
+      }
+
+      host.loop().requestRender()
+    },
+  )
 
   // the portal outline is a switch of every view at once: the same ref is read by the six fixed ones
 

@@ -3,14 +3,17 @@ import { computed, reactive, shallowRef, watch } from 'vue'
 import { formatCount } from '../../../modules/format.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
+import { entitySelectionStore } from '../../../modules/selection/entitySelectionStore.ts'
+import { lightSelectionStore } from '../../../modules/selection/lightSelectionStore.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
+import { lightIndexLabelOf } from '../LightInspectorWidget/lightInspector.ts'
+import { entityRowsOf } from '../../../modules/level/entities/entityRows.ts'
 import {
   entryOfName,
   loadThumbnail,
   textureGroupOfName,
   thumbnailOf,
 } from '../../../modules/textures/textureCatalog.ts'
-import EmptyMessage from '../../EmptyMessage.vue'
 import WidgetHeading from '../../WidgetHeading.vue'
 import AccordionRow from '../../AccordionRow.vue'
 import { selectionSummaryOf, type SelectionSummary } from './selectionInspector.ts'
@@ -97,6 +100,64 @@ const selectedFaces = computed<number[]>(() => {
       return first - second
     })
 })
+
+/**
+ * The selected lights, as the rows of the selection.
+ *
+ * @remarks
+ * The label is the one the light inspector gives the light (`light N`), so the two lists name a light the same way.
+ */
+const selectedLightRows = computed<Array<{ readonly index: number; readonly label: string }>>(() => {
+  return [...lightSelectionStore.lights.value]
+    .toSorted((first, second) => {
+      return first - second
+    })
+    .map((index) => {
+      return { index, label: lightIndexLabelOf(index) }
+    })
+})
+
+/**
+ * The selected entities, as the rows of the selection.
+ *
+ * @remarks
+ * An entity is named by its model and its identifier (`light_door_0113`), the way the entity list names it: the row is
+ * read from the level, and an index the level no longer has is left out.
+ */
+const selectedEntityRows = computed<Array<{ readonly index: number; readonly label: string }>>(() => {
+  const map = levelStore.map.value
+  const selected = entitySelectionStore.entity.value
+
+  if (map === undefined || selected === undefined) {
+    return []
+  }
+
+  return entityRowsOf(map)
+    .filter((row) => {
+      return row.index === selected
+    })
+    .map((row) => {
+      return { index: row.index, label: row.entityName }
+    })
+})
+
+/**
+ * Picks a light of the list: the view gets the white ring of it.
+ *
+ * @param index The index of the light in `map.lights`.
+ */
+function selectLight(index: number): void {
+  lightSelectionStore.selectOnly(index)
+}
+
+/**
+ * Picks an entity of the list: the view gets the white ring of it.
+ *
+ * @param index The index of the entity in the DLF list.
+ */
+function selectEntity(index: number): void {
+  entitySelectionStore.select(index)
+}
 
 /**
  * Tells whether a row is open.
@@ -215,7 +276,35 @@ function thumbOf(name: string): string | undefined {
         </div>
       </AccordionRow>
 
-      <EmptyMessage v-if="summary.count === 0">Nothing is selected.</EmptyMessage>
+      <AccordionRow
+        label="Selected lights"
+        :value="String(selectedLightRows.length)"
+        :stripe="summary.rows.length % 2 === 1"
+        :empty="selectedLightRows.length === 0"
+        :open="isRowOpen('Selected lights')"
+        @toggle="toggleRow('Selected lights')"
+      >
+        <ul class="faces">
+          <li v-for="light in selectedLightRows" :key="light.index" @click="selectLight(light.index)">
+            {{ light.label }}
+          </li>
+        </ul>
+      </AccordionRow>
+
+      <AccordionRow
+        label="Selected entities"
+        :value="String(selectedEntityRows.length)"
+        :stripe="summary.rows.length % 2 === 0"
+        :empty="selectedEntityRows.length === 0"
+        :open="isRowOpen('Selected entities')"
+        @toggle="toggleRow('Selected entities')"
+      >
+        <ul class="faces">
+          <li v-for="entity in selectedEntityRows" :key="entity.index" @click="selectEntity(entity.index)">
+            {{ entity.label }}
+          </li>
+        </ul>
+      </AccordionRow>
     </div>
   </div>
 </template>

@@ -60,7 +60,9 @@ test('a click on a texture paints the selected faces, and the history takes it b
 
   // and the tiles are idle while nothing is selected: there is no face to paint
   await expect(tile.first()).toBeDisabled()
-  await expect(inspector.locator('.EmptyMessage')).toBeVisible()
+
+  // the inspector says it through the count of the selection (2026-11-24: the empty message went from the widget)
+  await expect(inspector.locator('.AccordionRow', { hasText: 'Selected faces' }).locator('.value')).toHaveText('0')
 
   // take the face under the crosshair: the lock click turns the camera, so the aim is written back first
   const spawn = await readPose(page)

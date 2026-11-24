@@ -94,7 +94,7 @@ type View = {
  * horizontal view is the negative Y (the game's ceiling is the smaller Y)
  * - the game mirrors X and Y on the way into the three.js space, which is why the yaw of a side view is
  * the opposite of the naive value: `left` looks along `+X` of the game, which is `-X` of three.js, so its
- * yaw is `270` and not `90` (TODO 59). `right`/`back` are the pairs of those, a half turn away
+ * yaw is `270` and not `90`. `right`/`back` are the pairs of those, a half turn away
  * - `bottom` looks up, so its pitch is `-90` (the same mirroring: `-90` is an upward look)
  */
 const VIEWS: Record<CameraViewMode, View> = {

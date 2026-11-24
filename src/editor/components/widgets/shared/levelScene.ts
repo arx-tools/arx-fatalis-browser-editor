@@ -167,7 +167,7 @@ export function viewMeshesOf(meshes: readonly Mesh[], material?: Material): Mesh
  *
  * @remarks
  * It is spelled out here on purpose: the small views are a map of the level, and they keep this neutral
- * face whatever the walkable view does with textures, polygon flags or lights (TODO 92). The value is the
+ * face whatever the walkable view does with textures, polygon flags or lights. The value is the
  * one the level has today (`MESH_COLOR` of the generator), so the look does not change now — it only stops
  * following the store later.
  */

@@ -491,6 +491,20 @@ export function createEdgeSnap(map: ArxMap, faces: readonly number[], options: E
   }
 
   /**
+   * What every candidate of a snap reads beside the probe and the target edge.
+   *
+   * @remarks
+   * The four of them are the same for every probe of one source edge, and a drag asks them a few thousand times: the
+   * context is built once for a source edge, not for a candidate.
+   */
+  type SnapContext = {
+    readonly axes: readonly SnapAxis[]
+    readonly direction: ArxVector3
+    readonly dragDirection: ArxVector3
+    readonly parallel: number
+  }
+
+  /**
    * Reads a target edge as a candidate of the rail for one probe.
    *
    * @remarks
@@ -502,10 +516,7 @@ export function createEdgeSnap(map: ArxMap, faces: readonly number[], options: E
    * @param probe The point of the source edge the frame looks from.
    * @param screen The probe on the canvas.
    * @param target The target edge to test.
-   * @param direction The unit direction of the source edge.
-   * @param parallel The cosine of the angle two edges still count as parallel at.
-   * @param dragDirection The unit direction of the axis of the drag.
-   * @param axes The axes of the drag.
+   * @param context The direction of the source edge, the axes and the tolerance of the snap.
    *
    * @returns The candidate, or `undefined` when the target is not a rail of the probe.
    */
@@ -513,11 +524,9 @@ export function createEdgeSnap(map: ArxMap, faces: readonly number[], options: E
     probe: ArxVector3,
     screen: ScreenPoint,
     target: TargetEdge,
-    direction: ArxVector3,
-    parallel: number,
-    dragDirection: ArxVector3,
-    axes: readonly SnapAxis[],
+    context: SnapContext,
   ): EdgeCandidate | undefined {
+    const { axes, direction, dragDirection, parallel } = context
     const targetDirection = directionOf(target)
 
     if (targetDirection === undefined) {
@@ -584,6 +593,86 @@ export function createEdgeSnap(map: ArxMap, faces: readonly number[], options: E
     return { target, point, probe, distance, along, correction }
   }
 
+  /**
+   * The better of two candidates: the one that moves the selection further along the drag, and of two of those the
+   * nearer one on the canvas.
+   *
+   * @param best The candidate of the walk so far.
+   * @param candidate The candidate of this probe or target edge.
+   *
+   * @returns The one the frame keeps.
+   */
+  function betterOf(best: EdgeCandidate | undefined, candidate: EdgeCandidate): EdgeCandidate {
+    if (best === undefined || candidate.along > best.along + 1e-6) {
+      return candidate
+    }
+
+    if (Math.abs(candidate.along - best.along) <= 1e-6 && candidate.distance < best.distance) {
+      return candidate
+    }
+
+    return best
+  }
+
+  /**
+   * The best candidate of the target edges around one probe.
+   *
+   * @param probe The point of the source edge the frame looks from.
+   * @param screen The probe on the canvas.
+   * @param context The direction of the source edge, the axes and the tolerance of the snap.
+   *
+   * @returns The candidate, or `undefined` when no target edge around the probe is a rail.
+   */
+  function bestAroundOf(probe: ArxVector3, screen: ScreenPoint, context: SnapContext): EdgeCandidate | undefined {
+    let best: EdgeCandidate | undefined
+
+    for (const cell of cellsAround(probe)) {
+      const list = grid.get(cell)
+
+      if (list === undefined) {
+        continue
+      }
+
+      for (const target of list) {
+        const candidate = candidateOf(probe, screen, target, context)
+
+        if (candidate !== undefined) {
+          best = betterOf(best, candidate)
+        }
+      }
+    }
+
+    return best
+  }
+
+  /**
+   * The best candidate of the probes of one source edge.
+   *
+   * @param probes The midpoint and the two ends of the source edge.
+   * @param context The direction of the source edge, the axes and the tolerance of the snap.
+   *
+   * @returns The candidate, or `undefined` when none of the probes finds a rail.
+   */
+  function bestOf(probes: readonly ArxVector3[], context: SnapContext): EdgeCandidate | undefined {
+    let best: EdgeCandidate | undefined
+
+    for (const probe of probes) {
+      const screen = screenOf(arxVector3toVector3(probe).sub(offset))
+
+      if (screen === undefined) {
+        continue
+      }
+
+      const candidate = bestAroundOf(probe, screen, context)
+
+      if (candidate !== undefined) {
+        best = betterOf(best, candidate)
+      }
+    }
+
+    return best
+  }
+
   return {
     snap: (translation: ArxVector3, axis: string | null | undefined): EdgeSnapResult => {
       const axes = snapAxesOf(axis)
@@ -643,37 +732,10 @@ export function createEdgeSnap(map: ArxMap, faces: readonly number[], options: E
         // the midpoint and the two ends: a face in the middle of a hole may be near the target edge with an end, while
         // the middle of its edge is past the end of the target
         const probes = [midpointOf(current), current.a, current.b]
+        const candidate = bestOf(probes, { axes, direction, dragDirection, parallel })
 
-        for (const probe of probes) {
-          const screen = screenOf(arxVector3toVector3(probe).sub(offset))
-
-          if (screen === undefined) {
-            continue
-          }
-
-          for (const cell of cellsAround(probe)) {
-            const list = grid.get(cell)
-
-            if (list === undefined) {
-              continue
-            }
-
-            for (const target of list) {
-              const candidate = candidateOf(probe, screen, target, direction, parallel, dragDirection, axes)
-
-              if (candidate === undefined) {
-                continue
-              }
-
-              if (
-                best === undefined ||
-                candidate.along > best.along + 1e-6 ||
-                (Math.abs(candidate.along - best.along) <= 1e-6 && candidate.distance < best.distance)
-              ) {
-                best = candidate
-              }
-            }
-          }
+        if (candidate !== undefined) {
+          best = betterOf(best, candidate)
         }
       }
 

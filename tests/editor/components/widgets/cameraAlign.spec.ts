@@ -140,7 +140,7 @@ void describe('alignPose', () => {
     assert.ok(pose.position.x < center.x)
     assert.equal(pose.position.y, center.y)
     assert.equal(pose.position.z, center.z)
-    // 270 and not 90: the game mirrors X, so 90 would look away from the level (TODO 59)
+    // 270 and not 90: the game mirrors X, so 90 would look away from the level
     assert.deepEqual(pose.angle, { pitch: 0, yaw: 270 })
   })
 

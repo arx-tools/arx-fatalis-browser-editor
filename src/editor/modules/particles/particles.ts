@@ -216,6 +216,20 @@ function spawnOffsetOf(random: ParticleRandom, fullTurn: boolean): { x: number; 
 }
 
 /**
+ * What a frame of the spawn reads, beside the light and its counter.
+ *
+ * @remarks
+ * The four numbers belong together: the time since the last frame, the count of the light (the game moves it by the
+ * distance of the camera), the time of the frame and the random sequence the spawn takes its numbers from.
+ */
+export type SpawnFrame = {
+  readonly amount: number
+  readonly framedelay: number
+  readonly now: number
+  readonly random: ParticleRandom
+}
+
+/**
  * Spawns the particles of one light in a frame.
  *
  * @remarks
@@ -226,21 +240,12 @@ function spawnOffsetOf(random: ParticleRandom, fullTurn: boolean): { x: number; 
  *
  * @param light The light of the level.
  * @param clock The counter of the light.
- * @param framedelay The time since the last frame, in milliseconds.
- * @param amount How many particles the frame of the light counts (the game moves it by the distance of the camera).
- * @param now The time of the frame, in milliseconds.
- * @param random The sequence the spawn takes its numbers from.
+ * @param frame The numbers of the frame: its delay, the count of the light, its time and the random sequence.
  *
  * @returns The particles of the frame, or none.
  */
-export function spawnFireOf(
-  light: ArxLight,
-  clock: FlameClock,
-  framedelay: number,
-  amount: number,
-  now: number,
-  random: ParticleRandom,
-): Particle[] {
+export function spawnFireOf(light: ArxLight, clock: FlameClock, frame: SpawnFrame): Particle[] {
+  const { amount, framedelay, now, random } = frame
   const particles: Particle[] = []
 
   if (!isFireLight(light)) {

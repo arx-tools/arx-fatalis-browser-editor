@@ -185,7 +185,9 @@ function step(now: number): void {
 
     clocks.set(light, clock)
 
-    for (const particle of spawnFireOf(light, clock, framedelay, amountOf(light, camera), now, Math.random)) {
+    const frame = { amount: amountOf(light, camera), framedelay, now, random: Math.random }
+
+    for (const particle of spawnFireOf(light, clock, frame)) {
       if (pool.length >= MAX_PARTICLES) {
         break
       }

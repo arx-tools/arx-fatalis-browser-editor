@@ -148,7 +148,7 @@ void describe('spawnFireOf', () => {
     const oneFrame = 1000 / 61
 
     // one unit of the count per frame: the counter of the light takes one particle a frame
-    const first = spawnFireOf(light, clock, oneFrame, 1, 0, sequenceOf(0.5))
+    const first = spawnFireOf(light, clock, { amount: 1, framedelay: oneFrame, now: 0, random: sequenceOf(0.5) })
 
     assert.equal(first.length, 2)
   })
@@ -161,7 +161,7 @@ void describe('spawnFireOf', () => {
 
     // a half chance: the spawn of the two kinds over ten frames is about the half of the twenty chances
     for (let frame = 0; frame < 10; frame = frame + 1) {
-      count = count + spawnFireOf(light, clock, 1000 / 61, 1, frame * 16, random).length
+      count = count + spawnFireOf(light, clock, { amount: 1, framedelay: 1000 / 61, now: frame * 16, random }).length
     }
 
     assert.ok(count > 0)
@@ -172,7 +172,7 @@ void describe('spawnFireOf', () => {
     const light = fireLightOf()
     const clock = createFlameClock()
     const random = seededRandom(5)
-    const particles = spawnFireOf(light, clock, 1000 / 61, 1, 0, random)
+    const particles = spawnFireOf(light, clock, { amount: 1, framedelay: 1000 / 61, now: 0, random })
 
     // the flame: the two first axes of the offset are the same sine of an angle in 0..π, so both are never negative
     const flame = particles[0]
@@ -192,7 +192,7 @@ void describe('spawnFireOf', () => {
   void it('gives the flame the size, the life and the flags of the game', () => {
     const light = fireLightOf()
     const clock = createFlameClock()
-    const particles = spawnFireOf(light, clock, 1000 / 61, 1, 0, sequenceOf(0))
+    const particles = spawnFireOf(light, clock, { amount: 1, framedelay: 1000 / 61, now: 0, random: sequenceOf(0) })
     const flame = particles[0]
 
     assert.notStrictEqual(flame, undefined)
@@ -206,7 +206,7 @@ void describe('spawnFireOf', () => {
   void it('gives the spark the gravity and the smaller size', () => {
     const light = fireLightOf()
     const clock = createFlameClock()
-    const particles = spawnFireOf(light, clock, 1000 / 61, 1, 0, sequenceOf(0))
+    const particles = spawnFireOf(light, clock, { amount: 1, framedelay: 1000 / 61, now: 0, random: sequenceOf(0) })
     const spark = particles[1]
 
     assert.notStrictEqual(spark, undefined)
@@ -223,7 +223,12 @@ void describe('spawnFireOf', () => {
     const zs: number[] = []
 
     for (let frame = 0; frame < 40; frame = frame + 1) {
-      for (const particle of spawnFireOf(light, createFlameClock(), 1000 / 61, 1, frame * 16, random)) {
+      for (const particle of spawnFireOf(light, createFlameClock(), {
+        amount: 1,
+        framedelay: 1000 / 61,
+        now: frame * 16,
+        random,
+      })) {
         // the spark has a drag of its own, with the gravity: the test is about the flame
         if ((particle.flags & PARTICLE_GRAVITY) !== 0) {
           continue
@@ -245,25 +250,33 @@ void describe('spawnFireOf', () => {
 
   void it('takes the color of the light with the legacy flag, and the white without it', () => {
     const clock = createFlameClock()
-    const legacy = spawnFireOf(
-      fireLightOf({ flags: ArxLightFlags.SpawnFire | ArxLightFlags.ColorLegacy }),
-      clock,
-      1000 / 61,
-      1,
-      0,
-      sequenceOf(0),
-    )
+    const legacy = spawnFireOf(fireLightOf({ flags: ArxLightFlags.SpawnFire | ArxLightFlags.ColorLegacy }), clock, {
+      amount: 1,
+      framedelay: 1000 / 61,
+      now: 0,
+      random: sequenceOf(0),
+    })
 
     assert.deepEqual(legacy[0]?.color, { r: 1, g: 128 / 255, b: 0 })
 
-    const white = spawnFireOf(fireLightOf(), createFlameClock(), 1000 / 61, 1, 0, sequenceOf(0))
+    const white = spawnFireOf(fireLightOf(), createFlameClock(), {
+      amount: 1,
+      framedelay: 1000 / 61,
+      now: 0,
+      random: sequenceOf(0),
+    })
 
     assert.deepEqual(white[0]?.color, { r: 1, g: 1, b: 1 })
   })
 
   void it('spawns the smoke texture on a light of the smoke', () => {
     const light = fireLightOf({ flags: ArxLightFlags.SpawnSmoke })
-    const particles = spawnFireOf(light, createFlameClock(), 1000 / 61, 1, 0, seededRandom(2))
+    const particles = spawnFireOf(light, createFlameClock(), {
+      amount: 1,
+      framedelay: 1000 / 61,
+      now: 0,
+      random: seededRandom(2),
+    })
 
     assert.equal(particles.length, 1)
     assert.equal(particles[0]?.texture, 'smoke')

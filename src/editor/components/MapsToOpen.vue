@@ -34,7 +34,7 @@ const missingMap = computed(() => {
  * only be in the way.
  *
  * A row is the **name** of the map, and nothing else: the dot that marked a map with changes was taken out (2026-11-04,
- * the owner's decision, TODO 120 in `CANCELED.md`), and a styled `<option>` would need a dropdown of its own — the
+ * the owner's decision, the 120 in `CANCELLED.md`), and a styled `<option>` would need a dropdown of its own — the
  * browser draws the row of a native select.
  *
  * The **group** of the map is written before the control, not inside the row (2026-11-06, the owner's request): the

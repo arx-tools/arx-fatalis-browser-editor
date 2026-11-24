@@ -560,7 +560,7 @@ function showMap(map: ArxMap): void {
   }
 
   // the small views keep the flat, neutral face of the level: their own material, so a later texture or
-  // lighting round can not repaint them (TODO 92)
+  // lighting round can not repaint them
   // the whole level is one mesh, so the flat material draws every polygon: the faces of a fully transparent texture
   // (the walls of the game, the holes of a color key) are cut by the alpha test of the walkable view, not here — the
   // map is a silhouette, and the few faces of a stairwell do not change it
@@ -673,7 +673,7 @@ onMounted(() => {
     host.value.addEventListener('wheel', pointer.onWheel, { passive: false })
   }
 
-  // the click of a fixed view is the navigation of the walkable one (TODO 85), and a Shift pointer belongs to the room
+  // the click of a fixed view is the navigation of the walkable one, and a Shift pointer belongs to the room
   // map: the press selects a room and the hover lights one
   target.addEventListener('pointerenter', pointer.onPointerEnter)
   target.addEventListener('pointerdown', pointer.onPointerDown)

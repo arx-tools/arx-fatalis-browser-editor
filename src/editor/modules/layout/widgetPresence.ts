@@ -7,7 +7,7 @@ import { shallowRef, type ShallowRef } from 'vue'
  * A dock widget is its own Vue app (`VueWidget` → `createApp().mount()`), so it can not reach the shell
  * context (`provide`/`inject`): this module is the way a widget tells the rest of the editor that it is
  * there. It is needed because a widget changes what another widget shows — the HUD of the walkable view
- * goes away while the camera form is on the dock (TODO 82).
+ * goes away while the camera form is on the dock.
  */
 export type WidgetPresence = {
   /**

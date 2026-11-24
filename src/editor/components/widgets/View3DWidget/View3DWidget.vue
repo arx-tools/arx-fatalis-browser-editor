@@ -126,7 +126,7 @@ const hasLevel = computed(() => {
  * @remarks
  * The numbers come from {@link cameraStore}, the same place the camera controls widget reads and writes them, so
  * the readout follows a typed position as well as a walked one. While the camera controls widget is on the
- * dock the readout is hidden: it would show the same numbers twice (TODO 82).
+ * dock the readout is hidden: it would show the same numbers twice.
  */
 const hud = computed(() => {
   const pose = cameraStore.pose.value

@@ -8,7 +8,7 @@ import { fitCameraToCanvas } from './levelScene.ts'
  * The editor has more than one 3D widget (the walkable view and the six fixed directions), and they all
  * need the same three objects, so they are built here instead of in every widget. The **lights are not**
  * part of it: each widget adds what it wants (both use `addPreviewLights` today), so a later lighting round
- * can change the walkable view without touching the small ones (TODO 92).
+ * can change the walkable view without touching the small ones.
  */
 export type ViewScene<TCamera extends Camera = Camera> = {
   /**

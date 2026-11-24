@@ -1,4 +1,5 @@
 import {
+  AdditiveBlending,
   CanvasTexture,
   Color,
   Group,
@@ -40,9 +41,14 @@ export const ENTITY_MARKER_SIZE = 14
 const HOVER_SCALE = 1.35
 
 /**
- * How much bigger the marker of the selected entity is.
+ * How much bigger the white ring of the selected entity is than its marker.
+ *
+ * @remarks
+ * The ring is the mark the lights use for the light under the crosshair: a white circle over the marker, so it reads
+ * around a marker of any color (2026-11-24, the owner: the ring of the lights is the nicer of the two). The selection of
+ * an entity is one ring, because a level holds hundreds of markers and only one of them is the picked one.
  */
-const SELECTED_SCALE = 1.7
+const SELECTION_RING_SCALE = 2.2
 
 /**
  * Builds the texture of a marker: a ring, so the level stays visible through it.
@@ -90,8 +96,23 @@ export function createEntityMarkerTexture(): Texture {
  */
 export function createEntityMarkers(entities: readonly ArxInteractiveObject[], texture: Texture): Group {
   const group = new Group()
+  const ring = new Sprite(
+    new SpriteMaterial({
+      map: texture,
+      color: new Color('#ffffff'),
+      transparent: true,
+      depthWrite: false,
+      blending: AdditiveBlending,
+      toneMapped: false,
+    }),
+  )
 
   group.name = 'entity-markers'
+
+  // the ring of the selected entity: one sprite for the whole level, moved under the marker of the pick, over it
+  ring.name = 'entity-selection-ring'
+  ring.renderOrder = 11
+  ring.visible = false
 
   for (const [index, entity] of entities.entries()) {
     const category = categoryOf(entity.name)
@@ -113,6 +134,8 @@ export function createEntityMarkers(entities: readonly ArxInteractiveObject[], t
     sprite.position.copy(arxVector3toVector3(entity.position))
     group.add(sprite)
   }
+
+  group.add(ring)
 
   return group
 }
@@ -157,6 +180,14 @@ export function setEntityMarkerHighlight(
   selected: number | undefined,
   hover: number | undefined,
 ): void {
+  const ring = markers.children.find((child) => {
+    return child.name === 'entity-selection-ring'
+  })
+
+  if (ring !== undefined) {
+    ring.visible = false
+  }
+
   for (const child of markers.children) {
     const index: unknown = child.userData.entityIndex
 
@@ -164,15 +195,22 @@ export function setEntityMarkerHighlight(
       continue
     }
 
+    // the hover opens the marker a little; the selection is the ring, drawn over it
     let scale = 1
 
-    if (index === selected) {
-      scale = SELECTED_SCALE
-    } else if (index === hover) {
+    if (index === hover) {
       scale = HOVER_SCALE
     }
 
     child.scale.set(ENTITY_MARKER_SIZE * scale, ENTITY_MARKER_SIZE * scale, 1)
+
+    if (ring !== undefined && index === selected) {
+      const size = ENTITY_MARKER_SIZE * SELECTION_RING_SCALE
+
+      ring.position.copy(child.position)
+      ring.scale.set(size, size, 1)
+      ring.visible = true
+    }
   }
 }
 

@@ -98,7 +98,10 @@ test('the entity list shows the entities of the level, and the search filters th
   await expect(firstRow).toHaveAttribute('data-selected', 'false')
   await firstRow.locator('.name').click()
   await expect(firstRow).toHaveAttribute('data-selected', 'true')
-  await firstRow.locator('.name').click()
+
+  // `C` clears the selection of the view: the faces, the lights and the entities together
+  await page.keyboard.press('c')
+
   await expect(firstRow).toHaveAttribute('data-selected', 'false')
 
   // the jump at the end of a row takes the camera to the entity: the pose of the camera is in the url, so the move is

@@ -41,10 +41,31 @@ import { packLevelFile, packWholeFile } from '../level/source/packedFile.ts'
  * The name the browser saves the archive of a level under.
  *
  * @remarks
- * The archive is what a mod of the game is: a folder of level files the user drops in the data directory. The name is
- * the one the archived editor used, so a file of the two can not be told apart by its name.
+ * The archive is what a mod of the game is: a folder of level files the user drops in the data directory. The name
+ * carries the time of the export, so two downloads of the same level do not overwrite each other in the folder of the
+ * browser (2026-11-24, the owner: every export was a `mod.zip`).
+ *
+ * @param at The time of the export, in the clock of the page.
+ *
+ * @returns The name, for example `arx-fatalis-browser-editor-export-2026-11-24T14-09-12.zip`.
  */
-const EXPORT_ZIP_NAME = 'mod.zip'
+export function exportZipNameOf(at: Date): string {
+  /**
+   * Writes a number of the clock with two digits.
+   *
+   * @param value The number of the clock.
+   *
+   * @returns The number, padded to two digits.
+   */
+  function pad(value: number): string {
+    return String(value).padStart(2, '0')
+  }
+
+  const date = `${String(at.getFullYear())}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`
+  const time = `${pad(at.getHours())}-${pad(at.getMinutes())}-${pad(at.getSeconds())}`
+
+  return `arx-fatalis-browser-editor-export-${date}T${time}.zip`
+}
 
 /**
  * How far the export is, in percent, at the steps it reports.
@@ -905,5 +926,5 @@ export async function exportLevelZip(
 
   onProgress?.(EXPORT_PROGRESS.zipped)
 
-  return { name: EXPORT_ZIP_NAME, data }
+  return { name: exportZipNameOf(new Date(options.exportedAt ?? Date.now())), data }
 }

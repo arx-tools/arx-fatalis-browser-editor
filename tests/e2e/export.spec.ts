@@ -90,7 +90,9 @@ test('the export dialog writes the level under the fields of the dialog', async 
 
   const [download] = await Promise.all([page.waitForEvent('download'), dialog.locator('.export').click()])
 
-  expect(download.suggestedFilename()).toBe('mod.zip')
+  expect(download.suggestedFilename()).toMatch(
+    /^arx-fatalis-browser-editor-export-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.zip$/u,
+  )
 
   const path = await download.path()
   const archive = await JSZip.loadAsync(await readFile(path ?? ''))

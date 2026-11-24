@@ -19,6 +19,7 @@ import {
   renumberedRoomNamesOf,
   exportLevelFiles,
   exportLevelZip,
+  exportZipNameOf,
   levelFilePath,
 } from '../../../../src/editor/modules/export/exportLevel.ts'
 import { ArxMap } from '../../../../src/generator/ArxMap.ts'
@@ -717,7 +718,7 @@ void describe('exportLevelZip', () => {
     const { name, data } = await exportLevelZip(map)
     const archive = await JSZip.loadAsync(data)
 
-    assert.equal(name, 'mod.zip')
+    assert.match(name, /^arx-fatalis-browser-editor-export-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.zip$/u)
     assert.deepEqual(
       Object.values(archive.files)
         .filter((entry) => {
@@ -929,5 +930,21 @@ void describe('the room numbering of the file', () => {
     }
 
     assert.deepEqual(renumberedRoomNamesOf({ '7': 'The vault' }, map.polygons), { '2': 'The vault' })
+  })
+})
+
+void describe('exportZipNameOf', () => {
+  void it('names the archive after the time of the export', () => {
+    assert.equal(
+      exportZipNameOf(new Date(2026, 10, 24, 14, 9, 12)),
+      'arx-fatalis-browser-editor-export-2026-11-24T14-09-12.zip',
+    )
+  })
+
+  void it('pads a month, a day, an hour and a second of one digit', () => {
+    assert.equal(
+      exportZipNameOf(new Date(2026, 0, 5, 3, 4, 5)),
+      'arx-fatalis-browser-editor-export-2026-01-05T03-04-05.zip',
+    )
   })
 })

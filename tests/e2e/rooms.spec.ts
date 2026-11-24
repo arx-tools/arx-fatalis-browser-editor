@@ -45,7 +45,7 @@ test('a room of the list selects its faces, and a second click clears both', asy
   }
 
   // nothing is selected before the pick
-  expect(await selectedOf('Selected faces')).toBe('0')
+  expect(await selectedOf('Face Indices')).toBe('0')
   await expect(row).not.toHaveClass(/is-selected/u)
 
   await row.click()
@@ -53,7 +53,7 @@ test('a room of the list selects its faces, and a second click clears both', asy
   // the pick is the selection of the faces of the room, and the row shows it
   await expect(row).toHaveClass(/is-selected/u)
   // the blank plane has a hundred and some faces, so the count has no grouping to write
-  expect(await selectedOf('Selected faces')).toBe(String(faces))
+  expect(await selectedOf('Face Indices')).toBe(String(faces))
 
   // the pick does not turn the room map on: the switch of the map stays as the author left it
   await expect(roomInspector.getByRole('button', { name: 'Show the rooms' })).toBeVisible()
@@ -63,7 +63,7 @@ test('a room of the list selects its faces, and a second click clears both', asy
   await row.click()
 
   await expect(row).not.toHaveClass(/is-selected/u)
-  expect(await selectedOf('Selected faces')).toBe('0')
+  expect(await selectedOf('Face Indices')).toBe('0')
 })
 
 /**
@@ -307,7 +307,7 @@ test('the pointer previews a room, and the row picks it without a checkbox', asy
   await row.hover()
 
   await expect(row).not.toHaveClass(/is-selected/u)
-  expect(await selectedOf('Selected faces')).toBe('0')
+  expect(await selectedOf('Face Indices')).toBe('0')
 
   // the click is the pick, the one gesture the list has
   await row.click()

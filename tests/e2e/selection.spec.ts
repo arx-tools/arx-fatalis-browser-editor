@@ -126,7 +126,7 @@ test('the selection inspector opens the face ids and the textures', async ({ pag
   await page.waitForTimeout(500)
 
   const widget = page.locator('[data-widget-kind="selection-inspector"]')
-  const facesRow = widget.locator('.AccordionRow', { hasText: 'Selected faces' }).locator('.head')
+  const facesRow = widget.locator('.AccordionRow', { hasText: 'Face Indices' }).locator('.head')
   const texturesRow = widget.locator('.AccordionRow', { hasText: 'Textures' }).locator('.head')
 
   // the textures open by default, the ids wait for a click

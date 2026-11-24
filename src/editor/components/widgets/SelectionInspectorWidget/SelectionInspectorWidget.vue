@@ -160,9 +160,56 @@ function selectEntity(index: number): void {
 }
 
 /**
+ * One row of the inspector: what it counts, and what the fold under it lists.
+ */
+type InspectorRow = {
+  readonly kind: 'textures' | 'lights' | 'entities' | 'faces'
+  readonly label: string
+  readonly value: string
+  readonly empty: boolean
+}
+
+/**
+ * The rows of the inspector, in the order they are read.
+ *
+ * @remarks
+ * The textures come first, then the two picks of the view (the lights and the entities), and the ids of the faces close
+ * the list: the indices are the raw read the author compares with a face, not the head of the list (2026-11-24, the
+ * owner). The labels carry no `selected` word, they follow the `Textures` row.
+ */
+const rows = computed<InspectorRow[]>(() => {
+  return [
+    {
+      kind: 'textures',
+      label: 'Textures',
+      value: formatCount(summary.value.textureCount),
+      empty: summary.value.textureCount === 0,
+    },
+    {
+      kind: 'lights',
+      label: 'Lights',
+      value: String(selectedLightRows.value.length),
+      empty: selectedLightRows.value.length === 0,
+    },
+    {
+      kind: 'entities',
+      label: 'Entities',
+      value: String(selectedEntityRows.value.length),
+      empty: selectedEntityRows.value.length === 0,
+    },
+    {
+      kind: 'faces',
+      label: 'Face Indices',
+      value: formatCount(summary.value.count),
+      empty: summary.value.count === 0,
+    },
+  ]
+})
+
+/**
  * Tells whether a row is open.
  *
- * @param label The caption of the row, like `Selected faces`.
+ * @param label The caption of the row, like `Faces`.
  *
  * @returns True when its content is shown.
  */
@@ -245,17 +292,29 @@ function thumbOf(name: string): string | undefined {
 
     <div class="rows">
       <AccordionRow
-        v-for="(row, index) in summary.rows"
-        :key="row.label"
+        v-for="(row, index) in rows"
+        :key="row.kind"
         :label="row.label"
         :value="row.value"
         :stripe="index % 2 === 1"
-        :empty="row.value === '0'"
+        :empty="row.empty"
         :open="isRowOpen(row.label)"
         @toggle="toggleRow(row.label)"
       >
-        <ul v-if="row.label === 'Selected faces'" class="faces">
+        <ul v-if="row.kind === 'faces'" class="faces">
           <li v-for="face in selectedFaces" :key="face">{{ face }}</li>
+        </ul>
+
+        <ul v-else-if="row.kind === 'lights'" class="faces">
+          <li v-for="light in selectedLightRows" :key="light.index" @click="selectLight(light.index)">
+            {{ light.label }}
+          </li>
+        </ul>
+
+        <ul v-else-if="row.kind === 'entities'" class="faces">
+          <li v-for="entity in selectedEntityRows" :key="entity.index" @click="selectEntity(entity.index)">
+            {{ entity.label }}
+          </li>
         </ul>
 
         <div v-else class="groups">
@@ -274,36 +333,6 @@ function thumbOf(name: string): string | undefined {
             </ul>
           </section>
         </div>
-      </AccordionRow>
-
-      <AccordionRow
-        label="Selected lights"
-        :value="String(selectedLightRows.length)"
-        :stripe="summary.rows.length % 2 === 1"
-        :empty="selectedLightRows.length === 0"
-        :open="isRowOpen('Selected lights')"
-        @toggle="toggleRow('Selected lights')"
-      >
-        <ul class="faces">
-          <li v-for="light in selectedLightRows" :key="light.index" @click="selectLight(light.index)">
-            {{ light.label }}
-          </li>
-        </ul>
-      </AccordionRow>
-
-      <AccordionRow
-        label="Selected entities"
-        :value="String(selectedEntityRows.length)"
-        :stripe="summary.rows.length % 2 === 0"
-        :empty="selectedEntityRows.length === 0"
-        :open="isRowOpen('Selected entities')"
-        @toggle="toggleRow('Selected entities')"
-      >
-        <ul class="faces">
-          <li v-for="entity in selectedEntityRows" :key="entity.index" @click="selectEntity(entity.index)">
-            {{ entity.label }}
-          </li>
-        </ul>
       </AccordionRow>
     </div>
   </div>

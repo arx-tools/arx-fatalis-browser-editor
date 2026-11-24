@@ -240,7 +240,7 @@ export async function accordionValueOf(page: Page, kind: string, label: string):
  * @returns The number of the selected faces, or `undefined` before the widget is on the screen.
  */
 export async function selectionCount(page: Page): Promise<number | undefined> {
-  const value = await accordionValueOf(page, WIDGET_KINDS.selectionInspector, 'Selected faces')
+  const value = await accordionValueOf(page, WIDGET_KINDS.selectionInspector, 'Face Indices')
   const text = value.trim()
 
   if (text === '') {

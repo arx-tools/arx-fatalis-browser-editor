@@ -78,10 +78,6 @@ void describe('selectionSummaryOf', () => {
     const polygons = [triangle(1), triangle(1), triangle(2)]
     const summary = selectionSummaryOf(input([0, 1, 2], polygons))
 
-    assert.deepEqual(summary.rows, [
-      { label: 'Selected faces', value: '3' },
-      { label: 'Textures', value: '2' },
-    ])
     assert.equal(summary.count, 3)
     assert.equal(summary.textureCount, 2)
   })
@@ -141,16 +137,13 @@ void describe('selectionSummaryOf', () => {
     const summary = selectionSummaryOf(input([0, 5], [triangle(1)]))
 
     assert.equal(summary.count, 1)
-    assert.deepEqual(summary.rows[0], { label: 'Selected faces', value: '1' })
   })
 
-  void it('shows nothing for an empty selection, and the rows still line up', () => {
+  void it('shows nothing for an empty selection', () => {
     const summary = selectionSummaryOf(input([], []))
 
-    assert.deepEqual(summary.rows, [
-      { label: 'Selected faces', value: '0' },
-      { label: 'Textures', value: '0' },
-    ])
+    assert.equal(summary.count, 0)
+    assert.equal(summary.textureCount, 0)
     assert.deepEqual(summary.groups, [])
   })
 })

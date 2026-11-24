@@ -1,5 +1,4 @@
 import type { ArxPolygon } from 'arx-convert/types'
-import { formatCount } from '../../../modules/format.ts'
 import type { TextureGroup } from '../../../modules/textures/search.ts'
 
 /**
@@ -80,10 +79,6 @@ export type SelectionSummary = {
    * How many distinct textures the selected faces draw with.
    */
   readonly textureCount: number
-  /**
-   * The rows of the widget, above the groups.
-   */
-  readonly rows: ReadonlyArray<{ readonly label: string; readonly value: string }>
   /**
    * The groups of textures, empty when nothing is selected.
    */
@@ -211,10 +206,6 @@ export function selectionSummaryOf(input: SelectionInput): SelectionSummary {
   return {
     count,
     textureCount,
-    rows: [
-      { label: 'Selected faces', value: formatCount(count) },
-      { label: 'Textures', value: formatCount(textureCount) },
-    ],
     groups,
   }
 }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
 import { Magnet } from 'lucide-vue-next'
-import type { ArxLight, ArxPolygon } from 'arx-convert/types'
+import type { ArxLight } from 'arx-convert/types'
 import { PerspectiveCamera, type Group, type Mesh } from 'three'
 import Crosshair from '../../Crosshair.vue'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
@@ -52,7 +52,7 @@ import { attachPortalLines, type PortalOverlay } from '../shared/portalOverlay.t
 import { roomPaletteOf } from '../../../../generator/rooms.ts'
 import { roomRevision } from '../../../modules/rooms/roomRevision.ts'
 import { portalRevision } from '../../../modules/rooms/portalSync.ts'
-import { createRoomOverlay, roomsNeedRepaint, type RoomOverlay } from '../shared/roomOverlay.ts'
+import { createRoomOverlay, type RoomOverlay } from '../shared/roomOverlay.ts'
 import {
   FIELD_OF_VIEW,
   createViewScene,
@@ -69,6 +69,16 @@ import { createPolygonSelectionOverlay, type PolygonSelectionOverlay } from './p
 import { createLightGizmo, type LightGizmo } from './lightGizmo.ts'
 import { createParticleField, type ParticleField } from './particleField.ts'
 import { createSelectionGizmo, type SelectionGizmo } from './selectionGizmo.ts'
+import {
+  applyRoomHighlight,
+  cancelNormalsRebuild,
+  markRoomsPainted,
+  repaintRooms,
+  scheduleNormals,
+  selectedPolygonsOf,
+  updateVisibility,
+  type OverlayHost,
+} from './overlays.ts'
 import { hasLevel, hud, roomReadout, snapActive, status, toggleMagnet } from './readout.ts'
 
 const host = useTemplateRef<HTMLElement>('host')
@@ -119,14 +129,6 @@ let lightTextures: LightMarkerTextures | undefined
 let spikeEntity: Group | undefined
 let portalLines: PortalOverlay | undefined
 
-/**
- * The revision of the rooms the colors of the room map were written from.
- *
- * @remarks
- * A move of the faces into another room does not change the geometry, so the buffers can not tell that the colors are
- * stale: the revision of the rooms does (2026-11-15, the owner: the corner moved into a new room stayed gray).
- */
-let paintedRoomRevision = roomRevision.value
 let selection: PolygonSelectionOverlay | undefined
 
 let loadedMap: ArxMap | undefined
@@ -223,6 +225,37 @@ const loop = createFrameLoop({
  * render, not by their widget. The registration is a constant of the setup: the view is one of them from the moment it
  * exists, and it leaves the layer when the widget goes away.
  */
+/**
+ * What the overlays of the scene read: the bindings of this widget, as getters.
+ *
+ * @remarks
+ * The overlays live in `overlays.ts`, and the bindings of the scene (`view`, `rooms`, `normals`, ...) are `let`s here:
+ * the getters always read the binding of the moment, so a level that comes and goes keeps the two in step.
+ */
+const overlays: OverlayHost = {
+  loadedMap: () => {
+    return loadedMap
+  },
+  normals: () => {
+    return normals
+  },
+  portalLines: () => {
+    return portalLines
+  },
+  requestRender: () => {
+    loop.requestRender()
+  },
+  rooms: () => {
+    return rooms
+  },
+  shown: () => {
+    return shown
+  },
+  wireframe: () => {
+    return wireframe
+  },
+}
+
 const unregisterDynamicLights = registerDynamicLightsView(
   () => {
     loop.requestRender()
@@ -338,178 +371,6 @@ function createScene(): void {
 }
 
 /**
- * Shows the level with the textures or as the room map, or hides both.
- *
- * @remarks
- * The two faces of the level are exclusive: the textured mesh is what the game draws, and the room map is the flat
- * color of the rooms, so only one of them is on at a time. The mesh switch of the key help turns off both.
- */
-function updateVisibility(): void {
-  const visible = isMeshVisible.value
-  const showRooms = visible && isRoomColorsVisible.value
-
-  for (const mesh of shown) {
-    mesh.visible = visible && !showRooms
-  }
-
-  if (rooms !== undefined) {
-    rooms.mesh.visible = showRooms
-  }
-
-  // the line reads the flat color of the texture of its face: on the room map and with the mesh off there is no
-  // texture under it, so the plain gray stays
-  wireframe?.setColored(visible && !isRoomColorsVisible.value)
-
-  // the outline of the portals sits under the same switch as the room map: it shows where the game joins two rooms,
-  // which is a read of the level, not a layer of its own
-  portalLines?.setVisible(visible && isPortalsVisible.value)
-}
-
-/**
- * Recolors the room map after an edit.
- *
- * @remarks
- * An edit refills the geometry of the level in place: the color attribute of the room map is not refilled with it,
- * so the map is colored again when its vertex count no longer matches the geometry. A texture or a uv edit does not
- * change the vertex buffers, so the map is not read again for it — but a move of the faces into another room does not
- * change them either, and the colors of the rooms are stale after it: the revision of the rooms tells that.
- */
-function repaintRooms(): void {
-  const map = loadedMap
-
-  if (map === undefined || rooms === undefined) {
-    return
-  }
-
-  const vertexCount = map.solidMeshes[0].geometry.getAttribute('position').count
-  const colorCount = rooms.mesh.geometry.getAttribute('color')?.count
-
-  if (
-    roomsNeedRepaint({
-      vertexCount,
-      colorCount,
-      paintedRevision: paintedRoomRevision,
-      revision: roomRevision.value,
-    })
-  ) {
-    paintedRoomRevision = roomRevision.value
-    rooms.repaint(map)
-  }
-}
-
-/**
- * Writes the rooms the room map keeps at full color into the overlay.
- *
- * @remarks
- * The lit set is the selection, the hover of the room inspector and the room under the crosshair ({@link litRooms}),
- * so every view of the map shows the same rooms. The map is the only thing the highlight paints: while it is off the
- * set can change (the camera walks into another room), and repainting the vertex colors for it would be wasted work.
- */
-function applyRoomHighlight(): void {
-  if (rooms === undefined || !isRoomColorsVisible.value) {
-    return
-  }
-
-  rooms.setHighlight(litRooms.value)
-  loop.requestRender()
-}
-
-/**
- * The faces of the selection, as the polygons of the level.
- *
- * @param map The map the selection belongs to.
- *
- * @returns The selected faces; an empty set when the selection is empty.
- */
-function selectedPolygonsOf(map: ArxMap): Set<ArxPolygon> {
-  const selected = new Set<ArxPolygon>()
-
-  for (const index of selectionStore.polygons.value) {
-    const polygon = map.polygons[index]
-
-    if (polygon !== undefined) {
-      selected.add(polygon)
-    }
-  }
-
-  return selected
-}
-
-/**
- * Builds the lines of the normals again from the polygons the mesh draws.
- *
- * @remarks
- * The normals are built from the polygons and not from the geometry of the mesh: a line starts in the middle of a face
- * and on its corners, which the buffers of the triangles no longer know. The source is therefore rebuilt after every
- * edit, and after a group hides or shows a face (the level draws the visible polygons only). The selection comes along,
- * because the lines of a selected face take a color of their own.
- */
-function refreshNormals(): void {
-  const map = loadedMap
-
-  if (map === undefined || normals === undefined) {
-    return
-  }
-
-  normals.setSource(map.visiblePolygons, arxVector3toVector3(map.scenePosition), selectedPolygonsOf(map))
-}
-
-/**
- * How long a burst of edits waits between two builds of the normal lines, in milliseconds.
- *
- * @remarks
- * A drag of the gizmo bumps the level revision on every frame, and a rebuild of the lines of level 11 (69 817 faces) is
- * **19-27 ms** for the face normals and **42 ms** for both layers (measured, 2026-11-23). The normals are a debug layer,
- * so during a drag they may follow at 6-7 frames a second: the frame that moves the face stays whole, and the lines catch
- * up when the burst ends.
- */
-const NORMALS_REBUILD_INTERVAL = 150
-
-/**
- * When the normal lines were built the last time, in the clock of the page.
- */
-let normalsBuiltAt = 0
-
-/**
- * The wait of the rebuild of the normal lines a burst of edits asked for.
- */
-let normalsRebuild: ReturnType<typeof setTimeout> | undefined
-
-/**
- * Asks for a rebuild of the normal lines, at most once in {@link NORMALS_REBUILD_INTERVAL}.
- *
- * @remarks
- * The last edit of a burst still gets its rebuild: the timer of the first one fires after the wait and takes the state
- * of the level of that moment, and the edits that came meanwhile schedule the next one.
- */
-function scheduleNormals(): void {
-  if (normalsRebuild !== undefined) {
-    return
-  }
-
-  const wait = Math.max(0, NORMALS_REBUILD_INTERVAL - (performance.now() - normalsBuiltAt))
-
-  normalsRebuild = setTimeout(() => {
-    normalsRebuild = undefined
-    normalsBuiltAt = performance.now()
-    refreshNormals()
-    loop.requestRender()
-  }, wait)
-}
-
-/**
- * Drops the rebuild of the normal lines that is still waiting.
- */
-function cancelNormalsRebuild(): void {
-  if (normalsRebuild === undefined) {
-    return
-  }
-
-  clearTimeout(normalsRebuild)
-  normalsRebuild = undefined
-}
-
-/**
  * Shows a map: the meshes go into the scene and the camera starts from the player of the level.
  *
  * @param map The map the store loaded.
@@ -529,8 +390,8 @@ function showMap(map: ArxMap): void {
 
   // the room map shares the geometry of the level: it is one more mesh over the same buffers
   rooms = createRoomOverlay(map)
-  paintedRoomRevision = roomRevision.value
-  applyRoomHighlight()
+  markRoomsPainted()
+  applyRoomHighlight(overlays)
   view.scene.add(rooms.mesh)
 
   // the wireframe is a switch: the view puts it over the mesh only while it is on, and every line takes the color of
@@ -572,7 +433,7 @@ function showMap(map: ArxMap): void {
 
   // the switches read the wireframe too (its lines follow the mesh), so they come after it is there: a fresh load
   // with the mesh on then starts in the inverted look, not in the gray of a hidden level
-  updateVisibility()
+  updateVisibility(overlays)
 
   loadedMap = map
 
@@ -788,10 +649,10 @@ onMounted(() => {
   // frame: the view draws on demand, so without this the canvas would keep the picture of the level before
   // the edit (a walk away and back would refresh it, which is exactly what a still picture can not do)
   stopWatchingEdit = watch(levelRevision, () => {
-    repaintRooms()
+    repaintRooms(overlays)
     // the normals are built from the polygons: a moved or deleted face is a new line (and a group that hid a face takes
     // its normal with it). A drag runs this on every frame, so the build waits between two frames of the burst
-    scheduleNormals()
+    scheduleNormals(overlays)
     // a moved face is a new fill: the overlay is built from the polygons of the selection
     dragSelection.updateHighlight()
     loop.requestRender()
@@ -800,13 +661,13 @@ onMounted(() => {
   // a replay of the stored steps writes the rooms without a level revision (only the room revision moves): the room map
   // has to be painted again for it, or a map that came back from the storage stays in the color of the empty rooms
   stopWatchingRoomRevision = watch(roomRevision, () => {
-    repaintRooms()
+    repaintRooms(overlays)
     loop.requestRender()
   })
 
   // the mesh is a switch too: off, the level keeps the wireframe and the overlays only
   stopWatchingMesh = watch(isMeshVisible, () => {
-    updateVisibility()
+    updateVisibility(overlays)
     loop.requestRender()
   })
 
@@ -859,7 +720,7 @@ onMounted(() => {
 
   // the portal outline is a switch of every view at once: the same ref is read by the six fixed ones
   stopWatchingPortals = watch(isPortalsVisible, () => {
-    updateVisibility()
+    updateVisibility(overlays)
     loop.requestRender()
   })
 
@@ -872,27 +733,29 @@ onMounted(() => {
       portalLines?.setPortals(map.fts.portals, arxVector3toVector3(map.scenePosition))
     }
 
-    updateVisibility()
+    updateVisibility(overlays)
     loop.requestRender()
   })
 
   stopWatchingRooms = watch(isRoomColorsVisible, () => {
-    updateVisibility()
+    updateVisibility(overlays)
     // the fill gets its gray base with the map, so a switch of the map repaints the selection too
     dragSelection.updateHighlight()
     // the highlight of the map joins the switch: it is painted only while the map is on
-    applyRoomHighlight()
+    applyRoomHighlight(overlays)
     loop.requestRender()
   })
 
   // the room inspector picks a room: the map dims the others, so the picked room reads at a glance
-  stopWatchingRoom = watch(litRooms, applyRoomHighlight)
+  stopWatchingRoom = watch(litRooms, () => {
+    applyRoomHighlight(overlays)
+  })
 
   // the selection is shared with the statistics widget: a change draws the fill of the polygons, and gives the lines of
   // the selected faces their color (the rebuild waits between two frames of a sweep, like an edit does)
   stopWatchingSelection = watch(selectionStore.polygons, () => {
     dragSelection.updateHighlight()
-    scheduleNormals()
+    scheduleNormals(overlays)
     loop.requestRender()
   })
 
@@ -901,7 +764,7 @@ onMounted(() => {
   stopWatchingGroups = watch(activeFaceGroups, () => {
     dragSelection.updateHighlight()
     // a hidden group takes its faces out of the mesh, and the normals follow the faces the mesh draws
-    scheduleNormals()
+    scheduleNormals(overlays)
     loop.requestRender()
   })
 

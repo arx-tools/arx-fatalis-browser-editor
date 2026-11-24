@@ -4,32 +4,22 @@ import { Magnet } from 'lucide-vue-next'
 import { PerspectiveCamera, type Group, type Mesh } from 'three'
 import Crosshair from '../../Crosshair.vue'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
-import { WIREFRAME_WITHOUT_MESH, arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { registerDynamicLightsView } from '../../../modules/level/edit/dynamicLights.ts'
 import { registerParticlesView } from '../../../modules/particles/controller.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { getModifierOfKey } from '../../../modules/keyboard/functions.ts'
-import { lightHoverStore } from '../../../modules/selection/lightHoverStore.ts'
-import { lightSelectionStore } from '../../../modules/selection/lightSelectionStore.ts'
 import { cameraStore } from '../camera/cameraStore.ts'
 import { renderPerformanceStore } from '../shared/renderPerformance.ts'
 import { transformVisible } from '../shared/editModes.ts'
-import { isEntitiesVisible, isLightsVisible, isNormalsVisible, isWireframeVisible } from '../shared/levelDisplay.ts'
 import { snapModifierHeld } from '../shared/snapping.ts'
-import { addPreviewLights, attachWireframe, viewMeshesOf, type LevelWireframe } from '../shared/levelScene.ts'
-import { attachNormals, normalsLayers, type NormalsOverlay } from '../shared/normalsOverlay.ts'
-import { disposeSpikeEntityModel, loadSpikeEntityModel } from '../../../modules/level/entities/entitySpike.ts'
-import {
-  createLightMarkers,
-  createLightMarkerTextures,
-  disposeLightMarkers,
-  type LightMarkerTextures,
-} from '../shared/lightMarkers.ts'
-import { createLightSelectionOverlay, type LightSelectionOverlay } from '../shared/lightSelectionOverlay.ts'
-import { createLightRadiusSpheres, type LightRadiusSpheres } from '../shared/lightRadiusSpheres.ts'
-import { attachPortalLines, type PortalOverlay } from '../shared/portalOverlay.ts'
+import { addPreviewLights, type LevelWireframe } from '../shared/levelScene.ts'
+import type { NormalsOverlay } from '../shared/normalsOverlay.ts'
+import type { LightMarkerTextures } from '../shared/lightMarkers.ts'
+import type { LightSelectionOverlay } from '../shared/lightSelectionOverlay.ts'
+import type { LightRadiusSpheres } from '../shared/lightRadiusSpheres.ts'
+import type { PortalOverlay } from '../shared/portalOverlay.ts'
 import { roomPaletteOf } from '../../../../generator/rooms.ts'
-import { createRoomOverlay, type RoomOverlay } from '../shared/roomOverlay.ts'
+import type { RoomOverlay } from '../shared/roomOverlay.ts'
 import {
   FIELD_OF_VIEW,
   createViewScene,
@@ -38,25 +28,18 @@ import {
   type ViewScene,
 } from '../shared/viewScene.ts'
 import ToggleButton from '../../ToggleButton.vue'
-import { CameraControls } from './cameraControls.ts'
+import type { CameraControls } from './cameraControls.ts'
 import { createFrameLoop } from './frameLoop.ts'
 import { useSelectionDrag } from './useSelectionDrag.ts'
 import { createOrientationGizmo, type OrientationGizmo } from './orientationGizmo.ts'
-import { createPolygonSelectionOverlay, type PolygonSelectionOverlay } from './polygonSelection.ts'
+import type { PolygonSelectionOverlay } from './polygonSelection.ts'
 import { createLightGizmo, type LightGizmo } from './lightGizmo.ts'
 import { createParticleField, type ParticleField } from './particleField.ts'
 import { createSelectionGizmo, type SelectionGizmo } from './selectionGizmo.ts'
-import {
-  applyRoomHighlight,
-  cancelNormalsRebuild,
-  markRoomsPainted,
-  selectedPolygonsOf,
-  updateVisibility,
-  type OverlayHost,
-} from './overlays.ts'
+import { cancelNormalsRebuild, type OverlayHost } from './overlays.ts'
 import { hasLevel, hud, roomReadout, snapActive, status, toggleMagnet } from './readout.ts'
-import { editedLightOf } from './editedLight.ts'
 import { bindViewWatches, type ViewWatchesHost } from './viewWatches.ts'
+import { attachLevel, detachLevel, loadEntitySpikeOf } from './levelAttach.ts'
 
 const host = useTemplateRef<HTMLElement>('host')
 const canvas = useTemplateRef<HTMLCanvasElement>('canvas')
@@ -358,7 +341,11 @@ function createScene(): void {
 }
 
 /**
- * Shows a map: the meshes go into the scene and the camera starts from the player of the level.
+ * Shows a map: the layers of the level go into the scene, and the camera starts from the player of the level.
+ *
+ * @remarks
+ * The layers themselves live in `levelAttach.ts`: this is where the widget keeps them, and hands them back on the way
+ * out. The entity spike comes later, when its model arrives, and only while the same level is still on the screen.
  *
  * @param map The map the store loaded.
  */
@@ -369,201 +356,94 @@ function showMap(map: ArxMap): void {
     return
   }
 
-  shown = viewMeshesOf(map.meshes)
-
-  for (const mesh of shown) {
-    view.scene.add(mesh)
-  }
-
-  // the room map shares the geometry of the level: it is one more mesh over the same buffers
-  rooms = createRoomOverlay(map)
-  markRoomsPainted()
-  applyRoomHighlight(overlays)
-  view.scene.add(rooms.mesh)
-
-  // the wireframe is a switch: the view puts it over the mesh only while it is on, and every line takes the color of
-  // the flat color of the texture of its face
-  wireframe = attachWireframe(view.scene, map.wireframeGeometry, {
-    colored: true,
-    gray: WIREFRAME_WITHOUT_MESH,
+  const handles = attachLevel(map, {
+    canvas: target,
+    dragSelection,
+    lightGizmo: () => {
+      return lightGizmo
+    },
+    loop,
+    selectionGizmo: () => {
+      return selectionGizmo
+    },
+    view,
   })
-  wireframe.setVisible(isWireframeVisible.value)
 
-  // the normals are an overlay of their own: a line per face and per corner, built from the visible polygons, and the
-  // two switches decide which of the layers is on. Only this view draws them (2026-11-23, the owner)
-  normals = attachNormals(view.scene)
-  normals.setLayers(normalsLayers.value)
-  normals.setSource(map.visiblePolygons, arxVector3toVector3(map.scenePosition), selectedPolygonsOf(map))
-  normals.setVisible(isNormalsVisible.value)
-
-  // the portal outline has no geometry in the level: it is built from the list of the portals, over the same space
-  portalLines = attachPortalLines(view.scene, map.fts.portals, arxVector3toVector3(map.scenePosition))
-
-  // the lights of the LLF: a sparkle for each, at the place of the light, with the color and the fallStart of it
-  lightTextures = createLightMarkerTextures()
-  lightMarkers = createLightMarkers(map.lights, lightTextures)
-  lightMarkers.visible = isLightsVisible.value
-  view.scene.add(lightMarkers)
-
-  // the ring of the selected lights: a sprite per pick, over the marker, in the place of the light
-  lightSelection = createLightSelectionOverlay()
-  lightSelection.group.visible = isLightsVisible.value
-  lightSelection.update(map.lights, lightSelectionStore.lights.value, lightHoverStore.light.value)
-  view.scene.add(lightSelection.group)
-
-  // the debug spheres of the falloff of the light the editor edits: green for the fall start, red for the fall end
-  // the debug spheres are a switch of their own, not a part of the light markers: the fall start and the fall end are
-  // read on the light the editor edits, and the marker display has a switch of its own
-  lightRadiusSpheres = createLightRadiusSpheres()
-  lightRadiusSpheres.update(editedLightOf(map.lights))
-  view.scene.add(lightRadiusSpheres.group)
-
-  // the switches read the wireframe too (its lines follow the mesh), so they come after it is there: a fresh load
-  // with the mesh on then starts in the inverted look, not in the gray of a hidden level
-  updateVisibility(overlays)
-
+  shown = handles.shown ?? []
+  rooms = handles.rooms
+  wireframe = handles.wireframe
+  normals = handles.normals
+  portalLines = handles.portalLines
+  lightTextures = handles.lightTextures
+  lightMarkers = handles.lightMarkers
+  lightSelection = handles.lightSelection
+  lightRadiusSpheres = handles.lightRadiusSpheres
+  selection = handles.selection
+  controls = handles.controls
   loadedMap = map
 
+  const scene = view
+
   // TODO 235: the spike of the entity models, one door of level 0, until the entities are a real overlay
-  loadSpikeEntityModel(map)
+  loadEntitySpikeOf(
+    map,
+    {
+      loop,
+      view: scene,
+    },
+    () => {
+      return loadedMap === map
+    },
+  )
     .then((group) => {
-      if (group === undefined || loadedMap !== map || view === undefined) {
+      if (group === undefined) {
         return
       }
 
       spikeEntity = group
-      group.visible = isEntitiesVisible.value
-      view.scene.add(group)
-      loop.requestRender()
     })
-    .catch((error: unknown) => {
-      console.warn('[entity-spike] the door of level 0 could not be loaded.', error)
+    .catch(() => {
+      // the spike is a debug aid: a level without one is not an error of the view
     })
-
-  loop.resetPick()
-  selection = createPolygonSelectionOverlay(view.scene, arxVector3toVector3(map.scenePosition), view.renderer)
-  dragSelection.updateHighlight()
-  loop.requestRender()
-
-  // a level change builds a new camera: the old one has to let the pointer and the listeners go
-  controls?.dispose()
-
-  const created = new CameraControls({
-    canvas: target,
-    camera: view.camera,
-    scene: map.scenePosition,
-    player: map.player,
-    onPoseChange: (pose): void => {
-      cameraStore.setPose(pose)
-      loop.requestRender()
-    },
-    canLock: (): boolean => {
-      return (selectionGizmo?.canLock() ?? true) && (lightGizmo?.canLock() ?? true)
-    },
-    onLockChange: (locked: boolean): void => {
-      selectionGizmo?.setEnabled(!locked)
-      lightGizmo?.setEnabled(!locked)
-
-      if (locked) {
-        loop.startLoop()
-
-        return
-      }
-
-      loop.requestRender()
-    },
-  })
-
-  controls = created
-
-  // the camera controls widget moves this camera, so it needs a handle on it
-  cameraStore.setDriver({
-    applyPose: (pose): void => {
-      created.applyPose(pose)
-    },
-    moveToSpawn: (): void => {
-      created.applySpawnPose()
-    },
-  })
 
   loop.requestRender()
 }
 
 /**
- * Takes the map out of the scene again.
- *
- * @remarks
- * The geometry and the material belong to the store, so this only removes the wrappers of this widget: a
- * rebuilt widget puts the level back at once. The camera goes with the map: the store keeps the last pose
- * it reported, but nothing is left to move.
+ * Takes the map out of the scene again: the layers go back to the module that built them.
  */
 function hideMap(): void {
-  for (const mesh of shown) {
-    view?.scene.remove(mesh)
-  }
+  detachLevel(
+    {
+      controls,
+      lightMarkers,
+      lightRadiusSpheres,
+      lightSelection,
+      lightTextures,
+      normals,
+      portalLines,
+      rooms,
+      selection,
+      shown,
+      spikeEntity,
+      wireframe,
+    },
+    view,
+  )
 
   shown = []
-
-  if (rooms !== undefined) {
-    view?.scene.remove(rooms.mesh)
-    rooms.dispose()
-    rooms = undefined
-  }
-
-  if (lightMarkers !== undefined) {
-    view?.scene.remove(lightMarkers)
-    disposeLightMarkers(lightMarkers)
-    lightMarkers = undefined
-  }
-
-  if (lightTextures !== undefined) {
-    for (const texture of Object.values(lightTextures)) {
-      texture.dispose()
-    }
-
-    lightTextures = undefined
-  }
-
-  if (lightSelection !== undefined) {
-    view?.scene.remove(lightSelection.group)
-    lightSelection.dispose()
-    lightSelection = undefined
-  }
-
-  if (lightRadiusSpheres !== undefined) {
-    view?.scene.remove(lightRadiusSpheres.group)
-    lightRadiusSpheres.dispose()
-    lightRadiusSpheres = undefined
-  }
-
-  // the selected lights are indices of the level that went: a new level has a list of its own
-  lightSelectionStore.clear()
-  lightHoverStore.set(undefined)
-
-  if (spikeEntity !== undefined) {
-    view?.scene.remove(spikeEntity)
-    disposeSpikeEntityModel(spikeEntity)
-    spikeEntity = undefined
-  }
-
-  wireframe?.dispose()
+  rooms = undefined
   wireframe = undefined
-  cancelNormalsRebuild()
-  normals?.dispose()
   normals = undefined
-  portalLines?.dispose()
   portalLines = undefined
-  selection?.dispose()
+  lightTextures = undefined
+  lightMarkers = undefined
+  lightSelection = undefined
+  lightRadiusSpheres = undefined
   selection = undefined
-  loadedMap = undefined
-
-  // the crosshair store is not cleared here: the dock is rebuilt when the stored layout arrives, and the old
-  // view unmounts after the new one has already picked a face — a write of `undefined` here would hide that
-  // face from the inspector. The widgets read the store together with the level, so an index the level no
-  // longer has reads as nothing anyway, and the next frame of the live view reports the face it is on.
-  cameraStore.setDriver(undefined)
-  controls?.dispose()
   controls = undefined
+  loadedMap = undefined
+  spikeEntity = undefined
 }
 
 /**

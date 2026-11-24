@@ -40,7 +40,7 @@ import {
   pickPolygonAt,
   type PolygonSelectionOverlay,
 } from '../View3DWidget/polygonSelection.ts'
-import { createRoomOverlay, roomsNeedRepaint, type RoomOverlay } from '../shared/roomOverlay.ts'
+import { createRoomOverlay, positionSnapshotOf, roomsNeedRepaint, type RoomOverlay } from '../shared/roomOverlay.ts'
 import {
   FIELD_OF_VIEW,
   createViewScene,
@@ -533,13 +533,10 @@ function repaintRooms(): void {
     return
   }
 
-  const vertexCount = map.solidMeshes[0].geometry.getAttribute('position').count
-  const colorCount = rooms.mesh.geometry.getAttribute('color')?.count
-
   if (
     roomsNeedRepaint({
-      vertexCount,
-      colorCount,
+      level: positionSnapshotOf(map),
+      painted: rooms.painted,
       paintedRevision: paintedRoomRevision,
       revision: roomRevision.value,
     })

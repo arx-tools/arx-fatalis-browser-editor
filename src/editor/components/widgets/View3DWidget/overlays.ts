@@ -9,7 +9,7 @@ import { isMeshVisible, isPortalsVisible, isRoomColorsVisible } from '../shared/
 import type { LevelWireframe } from '../shared/levelScene.ts'
 import type { NormalsOverlay } from '../shared/normalsOverlay.ts'
 import type { PortalOverlay } from '../shared/portalOverlay.ts'
-import { roomsNeedRepaint, type RoomOverlay } from '../shared/roomOverlay.ts'
+import { positionSnapshotOf, roomsNeedRepaint, type RoomOverlay } from '../shared/roomOverlay.ts'
 
 /**
  * What the overlays of the view need from the widget that owns the scene.
@@ -93,13 +93,10 @@ export function repaintRooms(host: OverlayHost): void {
     return
   }
 
-  const vertexCount = map.solidMeshes[0].geometry.getAttribute('position').count
-  const colorCount = rooms.mesh.geometry.getAttribute('color')?.count
-
   if (
     roomsNeedRepaint({
-      vertexCount,
-      colorCount,
+      level: positionSnapshotOf(map),
+      painted: rooms.painted,
       paintedRevision: paintedRoomRevision,
       revision: roomRevision.value,
     })

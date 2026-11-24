@@ -60,6 +60,14 @@ export type RoomOverlay = {
    */
   readonly coloring: RoomColoring
   /**
+   * The position attribute of the level the map copied, or `undefined` when it has not painted yet.
+   *
+   * @remarks
+   * The map owns a copy of the buffers, so a level that moves has to be copied again: `refillGeometry` builds new
+   * attributes on every edit, so a different attribute than this one means the map is stale.
+   */
+  readonly painted: PositionSnapshot | undefined
+  /**
    * Colors the rooms again from the level, and writes the colors into the geometry.
    *
    * @remarks
@@ -151,17 +159,30 @@ function writeRoomColors(
 }
 
 /**
+ * The position buffer of a level, as the decision of a repaint reads it.
+ *
+ * @remarks
+ * Two shapes of change: an insert or a delete **replaces** the attribute (`refillGeometry` builds a new one), and a
+ * translate, a rotation or a scale writes **into** it (`needsUpdate` moves its `version` on). The buffer the map copied
+ * is stale in both cases, so the decision reads the attribute and its version together.
+ */
+export type PositionSnapshot = {
+  readonly attribute: BufferAttribute
+  readonly version: number
+}
+
+/**
  * What the decision of a repaint of the room map reads.
  */
 export type RoomRepaintState = {
   /**
-   * How many vertices the geometry of the level has.
+   * The position buffer of the level, as it is now.
    */
-  readonly vertexCount: number
+  readonly level: PositionSnapshot | undefined
   /**
-   * How many colors the attribute of the map has, or `undefined` when it has none yet.
+   * The position buffer the map copied, or `undefined` when it has not painted yet.
    */
-  readonly colorCount: number | undefined
+  readonly painted: PositionSnapshot | undefined
   /**
    * The revision of the rooms the colors were written from.
    */
@@ -173,19 +194,55 @@ export type RoomRepaintState = {
 }
 
 /**
+ * Reads the position buffer of a level.
+ *
+ * @param map The level to read.
+ *
+ * @returns The attribute and its version, or `undefined` when the level has no geometry.
+ */
+export function positionSnapshotOf(map: ReadonlyArxMap): PositionSnapshot | undefined {
+  const attribute = map.solidMeshes[0]?.geometry.getAttribute('position')
+
+  // the level builds its geometry, so the position is a plain buffer: an interleaved one has no version to tell a
+  // write in place, and a snapshot the decision can not trust is no snapshot (the map paints again)
+  if (!(attribute instanceof BufferAttribute)) {
+    return undefined
+  }
+
+  return { attribute, version: attribute.version }
+}
+
+/**
+ * Tells whether the map copied the buffer the level has now.
+ *
+ * @param level The position buffer of the level, as it is now.
+ * @param painted The snapshot the map painted the colors from.
+ *
+ * @returns True when both are the same attribute at the same version.
+ */
+function isSameBuffer(level: PositionSnapshot | undefined, painted: PositionSnapshot | undefined): boolean {
+  if (level === undefined || painted === undefined) {
+    return false
+  }
+
+  return level.attribute === painted.attribute && level.version === painted.version
+}
+
+/**
  * Whether the colors of the room map have to be written again.
  *
  * @remarks
- * Two things make the colors stale: an edit that rebuilds the geometry (a delete, an insert: the vertex buffers change
- * and the attribute has to follow), and a write of the rooms of the faces (a move into a room the map has not colored
- * yet: the vertex buffers stay the same, so only the revision of the rooms tells it, 2026-11-15).
+ * Two things make the colors stale: an edit that rebuilds the geometry (a delete, an insert, a translate: `refillGeometry`
+ * builds **new** attributes, so the attribute the map copied is not the one of the level any more), and a write of the
+ * rooms of the faces (a move into a room the map has not colored yet: the buffers stay the same, so only the revision of
+ * the rooms tells it, 2026-11-15).
  *
  * @param state The buffers of the geometry and the two revisions.
  *
  * @returns True when the map has to be painted again.
  */
 export function roomsNeedRepaint(state: RoomRepaintState): boolean {
-  return state.colorCount !== state.vertexCount || state.paintedRevision !== state.revision
+  return !isSameBuffer(state.level, state.painted) || state.paintedRevision !== state.revision
 }
 
 /**
@@ -223,6 +280,7 @@ export function createRoomOverlay(map: ReadonlyArxMap): RoomOverlay {
   mesh.visible = false
 
   let coloring: RoomColoring = { colors: new Map(), colorCount: 0 }
+  let painted: PositionSnapshot | undefined
   let level = map
   let highlighted: ReadonlySet<number> = new Set()
 
@@ -238,8 +296,10 @@ export function createRoomOverlay(map: ReadonlyArxMap): RoomOverlay {
     // the positions follow the level: an edit rebuilds its geometry, and the overlay copies the new buffers
     const { geometry: levelGeometry } = next.solidMeshes[0]
     const { index } = levelGeometry
+    const position = levelGeometry.getAttribute('position') as BufferAttribute
 
-    geometry.setAttribute('position', levelGeometry.getAttribute('position').clone())
+    painted = { attribute: position, version: position.version }
+    geometry.setAttribute('position', position.clone())
 
     if (index === null) {
       geometry.setIndex(null)
@@ -256,6 +316,9 @@ export function createRoomOverlay(map: ReadonlyArxMap): RoomOverlay {
     mesh,
     get coloring(): RoomColoring {
       return coloring
+    },
+    get painted(): PositionSnapshot | undefined {
+      return painted
     },
     repaint,
     setHighlight: (rooms: ReadonlySet<number>): void => {

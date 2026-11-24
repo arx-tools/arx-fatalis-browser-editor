@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import { BufferAttribute, Color } from 'three'
 import {
   createRoomOverlay,
+  positionSnapshotOf,
   roomsNeedRepaint,
   type RoomOverlay,
 } from '../../../../../src/editor/components/widgets/shared/roomOverlay.ts'
@@ -74,18 +75,50 @@ void describe('createRoomOverlay', () => {
 })
 
 void describe('roomsNeedRepaint', () => {
+  // the buffer of the level, and the next one an edit builds: `refillGeometry` makes a new one on an insert
+  const first = new BufferAttribute(new Float32Array(9), 3)
+  const second = new BufferAttribute(new Float32Array(9), 3)
+  const paintedFirst = { attribute: first, version: 0 }
+
   void it('repaints when the geometry of the level was rebuilt', () => {
-    // a delete or an insert: the attribute still has the colors of the old buffers
-    assert.equal(roomsNeedRepaint({ vertexCount: 9, colorCount: 6, paintedRevision: 3, revision: 3 }), true)
+    // a delete or an insert: the attribute still has the positions and the colors of the old buffers
+    assert.equal(
+      roomsNeedRepaint({
+        level: { attribute: second, version: 0 },
+        painted: paintedFirst,
+        paintedRevision: 3,
+        revision: 3,
+      }),
+      true,
+    )
+  })
+
+  void it('repaints when the buffer was written in place', () => {
+    // a translate, a rotation or a scale: the same attribute, a new version, and the map still has the old positions
+    assert.equal(
+      roomsNeedRepaint({
+        level: { attribute: first, version: 1 },
+        painted: paintedFirst,
+        paintedRevision: 3,
+        revision: 3,
+      }),
+      true,
+    )
   })
 
   void it('repaints when the rooms of the faces were written', () => {
     // a move into another room leaves the buffers as they were: only the revision of the rooms tells it
-    assert.equal(roomsNeedRepaint({ vertexCount: 9, colorCount: 9, paintedRevision: 3, revision: 4 }), true)
+    assert.equal(
+      roomsNeedRepaint({ level: paintedFirst, painted: paintedFirst, paintedRevision: 3, revision: 4 }),
+      true,
+    )
   })
 
   void it('keeps the colors of a texture or a uv edit', () => {
-    assert.equal(roomsNeedRepaint({ vertexCount: 9, colorCount: 9, paintedRevision: 4, revision: 4 }), false)
+    assert.equal(
+      roomsNeedRepaint({ level: paintedFirst, painted: paintedFirst, paintedRevision: 4, revision: 4 }),
+      false,
+    )
   })
 })
 
@@ -104,6 +137,24 @@ void describe('createRoomOverlay and the palette of the level', () => {
     assert.equal(geometry.getAttribute('color').array[0], 0.25)
     assert.notEqual(overlay.mesh.geometry, geometry)
     assert.notEqual(overlay.mesh.geometry.getAttribute('color').array[0], 0.25)
+  })
+})
+
+void describe('createRoomOverlay with a moved face', () => {
+  void it('is stale after a translate, which keeps the buffer and moves it in place', () => {
+    // a translate writes into the buffer the map copied (the attribute stays, its version moves on), so a decision that
+    // only reads the vertex count would keep the map at the old place (the carpet lifted over the throne room, 2026-11-24)
+    const map = mapOf()
+    const overlay = createRoomOverlay(map)
+    const { painted } = overlay
+
+    map.polygons.translate([0], { x: 0, y: 64, z: 0 })
+
+    const level = positionSnapshotOf(map)
+
+    assert.equal(level?.attribute, painted?.attribute)
+    assert.notEqual(level?.version, painted?.version)
+    assert.equal(roomsNeedRepaint({ level, painted, paintedRevision: 0, revision: 0 }), true)
   })
 })
 

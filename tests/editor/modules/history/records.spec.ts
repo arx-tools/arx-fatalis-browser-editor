@@ -421,6 +421,20 @@ void describe('commandOf', () => {
     assert.equal(polygons.length, 2)
   })
 
+  void it('leaves the room of the source behind: a pasted face is in no room yet', () => {
+    const { level, polygons } = fakeLevel(2)
+    const source = triangle(9)
+
+    source.room = 242
+    const command = commandOf(createPasteFacesRecord([source]), level)
+
+    command?.apply()
+    // a face that kept the room of the source would take its flat color in the room map, and hide over a floor of it
+    assert.equal(polygons.at(-1)?.room, -1)
+
+    command?.revert()
+  })
+
   void it('moves the colors of the pasted faces into a block of their own', () => {
     const { level, polygons, lighting } = fakeLevel(2)
     const record = createPasteFacesRecord(

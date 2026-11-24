@@ -3,6 +3,7 @@ import { isQuad } from 'arx-convert/utils'
 import type { FaceRoom, FaceTexture } from '../../../generator/ArxMap.ts'
 import type { PolygonInsertion } from '../../../generator/arxMap/removal.ts'
 import { forgetRoomNames, renameRoom } from '../rooms/roomNames.ts'
+import { NO_ROOM } from '../rooms/roomList.ts'
 import { bumpRoomRevision } from '../rooms/roomRevision.ts'
 import {
   HISTORY_RECORD_VERSION,
@@ -534,6 +535,11 @@ function pasteFacesCommandOf(record: PasteFacesRecord, level: MutableLevel): His
 
       inserted = record.polygons.map((polygon) => {
         const copy = structuredClone(polygon)
+
+        // the paste makes a new face of the level, and it is in no room yet: the room of the source is a fact of the
+        // faces it was cut from, and a pasted face that kept it takes the flat color of that room in the room map, so it
+        // disappears over a floor of the same room (the carpet of the throne room lifted over its own floor, 2026-11-24)
+        copy.room = NO_ROOM
         let count = 3
 
         if (isQuad(copy)) {

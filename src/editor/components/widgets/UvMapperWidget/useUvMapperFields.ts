@@ -1,8 +1,10 @@
 import { ref, shallowRef, watch, type Ref, type ShallowRef } from 'vue'
 import { commandOf } from '../../../modules/history/commands.ts'
-import { createSetUvRecord } from '../../../modules/history/records.ts'
+import { createSetUvRecord } from '../../../modules/history/records/textures.ts'
 import { runStep } from '../../../modules/level/edit/editing.ts'
-import { movedCorner, numberOfText, sameUvs, uvsOfFace, type ShownFace, type UvPoint } from './uvMapper.ts'
+import { movedCorner, numberOfText, sameUvs } from './uvMapper/geometry.ts'
+import { uvsOfFace } from './uvMapper/selection.ts'
+import type { ShownFace, UvPoint } from './uvMapper/types.ts'
 
 /**
  * The two uv fields under the square of the uv mapper: typing a corner instead of dragging it.

@@ -59,7 +59,7 @@ import {
   zipSettingsOf,
 } from './modules/level/source/maps.ts'
 import { migrateLegacyPose } from './modules/level/source/maps/mapPoses.ts'
-import { startFaceGroups } from './modules/groups/groupStore.ts'
+import { startFaceGroups } from './modules/groups/groupStart.ts'
 import { loadRoomNamesOf, startRoomNames } from './modules/rooms/roomNamesStart.ts'
 import { startRoomSelection } from './modules/rooms/roomSelection.ts'
 import { startCurrentRoom } from './modules/rooms/roomUnderCrosshair.ts'

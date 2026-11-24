@@ -1,6 +1,6 @@
 import type { ShallowRef } from 'vue'
 import { commandOf } from '../../../modules/history/commands.ts'
-import { createSetUvRecord } from '../../../modules/history/records.ts'
+import { createSetUvRecord } from '../../../modules/history/records/textures.ts'
 import { runStep } from '../../../modules/level/edit/editing.ts'
 import {
   containsFacePoint,
@@ -11,13 +11,10 @@ import {
   screenOfUv,
   snappedPoint,
   uvOfScreen,
-  uvsOfFace,
   zoomAfter,
-  type ShownFace,
-  type StagePoint,
-  type UvPoint,
-  type UvView,
-} from './uvMapper.ts'
+} from './uvMapper/geometry.ts'
+import { uvsOfFace } from './uvMapper/selection.ts'
+import type { ShownFace, StagePoint, UvPoint, UvView } from './uvMapper/types.ts'
 
 /**
  * The pointer of the uv mapper: the drag of a corner, the drag of the texture, and the wheel of the zoom.

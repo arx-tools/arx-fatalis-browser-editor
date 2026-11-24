@@ -1,5 +1,5 @@
 import { selectedFaceGroups } from '../groups/groupSelection.ts'
-import { deleteFaceGroups } from '../groups/groupStore.ts'
+import { deleteFaceGroups } from '../groups/groupCommands.ts'
 import { onKeyboardAction } from '../keyboard/keyboard.ts'
 import { currentMapId } from '../level/source/maps.ts'
 import { WIDGET_KINDS } from '../layout/widgetKinds.ts'

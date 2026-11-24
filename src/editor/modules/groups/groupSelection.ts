@@ -2,7 +2,8 @@ import type { ArxPolygon } from 'arx-convert/types'
 import { computed, type ComputedRef } from 'vue'
 import { levelStore } from '../level/edit/levelStore.ts'
 import { selectionModeOf, selectionStore, type SelectionModifiers } from '../selection/selectionStore.ts'
-import { activeFaceGroups, faceIndicesOfGroup, presentPolygons } from './groupStore.ts'
+import { faceIndicesOfGroup } from './groupQueries.ts'
+import { activeFaceGroups, presentPolygons } from './groupState.ts'
 
 /**
  * The groups of the open level that hold a selected face.

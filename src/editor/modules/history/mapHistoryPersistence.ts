@@ -2,9 +2,9 @@ import { watch } from 'vue'
 import { snapshotOfHistory } from '../level/edit/editing.ts'
 import { levelStore } from '../level/edit/levelStore.ts'
 import { currentMapId } from '../level/source/maps.ts'
+import type { HistoryRecord } from './records/types.ts'
 import { history } from './history.ts'
 import { writeStoredHistory } from './mapHistoryStorage.ts'
-import type { HistoryRecord } from './records.ts'
 
 /**
  * How long a write waits after the last step.

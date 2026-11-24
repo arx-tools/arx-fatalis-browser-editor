@@ -9,7 +9,7 @@ import {
   createRotateFacesRecord,
   createScaleFacesRecord,
   createTranslateFacesRecord,
-} from '../../../modules/history/records.ts'
+} from '../../../modules/history/records/faces.ts'
 import { bumpLevelRevision, levelRevision, runStep } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'

@@ -2,7 +2,6 @@ import type { ArxColor, ArxLight, ArxPolygon, ArxPortal, ArxVector3 } from 'arx-
 import type { FaceRoom, FaceTexture } from '../../../../generator/ArxMap.ts'
 import type { PolygonInsertion } from '../../../../generator/arxMap/removal.ts'
 import type { FaceUv } from '../../../../generator/arxMap/uvs.ts'
-import type { HistoryCommand } from '../history.ts'
 
 /**
  * The version of the shape a stored step has.
@@ -576,7 +575,7 @@ export type LightChange = {
  * @remarks
  * The command of the editor is a pair of closures (`apply`/`revert`), and a closure can not be written to a file. A
  * record is the **description** of the same step: the plain data it needs, without the code. Every command carries
- * one (see {@link HistoryCommand.record}), so what can be undone is exactly what can be stored — the two can not
+ * one (see `HistoryCommand.record` in `../history.ts`), so what can be undone is exactly what can be stored — the two can not
  * drift apart.
  *
  * The union grows with the kinds of the steps: `deleteFaces` and `setTexture` today, `moveVertex`, `moveLight` and the

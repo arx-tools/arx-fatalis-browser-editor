@@ -1,6 +1,8 @@
 import { shallowRef, type ShallowRef } from 'vue'
 import { runMetadataStep, type HistoryCommand } from '../history/history.ts'
-import { createSetRoomNameRecord, labelOf, type HistoryRecord } from '../history/records.ts'
+import { labelOf } from '../history/records/label.ts'
+import { createSetRoomNameRecord } from '../history/records/rooms.ts'
+import type { HistoryRecord } from '../history/records/types.ts'
 import { writeRoomNamesOf } from './roomNamesStorage.ts'
 
 /**

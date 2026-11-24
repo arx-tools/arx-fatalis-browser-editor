@@ -1,6 +1,7 @@
 import type { FaceRoom } from '../../../generator/ArxMap.ts'
 import { commandOf } from '../history/commands.ts'
-import { createDeleteRoomsRecord, type NamedRoom } from '../history/records.ts'
+import { createDeleteRoomsRecord } from '../history/records/rooms.ts'
+import type { NamedRoom } from '../history/records/types.ts'
 import { runStep } from '../level/edit/editing.ts'
 import { levelStore } from '../level/edit/levelStore.ts'
 import { roomNameOf } from './roomNames.ts'

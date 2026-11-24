@@ -1,6 +1,6 @@
 import type { ArxMap } from '../../../generator/ArxMap.ts'
 import { commandOf } from '../history/commands.ts'
-import { createSetRoomRecord } from '../history/records.ts'
+import { createSetRoomRecord } from '../history/records/rooms.ts'
 import { runStep } from '../level/edit/editing.ts'
 import { levelStore } from '../level/edit/levelStore.ts'
 import { selectionStore } from '../selection/selectionStore.ts'

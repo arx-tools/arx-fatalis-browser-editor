@@ -1,13 +1,12 @@
 import type { ArxPolygon } from 'arx-convert/types'
 import { type HistoryCommand, runMetadataStep } from '../history/history.ts'
 import {
-  type FaceGroupReference,
-  type HistoryRecord,
   createCreateFaceGroupRecord,
   createDeleteFaceGroupsRecord,
   createRenameFaceGroupRecord,
-  labelOf,
-} from '../history/records.ts'
+} from '../history/records/groups.ts'
+import { labelOf } from '../history/records/label.ts'
+import type { FaceGroupReference, HistoryRecord } from '../history/records/types.ts'
 import { levelStore } from '../level/edit/levelStore.ts'
 import { selectionStore } from '../selection/selectionStore.ts'
 import { applyHiddenPolygons, withoutOverlapsOf } from './groupDerived.ts'

@@ -10,7 +10,7 @@ import {
   SquareCenterlineDashedVertical,
 } from 'lucide-vue-next'
 import { commandOf } from '../../../modules/history/commands.ts'
-import { createSetUvRecord } from '../../../modules/history/records.ts'
+import { createSetUvRecord } from '../../../modules/history/records/textures.ts'
 import { bumpLevelRevision, levelRevision, runStep } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
@@ -19,23 +19,10 @@ import type { TextureEntry } from '../../../modules/textures/textureEntry.ts'
 import Notice from '../../Notice.vue'
 import NumberField from '../../NumberField.vue'
 import ToolButton from '../../ToolButton.vue'
-import {
-  DEFAULT_ZOOM,
-  mismatchMessageOf,
-  centerOfUvs,
-  cornerNameOf,
-  perimeterOf,
-  screenOfUv,
-  maximizedUvs,
-  quarteredUvs,
-  turnedUvs,
-  uvsOfFace,
-  uvSelectionOf,
-  type ShownFace,
-  type UvView,
-  type UvPoint,
-  type UvTurn,
-} from './uvMapper.ts'
+import { DEFAULT_ZOOM, centerOfUvs, cornerNameOf, perimeterOf, screenOfUv } from './uvMapper/geometry.ts'
+import { mismatchMessageOf, uvSelectionOf, uvsOfFace } from './uvMapper/selection.ts'
+import { maximizedUvs, quarteredUvs, turnedUvs } from './uvMapper/turn.ts'
+import type { ShownFace, UvPoint, UvTurn, UvView } from './uvMapper/types.ts'
 import { useUvMapperDrag } from './useUvMapperDrag.ts'
 import { useUvMapperFields } from './useUvMapperFields.ts'
 import { useCornerList } from './useCornerList.ts'

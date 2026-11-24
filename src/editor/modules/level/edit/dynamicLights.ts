@@ -7,16 +7,15 @@ import { lightsRevision } from './lightEditing.ts'
 import { lightingProfile, readsPalette } from './lightingProfile.ts'
 import { levelStore } from './levelStore.ts'
 import { writeBakedColors } from './levelTextures/bakedColors.ts'
+import { applyDynamicLightModel, blackenDynamicLightModel } from './dynamicLights/model/apply.ts'
+import { createDynamicLightModel } from './dynamicLights/model/build.ts'
+import { setDynamicLightWeightsLive } from './dynamicLights/model/live.ts'
 import {
-  applyDynamicLightModel,
-  blackenDynamicLightModel,
   changedWeightLightsOf,
-  createDynamicLightModel,
   isDynamicLightModelStale,
   refreshDynamicLightBaseColors,
-  setDynamicLightWeightsLive,
-  type DynamicLightModel,
-} from './dynamicLights/model.ts'
+} from './dynamicLights/model/refresh.ts'
+import type { DynamicLightModel } from './dynamicLights/model/types.ts'
 
 /**
  * The delay of a rebuild after a change of the level or of its lights, in milliseconds.

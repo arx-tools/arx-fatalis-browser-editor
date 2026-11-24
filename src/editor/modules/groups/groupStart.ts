@@ -10,20 +10,6 @@ import { loadGroupsOf, saveOpenLevel } from './groupPersistence.ts'
 import { activeFaceGroups, groupState, groupsOnAnotherVersion, storedGroups } from './groupState.ts'
 import { readStoredGroups } from './groupStorage.ts'
 
-export type { FaceGroup, FaceGroupRow } from './groupTypes.ts'
-export { activeFaceGroups, groupsOnAnotherVersion, presentPolygons } from './groupState.ts'
-export { faceGroupRows } from './groupDerived.ts'
-export { faceGroupOfFace, faceGroupOfSelection, faceIndicesOfGroup, faceIndicesWithGroupsOf } from './groupQueries.ts'
-export { faceGroupsJsonOf } from './groupPersistence.ts'
-export {
-  createFaceGroupFromSelection,
-  deleteFaceGroups,
-  faceGroupCommandOf,
-  groupOrUngroupTheSelection,
-  renameFaceGroup,
-  setFaceGroupVisibility,
-} from './groupCommands.ts'
-
 /**
  * Starts the groups of the editor: the storage, the level that opens, and the steps that move the faces.
  *

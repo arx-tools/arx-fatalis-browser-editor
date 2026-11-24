@@ -1,5 +1,5 @@
 import { shallowRef, type ShallowRef } from 'vue'
-import type { HistoryRecord } from './records.ts'
+import type { HistoryRecord } from './records/types.ts'
 
 /**
  * The steps of a map, and how many of them are on it.

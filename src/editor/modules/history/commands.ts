@@ -4,10 +4,8 @@ import type { FaceRoom, FaceTexture } from '../../../generator/ArxMap.ts'
 import type { PolygonInsertion } from '../../../generator/arxMap/removal.ts'
 import { forgetRoomNames, renameRoom } from '../rooms/roomNames.ts'
 import { bumpRoomRevision } from '../rooms/roomRevision.ts'
-import type { HistoryCommand } from './history.ts'
 import {
   HISTORY_RECORD_VERSION,
-  labelOf,
   type BuildTunnelRecord,
   type DeleteRoomsRecord,
   type HistoryRecord,
@@ -20,7 +18,9 @@ import {
   type SetTextureRecord,
   type SetUvRecord,
   type TranslateFacesRecord,
-} from './records.ts'
+} from './records/types.ts'
+import { labelOf } from './records/label.ts'
+import type { HistoryCommand } from './history.ts'
 
 /**
  * What a step of the history does: the command of a record.

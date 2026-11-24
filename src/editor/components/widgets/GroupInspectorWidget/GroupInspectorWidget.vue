@@ -4,13 +4,13 @@ import { computed, nextTick, shallowRef, useTemplateRef } from 'vue'
 import {
   createFaceGroupFromSelection,
   deleteFaceGroups,
-  faceGroupRows,
-  faceIndicesOfGroup,
-  groupsOnAnotherVersion,
   renameFaceGroup,
   setFaceGroupVisibility,
-  type FaceGroupRow,
-} from '../../../modules/groups/groupStore.ts'
+} from '../../../modules/groups/groupCommands.ts'
+import { faceGroupRows } from '../../../modules/groups/groupDerived.ts'
+import { faceIndicesOfGroup } from '../../../modules/groups/groupQueries.ts'
+import { groupsOnAnotherVersion } from '../../../modules/groups/groupState.ts'
+import type { FaceGroupRow } from '../../../modules/groups/groupTypes.ts'
 import { currentMapId } from '../../../modules/level/source/maps.ts'
 import { pickFaceGroup, selectedFaceGroups } from '../../../modules/groups/groupSelection.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'

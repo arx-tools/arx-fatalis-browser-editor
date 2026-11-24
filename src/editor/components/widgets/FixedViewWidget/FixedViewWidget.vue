@@ -28,7 +28,7 @@ import {
   isWireframeVisible,
 } from '../shared/levelDisplay.ts'
 import { attachPortalLines, type PortalOverlay } from '../shared/portalOverlay.ts'
-import { activeFaceGroups } from '../../../modules/groups/groupStore.ts'
+import { activeFaceGroups } from '../../../modules/groups/groupState.ts'
 import { inGroupOf, selectedGroupPolygons } from '../../../modules/groups/groupSelection.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import { hoverRoom, litRooms } from '../../../modules/rooms/roomStore.ts'

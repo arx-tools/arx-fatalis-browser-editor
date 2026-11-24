@@ -1,6 +1,6 @@
 import { getLocalStorage, isQuotaError, type StorageLike } from '../persistedRef/storage.ts'
 import { reportProblem } from '../persistedRef/persistenceProblems.ts'
-import type { HistoryRecord } from './records.ts'
+import type { HistoryRecord } from './records/types.ts'
 
 /**
  * The prefix of the key every map's stored steps live under.

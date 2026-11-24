@@ -887,10 +887,6 @@ export async function exportLevelZip(
     stepsOfTheArchive = { fingerprint: map.fingerprint, records: steps, position: options.history?.position ?? 0 }
   }
 
-  if (steps.length > 0) {
-    stepsOfTheArchive = { fingerprint: map.fingerprint, records: steps, position: options.history?.position ?? 0 }
-  }
-
   const settings = { camera: options.camera, history: stepsOfTheArchive }
 
   archive.file(SETTINGS_PATH, JSON.stringify(editorSettingsJsonOf(settings), undefined, 2))

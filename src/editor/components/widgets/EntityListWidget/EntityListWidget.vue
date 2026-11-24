@@ -187,23 +187,19 @@ watch(levelStore.map, rebuild, { immediate: true })
     <div class="sections">
       <AccordionRow label="Player" value="spawn" :open="isPlayerOpen" @toggle="isPlayerOpen = !isPlayerOpen">
         <ul class="rows">
-          <li class="row player-row" :class="{ 'is-selected': isPlayerSelected }">
-            <button
-              class="name player"
-              type="button"
-              :aria-pressed="isPlayerSelected"
-              aria-label="Select the player of the level"
-              v-tooltip="'Select the player of the level'"
-              @click="togglePlayerSelection"
-            >
-              player
-            </button>
+          <li
+            class="row player-row"
+            :class="{ 'is-selected': isPlayerSelected }"
+            :data-selected="isPlayerSelected"
+            @click="togglePlayerSelection"
+          >
+            <span class="name">spawn</span>
             <button
               class="jump"
               type="button"
               aria-label="Jump to the player"
               v-tooltip="'Jump to the player'"
-              @click="jumpToPlayer"
+              @click.stop="jumpToPlayer"
             >
               <ScanSearch :size="13" />
             </button>
@@ -289,6 +285,16 @@ watch(levelStore.map, rebuild, { immediate: true })
 
     &:nth-child(even) {
       background-color: rgba($surface-panel, 0.45);
+    }
+
+    // the player of the level is the one row a click picks: it takes the soft accent of a selected row, the same the
+    // group inspector uses (2026-11-24, the owner: no button, just a row that says spawn and jumps with its eye)
+    &.player-row {
+      cursor: pointer;
+
+      &.is-selected {
+        background-color: rgba($accent, 0.15);
+      }
     }
 
     .name {

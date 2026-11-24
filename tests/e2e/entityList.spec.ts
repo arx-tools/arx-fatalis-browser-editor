@@ -40,11 +40,12 @@ test('the entity list shows the entities of the level, and the search filters th
   // the row of the player is the spawn of the level: it is clickable, and it says it is picked (TODO 172)
   const playerRow = list.locator('.player-row')
 
-  await expect(playerRow.locator('.name')).toHaveAttribute('aria-pressed', 'false')
+  await expect(playerRow).toHaveAttribute('data-selected', 'false')
+  await expect(playerRow.locator('.name')).toHaveText('spawn')
   await playerRow.locator('.name').click()
-  await expect(playerRow.locator('.name')).toHaveAttribute('aria-pressed', 'true')
+  await expect(playerRow).toHaveAttribute('data-selected', 'true')
   await playerRow.locator('.name').click()
-  await expect(playerRow.locator('.name')).toHaveAttribute('aria-pressed', 'false')
+  await expect(playerRow).toHaveAttribute('data-selected', 'false')
 
   // the total of the level sits in the heading, on the right
   await expect(list.locator('.total')).toHaveText(/^Total: \d+$/u)

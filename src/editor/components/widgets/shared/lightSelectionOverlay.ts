@@ -31,7 +31,7 @@ const FOCUS_FILL = 'rgba(255, 255, 0, 0.35)'
  *
  * @throws When the browser gives no 2D canvas to draw the ring on.
  */
-function createRingTexture(filled: boolean): CanvasTexture {
+export function createRingTexture(filled: boolean): CanvasTexture {
   const canvas = document.createElement('canvas')
   canvas.width = RING_TEXTURE_SIZE
   canvas.height = RING_TEXTURE_SIZE

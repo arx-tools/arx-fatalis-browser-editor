@@ -1,4 +1,4 @@
-import type { Group, Mesh, PerspectiveCamera, Texture } from 'three'
+import type { Group, Mesh, PerspectiveCamera } from 'three'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { WIREFRAME_WITHOUT_MESH, arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { disposeSpikeEntityModel, loadSpikeEntityModel } from '../../../modules/level/entities/entitySpike.ts'
@@ -15,7 +15,7 @@ import {
   type LightMarkerTextures,
 } from '../shared/lightMarkers.ts'
 import { createLightRadiusSpheres, type LightRadiusSpheres } from '../shared/lightRadiusSpheres.ts'
-import { createEntityMarkers, createEntityMarkerTexture, disposeEntityMarkers } from '../shared/entityMarkers.ts'
+import { createEntityMarkers, disposeEntityMarkers } from '../shared/entityMarkers.ts'
 import { createLightSelectionOverlay, type LightSelectionOverlay } from '../shared/lightSelectionOverlay.ts'
 import { attachNormals, normalsLayers, type NormalsOverlay } from '../shared/normalsOverlay.ts'
 import { attachPortalLines, type PortalOverlay } from '../shared/portalOverlay.ts'
@@ -40,7 +40,6 @@ import type { SelectionDrag } from './useSelectionDrag.ts'
 export type LevelHandles = {
   controls?: CameraControls
   entityMarkers?: Group
-  entityMarkerTexture?: Texture
   lightMarkers?: Group
   lightRadiusSpheres?: LightRadiusSpheres
   lightSelection?: LightSelectionOverlay
@@ -120,8 +119,7 @@ export function attachLevel(map: ArxMap, context: LevelContext): LevelHandles {
 
   // the entities of the DLF: a ring at the place of every interactive object, the color of its folder (2026-11-24, the
   // owner: the entities are pickable like the lights, until the models take the place of the rings)
-  const entityMarkerTexture = createEntityMarkerTexture()
-  const entityMarkers = createEntityMarkers(map.dlf.interactiveObjects, entityMarkerTexture)
+  const entityMarkers = createEntityMarkers(map.dlf.interactiveObjects)
 
   entityMarkers.visible = isEntitiesVisible.value
   view.scene.add(entityMarkers)
@@ -212,7 +210,6 @@ export function attachLevel(map: ArxMap, context: LevelContext): LevelHandles {
 
   return {
     controls,
-    entityMarkerTexture,
     entityMarkers,
     lightMarkers,
     lightRadiusSpheres,
@@ -234,15 +231,7 @@ export function attachLevel(map: ArxMap, context: LevelContext): LevelHandles {
  * @param view The scene the handles were built in.
  */
 function detachLightsAndEntity(handles: LevelHandles, view: ViewScene<PerspectiveCamera> | undefined): void {
-  const {
-    entityMarkers,
-    entityMarkerTexture,
-    lightMarkers,
-    lightTextures,
-    lightSelection,
-    lightRadiusSpheres,
-    spikeEntity,
-  } = handles
+  const { entityMarkers, lightMarkers, lightTextures, lightSelection, lightRadiusSpheres, spikeEntity } = handles
 
   if (lightMarkers !== undefined) {
     view?.scene.remove(lightMarkers)
@@ -273,8 +262,6 @@ function detachLightsAndEntity(handles: LevelHandles, view: ViewScene<Perspectiv
     view?.scene.remove(entityMarkers)
     disposeEntityMarkers(entityMarkers)
   }
-
-  entityMarkerTexture?.dispose()
 
   // the selected entity is an index of the level that went: a new level has a list of its own
   entitySelectionStore.clear()

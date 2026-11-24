@@ -1,6 +1,5 @@
 import {
   AdditiveBlending,
-  CanvasTexture,
   Color,
   Group,
   Raycaster,
@@ -13,6 +12,7 @@ import {
 import type { ArxInteractiveObject } from 'arx-convert/types'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { categoryOf, type EntityCategory } from '../../../modules/level/entities/entityRows.ts'
+import { createRingTexture } from './lightSelectionOverlay.ts'
 
 /**
  * The color a marker draws an entity with, by the folder the game places it from.
@@ -36,49 +36,64 @@ export const ENTITY_MARKER_COLORS: Record<EntityCategory | 'other', string> = {
 export const ENTITY_MARKER_SIZE = 14
 
 /**
- * How much bigger the marker of the entity under the crosshair is.
+ * How much bigger the ring of the mark is than the marker.
  */
-const HOVER_SCALE = 1.35
+const RING_SCALE = 1.35
 
 /**
- * How much bigger the white ring of the selected entity is than its marker.
- *
- * @remarks
- * The ring is the mark the lights use for the light under the crosshair: a white circle over the marker, so it reads
- * around a marker of any color (2026-11-24, the owner: the ring of the lights is the nicer of the two). The selection of
- * an entity is one ring, because a level holds hundreds of markers and only one of them is the picked one.
+ * The name the group and its two rings carry, so a walk of the children finds them.
  */
-const SELECTION_RING_SCALE = 2.2
+const HOVER_RING_NAME = 'entity-hover-ring'
+const FOCUS_RING_NAME = 'entity-focus-ring'
 
 /**
- * Builds the texture of a marker: a ring, so the level stays visible through it.
- *
- * @returns The texture of the markers, which they all share.
+ * What the markers and their two rings draw with: one ring of a marker, and the white and the yellow ring of the marks.
  */
-export function createEntityMarkerTexture(): Texture {
-  const size = 64
-  const canvas = document.createElement('canvas')
-  const context = canvas.getContext('2d')
+export type EntityMarkerTextures = {
+  readonly focus: Texture
+  readonly hover: Texture
+  readonly marker: Texture
+}
 
-  canvas.width = size
-  canvas.height = size
-
-  const center = size / 2
-  const radius = center - 6
-
-  if (context !== null) {
-    context.strokeStyle = '#ffffff'
-    context.lineWidth = 8
-    context.beginPath()
-    context.arc(center, center, radius, 0, Math.PI * 2)
-    context.stroke()
+/**
+ * Builds the three textures the markers share: the ring of a marker, and the white and the yellow ring of the marks.
+ *
+ * @returns The textures of the markers.
+ */
+export function createEntityMarkerTextures(): EntityMarkerTextures {
+  return {
+    focus: createRingTexture(true),
+    hover: createRingTexture(false),
+    marker: createRingTexture(false),
   }
+}
 
-  const texture = new CanvasTexture(canvas)
+/**
+ * Builds the ring of a state: the hover is the white ring, the selection the one filled with the yellow of the selected
+ * faces, the same mark the lights use.
+ *
+ * @param textures The textures of the markers.
+ * @param name The name of the ring in the group.
+ * @param texture Which of the textures it draws with.
+ *
+ * @returns The sprite of the ring.
+ */
+function ringOf(textures: EntityMarkerTextures, name: string, texture: 'focus' | 'hover'): Sprite {
+  const material = new SpriteMaterial({
+    map: textures[texture],
+    transparent: true,
+    depthWrite: false,
+    blending: AdditiveBlending,
+    toneMapped: false,
+  })
+  const sprite = new Sprite(material)
 
-  texture.name = 'entity-marker-ring'
+  sprite.name = name
+  // the ring belongs to the entity display: it stays over the fill of the selected polygons, with the marker
+  sprite.renderOrder = 11
+  sprite.visible = false
 
-  return texture
+  return sprite
 }
 
 /**
@@ -87,42 +102,31 @@ export function createEntityMarkerTexture(): Texture {
  * @remarks
  * The marker is a sprite at the place of the entity, in the local space of the level (the same one the polygons and the
  * spike use), tinted by the folder the entity comes from. The index of the entity in the DLF list travels on the sprite,
- * so the pick of the crosshair reads it back.
+ * so the pick of the crosshair reads it back. Two rings travel with the group: the white one of the entity under the
+ * crosshair and the yellow one of the selected entity, the mark the lights use (2026-11-24, the owner).
  *
  * @param entities The interactive objects of the level, in the order of the DLF.
- * @param texture The texture of the ring, which every marker shares.
+ * @param textures What the markers draw with: the real rings, or a plain texture in a test that has no canvas.
  *
  * @returns The group of the markers.
  */
-export function createEntityMarkers(entities: readonly ArxInteractiveObject[], texture: Texture): Group {
+export function createEntityMarkers(
+  entities: readonly ArxInteractiveObject[],
+  textures: EntityMarkerTextures = createEntityMarkerTextures(),
+): Group {
   const group = new Group()
-  const ring = new Sprite(
-    new SpriteMaterial({
-      map: texture,
-      color: new Color('#ffffff'),
-      transparent: true,
-      depthWrite: false,
-      blending: AdditiveBlending,
-      toneMapped: false,
-    }),
-  )
 
   group.name = 'entity-markers'
-
-  // the ring of the selected entity: one sprite for the whole level, moved under the marker of the pick, over it
-  ring.name = 'entity-selection-ring'
-  ring.renderOrder = 11
-  ring.visible = false
+  group.userData.textures = textures
 
   for (const [index, entity] of entities.entries()) {
     const category = categoryOf(entity.name)
     const color = ENTITY_MARKER_COLORS[category ?? 'other']
     const material = new SpriteMaterial({
-      map: texture,
+      map: textures.marker,
       color: new Color(color),
       transparent: true,
       depthWrite: false,
-      blending: undefined,
       toneMapped: false,
     })
     const sprite = new Sprite(material)
@@ -135,7 +139,7 @@ export function createEntityMarkers(entities: readonly ArxInteractiveObject[], t
     group.add(sprite)
   }
 
-  group.add(ring)
+  group.add(ringOf(textures, HOVER_RING_NAME, 'hover'), ringOf(textures, FOCUS_RING_NAME, 'focus'))
 
   return group
 }
@@ -155,7 +159,7 @@ export function entityMarkerIndexAt(camera: Camera, markers: Group): number | un
 
   const hit = raycaster.intersectObjects(
     markers.children.filter((child) => {
-      return child.visible
+      return child.visible && typeof child.userData.entityIndex === 'number'
     }),
     false,
   )[0]
@@ -169,7 +173,12 @@ export function entityMarkerIndexAt(camera: Camera, markers: Group): number | un
 }
 
 /**
- * Draws the selected entity and the one under the crosshair bigger than the rest.
+ * Draws the white ring of the entity under the crosshair and the yellow one of the selected entity.
+ *
+ * @remarks
+ * The marks are the ones of the lights: the hover is the white ring, the selection the ring filled with the yellow of the
+ * selected faces, and the selected state wins over the hover. The markers themselves keep their own size: the ring is a
+ * mark on the marker, not a bigger marker (2026-11-24, the owner).
  *
  * @param markers The group {@link createEntityMarkers} built.
  * @param selected The index of the selected entity, or `undefined`.
@@ -180,12 +189,25 @@ export function setEntityMarkerHighlight(
   selected: number | undefined,
   hover: number | undefined,
 ): void {
-  const ring = markers.children.find((child) => {
-    return child.name === 'entity-selection-ring'
-  })
+  let hoverRing: Sprite | undefined
+  let focusRing: Sprite | undefined
 
-  if (ring !== undefined) {
-    ring.visible = false
+  for (const child of markers.children) {
+    if (child.name === HOVER_RING_NAME && child instanceof Sprite) {
+      hoverRing = child
+    }
+
+    if (child.name === FOCUS_RING_NAME && child instanceof Sprite) {
+      focusRing = child
+    }
+  }
+
+  if (hoverRing !== undefined) {
+    hoverRing.visible = false
+  }
+
+  if (focusRing !== undefined) {
+    focusRing.visible = false
   }
 
   for (const child of markers.children) {
@@ -195,27 +217,30 @@ export function setEntityMarkerHighlight(
       continue
     }
 
-    // the hover opens the marker a little; the selection is the ring, drawn over it
-    let scale = 1
-
-    if (index === hover) {
-      scale = HOVER_SCALE
+    if (index !== selected && index !== hover) {
+      continue
     }
 
-    child.scale.set(ENTITY_MARKER_SIZE * scale, ENTITY_MARKER_SIZE * scale, 1)
+    let ring = hoverRing
 
-    if (ring !== undefined && index === selected) {
-      const size = ENTITY_MARKER_SIZE * SELECTION_RING_SCALE
-
-      ring.position.copy(child.position)
-      ring.scale.set(size, size, 1)
-      ring.visible = true
+    if (index === selected) {
+      ring = focusRing
     }
+
+    if (ring === undefined) {
+      continue
+    }
+
+    const size = ENTITY_MARKER_SIZE * RING_SCALE
+
+    ring.position.copy(child.position)
+    ring.scale.set(size, size, 1)
+    ring.visible = true
   }
 }
 
 /**
- * Frees the materials of the markers.
+ * Frees the materials of the markers and the textures of the rings.
  *
  * @param group The group {@link createEntityMarkers} built.
  */
@@ -223,6 +248,16 @@ export function disposeEntityMarkers(group: Group): void {
   for (const child of group.children) {
     if (child instanceof Sprite) {
       child.material.dispose()
+    }
+  }
+
+  const { textures } = group.userData
+
+  if (typeof textures === 'object' && textures !== null) {
+    for (const texture of Object.values(textures)) {
+      if (typeof texture === 'object' && texture !== null && 'dispose' in texture) {
+        ;(texture as { dispose: () => void }).dispose()
+      }
     }
   }
 }

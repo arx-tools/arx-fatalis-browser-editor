@@ -483,6 +483,15 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
 
       entitySelectionStore.setHover(entityHover)
 
+      // the green outline of the face under the crosshair goes while an entity is aimed at: the white ring is the mark
+      // of what the click takes, and a face behind it is not it (2026-11-24, the owner)
+      if (entityHover !== undefined) {
+        crosshairStore.set(undefined)
+        paint.setCursor([], dragMode ?? selectionModeOfKeys())
+
+        return
+      }
+
       const index = pickPolygon(scene.camera, meshes(), level.triangleToPolygon)
       const mode = dragMode ?? selectionModeOfKeys()
 

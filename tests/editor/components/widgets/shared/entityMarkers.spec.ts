@@ -4,6 +4,7 @@ import { PerspectiveCamera, Sprite, Texture } from 'three'
 import type { ArxInteractiveObject, ArxVector3 } from 'arx-convert/types'
 import {
   createEntityMarkers,
+  type EntityMarkerTextures,
   entityMarkerIndexAt,
   setEntityMarkerHighlight,
 } from '../../../../../src/editor/components/widgets/shared/entityMarkers.ts'
@@ -27,24 +28,25 @@ function entity(name: string, position: ArxVector3): ArxInteractiveObject {
 }
 
 /**
- * The ring the markers share, without a canvas: the tests of the markers do not need a drawing.
+ * The textures of the markers, without a canvas: the tests read the marks, not the drawing.
  *
- * @returns A texture of the size of a marker.
+ * @returns Three plain textures, one for each use of the markers.
  */
-function textureOf(): Texture {
-  return new Texture()
+function texturesOf(): EntityMarkerTextures {
+  return { focus: new Texture(), hover: new Texture(), marker: new Texture() }
 }
 
 /**
- * The ring of the selection among the children of a group.
+ * Finds the sprite of one of the two rings the group carries.
  *
  * @param group The group of the markers.
+ * @param name The name of the ring, as the group keeps it.
  *
- * @returns The sprite of the ring.
+ * @returns The sprite the name was given to.
  */
-function ringOf(group: ReturnType<typeof createEntityMarkers>): Sprite {
+function ringOf(group: ReturnType<typeof createEntityMarkers>, name: string): Sprite {
   const ring = group.children.find((child) => {
-    return child.name === 'entity-selection-ring'
+    return child.name === name
   })
 
   assert.ok(ring instanceof Sprite)
@@ -53,10 +55,10 @@ function ringOf(group: ReturnType<typeof createEntityMarkers>): Sprite {
 }
 
 void describe('createEntityMarkers', () => {
-  void it('puts a marker at every entity, and one ring for the selection', () => {
+  void it('puts a marker at every entity, and the two rings of the marks', () => {
     const group = createEntityMarkers(
       [entity('items/provisions/pie', { x: 0, y: 0, z: 0 }), entity('npc/human_base', { x: 10, y: 0, z: 0 })],
-      textureOf(),
+      texturesOf(),
     )
 
     const markers = group.children.filter((child) => {
@@ -64,18 +66,19 @@ void describe('createEntityMarkers', () => {
     })
 
     assert.equal(markers.length, 2)
-    assert.equal(group.children.length, 3)
-    assert.equal(ringOf(group).visible, false)
+    assert.equal(group.children.length, 4)
+    assert.equal(ringOf(group, 'entity-hover-ring').visible, false)
+    assert.equal(ringOf(group, 'entity-focus-ring').visible, false)
   })
 })
 
 void describe('setEntityMarkerHighlight', () => {
-  void it('draws the white ring of the selection over the marker of the entity', () => {
+  void it('draws the yellow ring of the selection over the marker of the entity', () => {
     const group = createEntityMarkers(
       [entity('items/provisions/pie', { x: 0, y: 0, z: 0 }), entity('npc/human_base', { x: 10, y: 0, z: 0 })],
-      textureOf(),
+      texturesOf(),
     )
-    const ring = ringOf(group)
+    const focus = ringOf(group, 'entity-focus-ring')
 
     setEntityMarkerHighlight(group, 1, undefined)
 
@@ -83,31 +86,41 @@ void describe('setEntityMarkerHighlight', () => {
       return child.userData.entityIndex === 1
     })
 
-    assert.equal(ring.visible, true)
+    assert.equal(focus.visible, true)
+    assert.equal(ringOf(group, 'entity-hover-ring').visible, false)
     assert.deepEqual(
-      [ring.position.x, ring.position.y, ring.position.z],
+      [focus.position.x, focus.position.y, focus.position.z],
       [selected?.position.x, selected?.position.y, selected?.position.z],
     )
-    // the markers themselves keep their own size: the selection is the ring, not a bigger marker
+    // the markers themselves keep their own size: the mark is the ring, not a bigger marker
     assert.equal(selected?.scale.x, 14)
   })
 
-  void it('hides the ring when nothing is selected, and opens the marker under the crosshair', () => {
-    const group = createEntityMarkers([entity('items/provisions/pie', { x: 0, y: 0, z: 0 })], textureOf())
-
-    setEntityMarkerHighlight(group, 0, undefined)
-    assert.equal(ringOf(group).visible, true)
+  void it('draws the white ring on the hover, and the yellow wins over it', () => {
+    const group = createEntityMarkers([entity('items/provisions/pie', { x: 0, y: 0, z: 0 })], texturesOf())
 
     setEntityMarkerHighlight(group, undefined, 0)
 
-    assert.equal(ringOf(group).visible, false)
-    assert.ok(ringOf(group).scale.x > 0)
+    assert.equal(ringOf(group, 'entity-hover-ring').visible, true)
+    assert.equal(ringOf(group, 'entity-focus-ring').visible, false)
+
+    // a hovered entity that is also selected is the yellow ring, the way the lights read
+    setEntityMarkerHighlight(group, 0, 0)
+
+    assert.equal(ringOf(group, 'entity-hover-ring').visible, false)
+    assert.equal(ringOf(group, 'entity-focus-ring').visible, true)
+
+    // nothing hovered, nothing selected: both rings go
+    setEntityMarkerHighlight(group, undefined, undefined)
+
+    assert.equal(ringOf(group, 'entity-hover-ring').visible, false)
+    assert.equal(ringOf(group, 'entity-focus-ring').visible, false)
   })
 })
 
 void describe('entityMarkerIndexAt', () => {
   void it('reads the entity of the marker under the crosshair', () => {
-    const group = createEntityMarkers([entity('items/provisions/pie', { x: 0, y: 0, z: 0 })], textureOf())
+    const group = createEntityMarkers([entity('items/provisions/pie', { x: 0, y: 0, z: 0 })], texturesOf())
     const camera = new PerspectiveCamera(75, 1, 0.1, 100)
 
     camera.position.set(0, 0, 10)
@@ -119,7 +132,7 @@ void describe('entityMarkerIndexAt', () => {
   })
 
   void it('reads nothing when the crosshair points away from every marker', () => {
-    const group = createEntityMarkers([entity('items/provisions/pie', { x: 0, y: 40, z: 0 })], textureOf())
+    const group = createEntityMarkers([entity('items/provisions/pie', { x: 0, y: 40, z: 0 })], texturesOf())
     const camera = new PerspectiveCamera(75, 1, 0.1, 100)
 
     camera.position.set(0, 0, 10)

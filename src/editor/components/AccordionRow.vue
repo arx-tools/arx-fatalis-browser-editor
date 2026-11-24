@@ -87,6 +87,11 @@ function toggle(): void {
 // together. The stripe is a step darker than the widget, the hover a step lighter, so a striped row still answers the
 // pointer
 .AccordionRow {
+  // the whole row is a control, not a text: the label, the value and the rows under it are clicked, and a shift click
+  // that would select a name instead of picking a row is a lost gesture (2026-11-24, the owner: shift click on the
+  // entity list selected the text). The `none` is inherited, so the content of the fold is covered with the head.
+  user-select: none;
+
   // the stripe is the color of the row, and the hover is an image over it, so a hovered striped row keeps its stripe and
   // only takes the tint (a hover that replaced the color would wipe the stripe out)
   &.is-stripe > .head {

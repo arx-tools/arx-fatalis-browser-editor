@@ -113,8 +113,8 @@ async function zipOfTheHole(): Promise<Buffer> {
   const map = new ArxMap(files.dlf, files.fts, files.llf, new Settings({ seed: '1' }))
   const hole = [cellIndex(map, 500, 300), cellIndex(map, 600, 300), cellIndex(map, 500, 400)]
 
-  map.deletePolygons(hole)
-  map.translatePolygons([cellIndex(map, 600, 400)], FACE_OFFSET)
+  map.polygons.delete(hole)
+  map.polygons.translate([cellIndex(map, 600, 400)], FACE_OFFSET)
 
   const level = 'level1'
   const output = exportLevelFiles(map)

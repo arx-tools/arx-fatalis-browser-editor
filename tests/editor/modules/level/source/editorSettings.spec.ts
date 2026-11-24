@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { createDeleteFacesRecord } from '../../../../../src/editor/modules/history/records.ts'
+import { createDeleteFacesRecord } from '../../../../../src/editor/modules/history/records/faces.ts'
 import {
   editorSettingsJsonOf,
   editorSettingsOfValue,

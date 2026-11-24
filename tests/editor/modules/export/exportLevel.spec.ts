@@ -532,7 +532,7 @@ void describe('exportLevelFiles', () => {
         color: { r: 0, g: 0, b: 255, a: 255 },
       },
     ]
-    map.translatePolygons([0], { x: 300, y: 0, z: 0 })
+    map.polygons.translate([0], { x: 300, y: 0, z: 0 })
 
     const before = lightingProfile.value
     lightingProfile.value = 'Arx'
@@ -587,7 +587,7 @@ void describe('exportLevelFiles', () => {
     })
 
     // the first face of the map goes to a cell the file writes last, under a blue light
-    map.translatePolygons([0], { x: 5000, y: 0, z: 5000 })
+    map.polygons.translate([0], { x: 5000, y: 0, z: 5000 })
     map.llf.lights = [
       {
         ...lightOf(ArxLightFlags.None),
@@ -624,7 +624,7 @@ void describe('exportLevelFiles', () => {
   void it('writes the three packed files of the edited level', () => {
     const map = flatMap()
 
-    map.deletePolygons([0])
+    map.polygons.delete([0])
 
     const files = exportLevelFiles(map)
     const scene = FTS.load(unpackArxFile(files.fts, 'fts'))
@@ -678,7 +678,7 @@ void describe('exportLevelZip', () => {
         color: { r: 0, g: 0, b: 255, a: 255 },
       },
     ]
-    map.translatePolygons([0], { x: 300, y: 0, z: 0 })
+    map.polygons.translate([0], { x: 300, y: 0, z: 0 })
 
     const before = lightingProfile.value
     lightingProfile.value = 'Arx'

@@ -61,7 +61,7 @@ void describe('ArxMap', () => {
 
       assert.equal(geometry.groups.length, 2)
 
-      map.deletePolygons([0])
+      map.polygons.delete([0])
 
       // a group is a range of the index, and `MeshBVH` builds a root per material range: tens of thousands of texture
       // runs would be tens of thousands of roots, and every ray walks all of them (measured on level 11: a pick of
@@ -89,11 +89,11 @@ void describe('ArxMap', () => {
 
       const polygon = map.polygons[0]
 
-      map.deletePolygons([0])
+      map.polygons.delete([0])
 
       assert.equal(map.polygons.length, before - 1)
 
-      map.insertPolygons([{ index: 0, polygon }])
+      map.polygons.insert([{ index: 0, polygon }])
 
       assert.equal(map.polygons.length, before)
       assert.equal(geometry.getAttribute('position').count, vertexCount)
@@ -111,7 +111,7 @@ void describe('ArxMap', () => {
       }
 
       // an edit rebuilds the index (the containers were told apart after the build)
-      map.deletePolygons([polygons.length - 1])
+      map.polygons.delete([polygons.length - 1])
 
       const geometry = map.solidMeshes[0]?.geometry
 
@@ -186,7 +186,7 @@ void describe('ArxMap', () => {
       ;(first as { flags: number }).flags = first.flags | 2
 
       // an edit rebuilds the index and the runs (the flag was set after the build)
-      map.deletePolygons([polygons.length - 1])
+      map.polygons.delete([polygons.length - 1])
 
       const doubleSided = map.textureRuns.filter((run) => {
         return run.doubleSided
@@ -213,7 +213,7 @@ void describe('ArxMap', () => {
       // the torch's flame: the transparent bit and a subtractive transval
       ;(first as { flags: number }).flags = first.flags | 4
       ;(first as { transval: number }).transval = -0.95
-      map.deletePolygons([polygons.length - 1])
+      map.polygons.delete([polygons.length - 1])
 
       const blended = map.textureRuns.filter((run) => {
         return run.blend !== 'opaque'
@@ -235,7 +235,7 @@ void describe('ArxMap', () => {
         ;(polygon as { textureContainerId: number }).textureContainerId = index % 2
       }
 
-      map.deletePolygons([polygons.length - 1])
+      map.polygons.delete([polygons.length - 1])
 
       const mesh = map.solidMeshes[0]
       const { geometry } = mesh
@@ -523,7 +523,7 @@ void describe('translatePolygons', () => {
     const secondSolid = [positions.getX(solidCount), positions.getY(solidCount), positions.getZ(solidCount)]
     const secondWire = [wireframe.getX(wireCount), wireframe.getY(wireCount), wireframe.getZ(wireCount)]
 
-    map.translatePolygons([0], delta)
+    map.polygons.translate([0], delta)
 
     // the model takes the delta, the buffers the mirrored one
     assert.deepEqual(
@@ -582,7 +582,7 @@ void describe('rotatePolygons', () => {
     const expectedNormal = new Vector3(beforeNormal.x, beforeNormal.y, beforeNormal.z).applyQuaternion(turn)
     const beforeSolidNormal = [normals.getX(0), normals.getY(0), normals.getZ(0)]
 
-    map.rotatePolygons([0], pivot, axis, angle)
+    map.polygons.rotate([0], { angle, axis, pivot })
 
     // the corner the turn is around stays, the one beside it turns
     assert.ok(Math.abs(corner.x - pivot.x) < 1e-4)
@@ -621,8 +621,8 @@ void describe('rotatePolygons', () => {
 
     const before = { x: face.vertices[0].x, y: face.vertices[0].y, z: face.vertices[0].z }
 
-    map.rotatePolygons([], { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }, Math.PI)
-    map.rotatePolygons([0], { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }, 0)
+    map.polygons.rotate([], { angle: Math.PI, axis: { x: 0, y: 0, z: 1 }, pivot: { x: 0, y: 0, z: 0 } })
+    map.polygons.rotate([0], { angle: 0, axis: { x: 0, y: 0, z: 1 }, pivot: { x: 0, y: 0, z: 0 } })
 
     assert.deepEqual([face.vertices[0].x, face.vertices[0].y, face.vertices[0].z], [before.x, before.y, before.z])
   })
@@ -646,7 +646,7 @@ void describe('scalePolygons', () => {
     const nextVertex = map.polygons[1]?.vertices[0]
     const beforeNext = { x: nextVertex?.x, y: nextVertex?.y, z: nextVertex?.z }
 
-    map.scalePolygons([0], pivot, { x: 2, y: 2, z: 2 })
+    map.polygons.scale([0], pivot, { x: 2, y: 2, z: 2 })
 
     // the corner of the pivot stays, the one beside it is twice as far from it
     assert.ok(Math.abs(corner.x - pivot.x) < 1e-4)
@@ -679,7 +679,7 @@ void describe('scalePolygons', () => {
     const pivot = { x: corner.x, y: corner.y, z: corner.z }
     const before = { x: face.vertices[1].x, y: face.vertices[1].y, z: face.vertices[1].z }
 
-    map.scalePolygons([0], pivot, { x: 0, y: 0, z: 0 })
+    map.polygons.scale([0], pivot, { x: 0, y: 0, z: 0 })
 
     // five percent of the way to the pivot, and not a line
     const expected = scaledAround(before.x, pivot.x, MIN_SCALE_FACTOR)
@@ -697,8 +697,8 @@ void describe('scalePolygons', () => {
 
     const before = { x: face.vertices[1].x, y: face.vertices[1].y, z: face.vertices[1].z }
 
-    map.scalePolygons([], { x: 0, y: 0, z: 0 }, { x: 2, y: 2, z: 2 })
-    map.scalePolygons([0], { x: 0, y: 0, z: 0 }, { x: 1, y: 1, z: 1 })
+    map.polygons.scale([], { x: 0, y: 0, z: 0 }, { x: 2, y: 2, z: 2 })
+    map.polygons.scale([0], { x: 0, y: 0, z: 0 }, { x: 1, y: 1, z: 1 })
 
     assert.deepEqual([face.vertices[1].x, face.vertices[1].y, face.vertices[1].z], [before.x, before.y, before.z])
   })
@@ -972,7 +972,7 @@ void describe('setHiddenPolygons', () => {
 
     assert.deepEqual([positions.getX(at), positions.getY(at), positions.getZ(at)], before)
 
-    map.translatePolygons([1], delta)
+    map.polygons.translate([1], delta)
 
     // the hidden face kept its place in the buffers: the move of the face 1 lands on its own vertices
     assert.deepEqual(
@@ -987,7 +987,7 @@ void describe('setHiddenPolygons', () => {
 
     map.setHiddenPolygons(new Set([polygonOf(map, 0)]))
 
-    map.deletePolygons([2])
+    map.polygons.delete([2])
 
     assert.equal(map.polygons.length, 120)
     assert.equal(map.visiblePolygons.length, 119)

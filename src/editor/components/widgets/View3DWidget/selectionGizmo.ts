@@ -497,7 +497,7 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
       return
     }
 
-    map.scalePolygons(faces, pivot, step)
+    map.polygons.scale(faces, pivot, step)
     appliedScale = total
     lastPress = performance.now()
     bumpLevelRevision()
@@ -529,7 +529,7 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
     const turn = turnAxisAngleOf(step)
     const axis = arxVector3toVector3(turn.axis)
 
-    map.rotatePolygons(faces, pivot, { x: axis.x, y: axis.y, z: axis.z }, turn.angle)
+    map.polygons.rotate(faces, { angle: turn.angle, axis: { x: axis.x, y: axis.y, z: axis.z }, pivot })
     appliedTurn = total
     lastPress = performance.now()
     bumpLevelRevision()
@@ -566,7 +566,7 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
       return
     }
 
-    map.translatePolygons(faces, step)
+    map.polygons.translate(faces, step)
     applied = snapped
     lastPress = performance.now()
     bumpLevelRevision()
@@ -633,7 +633,7 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
 
     const inverse = { x: 1 / appliedScale.x, y: 1 / appliedScale.y, z: 1 / appliedScale.z }
 
-    map.scalePolygons(faces, pivot, inverse)
+    map.polygons.scale(faces, pivot, inverse)
 
     const command = commandOf(createScaleFacesRecord(faces, pivot, appliedScale), map)
 
@@ -669,7 +669,7 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
     const axis = arxVector3toVector3(turn.axis)
     const levelAxis = { x: axis.x, y: axis.y, z: axis.z }
 
-    map.rotatePolygons(faces, pivot, levelAxis, -turn.angle)
+    map.polygons.rotate(faces, { angle: -turn.angle, axis: levelAxis, pivot })
 
     const command = commandOf(createRotateFacesRecord(faces, pivot, levelAxis, turn.angle), map)
 
@@ -720,7 +720,7 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
     const total = applied
     const back = { x: -total.x, y: -total.y, z: -total.z }
 
-    map.translatePolygons(faces, back)
+    map.polygons.translate(faces, back)
 
     const command = commandOf(createTranslateFacesRecord(faces, total), map)
 

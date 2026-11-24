@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import type { HistoryRecord } from '../../../../../src/editor/modules/history/records.ts'
+import type { HistoryRecord } from '../../../../../src/editor/modules/history/records/types.ts'
 import type { StorageLike } from '../../../../../src/editor/modules/persistedRef/storage.ts'
 import {
   availableMapIdOf,

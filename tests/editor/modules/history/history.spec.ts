@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { createHistory, HISTORY_DEPTH, type HistoryCommand } from '../../../../src/editor/modules/history/history.ts'
-import { createDeleteFacesRecord } from '../../../../src/editor/modules/history/records.ts'
+import { createDeleteFacesRecord } from '../../../../src/editor/modules/history/records/faces.ts'
 
 /**
  * A step of the test that marks what happened, so the order and the halves can be checked.

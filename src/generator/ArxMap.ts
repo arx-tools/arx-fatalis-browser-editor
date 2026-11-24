@@ -2,16 +2,9 @@ import { DLF, FTS, LLF } from 'arx-convert'
 import type { ArxColor, ArxDLF, ArxFTS, ArxLight, ArxLLF, ArxPolygon, ArxPortal, ArxVector3 } from 'arx-convert/types'
 import { BufferAttribute, BufferGeometry, Mesh } from 'three'
 import { isQuad } from 'arx-convert/utils'
-import {
-  type GeometrySlice,
-  type PolygonInsertion,
-  pushSlice,
-  refillFromGeometry,
-  refillGeometry,
-  slicesOf,
-} from './arxMap/removal.ts'
+import { refillFromGeometry, refillGeometry } from './arxMap/removal.ts'
 import { type TextureRun, indexSolidGeometryInTextureOrder, readTextureRuns } from './arxMap/textureRuns.ts'
-import { rotatePolygonsOf, scalePolygonsOf, translatePolygonsOf } from './arxMap/transforms.ts'
+import { Polygons, type PolygonChange } from './arxMap/polygons.ts'
 import { type FaceUv, writeFaceUvs } from './arxMap/uvs.ts'
 import { unpackArxFile } from './files.ts'
 import { fingerprintOf } from './fingerprint.ts'
@@ -154,9 +147,10 @@ export class ArxMap {
    *
    * @remarks
    * The index of a polygon here is the one a raycast can report through {@link triangleToPolygon}. The selection and
-   * the phantom cursor read the vertices from this list.
+   * the phantom cursor read the vertices from this list. The list is a {@link Polygons}: what takes faces out, puts them
+   * back or moves them is a method of it (`map.polygons.remove(faces)`).
    */
-  polygons: readonly ArxPolygon[]
+  readonly polygons: Polygons
 
   /**
    * The polygons the mesh draws, in the order of its triangles.
@@ -391,8 +385,9 @@ export class ArxMap {
 
     this.solidMeshes = [solidMesh]
     this.meshes = [solidMesh]
-    this.polygons = polygons
-    this.visiblePolygons = polygons
+    this.polygons = new Polygons(this)
+    this.polygons.push(...polygons)
+    this.visiblePolygons = this.polygons
     this.wireframeGeometry = new BufferGeometry()
     this.triangleToPolygon = triangleToPolygonMap(polygons)
 
@@ -697,59 +692,6 @@ export class ArxMap {
   }
 
   /**
-   * Moves the corners of faces.
-   *
-   * @remarks
-   * The walk lives in {@link translatePolygonsOf}: the vertices of the polygons are the model every reader uses, and
-   * the positions of the two buffers follow in place (a drag runs this on every frame), with the tree of the picking
-   * refitted and the index of the welded vertices dropped.
-   *
-   * @param faces The faces to move, by their index in {@link polygons}.
-   * @param delta The offset, in the coordinates of the level.
-   */
-  translatePolygons(faces: readonly number[], delta: ArxVector3): void {
-    if (translatePolygonsOf(this, faces, delta)) {
-      this.vertexPolygons = undefined
-    }
-  }
-
-  /**
-   * Turns the corners of faces around a point.
-   *
-   * @remarks
-   * The walk lives in {@link rotatePolygonsOf}: the normals turn with the corners, the turn of the model is in the
-   * coordinates of the level and the buffers are the mirrored scene.
-   *
-   * @param faces The faces to turn, by their index in {@link polygons}.
-   * @param pivot The point they turn around, in the coordinates of the level.
-   * @param axis The axis of the turn, in the coordinates of the level: it does not have to be a unit vector.
-   * @param angle The angle of the turn, in radians.
-   */
-  rotatePolygons(faces: readonly number[], pivot: ArxVector3, axis: ArxVector3, angle: number): void {
-    if (rotatePolygonsOf(this, faces, { angle, axis, pivot })) {
-      this.vertexPolygons = undefined
-    }
-  }
-
-  /**
-   * Scales the corners of faces from a point.
-   *
-   * @remarks
-   * The walk lives in {@link scalePolygonsOf}: the corners of the polygons are the model, and the positions and the
-   * normals of the meshes follow in place, with the tree of the picking refitted and the index of the welded vertices
-   * dropped.
-   *
-   * @param faces The faces to scale, by their index in {@link polygons}.
-   * @param pivot The point they scale from, in the coordinates of the level.
-   * @param scale The factors of the three axes.
-   */
-  scalePolygons(faces: readonly number[], pivot: ArxVector3, scale: ArxVector3): void {
-    if (scalePolygonsOf(this, faces, pivot, scale)) {
-      this.vertexPolygons = undefined
-    }
-  }
-
-  /**
    * Counts the faces of the mesh again.
    *
    * @remarks
@@ -775,252 +717,46 @@ export class ArxMap {
   }
 
   /**
-   * Takes polygons out of the level, by their place in the list.
-   *
-   * @param indices The polygons to take out.
-   */
-  deletePolygons(indices: Iterable<number>): void {
-    const polygons: ArxPolygon[] = []
-
-    for (const index of indices) {
-      const polygon = this.polygons[index]
-
-      if (polygon !== undefined) {
-        polygons.push(polygon)
-      }
-    }
-
-    this.removePolygons(polygons)
-  }
-
-  /**
-   * Takes polygons out of the level, by identity.
+   * Writes the fields of the level that come from the polygon list, after a change of it.
    *
    * @remarks
-   * The polygons leave for good, and every derived field follows: the polygon list, the triangle map, the
-   * wireframe, the geometry of the two meshes and the statistics.
+   * The list itself is the caller's (see {@link Polygons}): it takes the faces out, puts them back, and hands the
+   * geometry slices and the change of the statistics in. The map is the one that owns the meshes, the tree and the
+   * index of the welded vertices, so it is the one that writes them.
    *
-   * **The geometry is cut, not rebuilt.** The vertices of the removed polygons are copied out of the buffers of
-   * the meshes (`keptRuns` + `copyVertexSegments`), which is a memcpy of the kept slices: a rebuild would walk every
-   * polygon, transform its vertices and build new typed arrays, and on the big level (69 817 polygons, 364 899
-   * triangle indices) that is about 260 ms against a few milliseconds for the cut (measured:
-   * `experiments/browser-editor-delete-cost/`). The **mesh objects stay the same**: a view puts its meshes into its
-   * scene once, so the geometry under it is refilled in place.
+   * @param change The slices of the two geometries and the change of the figures.
    *
-   * What the cut does not save is the BVH: it groups the triangles, so a shorter triangle list needs a new tree
-   * (`accelerateRaycast` on the meshes that lost a polygon). That is the remaining cost of a delete. The vertex
-   * index ({@link vertexToPolygons}) is dropped rather than rebuilt, so the first drag or double click after an
-   * edit builds it again.
-   *
-   * The indices are the ones of {@link polygons}, and a removal moves them: {@link insertPolygons} is the inverse,
-   * and it puts the polygons back at the places they were taken from.
-   *
-   * @param polygons The polygons to take out, as they are in {@link polygons}.
+   * @internal
    */
-  removePolygons(polygons: readonly ArxPolygon[]): void {
-    const removed = new Set(polygons)
-
-    if (removed.size === 0) {
-      return
-    }
-
-    const solid: ArxPolygon[] = []
-    const solidCounts: number[] = []
-    const solidKept: boolean[] = []
-    const wireframeCounts: number[] = []
-    const wireframeKept: boolean[] = []
-    let { faceCount, quadCount, triangleCount } = this.figures
-
-    // one walk over the polygons: how many vertices a polygon owns in the geometry (3 for a triangle, 6 for a quad)
-    // and in the wireframe (two per edge of the perimeter)
-    for (const polygon of this.polygons) {
-      const gone = removed.has(polygon)
-      const quad = isQuad(polygon)
-      let vertices = 3
-      let edges = 6
-
-      if (quad) {
-        vertices = 6
-        edges = 8
-      }
-
-      solidCounts.push(vertices)
-      solidKept.push(!gone)
-
-      if (!gone) {
-        solid.push(polygon)
-      }
-
-      wireframeCounts.push(edges)
-      wireframeKept.push(!gone)
-
-      if (gone) {
-        faceCount = faceCount - 1
-
-        if (quad) {
-          quadCount = quadCount - 1
-        } else {
-          triangleCount = triangleCount - 1
-        }
-      }
-    }
-
-    if (solid.length === this.polygons.length) {
-      return
-    }
-
-    this.polygons = solid
-    this.visiblePolygons = solid.filter((polygon) => {
+  applyPolygonChange(change: PolygonChange): void {
+    this.visiblePolygons = this.polygons.filter((polygon) => {
       return !this.hiddenPolygons.has(polygon)
     })
     this.triangleToPolygon = triangleToPolygonMap(this.polygons)
     this.vertexPolygons = undefined
-    this.figures = { ...this.figures, faceCount, triangleCount, quadCount }
+    this.figures = {
+      ...this.figures,
+      faceCount: this.figures.faceCount + change.faces,
+      quadCount: this.figures.quadCount + change.quads,
+      triangleCount: this.figures.triangleCount + change.triangles,
+    }
 
-    refillGeometry(this.wireframeGeometry, slicesOf(this.wireframeGeometry, wireframeCounts, wireframeKept))
+    refillGeometry(this.wireframeGeometry, change.wireframe)
 
-    if (solid.length !== solidCounts.length) {
-      refillGeometry(this.solidMeshes[0].geometry, slicesOf(this.solidMeshes[0].geometry, solidCounts, solidKept))
+    if (change.solid !== undefined) {
+      refillGeometry(this.solidMeshes[0].geometry, change.solid)
       // the index and the tree are the triangles again, and the faces a group hides stay out of them
       this.writeView()
     }
   }
 
   /**
-   * Puts polygons back, at the places they were taken from.
+   * Drops the index of the welded vertices: the next drag or double click builds it again.
    *
-   * @remarks
-   * It is the inverse of {@link removePolygons}: the records say which polygon goes back at which index of the list,
-   * so the order of the level is the one it had. The geometry is **spliced** the same way the cut works — the kept
-   * vertices come from the live buffers, the restored polygons from a small geometry built for them (they are the
-   * only ones rebuilt, so an undo of a few faces is cheap), and the two are interleaved in the order of the list.
-   *
-   * The vertices of the restored polygons keep their place divided by three, so the pick and the triangle map stay
-   * right; the BVHs of the meshes that got a polygon are built again, because a longer triangle list needs a new
-   * tree.
-   *
-   * @param insertions The polygons and the indices they go back to.
-   *
-   * @throws When the records do not fit the level (an index past the end of the list): the history of one level is
-   * not the history of another, so it is cleared on a load and this should not happen.
+   * @internal
    */
-  insertPolygons(insertions: readonly PolygonInsertion[]): void {
-    if (insertions.length === 0) {
-      return
-    }
-
-    const byIndex = new Map<number, ArxPolygon>()
-
-    for (const insertion of insertions) {
-      byIndex.set(insertion.index, insertion.polygon)
-    }
-
-    const next: ArxPolygon[] = []
-    let from = 0
-
-    for (let index = 0; index < this.polygons.length + insertions.length; index = index + 1) {
-      const inserted = byIndex.get(index)
-
-      if (inserted !== undefined) {
-        next.push(inserted)
-
-        continue
-      }
-
-      const kept = this.polygons[from]
-
-      if (kept === undefined) {
-        throw new Error('the insertion does not fit the level')
-      }
-
-      next.push(kept)
-      from = from + 1
-    }
-
-    const restored = new Set(
-      insertions.map((insertion) => {
-        return insertion.polygon
-      }),
-    )
-    const offset = arxVector3toVector3(this.fts.header.mScenePosition)
-    const restoredSolid = next.filter((polygon) => {
-      return restored.has(polygon)
-    })
-    const solidBuilt = arxPolygonsToGeometry(restoredSolid, offset)
-    const wireframeBuilt = arxPolygonsToWireframeGeometry(
-      next.filter((polygon) => {
-        return restored.has(polygon)
-      }),
-      offset,
-      (polygon) => {
-        return this.wireframeColorOf(polygon)
-      },
-    )
-
-    const solidSlices: GeometrySlice[] = []
-    const wireframeSlices: GeometrySlice[] = []
-    let solidLive = 0
-    let wireframeLive = 0
-    let solidRestored = 0
-    let wireframeRestored = 0
-    let faces = 0
-    let quads = 0
-    let triangles = 0
-
-    for (const polygon of next) {
-      const quad = isQuad(polygon)
-      let vertices = 3
-      let edges = 6
-
-      if (quad) {
-        vertices = 6
-        edges = 8
-      }
-
-      if (restored.has(polygon)) {
-        pushSlice(solidSlices, solidBuilt, solidRestored, vertices)
-        solidRestored = solidRestored + vertices
-      } else {
-        pushSlice(solidSlices, this.solidMeshes[0].geometry, solidLive, vertices)
-        solidLive = solidLive + vertices
-      }
-
-      if (restored.has(polygon)) {
-        pushSlice(wireframeSlices, wireframeBuilt, wireframeRestored, edges)
-        wireframeRestored = wireframeRestored + edges
-        faces = faces + 1
-
-        if (quad) {
-          quads = quads + 1
-        } else {
-          triangles = triangles + 1
-        }
-      } else {
-        pushSlice(wireframeSlices, this.wireframeGeometry, wireframeLive, edges)
-        wireframeLive = wireframeLive + edges
-      }
-    }
-
-    this.polygons = next
-    this.visiblePolygons = next.filter((polygon) => {
-      return !this.hiddenPolygons.has(polygon)
-    })
-    this.triangleToPolygon = triangleToPolygonMap(next)
+  invalidateVertexIndex(): void {
     this.vertexPolygons = undefined
-    this.figures = {
-      ...this.figures,
-      faceCount: this.figures.faceCount + faces,
-      quadCount: this.figures.quadCount + quads,
-      triangleCount: this.figures.triangleCount + triangles,
-    }
-
-    refillGeometry(this.wireframeGeometry, wireframeSlices)
-
-    if (restoredSolid.length > 0) {
-      refillGeometry(this.solidMeshes[0].geometry, solidSlices)
-      // the index and the tree are the triangles again, and the faces a group hides stay out of them
-      this.writeView()
-    }
   }
 
   /**
@@ -1130,7 +866,7 @@ export class ArxMap {
   private rebuild(polygons: readonly ArxPolygon[]): void {
     const offset = arxVector3toVector3(this.fts.header.mScenePosition)
 
-    this.polygons = polygons
+    this.polygons.splice(0, this.polygons.length, ...polygons)
     this.visiblePolygons = polygons.filter((polygon) => {
       return !this.hiddenPolygons.has(polygon)
     })

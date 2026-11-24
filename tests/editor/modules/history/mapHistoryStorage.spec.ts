@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { createDeleteFacesRecord } from '../../../../src/editor/modules/history/records.ts'
+import { createDeleteFacesRecord } from '../../../../src/editor/modules/history/records/faces.ts'
 import {
   dropStoredHistory,
   readStoredHistory,
@@ -106,7 +106,9 @@ void describe('mapHistoryStorage', () => {
     writeStoredHistory('arx:8', { fingerprint: 'aaaa:1', records: [recordOf(1)], position: 1 }, storage)
     writeStoredHistory('arx:2', { fingerprint: 'bbbb:1', records: [recordOf(2)], position: 1 }, storage)
 
-    assert.equal(readStoredHistory('arx:8', storage)?.records[0].kind, 'deleteFaces')
+    const read = readStoredHistory('arx:8', storage)
+
+    assert.equal(read?.records[0]?.kind, 'deleteFaces')
     assert.equal(storage.values.has('mapHistory:arx:8'), true)
     assert.equal(storage.values.has('mapHistory:arx:2'), true)
   })

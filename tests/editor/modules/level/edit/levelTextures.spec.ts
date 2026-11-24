@@ -208,7 +208,7 @@ void describe('the paint of a level', () => {
 
     ;(polygon as { flags: number }).flags = polygon.flags | 2
 
-    map.deletePolygons([map.polygons.length - 1])
+    map.polygons.delete([map.polygons.length - 1])
     paintLevelTextures(map, textures)
 
     const materials = map.solidMeshes[0]?.material

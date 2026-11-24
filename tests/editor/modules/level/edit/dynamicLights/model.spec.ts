@@ -6,16 +6,20 @@ import { createBlankLevelFiles, MINIMAL_PRESET } from '../../../../../../src/edi
 import {
   applyDynamicLightModel,
   blackenDynamicLightModel,
-  changedWeightLightsOf,
-  createDynamicLightModel,
   flickerColorOf,
+} from '../../../../../../src/editor/modules/level/edit/dynamicLights/model/apply.ts'
+import {
+  createDynamicLightModel,
   isBurningLight,
+} from '../../../../../../src/editor/modules/level/edit/dynamicLights/model/build.ts'
+import { setDynamicLightWeightsLive } from '../../../../../../src/editor/modules/level/edit/dynamicLights/model/live.ts'
+import {
+  changedWeightLightsOf,
   isDynamicLightModelStale,
   refreshDynamicLightBaseColors,
   refreshDynamicLightLights,
-  setDynamicLightWeightsLive,
-  type DynamicLightModel,
-} from '../../../../../../src/editor/modules/level/edit/dynamicLights/model.ts'
+} from '../../../../../../src/editor/modules/level/edit/dynamicLights/model/refresh.ts'
+import type { DynamicLightModel } from '../../../../../../src/editor/modules/level/edit/dynamicLights/model/types.ts'
 import { writeBakedColors } from '../../../../../../src/editor/modules/level/edit/levelTextures/bakedColors.ts'
 import { setFlatLight } from '../../../../../../src/editor/modules/level/edit/lightingFlat.ts'
 import { ArxMap } from '../../../../../../src/generator/ArxMap.ts'

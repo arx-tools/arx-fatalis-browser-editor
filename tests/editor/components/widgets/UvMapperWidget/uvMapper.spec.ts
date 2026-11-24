@@ -2,31 +2,35 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { ArxPolygonFlags, type ArxPolygon } from 'arx-convert/types'
 import {
+  MAX_ZOOM,
+  MIN_ZOOM,
   clampUv,
   containsFacePoint,
   cornerNameOf,
-  maximizedUvs,
-  mismatchMessageOf,
-  MAX_ZOOM,
-  MIN_ZOOM,
   movedCorner,
   movedUvs,
   numberOfText,
   pannedBy,
   perimeterOf,
-  quarteredUvs,
-  quarterOfUvs,
   sameUvs,
   screenOfUv,
   snappedPoint,
-  turnedUvs,
-  uvSelectionOf,
-  uvsOf,
   uvOfScreen,
+  uvsOf,
   viewOf,
   zoomAfter,
-  type StagePoint,
-} from '../../../../../src/editor/components/widgets/UvMapperWidget/uvMapper.ts'
+} from '../../../../../src/editor/components/widgets/UvMapperWidget/uvMapper/geometry.ts'
+import {
+  mismatchMessageOf,
+  uvSelectionOf,
+} from '../../../../../src/editor/components/widgets/UvMapperWidget/uvMapper/selection.ts'
+import {
+  maximizedUvs,
+  quarterOfUvs,
+  quarteredUvs,
+  turnedUvs,
+} from '../../../../../src/editor/components/widgets/UvMapperWidget/uvMapper/turn.ts'
+import type { StagePoint } from '../../../../../src/editor/components/widgets/UvMapperWidget/uvMapper/types.ts'
 
 /**
  * A face of the test, with the uv of its corners.

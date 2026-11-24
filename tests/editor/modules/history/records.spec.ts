@@ -12,25 +12,28 @@ import { Quaternion, Vector3 } from 'three'
 import { isQuad } from 'arx-convert/utils'
 import type { FaceRoom, FaceTexture } from '../../../../src/generator/ArxMap.ts'
 import type { PolygonInsertion } from '../../../../src/generator/arxMap/removal.ts'
+import type { PolygonTurn } from '../../../../src/generator/arxMap/transforms.ts'
 import type { FaceUv } from '../../../../src/generator/arxMap/uvs.ts'
 import { commandOf } from '../../../../src/editor/modules/history/commands.ts'
 import { roomNameOf, setRoomNamesOf } from '../../../../src/editor/modules/rooms/roomNames.ts'
 import {
-  createBuildTunnelRecord,
   createDeleteFacesRecord,
-  createDeleteRoomsRecord,
   createPasteFacesRecord,
-  createSetTextureRecord,
-  createSetUvRecord,
   createRotateFacesRecord,
   createScaleFacesRecord,
-  createSetLightRecord,
   createTranslateFacesRecord,
+} from '../../../../src/editor/modules/history/records/faces.ts'
+import { labelOf } from '../../../../src/editor/modules/history/records/label.ts'
+import {
+  type MutablePolygons,
   HISTORY_RECORD_VERSION,
-  labelOf,
   type MutableLevel,
   type SetLightEdit,
-} from '../../../../src/editor/modules/history/records.ts'
+} from '../../../../src/editor/modules/history/records/types.ts'
+import { createSetLightRecord } from '../../../../src/editor/modules/history/records/lights.ts'
+import { createDeleteRoomsRecord } from '../../../../src/editor/modules/history/records/rooms.ts'
+import { createSetTextureRecord, createSetUvRecord } from '../../../../src/editor/modules/history/records/textures.ts'
+import { createBuildTunnelRecord } from '../../../../src/editor/modules/history/records/tunnel.ts'
 
 /**
  * A triangle of the test, with everything a polygon has: four vertices (the file holds four, the flag says how many
@@ -78,13 +81,119 @@ function fakeLevel(count: number): {
   portals: ArxPortal[]
   lights: ArxLight[]
 } {
+  // the list of the level: an array of polygons with the operations a step calls (the map owns the real one)
   const polygons = Array.from({ length: count }, (_, index) => {
     return triangle(index)
-  })
+  }) as ArxPolygon[] & MutablePolygons
   const containers = new Map<number, string>([[1, '[stone]_wall1.bmp']])
   const lighting: ArxColor[] = [{ r: 1, g: 2, b: 3, a: 1 }]
   const portals: ArxPortal[] = []
   const lights: ArxLight[] = []
+
+  Object.assign(polygons, {
+    remove: (removed: readonly ArxPolygon[]): void => {
+      const gone = new Set(removed)
+      const kept = polygons.filter((polygon) => {
+        return !gone.has(polygon)
+      })
+
+      polygons.splice(0, polygons.length, ...kept)
+    },
+    insert: (insertions: readonly PolygonInsertion[]): void => {
+      for (const insertion of insertions) {
+        polygons.splice(insertion.index, 0, insertion.polygon)
+      }
+    },
+    translate: (faces: readonly number[], delta: ArxVector3): void => {
+      for (const index of faces) {
+        const polygon = polygons[index]
+
+        if (polygon === undefined) {
+          continue
+        }
+
+        let corners = 3
+
+        if (isQuad(polygon)) {
+          corners = 4
+        }
+
+        for (let corner = 0; corner < corners; corner++) {
+          const vertex = polygon.vertices[corner]
+
+          if (vertex !== undefined) {
+            vertex.x = vertex.x + delta.x
+            vertex.y = vertex.y + delta.y
+            vertex.z = vertex.z + delta.z
+          }
+        }
+      }
+    },
+    rotate: (faces: readonly number[], turnOfList: PolygonTurn): void => {
+      const { angle, axis, pivot } = turnOfList
+      const turn = new Quaternion().setFromAxisAngle(new Vector3(axis.x, axis.y, axis.z).normalize(), angle)
+      const center = new Vector3(pivot.x, pivot.y, pivot.z)
+      const point = new Vector3()
+
+      for (const index of faces) {
+        const polygon = polygons[index]
+
+        if (polygon === undefined) {
+          continue
+        }
+
+        let corners = 3
+
+        if (isQuad(polygon)) {
+          corners = 4
+        }
+
+        for (let corner = 0; corner < corners; corner++) {
+          const vertex = polygon.vertices[corner]
+
+          if (vertex === undefined) {
+            continue
+          }
+
+          point.set(vertex.x, vertex.y, vertex.z).sub(center).applyQuaternion(turn).add(center)
+          vertex.x = point.x
+          vertex.y = point.y
+          vertex.z = point.z
+        }
+      }
+    },
+    scale: (faces: readonly number[], pivot: ArxVector3, scale: ArxVector3): void => {
+      for (const index of faces) {
+        const polygon = polygons[index]
+
+        if (polygon === undefined) {
+          continue
+        }
+
+        let corners = 3
+
+        if (isQuad(polygon)) {
+          corners = 4
+        }
+
+        for (let corner = 0; corner < corners; corner++) {
+          const vertex = polygon.vertices[corner]
+
+          if (vertex === undefined) {
+            continue
+          }
+
+          const offsetX = (vertex.x - pivot.x) * scale.x
+          const offsetY = (vertex.y - pivot.y) * scale.y
+          const offsetZ = (vertex.z - pivot.z) * scale.z
+
+          vertex.x = pivot.x + offsetX
+          vertex.y = pivot.y + offsetY
+          vertex.z = pivot.z + offsetZ
+        }
+      }
+    },
+  })
 
   return {
     polygons,
@@ -98,107 +207,6 @@ function fakeLevel(count: number): {
       portals,
       setPortals: (next: readonly ArxPortal[]): void => {
         portals.splice(0, portals.length, ...next)
-      },
-      removePolygons: (removed: readonly ArxPolygon[]): void => {
-        const gone = new Set(removed)
-        const kept = polygons.filter((polygon) => {
-          return !gone.has(polygon)
-        })
-
-        polygons.splice(0, polygons.length, ...kept)
-      },
-      insertPolygons: (insertions: readonly PolygonInsertion[]): void => {
-        for (const insertion of insertions) {
-          polygons.splice(insertion.index, 0, insertion.polygon)
-        }
-      },
-      translatePolygons: (faces: readonly number[], delta: ArxVector3): void => {
-        for (const index of faces) {
-          const polygon = polygons[index]
-
-          if (polygon === undefined) {
-            continue
-          }
-
-          let corners = 3
-
-          if (isQuad(polygon)) {
-            corners = 4
-          }
-
-          for (let corner = 0; corner < corners; corner++) {
-            const vertex = polygon.vertices[corner]
-
-            if (vertex !== undefined) {
-              vertex.x = vertex.x + delta.x
-              vertex.y = vertex.y + delta.y
-              vertex.z = vertex.z + delta.z
-            }
-          }
-        }
-      },
-      rotatePolygons: (faces: readonly number[], pivot: ArxVector3, axis: ArxVector3, angle: number): void => {
-        const turn = new Quaternion().setFromAxisAngle(new Vector3(axis.x, axis.y, axis.z).normalize(), angle)
-        const center = new Vector3(pivot.x, pivot.y, pivot.z)
-        const point = new Vector3()
-
-        for (const index of faces) {
-          const polygon = polygons[index]
-
-          if (polygon === undefined) {
-            continue
-          }
-
-          let corners = 3
-
-          if (isQuad(polygon)) {
-            corners = 4
-          }
-
-          for (let corner = 0; corner < corners; corner++) {
-            const vertex = polygon.vertices[corner]
-
-            if (vertex === undefined) {
-              continue
-            }
-
-            point.set(vertex.x, vertex.y, vertex.z).sub(center).applyQuaternion(turn).add(center)
-            vertex.x = point.x
-            vertex.y = point.y
-            vertex.z = point.z
-          }
-        }
-      },
-      scalePolygons: (faces: readonly number[], pivot: ArxVector3, scale: ArxVector3): void => {
-        for (const index of faces) {
-          const polygon = polygons[index]
-
-          if (polygon === undefined) {
-            continue
-          }
-
-          let corners = 3
-
-          if (isQuad(polygon)) {
-            corners = 4
-          }
-
-          for (let corner = 0; corner < corners; corner++) {
-            const vertex = polygon.vertices[corner]
-
-            if (vertex === undefined) {
-              continue
-            }
-
-            const offsetX = (vertex.x - pivot.x) * scale.x
-            const offsetY = (vertex.y - pivot.y) * scale.y
-            const offsetZ = (vertex.z - pivot.z) * scale.z
-
-            vertex.x = pivot.x + offsetX
-            vertex.y = pivot.y + offsetY
-            vertex.z = pivot.z + offsetZ
-          }
-        }
       },
       setFaceTextures: (changes: readonly FaceTexture[]): void => {
         for (const change of changes) {

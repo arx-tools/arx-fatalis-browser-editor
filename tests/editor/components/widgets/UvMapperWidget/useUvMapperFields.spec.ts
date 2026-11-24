@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { nextTick, shallowRef, type ShallowRef } from 'vue'
 import type { ArxMap } from '../../../../../src/generator/ArxMap.ts'
-import type { ShownFace, UvPoint } from '../../../../../src/editor/components/widgets/UvMapperWidget/uvMapper.ts'
+import type { ShownFace, UvPoint } from '../../../../../src/editor/components/widgets/UvMapperWidget/uvMapper/types.ts'
 import { useUvMapperFields } from '../../../../../src/editor/components/widgets/UvMapperWidget/useUvMapperFields.ts'
 
 /**

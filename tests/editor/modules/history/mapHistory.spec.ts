@@ -5,7 +5,7 @@ import {
   mapHistoryRecords,
   rememberMapHistory,
 } from '../../../../src/editor/modules/history/mapHistory.ts'
-import type { HistoryRecord } from '../../../../src/editor/modules/history/records.ts'
+import type { HistoryRecord } from '../../../../src/editor/modules/history/records/types.ts'
 
 /**
  * A step of the test: a delete of the first faces.

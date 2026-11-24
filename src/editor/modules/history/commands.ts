@@ -43,7 +43,7 @@ function addPolygonsAtTheEndOf(level: MutableLevel, polygons: readonly ArxPolygo
     return { index: level.polygons.length + position, polygon }
   })
 
-  level.insertPolygons(insertions)
+  level.polygons.insert(insertions)
 }
 
 /**
@@ -89,12 +89,12 @@ function buildTunnelCommandOf(record: BuildTunnelRecord, level: MutableLevel): H
         level.addLightingColors(record.lighting)
       }
 
-      level.removePolygons(removed)
+      level.polygons.remove(removed)
       addPolygonsAtTheEndOf(level, record.added)
       level.setPortals([...portalsBefore, ...record.portals])
     },
     revert: (): void => {
-      level.removePolygons(record.added)
+      level.polygons.remove(record.added)
 
       const insertions: PolygonInsertion[] = []
 
@@ -106,7 +106,7 @@ function buildTunnelCommandOf(record: BuildTunnelRecord, level: MutableLevel): H
         }
       }
 
-      level.insertPolygons(insertions)
+      level.polygons.insert(insertions)
       level.setPortals(portalsBefore)
 
       if (record.lighting.length > 0) {
@@ -367,10 +367,10 @@ function translateFacesCommandOf(record: TranslateFacesRecord, level: MutableLev
     label: labelOf(record),
     record,
     apply: (): void => {
-      level.translatePolygons(record.faces, delta)
+      level.polygons.translate(record.faces, delta)
     },
     revert: (): void => {
-      level.translatePolygons(record.faces, opposite)
+      level.polygons.translate(record.faces, opposite)
     },
   }
 }
@@ -401,10 +401,10 @@ function rotateFacesCommandOf(record: RotateFacesRecord, level: MutableLevel): H
     label: labelOf(record),
     record,
     apply: (): void => {
-      level.rotatePolygons(record.faces, pivot, axis, record.angle)
+      level.polygons.rotate(record.faces, { angle: record.angle, axis, pivot })
     },
     revert: (): void => {
-      level.rotatePolygons(record.faces, pivot, axis, -record.angle)
+      level.polygons.rotate(record.faces, { angle: -record.angle, axis, pivot })
     },
   }
 }
@@ -437,10 +437,10 @@ function scaleFacesCommandOf(record: ScaleFacesRecord, level: MutableLevel): His
     label: labelOf(record),
     record,
     apply: (): void => {
-      level.scalePolygons(record.faces, pivot, scale)
+      level.polygons.scale(record.faces, pivot, scale)
     },
     revert: (): void => {
-      level.scalePolygons(record.faces, pivot, inverse)
+      level.polygons.scale(record.faces, pivot, inverse)
     },
   }
 }
@@ -559,7 +559,7 @@ function pasteFacesCommandOf(record: PasteFacesRecord, level: MutableLevel): His
       addPolygonsAtTheEndOf(level, inserted)
     },
     revert: (): void => {
-      level.removePolygons(inserted)
+      level.polygons.remove(inserted)
       level.removeLightingColors(appended)
     },
   }
@@ -632,14 +632,14 @@ export function commandOf(record: HistoryRecord, level: MutableLevel): HistoryCo
     label: labelOf(record),
     record,
     apply: (): void => {
-      level.removePolygons(
+      level.polygons.remove(
         insertions.map((insertion) => {
           return insertion.polygon
         }),
       )
     },
     revert: (): void => {
-      level.insertPolygons(insertions)
+      level.polygons.insert(insertions)
     },
   }
 }

@@ -1,7 +1,8 @@
 import type { ArxColor, ArxLight, ArxPolygon, ArxPortal, ArxVector3 } from 'arx-convert/types'
 import type { FaceRoom, FaceTexture } from '../../../../generator/ArxMap.ts'
-import type { PolygonInsertion } from '../../../../generator/arxMap/removal.ts'
 import type { FaceUv } from '../../../../generator/arxMap/uvs.ts'
+import type { PolygonInsertion } from '../../../../generator/arxMap/removal.ts'
+import type { PolygonTurn } from '../../../../generator/arxMap/transforms.ts'
 
 /**
  * The version of the shape a stored step has.
@@ -606,11 +607,63 @@ export type HistoryRecord =
  * the commands (and their tests) away from the whole `ArxMap` — a fake with three polygons is enough to prove that a
  * step goes out and comes back.
  */
+/**
+ * The polygon list of a level, as a step changes it.
+ *
+ * @remarks
+ * The steps take faces out, put them back or move them, and every one of those is a method of the list of the level
+ * (`map.polygons`, see {@link Polygons}). The history reads only this much of it, so a test can stand a list of its own.
+ */
+export type MutablePolygons = {
+  /**
+   * The polygon at an index of the list.
+   */
+  readonly [index: number]: ArxPolygon | undefined
+  /**
+   * How many polygons the list holds.
+   */
+  readonly length: number
+  /**
+   * Takes polygons out, by identity.
+   *
+   * @param polygons The polygons to take out.
+   */
+  remove(polygons: readonly ArxPolygon[]): void
+  /**
+   * Puts polygons back at the indices they were taken from.
+   *
+   * @param insertions The polygons and their places.
+   */
+  insert(insertions: readonly PolygonInsertion[]): void
+  /**
+   * Moves the corners of faces.
+   *
+   * @param faces The faces to move.
+   * @param delta The offset.
+   */
+  translate(faces: readonly number[], delta: ArxVector3): void
+  /**
+   * Turns the corners of faces around a point.
+   *
+   * @param faces The faces to turn.
+   * @param turn The pivot, the axis and the angle.
+   */
+  rotate(faces: readonly number[], turn: PolygonTurn): void
+  /**
+   * Scales the corners of faces from a point.
+   *
+   * @param faces The faces to scale.
+   * @param pivot The point they scale from.
+   * @param scale The factors of the three axes.
+   */
+  scale(faces: readonly number[], pivot: ArxVector3, scale: ArxVector3): void
+}
+
 export type MutableLevel = {
   /**
-   * Every polygon of the level, in the order of the mesh.
+   * Every polygon of the level, in the order of the mesh, with the operations that change them.
    */
-  readonly polygons: readonly ArxPolygon[]
+  readonly polygons: MutablePolygons
   /**
    * The lighting of the level: the palette the faces read their color from.
    */
@@ -625,18 +678,6 @@ export type MutableLevel = {
    * @param portals The portals the level should have.
    */
   setPortals(portals: readonly ArxPortal[]): void
-  /**
-   * Takes polygons out, by identity.
-   *
-   * @param polygons The polygons to take out.
-   */
-  removePolygons(polygons: readonly ArxPolygon[]): void
-  /**
-   * Puts polygons back at the indices they were taken from.
-   *
-   * @param insertions The polygons and their places.
-   */
-  insertPolygons(insertions: readonly PolygonInsertion[]): void
   /**
    * Sets the texture container of faces.
    *
@@ -681,30 +722,6 @@ export type MutableLevel = {
    * @param uvs The uv of the corners, in the order they are stored.
    */
   setFaceUvs(faceIndex: number, uvs: readonly FaceUv[]): void
-  /**
-   * Moves the corners of faces by an offset.
-   *
-   * @param faces The faces to move, by their index in the level.
-   * @param delta The offset, in the coordinates of the level.
-   */
-  translatePolygons(faces: readonly number[], delta: ArxVector3): void
-  /**
-   * Turns the corners and the normals of faces around a point.
-   *
-   * @param faces The faces to turn, by their index in the level.
-   * @param pivot The point they turn around, in the coordinates of the level.
-   * @param axis The axis of the turn, in the coordinates of the level.
-   * @param angle The angle of the turn, in radians.
-   */
-  rotatePolygons(faces: readonly number[], pivot: ArxVector3, axis: ArxVector3, angle: number): void
-  /**
-   * Scales the corners and the normals of faces around a point.
-   *
-   * @param faces The faces to scale, by their index in the level.
-   * @param pivot The point they scale around, in the coordinates of the level.
-   * @param scale How far the corners move along the three axes, around 1.
-   */
-  scalePolygons(faces: readonly number[], pivot: ArxVector3, scale: ArxVector3): void
   /**
    * The lights of the level, as the LLF holds them.
    */

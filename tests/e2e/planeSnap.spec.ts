@@ -100,11 +100,11 @@ async function zipOfThePit(): Promise<Buffer> {
   const map = new ArxMap(files.dlf, files.fts, files.llf, new Settings({ seed: '1' }))
   const hole = [cellIndex(map, 500, 300), cellIndex(map, 600, 300), cellIndex(map, 500, 400)]
 
-  map.deletePolygons(hole)
+  map.polygons.delete(hole)
 
   const raised = cellIndex(map, 600, 400)
 
-  map.translatePolygons([raised], FACE_OFFSET)
+  map.polygons.translate([raised], FACE_OFFSET)
 
   const source = map.polygons[raised]
 

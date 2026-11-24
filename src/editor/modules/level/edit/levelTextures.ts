@@ -73,14 +73,19 @@ type PaintedLevel = {
    */
   readonly materials: Material[]
   /**
-   * The materials of the **flat** view of the same faces, in the same order: the same keys without their textures.
+   * The materials of the faces **with** their textures, in the order of {@link PaintedLevel.materials}.
+   */
+  readonly textured: Material[]
+  /**
+   * The materials of the faces **without** their textures, in the same order and with the same keys.
    *
    * @remarks
-   * The switch of the textures swaps the two arrays on the mesh instead of touching the materials: a material built for
-   * the `TextureRainbow` profile has a shader of its own, and a map taken off it would leave that shader looking for a
-   * texture. The flat set is built with the painted one and thrown away with it.
+   * The switch of the textures writes one set or the other into {@link PaintedLevel.materials}, and it is the **contents**
+   * that change: a view wraps the mesh once and keeps the array it found there (see `viewMeshesOf`), so swapping the
+   * array of the mesh would leave the view drawing the old materials. The flat set draws the side, the blend and the
+   * alpha cut of the key, with the average color of its texture.
    */
-  readonly flatMaterials: Material[]
+  readonly flat: Material[]
   /**
    * The keys of the materials the paint built, in the order of the array (the first two are the placeholders).
    */
@@ -140,12 +145,12 @@ function flatColorOfKey(key: PaintKey): FlatColor {
  * The two sets of materials of a paint, and what they are built from.
  */
 type MaterialSets = {
-  readonly flatMaterials: Material[]
+  readonly flat: Material[]
   readonly keys: readonly PaintKey[]
-  readonly materials: Material[]
   readonly missing: Texture | undefined
   readonly rainbow: boolean
   readonly textures: ReadonlyMap<string, Texture>
+  readonly textured: Material[]
 }
 
 /**
@@ -155,41 +160,79 @@ type MaterialSets = {
  */
 function fillMaterialsOf(sets: MaterialSets): void {
   for (const key of sets.keys) {
-    sets.materials.push(buildMaterial(key, sets.textures, sets.missing, sets.rainbow))
-    sets.flatMaterials.push(buildFlatMaterial(key, flatColorOfKey(key)))
+    sets.textured.push(buildMaterial(key, sets.textures, sets.missing, sets.rainbow))
+    sets.flat.push(buildFlatMaterial(key, flatColorOfKey(key)))
   }
+}
+
+/**
+ * What a paint reads of the level: the textures, the placeholder, the profile and the keys of the faces.
+ */
+type PaintSource = {
+  readonly keyStrings: readonly string[]
+  readonly missing: Texture | undefined
+  readonly rainbow: boolean
+  readonly textures: ReadonlyMap<string, Texture>
+}
+
+/**
+ * Tells whether the paint would build the same materials again.
+ *
+ * @param started The paint the level is on, or `undefined` before the first one.
+ * @param paint The textures, the placeholder, the profile and the keys of the paint.
+ *
+ * @returns True when the materials of the level are already the ones of this paint.
+ */
+function isSamePaintOf(started: PaintedLevel | undefined, paint: PaintSource): boolean {
+  if (started === undefined) {
+    return false
+  }
+
+  if (started.textures !== paint.textures || started.missing !== paint.missing || started.rainbow !== paint.rainbow) {
+    return false
+  }
+
+  if (started.materials.length !== paint.keyStrings.length) {
+    return false
+  }
+
+  return paint.keyStrings.every((key, index) => {
+    return started.keys[index] === key
+  })
 }
 
 /**
  * Throws the two sets of the paint away.
  *
- * @param materials The set of the textures.
- * @param flatMaterials The set of the flat colors.
+ * @param textured The materials with their textures.
+ * @param flat The materials without them.
  */
-function disposeMaterialsOf(materials: Material[], flatMaterials: Material[]): void {
-  for (const material of [...materials, ...flatMaterials]) {
+function disposeMaterialsOf(textured: Material[], flat: Material[]): void {
+  for (const material of [...textured, ...flat]) {
     material.dispose()
   }
 
-  materials.length = 0
-  flatMaterials.length = 0
+  textured.length = 0
+  flat.length = 0
 }
 
 /**
- * Hands the materials of the paint to the mesh, the textured set or the flat one.
+ * Writes the set the switch of the textures asks for into the array the views hold.
  *
- * @param mesh The mesh of the level.
- * @param materials The set of the textures.
- * @param flatMaterials The set of the flat colors.
+ * @param materials The array of the mesh, which the views share: its contents change, its identity does not.
+ * @param textured The materials with their textures.
+ * @param flat The materials without them.
  */
-function applyMaterialsOf(mesh: Mesh, materials: Material[], flatMaterials: Material[]): void {
+function fillSharedMaterials(materials: Material[], textured: Material[], flat: Material[]): void {
+  materials.length = 0
+
   if (isTexturesVisible.value) {
-    mesh.material = materials
+    materials.push(...textured)
 
     return
   }
 
-  mesh.material = flatMaterials
+  materials.push(...flat)
 }
 
 /**
@@ -261,7 +304,8 @@ export function paintLevelTextures(
 
   const started = painted
   const materials = started?.materials ?? []
-  const flatMaterials = started?.flatMaterials ?? []
+  let textured = started?.textured ?? []
+  let flat = started?.flat ?? []
   const polygons = solidPolygonsOf(map)
 
   // a face the level gives no texture has no uv either: without one the placeholder would sample a single texel of it, so
@@ -284,19 +328,15 @@ export function paintLevelTextures(
     }),
   )
 
-  const isSamePaint =
-    started?.textures === textures &&
-    started.missing === missing &&
-    started.rainbow === rainbow &&
-    started.materials.length === keys.length &&
-    keyStrings.every((key, index) => {
-      return started.keys[index] === key
-    })
-
-  if (!isSamePaint) {
-    disposeMaterialsOf(materials, flatMaterials)
-    fillMaterialsOf({ flatMaterials, keys, materials, missing, rainbow, textures })
+  if (!isSamePaintOf(started, { keyStrings, missing, rainbow, textures })) {
+    disposeMaterialsOf(textured, flat)
+    textured = []
+    flat = []
+    fillMaterialsOf({ flat, keys, missing, rainbow, textures, textured })
   }
+
+  // the set the switch asks for goes into the array the views hold: the contents change, not the array
+  fillSharedMaterials(materials, textured, flat)
 
   const { geometry } = mesh
 
@@ -326,7 +366,7 @@ export function paintLevelTextures(
 
   if (started?.mesh === mesh) {
     painted = {
-      flatMaterials,
+      flat,
       mesh,
       material: started.material,
       materials,
@@ -334,13 +374,12 @@ export function paintLevelTextures(
       textures,
       missing,
       rainbow,
+      textured,
     }
   } else {
-    painted = { flatMaterials, mesh, material: mesh.material, materials, keys: keyStrings, textures, missing, rainbow }
+    painted = { flat, mesh, material: mesh.material, materials, keys: keyStrings, textures, missing, rainbow, textured }
+    mesh.material = materials
   }
-
-  // the switch of the textures: a level painted while they are off keeps the flat colors
-  applyMaterialsOf(mesh, materials, flatMaterials)
 
   return paintedNamesOf(keys, textures)
 }
@@ -362,7 +401,7 @@ export function setTexturesVisible(visible: boolean): void {
     return
   }
 
-  applyMaterialsOf(painted.mesh, painted.materials, painted.flatMaterials)
+  fillSharedMaterials(painted.materials, painted.textured, painted.flat)
 }
 
 /**
@@ -377,9 +416,7 @@ export function unpaintLevelTextures(map: ArxMap): void {
     return
   }
 
-  for (const material of painted.materials) {
-    material.dispose()
-  }
+  disposeMaterialsOf([...painted.textured], [...painted.flat])
 
   mesh.geometry.clearGroups()
   mesh.material = painted.material

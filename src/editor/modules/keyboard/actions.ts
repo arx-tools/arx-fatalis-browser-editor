@@ -34,6 +34,7 @@ export type KeyboardActionId =
   | 'toggleMesh'
   | 'toggleNormals'
   | 'togglePortals'
+  | 'toggleTextures'
   | 'toggleRotate'
   | 'toggleScale'
   | 'toggleRooms'
@@ -143,6 +144,13 @@ export const keyboardActions: readonly KeyboardAction[] = [
     label: 'Toggle the portals',
     group: 'overlay',
     keys: [{ code: 'KeyP' }],
+    modes: ['editor', 'pointerLocked'],
+  },
+  {
+    id: 'toggleTextures',
+    label: 'Toggle the textures',
+    group: 'view',
+    keys: [{ code: 'KeyT' }],
     modes: ['editor', 'pointerLocked'],
   },
   {

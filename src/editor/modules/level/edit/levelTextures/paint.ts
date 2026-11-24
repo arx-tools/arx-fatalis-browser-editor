@@ -14,6 +14,7 @@ import {
   type Texture,
 } from 'three'
 import type { ArxMap } from '../../../../../generator/ArxMap.ts'
+import type { FlatColor } from '../../../../../generator/flatColors.ts'
 import { createLevelMaterial } from '../../../../../generator/meshes.ts'
 import {
   blendModeOf,
@@ -426,6 +427,30 @@ function materialOf(
   material.alphaTest = ALPHA_CUTOUT
 
   applyBlend(material, key)
+
+  return material
+}
+
+/**
+ * Builds the material of a face whose texture is off: the **flat color** of the texture of the key.
+ *
+ * @remarks
+ * The switch of the textures takes the images off the faces without taking the level apart: a face keeps the side, the
+ * blend mode and the alpha cut of its key, and its color is the average of its texture (the same flat color the
+ * wireframe reads, see `generator/flatColors.ts`). The palette still multiplies it, so the level keeps its light: what
+ * goes away is the picture, not the shading (2026-11-24, the owner: `T` is the switch, and the faces get flat colors
+ * without the mesh's textures).
+ *
+ * @param key What the faces draw with.
+ * @param color The flat color of the texture of the key, in sRGB, from 0 to 255.
+ *
+ * @returns The material of the key, without a texture.
+ */
+export function buildFlatMaterial(key: PaintKey, color: FlatColor): MeshBasicMaterial {
+  const material = createLevelMaterial({ side: sideOf(key.doubleSided) })
+
+  applyBlend(material, key)
+  material.color.setRGB(color[0] / 255, color[1] / 255, color[2] / 255, SRGBColorSpace)
 
   return material
 }

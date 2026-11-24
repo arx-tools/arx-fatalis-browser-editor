@@ -1,5 +1,6 @@
 import { computed, type ComputedRef, type ShallowRef } from 'vue'
 import { onKeyboardAction, onKeyboardToggle, startKeyboard } from '../../../modules/keyboard/keyboard.ts'
+import { isTexturesVisible, setTexturesVisible } from '../../../modules/level/edit/levelTextures.ts'
 import { persistedRef } from '../../../modules/persistedRef/persistedRef.ts'
 
 /**
@@ -115,6 +116,7 @@ export const isEntitiesVisible = persistedRef<boolean>({
  */
 export const viewSwitches = {
   mesh: { ref: isMeshVisible, defaultValue: true },
+  textures: { ref: isTexturesVisible, defaultValue: true },
   wireframe: { ref: isWireframeVisible, defaultValue: false },
   roomColors: { ref: isRoomColorsVisible, defaultValue: false },
   portals: { ref: isPortalsVisible, defaultValue: false },
@@ -188,6 +190,22 @@ export function togglePortals(): void {
 }
 
 /**
+ * Turns the textures of the faces on or off.
+ *
+ * @remarks
+ * The textures sit under the mesh like the room map and the portals: a face without its mesh has nothing to draw them
+ * on, so the switch does not turn them on without it. The switch keeps its value, so turning the mesh back on brings the
+ * textures back the way they were left.
+ */
+export function toggleTextures(): void {
+  if (!isMeshVisible.value) {
+    return
+  }
+
+  setTexturesVisible(!isTexturesVisible.value)
+}
+
+/**
  * Turns the light markers on or off.
  *
  * @remarks
@@ -212,6 +230,7 @@ export function startLevelDisplay(): void {
   onKeyboardToggle('toggleMesh', isMeshVisible)
   onKeyboardAction('toggleRooms', toggleRoomColors)
   onKeyboardAction('togglePortals', togglePortals)
+  onKeyboardAction('toggleTextures', toggleTextures)
   onKeyboardToggle('toggleLights', isLightsVisible)
   onKeyboardToggle('toggleNormals', isNormalsVisible)
   onKeyboardToggle('toggleEntities', isEntitiesVisible)

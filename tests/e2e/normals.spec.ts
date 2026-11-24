@@ -80,8 +80,9 @@ test('the normals are a switch of the walkable view, and the widget chooses thei
     'Wireframe',
     'Normals',
     'Mesh',
-    'Rooms',
     'Portals',
+    'Rooms',
+    'Textures',
     'Lights',
     'Entities',
   ])

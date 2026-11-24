@@ -5,6 +5,8 @@ import { decodeTextureBitmap } from '../../textures/image.ts'
 import { publishLevelTextures } from '../../textures/textureCatalog.ts'
 import { readDataFile } from '../source/dataDir.ts'
 import { TEXTURE_FOLDER } from '../source/dataDir/url.ts'
+import { flatColorOf, type FlatColor } from '../../../../generator/flatColors.ts'
+import { persistedRef } from '../../persistedRef/persistedRef.ts'
 import { bumpLevelRevision, textureRevision } from './editing.ts'
 import {
   createLevelTexture,
@@ -15,7 +17,14 @@ import {
   zipImageNames,
 } from './levelTextures/load.ts'
 import { writeBakedColors } from './levelTextures/bakedColors.ts'
-import { buildMaterial, paintedNamesOf, paintKeyOf, paintKeyOfPolygon } from './levelTextures/paint.ts'
+import {
+  buildFlatMaterial,
+  buildMaterial,
+  type PaintKey,
+  paintedNamesOf,
+  paintKeyOf,
+  paintKeyOfPolygon,
+} from './levelTextures/paint.ts'
 import { applyTemporaryUvsOf } from './levelTextures/temporaryUvs.ts'
 import { isRainbowProfile, lightingProfile } from './lightingProfile.ts'
 import {
@@ -64,6 +73,15 @@ type PaintedLevel = {
    */
   readonly materials: Material[]
   /**
+   * The materials of the **flat** view of the same faces, in the same order: the same keys without their textures.
+   *
+   * @remarks
+   * The switch of the textures swaps the two arrays on the mesh instead of touching the materials: a material built for
+   * the `TextureRainbow` profile has a shader of its own, and a map taken off it would leave that shader looking for a
+   * texture. The flat set is built with the painted one and thrown away with it.
+   */
+  readonly flatMaterials: Material[]
+  /**
    * The keys of the materials the paint built, in the order of the array (the first two are the placeholders).
    */
   readonly keys: readonly string[]
@@ -81,6 +99,97 @@ type PaintedLevel = {
    * rebuilt when the flag turns (the shader of a texture material is not the one of the other profile).
    */
   readonly rainbow: boolean
+}
+
+/**
+ * Whether the faces of the level draw their textures.
+ *
+ * @remarks
+ * It is a view preference like the switches of the overlays: a `persistedRef` in the `localStorage`, so the editor comes
+ * back the way it was left. The default is **on**, because the textures are what the level looks like; a level without
+ * them draws the **flat color** of the texture of every face (see {@link setTexturesVisible}), which is the view to read
+ * a level whose pictures hide it (2026-11-24, the owner: the `T` switch, under the mesh).
+ */
+export const isTexturesVisible = persistedRef<boolean>({
+  key: 'texturesVisible',
+  defaultValue: true,
+  persistInLocalStorage: true,
+})
+
+/**
+ * The color of a face whose texture the flat color table does not know: the white of the plain material.
+ */
+const WHITE_FLAT_COLOR: FlatColor = [255, 255, 255]
+
+/**
+ * The flat color of the texture of a key: the average of its texture, or the white of a face without one.
+ *
+ * @param key What the faces draw with.
+ *
+ * @returns The color, in sRGB, from 0 to 255.
+ */
+function flatColorOfKey(key: PaintKey): FlatColor {
+  if (key.name === undefined) {
+    return WHITE_FLAT_COLOR
+  }
+
+  return flatColorOf(key.name) ?? WHITE_FLAT_COLOR
+}
+
+/**
+ * The two sets of materials of a paint, and what they are built from.
+ */
+type MaterialSets = {
+  readonly flatMaterials: Material[]
+  readonly keys: readonly PaintKey[]
+  readonly materials: Material[]
+  readonly missing: Texture | undefined
+  readonly rainbow: boolean
+  readonly textures: ReadonlyMap<string, Texture>
+}
+
+/**
+ * Fills the two sets of the paint: the textured materials and the flat ones, key by key.
+ *
+ * @param sets The two sets, and what the materials are built from.
+ */
+function fillMaterialsOf(sets: MaterialSets): void {
+  for (const key of sets.keys) {
+    sets.materials.push(buildMaterial(key, sets.textures, sets.missing, sets.rainbow))
+    sets.flatMaterials.push(buildFlatMaterial(key, flatColorOfKey(key)))
+  }
+}
+
+/**
+ * Throws the two sets of the paint away.
+ *
+ * @param materials The set of the textures.
+ * @param flatMaterials The set of the flat colors.
+ */
+function disposeMaterialsOf(materials: Material[], flatMaterials: Material[]): void {
+  for (const material of [...materials, ...flatMaterials]) {
+    material.dispose()
+  }
+
+  materials.length = 0
+  flatMaterials.length = 0
+}
+
+/**
+ * Hands the materials of the paint to the mesh, the textured set or the flat one.
+ *
+ * @param mesh The mesh of the level.
+ * @param materials The set of the textures.
+ * @param flatMaterials The set of the flat colors.
+ */
+function applyMaterialsOf(mesh: Mesh, materials: Material[], flatMaterials: Material[]): void {
+  if (isTexturesVisible.value) {
+    mesh.material = materials
+
+    return
+  }
+
+  mesh.material = flatMaterials
 }
 
 /**
@@ -152,6 +261,7 @@ export function paintLevelTextures(
 
   const started = painted
   const materials = started?.materials ?? []
+  const flatMaterials = started?.flatMaterials ?? []
   const polygons = solidPolygonsOf(map)
 
   // a face the level gives no texture has no uv either: without one the placeholder would sample a single texel of it, so
@@ -184,15 +294,8 @@ export function paintLevelTextures(
     })
 
   if (!isSamePaint) {
-    for (const material of materials) {
-      material.dispose()
-    }
-
-    materials.length = 0
-
-    for (const key of keys) {
-      materials.push(buildMaterial(key, textures, missing, rainbow))
-    }
+    disposeMaterialsOf(materials, flatMaterials)
+    fillMaterialsOf({ flatMaterials, keys, materials, missing, rainbow, textures })
   }
 
   const { geometry } = mesh
@@ -222,13 +325,44 @@ export function paintLevelTextures(
   }
 
   if (started?.mesh === mesh) {
-    painted = { mesh, material: started.material, materials, keys: keyStrings, textures, missing, rainbow }
+    painted = {
+      flatMaterials,
+      mesh,
+      material: started.material,
+      materials,
+      keys: keyStrings,
+      textures,
+      missing,
+      rainbow,
+    }
   } else {
-    painted = { mesh, material: mesh.material, materials, keys: keyStrings, textures, missing, rainbow }
-    mesh.material = materials
+    painted = { flatMaterials, mesh, material: mesh.material, materials, keys: keyStrings, textures, missing, rainbow }
   }
 
+  // the switch of the textures: a level painted while they are off keeps the flat colors
+  applyMaterialsOf(mesh, materials, flatMaterials)
+
   return paintedNamesOf(keys, textures)
+}
+
+/**
+ * Turns the textures of the faces on or off.
+ *
+ * @remarks
+ * The two sets of the paint are already built (see {@link PaintedLevel.flatMaterials}), so the switch only hands the
+ * other one to the mesh: no material is built, no shader compiled, and the level keeps its geometry, its groups and its
+ * light. The flat set draws the side, the blend and the alpha cut of every key, with the average color of its texture.
+ *
+ * @param visible Whether the faces draw their textures.
+ */
+export function setTexturesVisible(visible: boolean): void {
+  isTexturesVisible.value = visible
+
+  if (painted === undefined) {
+    return
+  }
+
+  applyMaterialsOf(painted.mesh, painted.materials, painted.flatMaterials)
 }
 
 /**

@@ -76,3 +76,52 @@ test('the eye of the popup flips the switch of the mode', async ({ page }) => {
   await expect(dialog.locator('button[aria-label="Hide the rotate gizmo"]')).toHaveAttribute('aria-pressed', 'true')
   await expect(dialog.locator('button[aria-label="Show the transform gizmo"]')).toHaveAttribute('aria-pressed', 'false')
 })
+
+test('the textures sit under the mesh, and the T of the help flips them', async ({ page }) => {
+  await page.goto(editorUrl())
+
+  await expect(page.locator('.lm-DockPanel-widget').first()).toBeVisible()
+
+  await page.keyboard.press('h')
+
+  const dialog = page.locator('.Modal .dialog[aria-label="Keyboard Shortcuts"]')
+
+  await expect(dialog).toBeVisible()
+
+  // the three switches under the mesh, in the order the owner asked for: portals, rooms, textures
+  const actions = dialog.locator('dd .action')
+  const meshAt = await actions.evaluateAll((nodes) => {
+    return nodes.map((node) => {
+      return node.textContent?.trim() ?? ''
+    })
+  })
+
+  expect(meshAt.slice(meshAt.indexOf('Mesh'), meshAt.indexOf('Mesh') + 4)).toEqual([
+    'Mesh',
+    'Portals',
+    'Rooms',
+    'Textures',
+  ])
+
+  // the textures start on, and the row says so
+  const textures = dialog.getByRole('button', { name: 'Hide the textures' })
+
+  await expect(textures).toHaveAttribute('aria-pressed', 'true')
+
+  await page.keyboard.press('t')
+
+  const hidden = dialog.getByRole('button', { name: 'Show the textures' })
+
+  await expect(hidden).toHaveAttribute('aria-pressed', 'false')
+
+  // without the mesh the switch has nothing to draw on: a press of the T keeps its value
+  await page.keyboard.press('m')
+  await page.keyboard.press('t')
+
+  // the row of a switch under the mesh says why it can not be flipped: the mesh is off
+  const blocked = dialog.locator('dd', { hasText: 'Textures' }).getByRole('button')
+
+  await expect(blocked).toBeDisabled()
+  await expect(blocked).toHaveAttribute('aria-pressed', 'false')
+  await expect(blocked).toHaveAttribute('aria-label', 'the mesh is off')
+})

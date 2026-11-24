@@ -102,6 +102,7 @@ export const switchNames: Record<HelpToggle, string> = {
   mesh: 'the mesh',
   wireframe: 'the wireframe',
   roomColors: 'the rooms',
+  textures: 'the textures',
   portals: 'the portals',
   lights: 'the lights',
   normals: 'the normals',
@@ -161,8 +162,9 @@ export const helpSections: readonly HelpSection[] = [
       // the normals of the faces and the corners: a line over the mesh, built from the visible polygons (TODO 277)
       { actionId: 'toggleNormals', action: 'Normals', toggle: 'normals' },
       { actionId: 'toggleMesh', action: 'Mesh', toggle: 'mesh' },
-      { actionId: 'toggleRooms', action: 'Rooms', toggle: 'roomColors', parent: 'mesh' },
       { actionId: 'togglePortals', action: 'Portals', toggle: 'portals', parent: 'mesh' },
+      { actionId: 'toggleRooms', action: 'Rooms', toggle: 'roomColors', parent: 'mesh' },
+      { actionId: 'toggleTextures', action: 'Textures', toggle: 'textures', parent: 'mesh' },
       { actionId: 'toggleLights', action: 'Lights', toggle: 'lights' },
       // the entities of the level: the door of level 0 is the first one the editor draws (TODO 239)
       { actionId: 'toggleEntities', action: 'Entities', toggle: 'entities' },

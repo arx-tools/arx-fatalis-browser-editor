@@ -455,11 +455,13 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
       }
 
       // a marker under the crosshair is the target of the view: the ring of the light is its mark, and the face behind
-      // it is not the face the author means, so the phantom outline of the crosshair goes (2026-11-18, the owner)
+      // it is not the face the author means, so the phantom outline of the crosshair goes (2026-11-18, the owner). The
+      // markers of the entities come after the lights, the way the click picks them (2026-11-24)
       const light = lightUnderCrosshair()
 
       if (light !== undefined) {
         lightHoverStore.set(light)
+        entitySelectionStore.setHover(undefined)
         crosshairStore.set(undefined)
         paint.setCursor([], dragMode ?? selectionModeOfKeys())
 
@@ -467,6 +469,19 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
       }
 
       lightHoverStore.set(undefined)
+
+      // the marker of an entity under the crosshair opens, but it does not take the crosshair: a ring is a small mark on
+      // the face behind it, and the outline of that face is still what the author reads (the click does pick the entity,
+      // and stops there). The hover belongs to the locked pointer: it is the aim of the walkable view, and a picture the
+      // camera stands still on must not change under an author who is not aiming (2026-11-24, the owner: the hover
+      // comes first)
+      let entityHover: number | undefined
+
+      if (controls()?.isLocked === true) {
+        entityHover = entityUnderCrosshair()
+      }
+
+      entitySelectionStore.setHover(entityHover)
 
       const index = pickPolygon(scene.camera, meshes(), level.triangleToPolygon)
       const mode = dragMode ?? selectionModeOfKeys()

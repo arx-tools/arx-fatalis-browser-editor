@@ -1,4 +1,5 @@
 import {
+  Box3,
   BufferGeometry,
   DoubleSide,
   Float32BufferAttribute,
@@ -12,6 +13,7 @@ import {
 } from 'three'
 import { FTL } from 'arx-convert'
 import type { ArxFTL, ArxInteractiveObject, ArxRotation } from 'arx-convert/types'
+import { explode } from 'node-pkware/simple'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { decodeTextureBitmap } from '../../textures/image.ts'
@@ -132,32 +134,84 @@ async function materialsOf(ftl: ArxFTL, fetchImpl: typeof fetch): Promise<MeshBa
 }
 
 /**
- * Loads the model of an interactive object: its mesh and its textures.
+ * The first three bytes of an FTL the game stores uncompressed.
+ */
+const FTL_MAGIC = 'FTL'
+
+/**
+ * Unpacks an FTL the way the game reads it.
  *
  * @remarks
- * The FTL is the game's own model file, so the shape is the one the game draws. The faces of the model are grouped by
- * their texture (one material for each), and the model is put in a group at the origin: the caller moves it to the place
- * and the angle of the thing it draws (an entity, or the player of the level).
+ * The data directory of the game keeps the models as the PAK has them: an uncompressed file starts with `FTL`, and the
+ * engine blasts every other stream (`ARX_FTL_Load` in `src/graphics/data/FTL.cpp`). The level files go through the
+ * same unpacking (`unpackArxFile`), and a model read raw is not a mesh the parser can take.
  *
- * @param modelPath The path of the FTL inside the data directory.
- * @param fetchImpl The fetch to read the data directory with.
+ * @param bytes The file as the data directory has it.
  *
- * @returns The group of the model, or `undefined` when the data directory has no such file.
+ * @returns The bytes of the FTL, ready for the parser.
  */
-export async function loadInteractiveModel(
-  modelPath: string,
-  fetchImpl: typeof fetch = fetch,
-): Promise<Group | undefined> {
-  const bytes = await readDataFile(modelPath, fetchImpl)
+function unpackedFtlOf(bytes: ArrayBuffer): ArrayBuffer {
+  const head = new Uint8Array(bytes, 0, Math.min(FTL_MAGIC.length, bytes.byteLength))
+  const plain = head.every((byte, index) => {
+    return byte === (FTL_MAGIC.codePointAt(index) ?? 0)
+  })
 
-  if (bytes === undefined) {
-    return undefined
+  if (plain) {
+    return bytes
   }
 
-  const ftl = FTL.load(bytes)
+  return explode(bytes)
+}
+
+/**
+ * The faces a view of a model leaves out.
+ */
+type OmittedFaces = {
+  /**
+   * The vertices of a selection: a face stays out when any of its corners is one of them.
+   *
+   * @remarks
+   * This is the rule of the game (`IsInSelection` in `src/graphics/data/MeshManipulation.cpp`), and it makes the first
+   * person variant of the player.
+   */
+  readonly vertices?: ReadonlySet<number>
+  /**
+   * The textures whose faces stay out, by the index of their container.
+   */
+  readonly textures?: ReadonlySet<number>
+}
+
+/**
+ * Builds the geometry of the faces of an FTL.
+ *
+ * @remarks
+ * A face whose any corner is in `omitted.vertices` stays out: the game hides a whole face when one of its vertices is
+ * in the selection (`ARX_INTERACTIVE_Show_Hide_1st` in `src/scene/Interactive.cpp`). A face of a texture in
+ * `omitted.textures` stays out as well, which is how the gore of a whole body disappears.
+ *
+ * @param ftl The model to read.
+ * @param omitted The faces to leave out, or `undefined` for all of them.
+ *
+ * @returns The geometry of the model, with a group for every run of faces of the same texture.
+ */
+function geometryOfModel(ftl: ArxFTL, omitted?: OmittedFaces): BufferGeometry {
   const positions: number[] = []
+  const uvs: number[] = []
+  const materialIndices: number[] = []
+  const textures = omitted?.textures
+  const vertices = omitted?.vertices
 
   for (const face of ftl.faces) {
+    const hidden =
+      textures?.has(face.textureIdx) === true ||
+      face.vertexIdx.some((index) => {
+        return vertices?.has(index) === true
+      })
+
+    if (hidden) {
+      continue
+    }
+
     for (const index of face.vertexIdx) {
       const vertex = ftl.vertices[index]
 
@@ -168,19 +222,15 @@ export async function loadInteractiveModel(
       const point = arxVector3toVector3(vertex.vector)
       positions.push(point.x, point.y, point.z)
     }
-  }
 
-  const geometry = new BufferGeometry()
-  const uvs: number[] = []
-  const materialIndices: number[] = []
-
-  for (const face of ftl.faces) {
     for (let corner = 0; corner < 3; corner++) {
       uvs.push(face.u[corner], face.v[corner])
     }
 
     materialIndices.push(face.textureIdx)
   }
+
+  const geometry = new BufferGeometry()
 
   geometry.setAttribute('position', new Float32BufferAttribute(positions, 3))
   geometry.setAttribute('uv', new Float32BufferAttribute(uvs, 2))
@@ -199,14 +249,183 @@ export async function loadInteractiveModel(
     runMaterial = materialIndices[index] ?? runMaterial
   }
 
+  return geometry
+}
+
+/**
+ * The bounds of a selection of an FTL, in the local space of the model.
+ *
+ * @param ftl The model to read.
+ * @param selected The vertices of the selection.
+ *
+ * @returns The box around the vertices, empty when the selection has none.
+ */
+function boundsOfSelection(ftl: ArxFTL, selected: readonly number[]): Box3 {
+  const bounds = new Box3()
+
+  for (const index of selected) {
+    const vertex = ftl.vertices[index]
+
+    if (vertex !== undefined) {
+      bounds.expandByPoint(arxVector3toVector3(vertex.vector))
+    }
+  }
+
+  return bounds
+}
+
+/**
+ * The textures of a model that carry its gore.
+ *
+ * @remarks
+ * The game finds the gore by the name of the texture: `ARX_INTERACTIVE_HideGore` (`src/scene/Interactive.cpp`) looks
+ * for the containers whose name contains `gore`, and hides their faces while the body is whole. The player never shows
+ * them, and a level load hides them on every NPC.
+ *
+ * @param ftl The model to read.
+ *
+ * @returns The indices of the gore textures, or `undefined` when the model has none.
+ */
+export function goreTexturesOf(ftl: Pick<ArxFTL, 'textureContainers'>): Set<number> | undefined {
+  const indices = new Set<number>()
+
+  for (const [index, container] of ftl.textureContainers.entries()) {
+    if (container.filename.toLowerCase().includes('gore')) {
+      indices.add(index)
+    }
+  }
+
+  if (indices.size === 0) {
+    return undefined
+  }
+
+  return indices
+}
+
+/**
+ * What a view of a model leaves out.
+ */
+export type InteractiveModelOptions = {
+  /**
+   * Leaves the faces of the gore textures out, the way the game draws a whole body.
+   *
+   * @remarks
+   * The player of the game never shows its gore (`ARX_INTERACTIVE_HideGore(entities.player(), 1)` on load), and an NPC
+   * of the level shows it only when something opened its body. The editor draws the bodies whole, so the gore stays
+   * out; a later body variant would turn it back on, the way `ARX_INTERACTIVE_HideGore(io)` does with no flag.
+   */
+  readonly hideGore?: boolean
+}
+
+/**
+ * The meshes of an interactive model: the whole one, and the variant the game draws in first person.
+ */
+export type InteractiveModelViews = {
+  /**
+   * The mesh of the whole model.
+   */
+  readonly whole: Mesh
+  /**
+   * The mesh without the faces of the selection, hidden by default.
+   *
+   * @remarks
+   * The game hides the `1st` selection of the player in first person (`ARX_INTERACTIVE_Show_Hide_1st`), so the model
+   * drawn while the camera stands on the spawn has no head and no chest. It is `undefined` when the model has no such
+   * selection, or the selection is empty.
+   */
+  readonly firstPerson: Mesh | undefined
+  /**
+   * The group that holds the meshes: the caller moves and turns this one.
+   */
+  readonly group: Group
+  /**
+   * The bounds of the selection in the local space of the group, or `undefined` when there is no such selection.
+   */
+  readonly selectionBounds: Box3 | undefined
+}
+
+/**
+ * Loads the model of an interactive object: its mesh, its textures, and the variant of a first person view.
+ *
+ * @remarks
+ * The FTL is the game's own model file, so the shape is the one the game draws. The faces of the model are grouped by
+ * their texture (one material for each), and the model is put in a group at the origin: the caller moves it to the place
+ * and the angle of the thing it draws (an entity, or the player of the level).
+ *
+ * @param modelPath The path of the FTL inside the data directory.
+ * @param selectionName The name of the selection the first person variant keeps out.
+ * @param fetchImpl The fetch to read the data directory with.
+ * @param options What the view leaves out.
+ *
+ * @returns The meshes and the group of the model, or `undefined` when the data directory has no such file.
+ */
+export async function loadInteractiveModelViews(
+  modelPath: string,
+  selectionName: string,
+  fetchImpl: typeof fetch = fetch,
+  options: InteractiveModelOptions = {},
+): Promise<InteractiveModelViews | undefined> {
+  const bytes = await readDataFile(modelPath, fetchImpl)
+
+  if (bytes === undefined) {
+    return undefined
+  }
+
+  const ftl = FTL.load(unpackedFtlOf(bytes))
   const materials = await materialsOf(ftl, fetchImpl)
-  const model = new Mesh(geometry, materials)
+  let gore: Set<number> | undefined
+
+  if (options.hideGore === true) {
+    gore = goreTexturesOf(ftl)
+  }
+
+  const whole = new Mesh(geometryOfModel(ftl, { textures: gore }), materials)
+  const selected = ftl.selections.find((selection) => {
+    return selection.name === selectionName
+  })?.selected
+  const hasSelection = selected !== undefined && selected.length > 0
+  let firstPerson: Mesh | undefined
+  let selectionBounds: Box3 | undefined
+
+  if (hasSelection) {
+    firstPerson = new Mesh(geometryOfModel(ftl, { vertices: new Set(selected), textures: gore }), materials)
+    selectionBounds = boundsOfSelection(ftl, selected)
+  }
+
   const group = new Group()
 
   group.name = 'interactive-model'
-  group.add(model)
+  group.add(whole)
 
-  return group
+  if (firstPerson !== undefined) {
+    firstPerson.name = 'interactive-model-first-person'
+    firstPerson.visible = false
+    group.add(firstPerson)
+  }
+
+  return { whole, firstPerson, group, selectionBounds }
+}
+
+/**
+ * Loads the model of an interactive object: its mesh and its textures.
+ *
+ * @remarks
+ * The FTL is the game's own model file, so the shape is the one the game draws. The faces of the model are grouped by
+ * their texture (one material for each), and the model is put in a group at the origin: the caller moves it to the place
+ * and the angle of the thing it draws (an entity, or the player of the level).
+ *
+ * @param modelPath The path of the FTL inside the data directory.
+ * @param fetchImpl The fetch to read the data directory with.
+ *
+ * @returns The group of the model, or `undefined` when the data directory has no such file.
+ */
+export async function loadInteractiveModel(
+  modelPath: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<Group | undefined> {
+  const views = await loadInteractiveModelViews(modelPath, '', fetchImpl)
+
+  return views?.group
 }
 
 /**

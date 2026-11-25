@@ -428,6 +428,7 @@ function showMap(map: ArxMap): void {
 
       playerModel = model
       model?.placeAt(map)
+      model?.updateFor(scene.camera.position)
       loop.requestRender()
     })
     .catch(() => {
@@ -525,11 +526,17 @@ onMounted(() => {
   // the switches and the revisions of the view: the same wiring for every widget, in `viewWatches.ts`
   stopWatches = bindViewWatches(watchHost)
 
-  // the model of the player follows the spawn, and fades while the camera stands on it
+  // the model of the player follows the spawn, fades while the camera stands on it, and turns to the first person
+  // variant while the camera is in its body
   stopWatches.push(
     watch(spawnRevision, () => {
       if (loadedMap !== undefined && playerModel !== undefined) {
         playerModel.placeAt(loadedMap)
+
+        if (view !== undefined) {
+          playerModel.updateFor(view.camera.position)
+        }
+
         loop.requestRender()
       }
     }),
@@ -539,7 +546,7 @@ onMounted(() => {
       },
       () => {
         if (playerModel !== undefined && view !== undefined) {
-          playerModel.fadeFor(view.camera.position)
+          playerModel.updateFor(view.camera.position)
           loop.requestRender()
         }
       },

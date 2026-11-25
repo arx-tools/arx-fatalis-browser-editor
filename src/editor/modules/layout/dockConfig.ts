@@ -114,15 +114,20 @@ function sizeOfChild(
 ): ChildSize {
   const box = lockOfChild(area, orientation)
 
-  if (box === undefined) {
+  // the side the split works with: a lock that keeps one axis only leaves the other one free
+  let side: number | undefined
+
+  if (orientation === 'vertical') {
+    side = box?.height
+  } else {
+    side = box?.width
+  }
+
+  if (side === undefined) {
     return { kind: 'auto', ratio }
   }
 
-  if (orientation === 'vertical') {
-    return { kind: 'fixed', px: box.height }
-  }
-
-  return { kind: 'fixed', px: box.width }
+  return { kind: 'fixed', px: side }
 }
 
 /**

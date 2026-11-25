@@ -2,6 +2,7 @@
 import { Lock, LockOpen, Trash2 } from 'lucide-vue-next'
 import { onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue'
 import { formatSize } from '../modules/format.ts'
+import { lockedSidesOfNode, type LockBox } from '../modules/layout/layoutNode.ts'
 
 const props = defineProps<{
   /**
@@ -41,6 +42,9 @@ let observer: ResizeObserver | undefined
  * The box is measured on every frame a resize happens — a border of the dock is dragged, the window changes, a lock
  * writes a new size — because the number is what the user writes into a preset of the layout, and it has to be the one
  * on the screen at that moment, not the one the lock asked for before the layout squeezed it.
+ *
+ * A lock keeps one side or both: the free side follows the dock, and the badge says `auto` for it instead of a number
+ * that would change on every resize (2026-11-25, the owner).
  */
 function measure(): void {
   const box = plate.value?.getBoundingClientRect()
@@ -49,7 +53,35 @@ function measure(): void {
     return
   }
 
-  size.value = formatSize(box.width, box.height)
+  // the sides the node keeps: the plate is inside the widget, so its dataset is the lock of the widget (a lock that
+  // gained a side on a drop is read here, without the plate being drawn again)
+  const node = plate.value?.closest('.lm-DockPanel-widget')
+  let lock: LockBox | undefined
+
+  if (node instanceof HTMLElement) {
+    lock = lockedSidesOfNode(node)
+  }
+
+  if (lock?.width !== undefined && lock.height !== undefined) {
+    size.value = formatSize(box.width, box.height)
+
+    return
+  }
+
+  // a lock on one axis only: the other side follows the dock, and the badge says so instead of a size that would
+  // change on every resize (2026-11-25, the owner)
+  let width = 'auto'
+  let height = 'auto'
+
+  if (lock?.width !== undefined) {
+    width = String(Math.round(box.width))
+  }
+
+  if (lock?.height !== undefined) {
+    height = String(Math.round(box.height))
+  }
+
+  size.value = `${width} × ${height}`
 }
 
 onMounted(() => {
@@ -74,6 +106,9 @@ onBeforeUnmount(() => {
 function toggleLock(): void {
   isLocked.value = !isLocked.value
   emit('toggleLock')
+  // the lock is written by the time the event returns: the badge reads the sides at once, the way the plate shows them
+  // without waiting for a resize of the dock
+  measure()
 }
 </script>
 

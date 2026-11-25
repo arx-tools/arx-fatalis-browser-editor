@@ -114,9 +114,13 @@ export type DragBoard = {
    */
   readonly widgets: ReadonlyMap<string, Widget>
   /**
-   * The kinds of the widgets that are locked.
+   * The locks of the widgets that are locked, by kind.
+   *
+   * @remarks
+   * The sides matter: a split holds a child only when the lock keeps the axis of that split (a width lock does not hold
+   * the heights of a column), and the drag writes the side it resizes.
    */
-  readonly locked: ReadonlySet<string>
+  readonly locked: ReadonlyMap<string, LockBox>
   /**
    * The visible handles of the dock.
    */
@@ -187,7 +191,7 @@ export function dragTargetsOf(board: DragBoard, handle: DragRect): Map<string, B
   const grandparents = parentOfSplits(board.tree)
   const targets = new Map<string, BorderDragTarget>()
 
-  for (const kind of board.locked) {
+  for (const kind of board.locked.keys()) {
     const split = parents.get(kind)
 
     if (split === undefined) {

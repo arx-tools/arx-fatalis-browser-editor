@@ -151,7 +151,50 @@ test('a widget dropped beside a locked one keeps the split the drop made', async
   ).toBeLessThanOrEqual(settledMapper.height)
 })
 
-test('a lock survives a reload when the widget is alone in its column', async ({ page }) => {
+test('a widget alone in its line keeps one side, and a neighbor on the other axis gives it the second', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1631, height: 850 })
+  await page.goto(editorUrl())
+  await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(5)
+  await waitForLayoutSettled(page)
+
+  const keys = page.locator('[data-widget-kind="keyboard-shortcuts"]')
+
+  // the viewer locks the width of the keys, and only that: the height is the height of the dock, with no split to keep it
+  await expect(keys).toHaveAttribute('data-locked-width', '350')
+  await expect(keys).not.toHaveAttribute('data-locked-height', /.+/u)
+  const view = await boxOf(page, '3d-view')
+  const narrow = await boxOf(page, 'keyboard-shortcuts')
+
+  expect(narrow.height).toBe(view.height)
+
+  // a taller window: the keys grow with the dock, their width stays
+  await page.setViewportSize({ width: 1631, height: 1000 })
+  await waitForLayoutSettled(page)
+
+  const tall = await boxOf(page, 'keyboard-shortcuts')
+
+  expect(tall.width).toBe(350)
+  expect(tall.height).toBeGreaterThan(narrow.height)
+
+  // the plate says which side is kept
+  await page.locator('header button[aria-label="Unlock the layout"]').click()
+
+  expect(await badgeOf(page, 'keyboard-shortcuts')).toBe('350 × auto')
+
+  // a widget under the keys gives them a neighbor on the other axis: the lock takes the second side, at the size the
+  // drop made (2026-11-25, the owner)
+  await dropWidget(page, 'map-statistics', tall)
+  await page.waitForTimeout(900)
+
+  const withSecond = await boxOf(page, 'keyboard-shortcuts')
+
+  expect(await keys.getAttribute('data-locked-height')).toBe(String(withSecond.height))
+  expect(await badgeOf(page, 'keyboard-shortcuts')).toBe(`350 × ${String(withSecond.height)}`)
+})
+
+test('a lock keeps the width of a widget alone in its column, and the height follows the dock', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
   await page.goto('/editor/')
   await page.locator('header button[aria-label="Presets"]').click()
@@ -161,32 +204,32 @@ test('a lock survives a reload when the widget is alone in its column', async ({
   await page.waitForTimeout(900)
 
   // the column of the uv mapper collapses when the texture list and the row of the history go: its height has no split
-  // to live in any more
+  // to live in any more, and the lock goes back to the width alone
   await page.locator('header button[aria-label="Unlock the layout"]').click()
   await page.locator('[data-widget-kind="textures"] button[aria-label="Remove the Texture Mapper widget"]').click()
   await page.locator('[data-widget-kind="undo-redo"] button[aria-label="Remove the Undo and Redo widget"]').click()
-  await page.waitForTimeout(800)
+  await page.waitForTimeout(900)
 
   const mapper = await boxOf(page, 'uv-mapper')
   const view = await boxOf(page, '3d-view')
 
   expect(mapper.width).toBe(350)
-  expect(Number(await page.locator('[data-widget-kind="uv-mapper"]').getAttribute('data-locked-height'))).toBe(
-    mapper.height,
-  )
+  expect(await page.locator('[data-widget-kind="uv-mapper"]').getAttribute('data-locked-height')).toBeNull()
+  expect(mapper.height).toBe(view.height)
 
   await page.reload()
   await expect(page.locator('.lm-DockPanel-widget')).toHaveCount(4)
   await waitForLayoutSettled(page)
 
-  // the lock came back with the box: the mapper keeps its width, and it does not grow over the walkable view
+  // the lock came back with the side it keeps: the mapper stays 350 wide, and its height is the height of the dock
   const reloaded = await boxOf(page, 'uv-mapper')
   const reloadedView = await boxOf(page, '3d-view')
 
   expect(reloaded.width).toBe(350)
-  expect(reloaded.height).toBe(mapper.height)
+  expect(reloaded.height).toBe(reloadedView.height)
   expect(reloadedView.width).toBe(view.width)
   expect(await page.locator('[data-widget-kind="uv-mapper"]').getAttribute('data-locked-width')).toBe('350')
+  expect(await page.locator('[data-widget-kind="uv-mapper"]').getAttribute('data-locked-height')).toBeNull()
 })
 
 test('a locked widget keeps its size, the others take the rest', async ({ page }) => {

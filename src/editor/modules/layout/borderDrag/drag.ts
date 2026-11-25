@@ -1,5 +1,5 @@
 import type { Widget } from '@lumino/widgets'
-import { lockedBoxOf, type LayoutNode, type LayoutNodeSplit } from '../layoutNode.ts'
+import { lockedBoxOf, type LayoutNode, type LayoutNodeSplit, type LockBox } from '../layoutNode.ts'
 import { widgetKind } from '../widgetDefinition.ts'
 import {
   axisOfSplit,
@@ -404,7 +404,7 @@ export function boardOf(
   spacing: number,
 ): DragBoard {
   const rects = new Map<string, DragRect>()
-  const locked = new Set<string>()
+  const locked = new Map<string, LockBox>()
 
   for (const [kind, widget] of widgets) {
     const rect = rectOfWidget(widget)
@@ -415,8 +415,10 @@ export function boardOf(
 
     rects.set(kind, rect)
 
-    if (lockedBoxOf(widget) !== undefined) {
-      locked.add(kind)
+    const sides = lockedBoxOf(widget)
+
+    if (sides !== undefined) {
+      locked.set(kind, sides)
     }
   }
 

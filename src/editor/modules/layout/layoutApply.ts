@@ -3,7 +3,15 @@ import { planLayout } from './contentFit/plan.ts'
 import { MIN_WIDGET_HEIGHT, MIN_WIDGET_WIDTH, type WidgetFit } from './contentFit/split.ts'
 import { toDockConfig, toLayoutNode } from './dockConfig.ts'
 import { dockWidgets } from './dockWidgets.ts'
-import { collectKinds, lockedBoxOf, lockWidgetTo, type LayoutNode, type LockBox } from './layoutNode.ts'
+import {
+  collectKinds,
+  keptLockOf,
+  lockedBoxOf,
+  lockAxesOfKind,
+  lockWidgetTo,
+  type LayoutNode,
+  type LockBox,
+} from './layoutNode.ts'
 import { defaultLayout, factoryPresets } from './layoutPresets.ts'
 import { WIDGET_KINDS } from './widgetKinds.ts'
 import { createWidget, widgetKind, type WidgetDefinition } from './widgetDefinition.ts'
@@ -460,10 +468,21 @@ export function createLayoutApply(context: LayoutApplyContext): LayoutApply {
         const widget = dockWidgets(dock).find((candidate) => {
           return widgetKind(candidate) === current.kind
         })
-        const locked = current.lock ?? box
 
-        if (widget !== undefined && locked.width > 0 && locked.height > 0) {
-          lockWidgetTo(widget, locked)
+        if (widget === undefined) {
+          return
+        }
+
+        // the sides the tree carries, cut to the axes the live dock has: a side with no split behind it is the dock's
+        // own size, and keeping it would freeze the window, not the widget (2026-11-25, the owner)
+        const kept = keptLockOf(
+          lockAxesOfKind(node, current.kind),
+          current.lock?.width ?? box.width,
+          current.lock?.height ?? box.height,
+        )
+
+        if (kept !== undefined) {
+          lockWidgetTo(widget, kept)
         }
 
         return
@@ -489,7 +508,7 @@ export function createLayoutApply(context: LayoutApplyContext): LayoutApply {
       }
     }
 
-    collect(node, { width: 0, height: 0 })
+    collect(node, {})
   }
 
   /**

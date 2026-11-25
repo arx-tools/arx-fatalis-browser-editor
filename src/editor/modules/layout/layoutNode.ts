@@ -125,7 +125,7 @@ export type LayoutNodeWidget = {
    */
   readonly kind: string
   /**
-   * The box the widget was locked to, when it was locked.
+   * The sides the widget was locked to, when it was locked.
    *
    * @remarks
    * The sizes of the split a widget is in can carry only **one** side of its lock: the width comes from the horizontal
@@ -133,29 +133,51 @@ export type LayoutNodeWidget = {
    * (the column around it collapsed, or a level of the tree went away) has no vertical ancestor to remember its height,
    * so the lock would be lost on the next load — and a lost lock turns the `fixed` pixels of the split into an `auto`
    * share, which is a very different number (400 shares against the 1 of a flexible neighbor fills the screen). The
-   * box lives here, on the widget, so both sides survive whatever the tree looks like.
+   * sides live here, on the widget, so they survive whatever the tree looks like. A widget with a split on one axis only
+   * keeps that side alone (2026-11-25, the owner).
    */
   readonly lock?: LockBox
 }
 
 /**
- * The size a widget is locked to, if it is locked at all.
+ * The sides a widget is locked to.
  *
  * @remarks
- * The lock is the **box** of the widget: a locked widget keeps both its width and its height, so a column of the dock
- * can not grow wider around it either. It lives on the node of the widget (as two attributes), and the saved layout
- * reads it back from there: the size of a widget is a `fixed` size in the tree, so nothing else has to remember that
- * it was locked.
+ * A side is kept only when the layout can keep it: the **width** is the size the horizontal split above the widget
+ * distributes, the **height** the one of the vertical split. A widget with neighbors on one axis only (the key help of
+ * the viewer, beside the view) has a width but no height to keep, so its lock is a single side and the other one follows
+ * the dock (2026-11-25, the owner: the help stays 350 wide, its height is auto). A widget with a split on both axes
+ * keeps both sides.
  */
 export type LockBox = {
   /**
-   * The width the widget keeps.
+   * The width the widget keeps, when the layout has a horizontal split around it.
    */
-  readonly width: number
+  readonly width?: number
   /**
-   * The height the widget keeps.
+   * The height the widget keeps, when the layout has a vertical split around it.
    */
-  readonly height: number
+  readonly height?: number
+}
+
+/**
+ * The axes the layout lets a widget be locked on.
+ *
+ * @remarks
+ * The split around a widget decides one of its sides: a horizontal one cuts the width between its children, a vertical
+ * one the height. The width of a widget is therefore kept when a horizontal split is above it, and the height when a
+ * vertical one is; the side with no split behind it has nothing to keep it (it is the side of the dock itself), so
+ * locking it would freeze the dock, not the widget.
+ */
+export type LockAxes = {
+  /**
+   * Whether the layout has a horizontal split around the widget.
+   */
+  readonly width: boolean
+  /**
+   * Whether the layout has a vertical split around the widget.
+   */
+  readonly height: boolean
 }
 
 /**
@@ -170,21 +192,148 @@ function isLockSize(px: number): boolean {
 }
 
 /**
+ * Reads the lock a node carries, the way {@link lockedBoxOf} reads it from its widget.
+ *
+ * @remarks
+ * The plate of the lock covers the widget, and it shows the sides the node keeps; reading them from the node is what
+ * lets the badge follow a lock that gains a side, without the plate being drawn again.
+ *
+ * @param node The node of a widget.
+ *
+ * @returns The sides it keeps, or `undefined` when it is free.
+ */
+export function lockedSidesOfNode(node: HTMLElement): LockBox | undefined {
+  const width = Number(node.dataset.lockedWidth)
+  const height = Number(node.dataset.lockedHeight)
+  const hasWidth = isLockSize(width)
+  const hasHeight = isLockSize(height)
+
+  if (hasWidth && hasHeight) {
+    return { width, height }
+  }
+
+  if (hasWidth) {
+    return { width }
+  }
+
+  if (hasHeight) {
+    return { height }
+  }
+
+  return undefined
+}
+
+/**
+ * Cuts the sides of a lock to the axes of the layout.
+ *
+ * @remarks
+ * A widget with a split on **both** axes keeps its box, and it needs both sides to keep it (the way it always did): a
+ * column of a preset fixes the width of every widget in it, and a side alone would turn the free widget of a nested split
+ * into a pinned one. A widget with a **single** axis keeps that side alone, and the other one follows the dock (2026-11-25,
+ * the owner: the key help of the viewer stays 350 wide, its height is auto).
+ *
+ * @param axes The axes the layout lets the widget keep.
+ * @param width The width the lock would keep, when it has one.
+ * @param height The height the lock would keep, when it has one.
+ *
+ * @returns The sides the widget may keep, or `undefined` when it has nothing to keep.
+ */
+export function keptLockOf(axes: LockAxes, width: number | undefined, height: number | undefined): LockBox | undefined {
+  if (axes.width && axes.height) {
+    if (width === undefined || height === undefined) {
+      return undefined
+    }
+
+    return { width, height }
+  }
+
+  if (axes.width) {
+    if (width === undefined) {
+      return undefined
+    }
+
+    return { width }
+  }
+
+  if (height === undefined) {
+    return undefined
+  }
+
+  return { height }
+}
+
+/**
+ * Reads the axes a widget is locked on, from the tree of the layout.
+ *
+ * @remarks
+ * The splits over the widget decide its sides: a horizontal one keeps the width of its children, a vertical one the
+ * height. The tree is the one of the dock (`toLayoutNode`), not the parent chain of the live widgets: a lumino dock keeps
+ * every leaf under the dock itself, and the splits live in the layout config only (2026-11-25).
+ *
+ * A widget with no split around it at all (alone on the dock) keeps its box, the way it always did: there is no neighbor
+ * to take the rest of the space from it, and the box is the size the user asked for.
+ *
+ * @param node The tree to walk.
+ * @param kind The kind of the widget to read.
+ *
+ * @returns The axes its lock may use.
+ */
+export function lockAxesOfKind(node: LayoutNode, kind: string): LockAxes {
+  let horizontal = false
+  let vertical = false
+
+  /**
+   * Walks the tree and stops on the widget, carrying the axes of the splits it went through.
+   *
+   * @param current The node to walk.
+   * @param width Whether a horizontal split was met on the way.
+   * @param height Whether a vertical split was met on the way.
+   *
+   * @returns True when the widget of the kind is under the node.
+   */
+  function walk(current: LayoutNode, width: boolean, height: boolean): boolean {
+    if (current.type === 'empty') {
+      return false
+    }
+
+    if (current.type === 'widget') {
+      if (current.kind !== kind) {
+        return false
+      }
+
+      horizontal = width
+      vertical = height
+
+      return true
+    }
+
+    for (const child of current.children) {
+      if (walk(child, width || current.orientation === 'horizontal', height || current.orientation === 'vertical')) {
+        return true
+      }
+    }
+
+    return false
+  }
+
+  const found = walk(node, false, false)
+
+  if (!found || (!horizontal && !vertical)) {
+    return { width: true, height: true }
+  }
+
+  return { width: horizontal, height: vertical }
+}
+
+/**
  * Reads the size a widget is locked to.
  *
  * @param widget The widget to read.
  *
- * @returns The box it keeps, or `undefined` when it is free to follow the layout.
+ * @returns The sides it keeps, or `undefined` when it is free to follow the layout.
  */
 export function lockedBoxOf(widget: Widget): LockBox | undefined {
-  const width = Number(widget.node.dataset.lockedWidth)
-  const height = Number(widget.node.dataset.lockedHeight)
-
-  if (!isLockSize(width) || !isLockSize(height)) {
-    return undefined
-  }
-
-  return { width, height }
+  return lockedSidesOfNode(widget.node)
 }
 
 /**
@@ -206,8 +355,17 @@ export function lockWidgetTo(widget: Widget, box: LockBox | undefined): void {
     return
   }
 
-  widget.node.dataset.lockedWidth = box.width.toString()
-  widget.node.dataset.lockedHeight = box.height.toString()
+  if (box.width === undefined) {
+    delete widget.node.dataset.lockedWidth
+  } else {
+    widget.node.dataset.lockedWidth = box.width.toString()
+  }
+
+  if (box.height === undefined) {
+    delete widget.node.dataset.lockedHeight
+  } else {
+    widget.node.dataset.lockedHeight = box.height.toString()
+  }
 }
 
 /**
@@ -442,11 +600,29 @@ function parseWidgetNode(candidate: Record<string, unknown>): LayoutNodeWidget |
 
   const { width, height } = box as Record<string, unknown>
 
-  if (typeof width !== 'number' || typeof height !== 'number' || !isLockSize(width) || !isLockSize(height)) {
+  // a lock keeps one side or both, the way the layout wrote it (2026-11-25, the owner: the key help keeps its width); a
+  // side that is there and is not a size makes the whole lock unknown
+  if (typeof width === 'number' && isLockSize(width)) {
+    if (height === undefined) {
+      return { type: 'widget', kind: candidate.kind, lock: { width } }
+    }
+
+    if (typeof height === 'number' && isLockSize(height)) {
+      return { type: 'widget', kind: candidate.kind, lock: { width, height } }
+    }
+
     return null
   }
 
-  return { type: 'widget', kind: candidate.kind, lock: { width, height } }
+  if (width !== undefined) {
+    return null
+  }
+
+  if (typeof height === 'number' && isLockSize(height)) {
+    return { type: 'widget', kind: candidate.kind, lock: { height } }
+  }
+
+  return null
 }
 
 /**

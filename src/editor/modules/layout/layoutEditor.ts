@@ -1,6 +1,7 @@
 import type { DockPanel, Widget } from '@lumino/widgets'
 import { dragWidget } from './dragDrop.ts'
-import { lockWidgetTo, lockedBoxOf } from './layoutNode.ts'
+import { toLayoutNode } from './dockConfig.ts'
+import { keptLockOf, lockAxesOfKind, lockWidgetTo, lockedBoxOf, type LockAxes } from './layoutNode.ts'
 import { placeWidget } from './placement.ts'
 import { widgetKind } from './widgetDefinition.ts'
 
@@ -224,10 +225,25 @@ export class LayoutEditor {
    * @param widget The widget to lock or unlock.
    */
   private toggleLock(widget: Widget): void {
-    if (lockedBoxOf(widget) === undefined) {
-      const box = widget.node.getBoundingClientRect()
+    if (this.dock.isDisposed) {
+      return
+    }
 
-      lockWidgetTo(widget, { width: Math.round(box.width), height: Math.round(box.height) })
+    if (lockedBoxOf(widget) === undefined) {
+      const kind = widgetKind(widget)
+      const tree = toLayoutNode(this.dock.saveLayout(), widgetKind)
+      let axes: LockAxes = { width: true, height: true }
+
+      if (tree !== null && kind !== undefined) {
+        axes = lockAxesOfKind(tree, kind)
+      }
+
+      const box = widget.node.getBoundingClientRect()
+      const kept = keptLockOf(axes, Math.round(box.width), Math.round(box.height))
+
+      if (kept !== undefined) {
+        lockWidgetTo(widget, kept)
+      }
     } else {
       lockWidgetTo(widget, undefined)
     }

@@ -96,11 +96,12 @@ test('the default layout is the viewer, with the keys on the left and the plan o
   expect(view.left + view.width + 4).toBe(plan.left)
   expect(view.width).toBeGreaterThan(340)
 
-  // the keys take the whole height of the dock, like the view: the owner asked for the full height (2026-11-15).
-  // Their width is a fixed size of the layout, not a lock box: a box needs both sides, and the height follows the dock
+  // the keys take the whole height of the dock, like the view: the owner asked for the full height (2026-11-15), and the
+  // lock keeps only the width, because the layout has no split on the other axis of the widget (2026-11-25, the owner:
+  // 350 wide, the height auto)
   expect(keys.top).toBe(view.top)
   expect(keys.height).toBe(view.height)
-  expect(await page.locator('[data-widget-kind="keyboard-shortcuts"]').getAttribute('data-locked-width')).toBeNull()
+  expect(await page.locator('[data-widget-kind="keyboard-shortcuts"]').getAttribute('data-locked-width')).toBe('350')
   expect(await page.locator('[data-widget-kind="keyboard-shortcuts"]').getAttribute('data-locked-height')).toBeNull()
 
   expect(plan.width).toBe(350)
@@ -345,7 +346,7 @@ test('every layout keeps its own history, and the steps of the menu take it back
   }
 
   // the viewer comes from the preset: the walkable view is free, and the menu has no step to take
-  await expect(keys).not.toHaveAttribute('data-locked-height', /.+/u)
+  await expect(keys).not.toHaveAttribute('data-locked-width', /.+/u)
   await openMenu()
   await expect(viewerRow.locator('.step').first()).toBeDisabled()
   await menu.click()
@@ -354,7 +355,7 @@ test('every layout keeps its own history, and the steps of the menu take it back
   await page.locator('header button[aria-label="Unlock the layout"]').click()
   await keys.locator('button[aria-label="Lock the widget"]').click()
 
-  await expect(keys).toHaveAttribute('data-locked-height', /.+/u)
+  await expect(keys).toHaveAttribute('data-locked-width', /.+/u)
 
   // the step is on the viewer, and only on the viewer
   await openMenu()
@@ -363,10 +364,10 @@ test('every layout keeps its own history, and the steps of the menu take it back
 
   // the undo takes the lock away, the redo puts it back (the menu stays open through a step)
   await viewerRow.locator('.step').first().click()
-  await expect(keys).not.toHaveAttribute('data-locked-height', /.+/u)
+  await expect(keys).not.toHaveAttribute('data-locked-width', /.+/u)
 
   await viewerRow.locator('.step').last().click()
-  await expect(keys).toHaveAttribute('data-locked-height', /.+/u)
+  await expect(keys).toHaveAttribute('data-locked-width', /.+/u)
 
   // switching away and back keeps the history of the viewer
   await editorRow.locator('.choose').click()
@@ -382,7 +383,7 @@ test('every layout keeps its own history, and the steps of the menu take it back
   await viewerRow.locator('.choose').click()
 
   await expect(page.locator('header button[aria-label="Presets"] .name')).toHaveText('Viewer')
-  await expect(keys).toHaveAttribute('data-locked-height', /.+/u)
+  await expect(keys).toHaveAttribute('data-locked-width', /.+/u)
 
   // the row of the editor is not the active one, and the menu still shows that it has a step: taking it switches over
   await openMenu()
@@ -397,13 +398,13 @@ test('every layout keeps its own history, and the steps of the menu take it back
   await viewerRow.locator('.choose').click()
 
   await expect(page.locator('header button[aria-label="Presets"] .name')).toHaveText('Viewer')
-  await expect(keys).toHaveAttribute('data-locked-height', /.+/u)
+  await expect(keys).toHaveAttribute('data-locked-width', /.+/u)
 
   // and the history is in the browser, so a reload brings the layout back as it was left
   await page.reload()
 
   await expect(page.locator('header button[aria-label="Presets"] .name')).toHaveText('Viewer')
-  await expect(page.locator('[data-widget-kind="3d-view"]')).toHaveAttribute('data-locked-height', /.+/u)
+  await expect(page.locator('[data-widget-kind="3d-view"]')).toHaveAttribute('data-locked-width', /.+/u)
 
   await openMenu()
   await expect(page.locator('.preset-row', { hasText: 'Viewer' }).locator('.step').first()).toBeEnabled()

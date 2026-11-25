@@ -340,10 +340,22 @@ void describe('the lock of a widget', () => {
     assert.deepEqual(parsed, node)
   })
 
-  void it('reads a lock that is not a box as an unknown layout', () => {
+  void it('reads a lock with one side or both, and an unknown one as an unknown layout', () => {
+    // a side that is there and is not a size makes the whole lock unknown
     assert.equal(parseLayoutNode({ type: 'widget', kind: 'a', lock: { width: 0, height: 300 } }), null)
-    assert.equal(parseLayoutNode({ type: 'widget', kind: 'a', lock: { width: 400 } }), null)
     assert.equal(parseLayoutNode({ type: 'widget', kind: 'a', lock: 'big' }), null)
+
+    // a widget with neighbors on one axis keeps that side, and the other one follows the dock
+    assert.deepEqual(parseLayoutNode({ type: 'widget', kind: 'a', lock: { width: 400 } }), {
+      type: 'widget',
+      kind: 'a',
+      lock: { width: 400 },
+    })
+    assert.deepEqual(parseLayoutNode({ type: 'widget', kind: 'a', lock: { height: 300 } }), {
+      type: 'widget',
+      kind: 'a',
+      lock: { height: 300 },
+    })
     assert.deepEqual(parseLayoutNode({ type: 'widget', kind: 'a', lock: { width: 400, height: 300 } }), {
       type: 'widget',
       kind: 'a',

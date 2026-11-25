@@ -106,8 +106,10 @@ function auto(ratio: number): ChildSize {
  * The size is the **lock** of the widget, and it is not one number but the axis of the split it sits in: a child of a
  * horizontal split is locked to a width, a child of a vertical one to a height. A widget locked to a box therefore has
  * a `fixed` size on **two** levels of the tree — the width on the horizontal split and the height on the vertical one —
- * and the pass reads the two sides back as one box (`applyLocks`). The presets below are spelled out with both, so a
- * widget comes back locked where the owner measured it (the sizes on the badge of the plate, 2026-11-01).
+ * and the pass reads the two sides back as one box (`applyLocks`). A widget with a split on one axis only (the key help
+ * of the viewer, beside the view) has a `fixed` size on that level alone and keeps the side, the other one follows the
+ * dock (2026-11-25, the owner). The presets below are spelled out with what the owner measured (the sizes on the badge
+ * of the plate, 2026-11-01).
  *
  * @param px The size along the axis of the split.
  *

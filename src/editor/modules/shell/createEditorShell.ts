@@ -20,7 +20,16 @@ import {
   type LayoutHistory,
 } from '../layout/layoutHistory.ts'
 import { LayoutEditor, type MountWidgetOverlay } from '../layout/layoutEditor.ts'
-import { layoutEquals, layoutShapeEquals, lockedBoxOf, lockWidgetTo, type LayoutNode } from '../layout/layoutNode.ts'
+import {
+  keptLockOf,
+  layoutEquals,
+  layoutShapeEquals,
+  lockAxesOfKind,
+  lockedBoxOf,
+  lockWidgetTo,
+  type LayoutNode,
+  type LockAxes,
+} from '../layout/layoutNode.ts'
 import { createWidget, widgetKind, type WidgetDefinition } from '../layout/widgetDefinition.ts'
 import { keyboardShortcutOf, onKeyboardAction } from '../keyboard/keyboard.ts'
 import type { KeyboardActionId } from '../keyboard/actions.ts'
@@ -390,26 +399,53 @@ export function createEditorShell(
    * A change of the layout by the user (a widget dropped beside a locked one, a widget removed, a border dragged) is
    * **stronger** than a lock: the size it gave a locked widget becomes its new lock, the way a border drag writes its
    * end (`applyDragEdges`). Without this the pass of the sizes puts the old lock back a quarter of a second later, and
-   * the widget that was just added beside it is squeezed to the leftover room. A widget whose box did not change keeps
-   * the lock it had, so the pin of a column survives a change on the other side of the dock.
+   * the widget that was just added beside it is squeezed to the leftover room.
+   *
+   * The sides follow the axes of the live dock: a widget that gains a neighbor on the other axis (a widget dropped
+   * under the key help) keeps the side it had and takes the size of the new split as the second one, and a widget that
+   * loses that neighbor goes back to one side, so its free axis follows the dock again (2026-11-25, the owner).
    */
   function refreshLocks(): void {
-    for (const widget of dockWidgets(dock)) {
-      const box = lockedBoxOf(widget)
+    // the timer of a drag can fire after the dock is gone (a hot reload, a closed page): there is no tree to read then
+    if (dock.isDisposed) {
+      return
+    }
 
-      if (box === undefined) {
+    const tree = toLayoutNode(dock.saveLayout(), widgetKind)
+
+    for (const widget of dockWidgets(dock)) {
+      const lock = lockedBoxOf(widget)
+
+      if (lock === undefined) {
         continue
+      }
+
+      const kind = widgetKind(widget)
+      let axes: LockAxes = { width: true, height: true }
+
+      if (tree !== null && kind !== undefined) {
+        axes = lockAxesOfKind(tree, kind)
       }
 
       const rect = widget.node.getBoundingClientRect()
       const width = Math.round(rect.width)
       const height = Math.round(rect.height)
 
-      if (width <= 0 || height <= 0 || (width === box.width && height === box.height)) {
+      if (width <= 0 || height <= 0) {
         continue
       }
 
-      lockWidgetTo(widget, { width, height })
+      const kept = keptLockOf(axes, width, height)
+
+      if (kept === undefined) {
+        continue
+      }
+
+      if (kept.width === lock.width && kept.height === lock.height) {
+        continue
+      }
+
+      lockWidgetTo(widget, kept)
     }
   }
 

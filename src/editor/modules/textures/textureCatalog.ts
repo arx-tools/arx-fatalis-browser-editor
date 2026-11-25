@@ -1,3 +1,4 @@
+import JSZip from 'jszip'
 import { computed, shallowRef, watch, type ComputedRef, type ShallowRef } from 'vue'
 import { BLANK_LEVEL_TEXTURE, GENERATOR_ASSETS } from '../../../generator/assets.ts'
 import type { ArxMap } from '../../../generator/ArxMap.ts'
@@ -42,6 +43,70 @@ export function stemOf(name: string): string {
 }
 
 /**
+ * Reads the name of a file of a zip path.
+ *
+ * @param path The path inside the zip.
+ *
+ * @returns The part after the last slash.
+ */
+function baseNameOf(path: string): string {
+  return path.split('/').at(-1) ?? path
+}
+
+/**
+ * The files of the zip of the level on the screen, by their base name in lower case.
+ */
+let zipArchive: { readonly data: ArrayBuffer; readonly entries: Promise<Map<string, JSZip.JSZipObject>> } | undefined
+
+/**
+ * Reads the files of a zip, by their base name in lower case.
+ *
+ * @param data The bytes of the zip.
+ *
+ * @returns The files of the archive.
+ */
+async function entriesOfZip(data: ArrayBuffer): Promise<Map<string, JSZip.JSZipObject>> {
+  const archive = await JSZip.loadAsync(data)
+  const entries = new Map<string, JSZip.JSZipObject>()
+
+  for (const file of Object.values(archive.files)) {
+    if (file.dir) {
+      continue
+    }
+
+    const name = baseNameOf(file.name).toLowerCase()
+
+    if (!entries.has(name)) {
+      entries.set(name, file)
+    }
+  }
+
+  return entries
+}
+
+/**
+ * Finds a file of the zip of the level on the screen.
+ *
+ * @remarks
+ * The archive is opened once and kept until another level is published: the list shows the images the level does not
+ * use, and each of their tiles reads a file of the same zip.
+ *
+ * @param data The bytes of the zip.
+ * @param name The name of the file, as the level or the list calls it.
+ *
+ * @returns The file, or `undefined` when the zip has none with that name.
+ */
+async function zipFileOf(data: ArrayBuffer, name: string): Promise<JSZip.JSZipObject | undefined> {
+  if (zipArchive?.data !== data) {
+    zipArchive = { data, entries: entriesOfZip(data) }
+  }
+
+  const entries = await zipArchive.entries
+
+  return entries.get(name.toLowerCase())
+}
+
+/**
  * What the paint of a level found, so the list knows where every texture came from.
  */
 export type LevelTextureSources = {
@@ -65,6 +130,14 @@ export type LevelTextureSources = {
    * for painting, the same way the ones the level uses.
    */
   readonly zipImages: readonly string[]
+  /**
+   * The bytes of the zip of the level, so an image the level does not use yet can still show in the list.
+   *
+   * @remarks
+   * The paint reads the files of the containers, and the rest of the images are only names: the bytes of one are read
+   * when its tile comes on the screen (or a face is painted with it), from this archive.
+   */
+  readonly zip: ArrayBuffer | undefined
 }
 
 /**
@@ -209,6 +282,17 @@ export async function bytesOf(entry: TextureEntry): Promise<ArrayBuffer | undefi
 
     if (inZip !== undefined) {
       return inZip
+    }
+
+    // an image of the zip the level does not use (yet): the list offers it, and its tile reads the file
+    const zip = levelSources.value?.zip
+
+    if (zip !== undefined) {
+      const file = await zipFileOf(zip, entry.name)
+
+      if (file !== undefined) {
+        return await file.async('arraybuffer')
+      }
     }
 
     const url = GENERATOR_ASSETS[entry.name]
@@ -425,6 +509,8 @@ export function publishLevelTextures(sources: LevelTextureSources): void {
   if (previous?.map === sources.map) {
     return
   }
+
+  zipArchive = undefined
 
   dropped.value = []
   thumbnails.clear()

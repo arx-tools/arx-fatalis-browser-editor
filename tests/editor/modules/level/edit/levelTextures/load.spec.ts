@@ -93,6 +93,18 @@ void describe('zipImageNames', () => {
     assert.deepEqual(await zipImageNames(data), ['[stone]_wall.bmp'])
   })
 
+  void it('leaves the images outside the 3D folders out', async () => {
+    // the zip carries the interface and the minimap of the level's folder: images, but not textures of a face
+    const data = await zipOf({
+      'graph/obj3d/textures/[stone]_wall.bmp': 'bmp',
+      'graph/interface/menus/menu_main_background.jpg': 'jpg',
+      'graph/interface/icons/pcgame[icon].bmp': 'bmp',
+      'graph/levels/level1/map.bmp': 'bmp',
+    })
+
+    assert.deepEqual(await zipImageNames(data), ['[stone]_wall.bmp'])
+  })
+
   void it('lists an image once, in the order of the zip', async () => {
     const data = await zipOf({
       'graph/obj3d/textures/[wood]_floor.jpg': 'jpg',

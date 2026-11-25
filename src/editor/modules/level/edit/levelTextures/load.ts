@@ -170,12 +170,23 @@ export async function findTextureFiles(data: ArrayBuffer, names: readonly string
 }
 
 /**
- * Reads the file names of the images a zip carries.
+ * The folder the 3D textures of a level are under, inside its zip.
+ *
+ * @remarks
+ * The zip of a level carries its interface as well (the background of the menu, the icons, the minimap of the level's
+ * folder): those are images, but not textures a face of the level draws with, so the list of the level's textures does
+ * not offer them.
+ */
+const TEXTURE_FOLDER = 'graph/obj3d/'
+
+/**
+ * Reads the file names of the images a zip carries under the 3D folders.
  *
  * @remarks
  * A level names the textures it uses, and the zip of the level may carry more images than that (a texture the author
  * kept, an unused wall): the editor lists them as the textures of the level too, so a face can be painted with them. Only
- * the images are listed — the zip of a level has its files, its scripts and its sounds as well.
+ * the images are listed, and only the ones under `graph/obj3d` — the zip of a level has its files, its scripts, its
+ * sounds and its interface as well.
  *
  * @param data The bytes of the zip.
  *
@@ -187,6 +198,12 @@ export async function zipImageNames(data: ArrayBuffer): Promise<string[]> {
 
   for (const file of Object.values(archive.files)) {
     if (file.dir) {
+      continue
+    }
+
+    const path = `/${file.name.toLowerCase()}`
+
+    if (!path.includes(`/${TEXTURE_FOLDER}`)) {
       continue
     }
 

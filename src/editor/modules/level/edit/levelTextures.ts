@@ -505,7 +505,7 @@ export async function paintLevel(map: ArxMap, zipData?: ArrayBuffer): Promise<vo
     zipImages = await zipImageNames(zipData)
   }
 
-  publishLevelTextures({ map, fromZip: zipFiles, fromDataDir, zipImages })
+  publishLevelTextures({ map, fromZip: zipFiles, fromDataDir, zipImages, zip: zipData })
 
   // the user has to know what came from where: the rest of the containers is what the placeholder stands in for
   console.info(

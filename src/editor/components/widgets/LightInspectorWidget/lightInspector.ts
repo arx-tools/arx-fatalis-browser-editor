@@ -1,7 +1,40 @@
-import type { ArxLight, ArxVector3 } from 'arx-convert/types'
+import { ArxLightFlags, type ArxLight, type ArxVector3 } from 'arx-convert/types'
 import type { CameraPose } from '../camera/cameraPose.ts'
 import { jumpPoseOf } from '../camera/jumpPose.ts'
 import { lightMarkerShapeOf, type LightMarkerShape } from '../shared/lightMarkers.ts'
+
+/**
+ * The two kinds of light of a level, in the order the list shows them.
+ *
+ * @remarks
+ * The game bakes a **static** light into the palette of the level, and lights a **semi-dynamic** one at runtime: the
+ * editor reads the second kind on the dynamic layer of the Lighting Controls. The list takes the same split, so the
+ * torches and the candles of a level stand apart from the light the level carries (2026-11-24, the owner).
+ */
+export const LIGHT_SECTIONS = [
+  { id: 'static', label: 'Static lights' },
+  { id: 'dynamic', label: 'Dynamic lights' },
+] as const
+
+/**
+ * The kind of a light in the list, which is the section it belongs to.
+ */
+export type LightSection = (typeof LIGHT_SECTIONS)[number]['id']
+
+/**
+ * Tells whether a light belongs to the dynamic layer.
+ *
+ * @remarks
+ * The `SemiDynamic` flag is the one the game lights at runtime: the dynamic layer of the editor, the palette bake and the
+ * `Dynamic lights` switch of the Lighting Controls all read it, so the list does too.
+ *
+ * @param light The light of the LLF.
+ *
+ * @returns True when the light is a semi-dynamic one.
+ */
+export function isDynamicLight(light: ArxLight): boolean {
+  return (light.flags & ArxLightFlags.SemiDynamic) !== 0
+}
 
 /**
  * One row of the Light Inspector: a light of the level, as the list reads it.
@@ -11,6 +44,10 @@ export type LightRow = {
    * The index of the light in `map.lights`, which names it: a light has no identifier of its own.
    */
   readonly index: number
+  /**
+   * The section of the list the light belongs to: the static one, or the dynamic layer.
+   */
+  readonly section: LightSection
   /**
    * The shape the marker of the light draws with.
    */
@@ -140,8 +177,15 @@ function lightColorOf(light: ArxLight): string {
  */
 export function lightRowsOf(lights: readonly ArxLight[], scene: ArxVector3): LightRow[] {
   return lights.map((light, index) => {
+    let section: LightSection = 'static'
+
+    if (isDynamicLight(light)) {
+      section = 'dynamic'
+    }
+
     return {
       index,
+      section,
       shape: lightMarkerShapeOf(light),
       position: {
         x: light.position.x + scene.x,
@@ -190,17 +234,115 @@ export function filteredLightRows(
 }
 
 /**
- * How many rows the window of the list keeps above and below the visible ones.
+ * How many entries the window of the list keeps above and below the visible ones.
  *
  * @remarks
- * A few rows make the next one ready before the scroll reaches it; more would mount the list again from the other side.
+ * A few entries make the next one ready before the scroll reaches it; more would mount the list again from the other
+ * side.
  */
 const OVERSCAN = 6
 
 /**
- * The rows a window of the list draws, and the room the rows above and below it take.
+ * The height of a row of the list, before the browser has measured one.
  */
-export type LightWindow = {
+export const LIGHT_ROW_HEIGHT_FALLBACK = 25
+
+/**
+ * The height of a section header, before the browser has measured one.
+ */
+export const LIGHT_HEADER_HEIGHT_FALLBACK = 24
+
+/**
+ * The rows of one section of the list: the word of its header, and the lights under it.
+ */
+export type LightSectionRows = {
+  /**
+   * The kind of the light the section holds.
+   */
+  readonly section: LightSection
+  /**
+   * The word of the header.
+   */
+  readonly label: string
+  /**
+   * The lights of the section, in the order of `map.lights`.
+   */
+  readonly rows: readonly LightRow[]
+}
+
+/**
+ * How tall the two heights of the list are, in css pixels.
+ */
+export type LightListMetrics = {
+  /**
+   * The height of a light row.
+   */
+  readonly rowHeight: number
+  /**
+   * The height of a section header.
+   */
+  readonly headerHeight: number
+}
+
+/**
+ * Groups the rows into the sections of the list.
+ *
+ * @param rows The rows the search and the shape filter let through.
+ *
+ * @returns The two sections, in the order the list draws them.
+ */
+export function lightSectionsOf(rows: readonly LightRow[]): LightSectionRows[] {
+  return LIGHT_SECTIONS.map((section) => {
+    return {
+      section: section.id,
+      label: section.label,
+      rows: rows.filter((row) => {
+        return row.section === section.id
+      }),
+    }
+  })
+}
+
+/**
+ * The top of the header of every section, in css pixels, from the top of the list.
+ *
+ * @remarks
+ * The headers and the rows of the sections above sit in the flow of the list, so the place of a section is the sum of
+ * them: the reveal of a selection and the window of a section both read this. A folded section keeps its header and
+ * loses its rows, so the section under it moves up by the height of the rows it had.
+ *
+ * @param sections The sections of the list, in the order the list draws them.
+ * @param metrics The measured heights of the list.
+ * @param isOpen Whether the rows of a section are shown.
+ *
+ * @returns The top of each section, by its kind.
+ */
+export function lightSectionTopsOf(
+  sections: readonly LightSectionRows[],
+  metrics: LightListMetrics,
+  isOpen: (section: LightSection) => boolean,
+): Record<LightSection, number> {
+  const tops: Record<LightSection, number> = { static: 0, dynamic: 0 }
+  let top = 0
+
+  for (const section of sections) {
+    tops[section.section] = top
+    top = top + metrics.headerHeight
+
+    if (isOpen(section.section)) {
+      const height = section.rows.length * metrics.rowHeight
+
+      top = top + height
+    }
+  }
+
+  return tops
+}
+
+/**
+ * The rows a window of one section draws, and the room the rows above and below it take.
+ */
+export type LightRowWindow = {
   /**
    * The first row of the window.
    */
@@ -220,34 +362,36 @@ export type LightWindow = {
 }
 
 /**
- * Works out the window of the rows a scroll box draws.
+ * Works out the window of the rows of a section a scroll box draws.
  *
  * @remarks
- * A level of a few hundred lights (level 0 has 376) mounts every row and its tooltips when the list draws them all,
- * which is the hitch of the Lighter preset. The list draws the rows the box shows, plus a few on both sides, and the
- * two paddings keep the height of the whole list on the scrollbar: the scrollbar is the same, the number of the live
- * rows is not (TODO 281).
+ * A level of a few hundred lights (level 0 has 376) mounts every row and its tooltips when the list draws them all, which
+ * is the hitch of the Lighter preset. The list draws the rows the box shows, plus a few on both sides, and the two
+ * paddings keep the height of the whole section on the scrollbar: the scrollbar is the same, the number of the live rows
+ * is not (TODO 281). The headers of the sections are always in the flow (they stick to the top of the box), so the
+ * window of a section is read from the scroll the section's own rows have: the header and the sections above it are
+ * taken away from the scroll of the box before this call.
  *
- * @param total How many rows the list has.
- * @param scrollTop How far the box is scrolled, in css pixels.
+ * @param total How many rows the section has.
+ * @param scrollTop How far the box is scrolled past the first row of the section, in css pixels.
  * @param viewportHeight How tall the box is, in css pixels.
- * @param rowHeight How tall a row is, in css pixels.
+ * @param rowHeight How tall a light row is, in css pixels.
  *
  * @returns The first and the last row of the window, with the room of the rows outside it.
  */
-export function lightWindowOf(
+export function lightRowWindowOf(
   total: number,
   scrollTop: number,
   viewportHeight: number,
   rowHeight: number,
-): LightWindow {
+): LightRowWindow {
   if (total <= 0 || rowHeight <= 0) {
     return { start: 0, end: 0, top: 0, bottom: 0 }
   }
 
-  const first = Math.floor(scrollTop / rowHeight) - OVERSCAN
-  const start = Math.max(0, Math.min(first, total - 1))
-  const last = Math.ceil((scrollTop + viewportHeight) / rowHeight) + OVERSCAN
+  const first = Math.max(0, Math.floor(scrollTop / rowHeight))
+  const start = Math.min(Math.max(0, first - OVERSCAN), Math.max(0, total - 1))
+  const last = Math.ceil((Math.max(scrollTop, 0) + Math.max(viewportHeight, 0)) / rowHeight) + OVERSCAN
   const end = Math.min(total, Math.max(start, last))
 
   return {
@@ -259,25 +403,32 @@ export function lightWindowOf(
 }
 
 /**
- * What the panel says above the list: how many lights there are, and how many of them are selected.
+ * Works out the scroll of the box that puts an entry of the list on the screen.
  *
- * @param total How many lights the level has.
- * @param selected How many of them the selection holds.
+ * @remarks
+ * A row that is already in the box is left where it is: a click of the author in the list does not jump the list around.
+ * The box is positioned once, without an animation, so the row is there on the frame it is asked for (2026-11-24, the
+ * owner).
  *
- * @returns The line of the panel.
+ * @param top The place of the top of the entry from the top of the list, in css pixels.
+ * @param height The height of the entry, in css pixels.
+ * @param scrollTop How far the box is scrolled now, in css pixels.
+ * @param viewportHeight How tall the box is, in css pixels.
+ *
+ * @returns The scroll the box takes.
  */
-export function lightSelectionLabelOf(total: number, selected: number): string {
-  let noun = 'lights'
-
-  if (total === 1) {
-    noun = 'light'
+export function revealScrollTopOf(top: number, height: number, scrollTop: number, viewportHeight: number): number {
+  if (viewportHeight <= 0) {
+    return Math.max(0, top)
   }
 
-  const lights = `${total} ${noun}`
-
-  if (selected === 0) {
-    return lights
+  if (top < scrollTop) {
+    return Math.max(0, top)
   }
 
-  return `${lights} · ${selected} selected`
+  if (top + height > scrollTop + viewportHeight) {
+    return top + height - viewportHeight
+  }
+
+  return scrollTop
 }

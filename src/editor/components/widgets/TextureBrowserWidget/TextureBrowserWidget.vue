@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ChevronLeft, ChevronRight } from 'lucide-vue-next'
-import { computed, ref, shallowRef, useTemplateRef, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue'
+import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
+import { textureKeyOf, textureSelectionStore } from '../../../modules/selection/textureSelectionStore.ts'
 import {
   MATERIAL_ALIASES,
   materialLabelOf,
@@ -10,9 +12,15 @@ import {
   type TextureMaterial,
 } from '../../../modules/textures/material.ts'
 import { paintSelectedFaces } from '../../../modules/textures/paintTextures.ts'
-import { TEXTURE_GROUPS, type TextureFilter, type TextureGroup } from '../../../modules/textures/search.ts'
+import {
+  filteredEntries,
+  TEXTURE_GROUPS,
+  type TextureFilter,
+  type TextureGroup,
+} from '../../../modules/textures/search.ts'
 import {
   addDroppedTextures,
+  entryOfName,
   loadThumbnails,
   textureCatalog,
   thumbnailOf,
@@ -20,7 +28,8 @@ import {
 import type { TextureEntry } from '../../../modules/textures/textureEntry.ts'
 import SearchField from '../../SearchField.vue'
 import WidgetHeading from '../../WidgetHeading.vue'
-import { texturePageOf } from './textureBrowser.ts'
+import { createRevealGate, revealRowIn } from '../shared/revealRow.ts'
+import { TEXTURES_PER_PAGE, texturePageOf } from './textureBrowser.ts'
 
 /**
  * The label of the widget, from the widget definition.
@@ -83,6 +92,215 @@ const shown = computed(() => {
  */
 const selected = computed(() => {
   return selectionStore.count.value
+})
+
+/**
+ * The keys of the textures the selected faces draw with.
+ *
+ * @remarks
+ * The list shows the texture a paint would touch: the faces of the selection name their textures, and the tiles of them
+ * are marked the way the 3D views mark a pick (2026-11-25, the owner: the Texture Mapper should read the selection the
+ * way the UV Mapper does).
+ */
+const usedKeys = computed<ReadonlySet<string>>(() => {
+  const keys = new Set<string>()
+  const map = levelStore.map.value
+
+  if (map === undefined) {
+    return keys
+  }
+
+  for (const index of selectionStore.polygons.value) {
+    const polygon = map.polygons[index]
+
+    if (polygon === undefined) {
+      continue
+    }
+
+    const name = map.textureNameOf(polygon.textureContainerId)
+
+    if (name === undefined) {
+      continue
+    }
+
+    const entry = entryOfName(name)
+
+    if (entry !== undefined) {
+      keys.add(textureKeyOf(entry))
+    }
+  }
+
+  return keys
+})
+
+/**
+ * Tells whether a texture of the list is marked: the picked one, or one the selected faces draw with.
+ *
+ * @param entry The texture of a tile.
+ *
+ * @returns True when the tile takes the yellow of the selection.
+ */
+function isSelected(entry: TextureEntry): boolean {
+  const key = textureKeyOf(entry)
+  const picked = textureSelectionStore.texture.value
+
+  if (picked !== undefined && textureKeyOf(picked) === key) {
+    return true
+  }
+
+  return usedKeys.value.has(key)
+}
+
+/**
+ * The frame that waits for the list to draw the page the reveal went to.
+ *
+ * @returns A promise that resolves on the next frame.
+ */
+function nextFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      resolve()
+    })
+  })
+}
+
+/**
+ * How many frames a reveal follows the box for.
+ *
+ * @remarks
+ * The dock gives a widget its size after the widget is attached: the first scroll reads the box of the moment, and the
+ * passes after it read the box the author has.
+ */
+const REVEAL_PASSES = 3
+
+/**
+ * The reveal that is being worked out, so a pick that moves on takes the last one away.
+ */
+let revealToken = 0
+
+/**
+ * The gate of the reveal: a click on a tile does not move the list.
+ */
+const revealGate = createRevealGate()
+
+/**
+ * Reads the tile of a texture the list drew.
+ *
+ * @param texture The texture to find.
+ *
+ * @returns The tile of the texture, or `null` while the page is not on the screen.
+ */
+function tileElementOf(texture: TextureEntry): HTMLElement | null {
+  const element = list.value
+
+  if (element === null) {
+    return null
+  }
+
+  const key = textureKeyOf(texture)
+
+  for (const tile of element.querySelectorAll<HTMLElement>(':scope [data-texture-key]')) {
+    if (tile.dataset.textureKey === key) {
+      return tile
+    }
+  }
+
+  return null
+}
+
+/**
+ * Puts the picked texture on the screen: clears the filter that hides it, turns to its page, and scrolls to its tile.
+ *
+ * @remarks
+ * The owner asked for a pick to find its list (2026-11-25): a texture of the selected faces, a row of the Selection
+ * Inspector, is on the screen of the list. The filter that hides the texture is cleared, because the author picked a
+ * texture to see it, and the list turns to the page the texture is on; the tile is already highlighted by the store.
+ * A tile that is on the screen stays where it is.
+ */
+async function revealSelectedTexture(): Promise<void> {
+  const token = revealToken + 1
+
+  revealToken = token
+
+  const texture = textureSelectionStore.texture.value
+
+  if (texture === undefined) {
+    return
+  }
+
+  const key = textureKeyOf(texture)
+  const entries = textureCatalog.entries.value
+  const inCatalog = entries.some((entry) => {
+    return textureKeyOf(entry) === key
+  })
+
+  // a texture the list does not carry (a missing texture of the level) has no tile to go to
+  if (!inCatalog) {
+    return
+  }
+
+  const visible = filteredEntries(entries, filter.value).some((entry) => {
+    return textureKeyOf(entry) === key
+  })
+
+  if (!visible) {
+    query.value = ''
+    material.value = 'all'
+    group.value = 'all'
+  }
+
+  // the filter puts the list back on its first page, and the page of the texture is the one it is on: the model settles
+  // on the next tick
+  await nextTick()
+
+  const filtered = filteredEntries(textureCatalog.entries.value, filter.value)
+  const position = filtered.findIndex((entry) => {
+    return textureKeyOf(entry) === key
+  })
+
+  if (position === -1) {
+    return
+  }
+
+  page.value = Math.floor(position / TEXTURES_PER_PAGE) + 1
+
+  await nextTick()
+
+  for (let pass = 0; pass < REVEAL_PASSES; pass++) {
+    if (token !== revealToken) {
+      return
+    }
+
+    revealRowIn(list.value, tileElementOf(texture))
+
+    await nextFrame()
+  }
+}
+
+// a pick of the walkable view's faces (the selection inspector) and a click in this list both write the same store
+watch(
+  () => {
+    return textureSelectionStore.texture.value
+  },
+  () => {
+    if (revealGate.take()) {
+      return
+    }
+
+    revealSelectedTexture().catch(() => {
+      // the reveal is a scroll of a widget: a box that went away takes it with it
+    })
+  },
+)
+
+onMounted(() => {
+  // a widget that arrives with a texture picked (a preset switch, a drag into the dock) shows it: the dock builds the
+  // widget before it lays it out, so the reveal waits a frame for the box
+  requestAnimationFrame(() => {
+    revealSelectedTexture().catch(() => {
+      // the reveal is a scroll of a widget: a box that went away takes it with it
+    })
+  })
 })
 
 /**
@@ -168,21 +386,25 @@ function titleOf(entry: TextureEntry): string {
 }
 
 /**
- * Paints the selected faces with a texture.
+ * Picks a texture, and paints the selected faces with it.
  *
  * @remarks
- * The name of a tile is a text the user can select (the file name is worth copying), and the drag that selects it ends
- * with a click on the tile: the click of a selection paints nothing, or the faces would take a texture the user did not
- * ask for.
+ * The click of a tile is two things (2026-11-25, the owner): the texture the faces take, which the store holds and the
+ * tile shows as picked, and the paint of the selected faces. The name of a tile is a text the user can select (the file
+ * name is worth copying), and the drag that selects it ends with a click on the tile: the click of a selection paints
+ * nothing, or the faces would take a texture the user did not ask for.
  *
  * @param entry The texture of the tile that was clicked.
  */
 async function paint(entry: TextureEntry): Promise<void> {
-  const selection = globalThis.getSelection()
-
-  if (selected.value === 0 || (selection !== null && !selection.isCollapsed)) {
+  // the tiles are idle while nothing is selected: there is no face to paint, and the pick of a texture belongs to the
+  // faces of the selection (2026-11-25, the owner: a click on an idle tile picked a texture that nothing could clear)
+  if (selected.value === 0) {
     return
   }
+
+  revealGate.suppress()
+  textureSelectionStore.select(entry)
 
   await paintSelectedFaces(entry)
 }
@@ -248,7 +470,11 @@ async function onDrop(event: DragEvent): Promise<void> {
     @dragleave="onDragLeave"
     @drop.prevent="onDrop"
   >
-    <WidgetHeading :label="props.label" />
+    <WidgetHeading :label="props.label">
+      <template #actions>
+        <span class="total">Total: {{ textureCatalog.entries.value.length }}</span>
+      </template>
+    </WidgetHeading>
 
     <p class="info">Click to replace textures on selected faces.</p>
 
@@ -269,9 +495,11 @@ async function onDrop(event: DragEvent): Promise<void> {
         v-for="entry in shown.entries"
         :key="`${entry.source}:${entry.name}`"
         class="tile"
+        :class="{ 'is-selected': isSelected(entry) }"
         role="button"
         :tabindex="selected === 0 ? undefined : 0"
         :aria-disabled="selected === 0 ? 'true' : undefined"
+        :data-texture-key="textureKeyOf(entry)"
         v-tooltip="titleOf(entry)"
         @click="paint(entry)"
         @keydown.enter.prevent="paint(entry)"
@@ -320,6 +548,12 @@ async function onDrop(event: DragEvent): Promise<void> {
   font-size: 12px;
 }
 
+// the count of the list sits in the heading, on the right, the way the entity list and the light inspector keep theirs
+.total {
+  color: $text-muted;
+  font-size: 11px;
+}
+
 // the line that says what a click does: it is always there, and the tiles look the same with and without a
 // selection (the owner asked for no dimming: the picture of a texture is the point, not whether a face is taken)
 .info {
@@ -362,9 +596,10 @@ async function onDrop(event: DragEvent): Promise<void> {
   flex: 1;
   grid-template-columns: repeat(auto-fill, minmax(74px, 1fr));
   gap: 4px;
-  // the search row keeps a breath before the list (2026-11-22, the owner: the rows touched the field)
+  // the search row keeps a breath before the list (2026-11-22, the owner: the rows touched the field), and the tiles
+  // stop before the scrollbar the way the rows of the other lists do
   margin-top: 20px;
-  padding: 2px 6px;
+  padding: 2px 10px 2px 6px;
   overflow-y: auto;
   align-content: start;
 }
@@ -384,9 +619,13 @@ async function onDrop(event: DragEvent): Promise<void> {
   text-align: center;
   cursor: pointer;
 
-  &:hover:not([aria-disabled='true']) {
-    border-color: $border-strong;
-    background: $surface-panel;
+  // the pointer draws the white ring of the hover of the markers (2026-11-25, the owner: the white of the light and the
+  // entity hover); the pick is the yellow of the selection, and the text on it is the dark of a widget, the way the
+  // corner chips of the UV Mapper keep theirs. The picked tile has no hover of its own: its state is the selection, and
+  // a second look under the pointer would read as neither (2026-11-25, the owner)
+  &:hover:not([aria-disabled='true']):not(.is-selected) {
+    border-color: $text-strong;
+    background: rgba($text-strong, 0.06);
   }
 
   // a tile is a div, so the frame of the focus is drawn here (the browser draws one for a button by itself)
@@ -398,6 +637,19 @@ async function onDrop(event: DragEvent): Promise<void> {
   // a tile without a selection does nothing, but it is not dimmed: the textures read the same either way
   &[aria-disabled='true'] {
     cursor: default;
+  }
+
+  // the picked texture, and the textures of the selected faces: the full yellow of the selection of the views, so a tile
+  // reads as picked even when its picture is dark (2026-11-25, the owner)
+  &.is-selected {
+    border-color: $selection;
+    background: $selection;
+    color: $surface-widget;
+    cursor: default;
+
+    .name {
+      color: $surface-widget;
+    }
   }
 
   .thumb {
@@ -415,14 +667,15 @@ async function onDrop(event: DragEvent): Promise<void> {
     background: $surface-panel;
   }
 
+  // the name is a caption, not a file to copy (2026-11-25, the owner: the ellipsis cuts it anyway): the text of a tile is
+  // not a selection of its own, so a drag on the list never leaves a selected word behind
   .name {
     display: -webkit-box;
     width: 100%;
     overflow: hidden;
     color: $text-muted;
-    cursor: text;
     line-height: 1.15;
-    user-select: text;
+    user-select: none;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     line-clamp: 2;

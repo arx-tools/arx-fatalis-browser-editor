@@ -42,7 +42,7 @@ test('the Lighter preset carries the Light Inspector, and a row picks a light', 
   // the Lighter preset has no statistics to tell the level is on: the rows of the list are the signal
   await expect(rows.first()).toBeVisible({ timeout: 60_000 })
   expect(await rows.count()).toBeGreaterThan(0)
-  await expect(inspector.locator('.selection')).toContainText('lights')
+  await expect(inspector.locator('.total')).toHaveText(/^Total: \d+$/u)
 
   // a click replaces the pick of the lights
   await rows.first().click()
@@ -70,14 +70,14 @@ test('the Lighter preset carries the Light Inspector, and a row picks a light', 
   // a plain click on the row that is the only pick takes the pick away, the way a row of the rooms does
   await rows.first().click()
   await expect(rows.first()).not.toHaveClass(/is-selected/)
-  await expect(inspector.locator('.selection')).not.toContainText('selected')
+  await expect(inspector.locator('.selection')).toHaveCount(0)
 
   // the C key clears the lights, the same key that clears the faces
   await rows.first().click()
   await expect(inspector.locator('.selection')).toContainText('1 selected')
   await page.keyboard.press('c')
   await expect(rows.first()).not.toHaveClass(/is-selected/)
-  await expect(inspector.locator('.selection')).not.toContainText('selected')
+  await expect(inspector.locator('.selection')).toHaveCount(0)
 
   // the shape filter narrows the list to the fire lights
   await inspector.locator('.shape-filter').selectOption('flame')
@@ -198,7 +198,7 @@ test('a level of hundreds of lights draws a window of the list, and reaches the 
 
   await expect(inspector).toBeVisible()
 
-  const line = inspector.locator('.selection')
+  const line = inspector.locator('.total')
 
   /**
    * Reads how many lights the line above the list counts.
@@ -206,7 +206,7 @@ test('a level of hundreds of lights draws a window of the list, and reaches the 
    * @returns The number of lights, or 0 while the level is on its way.
    */
   async function countOfLights(): Promise<number> {
-    const match = /(?<count>\d{1,6}) lights/u.exec((await line.textContent()) ?? '')
+    const match = /(?<count>\d{1,6})/u.exec((await line.textContent()) ?? '')
 
     return Number(match?.groups?.count ?? 0)
   }
@@ -222,10 +222,169 @@ test('a level of hundreds of lights draws a window of the list, and reaches the 
   // the window of the box (about eight rows) and its overscan, not the hundreds of the level
   expect(await rows.count()).toBeLessThan(60)
 
-  // the scrollbar covers the whole list: the last light is one scroll away, and the window follows it
-  await inspector.locator('.lights').evaluate((node) => {
+  // the two kinds of the level are two sections of the one list: the header of the static one is the first entry
+  await expect(inspector.locator('.section-head').first()).toContainText('Static lights')
+  await expect(inspector.locator('.section-head').first().locator('.value')).not.toHaveText('0')
+
+  // a folded section keeps its header: both headers are on the screen of the top of the list, and the rows of the static
+  // section are gone from it
+  await inspector.locator('.section-head .head').first().click()
+
+  await expect(inspector.locator('.section-head')).toHaveCount(2)
+  await expect(inspector.locator('.section-head').first().locator('.head')).toHaveAttribute('aria-expanded', 'false')
+  await expect(inspector.locator('.section-head').nth(1)).toContainText('Dynamic lights')
+
+  // the two sections count the whole level: the split takes no light away
+  const counts = await inspector.locator('.section-head .value').allInnerTexts()
+  const counted = counts.reduce((sum, text) => {
+    return sum + Number(text)
+  }, 0)
+
+  expect(counted).toBe(total)
+
+  // the scrollbar covers the whole list: the last entry is one scroll away, and the window follows it
+  const box = inspector.locator('.lights')
+
+  await box.evaluate((node) => {
     node.scrollTop = node.scrollHeight
   })
 
-  await expect(inspector.locator('.index').last()).toHaveText(`light ${String(total - 1)}`)
+  await expect
+    .poll(async () => {
+      return await box.evaluate((node) => {
+        return node.scrollTop + node.clientHeight >= node.scrollHeight - 1
+      })
+    })
+    .toBe(true)
+
+  // the window ends on a light: the list drew the last row of the last section, not a slice of the middle
+  await expect(inspector.locator('.light').last().locator('.index')).toHaveText(/^light \d+$/u)
+
+  // the header of the section in view sticks to the top of the box, over the rows of the section
+  const headerBox = await inspector.locator('.section-head').last().boundingBox()
+  const listBox = await box.boundingBox()
+
+  expect(headerBox !== null && listBox !== null).toBe(true)
+
+  if (headerBox !== null && listBox !== null) {
+    expect(Math.abs(headerBox.y - listBox.y)).toBeLessThanOrEqual(1)
+  }
+})
+
+/**
+ * The pick of another widget finds its row: the section of the light opens, the filter that hid it clears, and the row
+ * is on the screen of the list.
+ *
+ * @remarks
+ * The owner asked for a light picked in the walkable view to stand on the screen of the inspector (2026-11-24). The
+ * second door of the light selection is the row of the selection inspector, which picks the same light again: the list
+ * has to answer the pick even when the author folded the section away and the search or the shape filter hides the light.
+ * The light is the last one of the level, so its row is under the fold of the small inspector of the editor layout: the
+ * reveal scrolls the list, not just opens the section.
+ */
+test('a pick from another widget opens the section of the light and scrolls to the row', async ({ page }) => {
+  test.setTimeout(120_000)
+
+  await page.setViewportSize({ width: 1631, height: 850 })
+  // the editor layout with the light inspector in the place of the polygon inspector: the selection inspector is beside
+  // it, and the statistics tell when the level is on
+  await seedLayout(page, renameKinds(testLayout, { [WIDGET_KINDS.polygonInspector]: WIDGET_KINDS.lightInspector }))
+  await page.goto(editorUrl())
+  await waitForLevel(page)
+  await waitForLayoutSettled(page)
+
+  const inspector = page.locator('[data-widget-kind="light-inspector"]')
+  const box = inspector.locator('.lights')
+
+  await expect(inspector.locator('.light').first()).toBeVisible()
+
+  // the last light of the level: the end of the list, under the fold of the small inspector
+  await box.evaluate((node) => {
+    node.scrollTop = node.scrollHeight
+  })
+
+  await expect
+    .poll(async () => {
+      return await box.evaluate((node) => {
+        return node.scrollTop + node.clientHeight >= node.scrollHeight - 1
+      })
+    })
+    .toBe(true)
+
+  const lastRow = inspector.locator('.light').last()
+  const indexLabel = await lastRow.locator('.index').innerText()
+  const shapeText = await lastRow.locator('.shape').innerText()
+  const sectionText = await lastRow.evaluate((row) => {
+    let node: Element | null = row.previousElementSibling
+
+    while (node !== null && !node.classList.contains('section-head')) {
+      node = node.previousElementSibling
+    }
+
+    return node?.querySelector('.label')?.textContent ?? ''
+  })
+  const label = indexLabel.trim()
+  const shapeOfLast = shapeText.trim()
+  const sectionLabel = sectionText.trim()
+
+  // the row picks the light, and then the section folds away and the shape filter hides the light
+  await lastRow.click()
+  await expect(inspector.locator('.selection')).toContainText('1 selected')
+
+  const head = inspector.locator('.section-head', { hasText: sectionLabel })
+
+  await head.locator('.head').click()
+  await expect(head.locator('.head')).toHaveAttribute('aria-expanded', 'false')
+
+  const optionOf: Record<string, string> = {
+    'Semi-dynamic': 'bulb',
+    Fire: 'flame',
+    Off: 'flameCrossed',
+    Static: 'star',
+  }
+  let otherShape = 'flame'
+
+  if (optionOf[shapeOfLast] === 'flame') {
+    otherShape = 'star'
+  }
+
+  await inspector.locator('.shape-filter').selectOption(otherShape)
+  await expect(inspector.locator('.light.is-selected')).toHaveCount(0)
+
+  // the selection inspector lists the picked light, and a pick opens the fold of its kind: a click on the row picks it
+  const selection = page.locator('[data-widget-kind="selection-inspector"]')
+  const lightsRow = selection.locator('.AccordionRow', { hasText: 'Lights' })
+
+  await expect(lightsRow.locator('.head')).toHaveAttribute('aria-expanded', 'true')
+
+  const selectionRow = selection.locator('.faces li').filter({ hasText: new RegExp(`^${label}$`, 'u') })
+
+  await expect(selectionRow).toHaveCount(1)
+  await selectionRow.click()
+
+  // the section is open, the filter is cleared, and the row is inside the box of the list
+  await expect(head.locator('.head')).toHaveAttribute('aria-expanded', 'true')
+  await expect(inspector.locator('.shape-filter')).toHaveValue('all')
+  await expect(inspector.locator('input[type="search"]')).toHaveValue('')
+  await expect(inspector.locator('.light.is-selected')).toHaveCount(1)
+
+  const selectedRow = inspector.locator('.light.is-selected')
+  const rowBox = await selectedRow.boundingBox()
+  const listBox = await box.boundingBox()
+
+  expect(rowBox !== null && listBox !== null).toBe(true)
+
+  if (rowBox === null || listBox === null) {
+    throw new Error('the row or the list has no box')
+  }
+
+  expect(rowBox.y).toBeGreaterThanOrEqual(listBox.y - 1)
+  expect(rowBox.y + rowBox.height).toBeLessThanOrEqual(listBox.y + listBox.height + 1)
+
+  // the row was under the fold, so the reveal scrolled the list to it
+  const scrollTop = await box.evaluate((node) => {
+    return node.scrollTop
+  })
+
+  expect(scrollTop).toBeGreaterThan(0)
 })

@@ -130,15 +130,16 @@ const LIST_LAYOUT: LayoutNode = {
 }
 
 /**
- * The list turns to its next page, and the name under a tile can be selected.
+ * The list turns to its next page, and the name under a tile is a caption, not a text to select.
  *
  * @remarks
  * The list is filled through the drop zone, which is the way a texture that no source of the editor has comes in: a page
  * holds a hundred tiles, and two hundred and fifty files are enough for a **second** page to be as tall as the first
- * (a shorter one would scroll to its top by itself, and the test would pass without the widget doing anything). The
- * selection is a drag over the text of a tile, which is what a user does to copy a name.
+ * (a shorter one would scroll to its top by itself, and the test would pass without the widget doing anything). The name
+ * of a tile is cut with an ellipsis, so it is not a file name to copy: the text of a tile is not a selection of its own
+ * (2026-11-25, the owner).
  */
-test('a new page starts at the top of the list, and the name of a tile can be selected', async ({ page }) => {
+test('a new page starts at the top of the list, and the name of a tile is a caption', async ({ page }) => {
   await seedLayout(page, LIST_LAYOUT)
   await page.goto('/?map=blank-flat')
 
@@ -206,32 +207,82 @@ test('a new page starts at the top of the list, and the name of a tile can be se
     })
     .toBe(0)
 
-  // the first name of the second page, and the box of its text: a drag over it selects the whole name
+  // the first name of the second page: a caption, and the drag of the pointer does not select it
   const name = list.locator('.tile .name').first()
 
   await expect(name).toHaveText('a99.png')
 
-  const box = await name.evaluate((element) => {
-    const range = element.ownerDocument.createRange()
-
-    range.selectNodeContents(element)
-
-    const rect = range.getBoundingClientRect()
-
-    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
+  const userSelect = await name.evaluate((element) => {
+    return getComputedStyle(element).userSelect
   })
 
+  expect(userSelect).toBe('none')
+})
+
+/**
+ * The texture of the selected faces finds its tile: the rows of the Selection Inspector pick it, and the list shows it.
+ *
+ * @remarks
+ * The owner asked for the same reveal the lights and the entities have (2026-11-25): a texture picked in the Selection
+ * Inspector turns the Texture Browser to its page, clears the filter that hides it, and highlights the tile. The level is
+ * the blank one: its floor is painted with the placeholder texture of the generator, which is the one the browser
+ * carries, so the face of the pick lists a texture the list can show (the level of the game names its own, and the
+ * placeholder level is the one where the two meet). The faces come from a shift click on the room map of the top view, so
+ * the test needs no pointer lock.
+ */
+test('a texture picked in the selection inspector is on the screen of the texture list', async ({ page }) => {
+  test.setTimeout(120_000)
+
+  await seedLayout(page, painterLayout())
+  await page.goto('/?map=blank-flat')
+  await waitForLevel(page)
+
+  const textures = page.locator('[data-widget-kind="textures"]')
+  const inspector = page.locator('[data-widget-kind="selection-inspector"]')
+  const tile = textures.locator('.tile')
+
+  await expect(tile).toHaveCount(1)
+
+  // the rooms show on the plan, and a shift click on the room of the spawn selects its faces: the floor of the level
+  await page.keyboard.press('r')
+
+  const marker = page.locator('[data-widget-kind="top-view"] .camera-mark')
+  const box = await marker.boundingBox()
+
+  if (box === null) {
+    throw new Error('the top view has no marker')
+  }
+
+  const halfWidth = box.width / 2
   const halfHeight = box.height / 2
-  const middle = box.y + halfHeight
+  const middle = { x: box.x + halfWidth, y: box.y + halfHeight }
 
-  await page.mouse.move(box.x + 1, middle)
-  await page.mouse.down()
-  await page.mouse.move(box.x + box.width - 1, middle, { steps: 10 })
-  await page.mouse.up()
+  await page.keyboard.down('Shift')
+  await page.mouse.click(middle.x, middle.y)
+  await page.keyboard.up('Shift')
 
-  const selection = await page.evaluate(() => {
-    return globalThis.getSelection()?.toString() ?? ''
-  })
+  await expect
+    .poll(async () => {
+      return await selectionCount(page)
+    })
+    .toBeGreaterThan(0)
 
-  expect(selection).toBe('a99.png')
+  const row = inspector.locator('.textures li', { hasText: 'jorge-[stone].jpg' })
+
+  await expect(row).toHaveCount(1)
+
+  // the search hides the texture: the list has no tile of it
+  const search = textures.getByRole('searchbox', { name: 'Search textures' })
+
+  await search.fill('no-such-texture')
+  await expect(tile).toHaveCount(0)
+
+  // the click on the row of the inspector picks the texture: the list clears the filter and highlights the tile
+  await row.click()
+
+  await expect(search).toHaveValue('')
+  await expect(tile).toHaveCount(1)
+  await expect(tile).toHaveClass(/is-selected/)
+  await expect(row).toHaveClass(/is-selected/)
+  await expect(tile).toBeVisible()
 })

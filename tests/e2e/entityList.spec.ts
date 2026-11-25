@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
-import { editorUrl } from './support/editor.ts'
+import { testLayout } from '../support/layouts.ts'
+import { WIDGET_KINDS } from '../../src/editor/modules/layout/widgetKinds.ts'
+import { editorUrl, renameKinds, seedLayout, waitForLayoutSettled, waitForLevel } from './support/editor.ts'
 
 /**
  * The entity list: the interactive objects of the DLF, by category, with a search.
@@ -37,9 +39,14 @@ test('the entity list shows the entities of the level, and the search filters th
 
   await expect(list.locator('.AccordionRow').first()).toContainText('Player')
 
-  // the row of the player is the spawn of the level: it is clickable, and it says it is picked (TODO 172)
+  // the player starts folded away, the way the folders do: its row is there when the author opens it
   const playerRow = list.locator('.player-row')
 
+  await expect(playerRow).toHaveCount(0)
+  await list.locator('.AccordionRow').first().locator('.head').click()
+  await expect(playerRow).toHaveCount(1)
+
+  // the row of the player is the spawn of the level: it is clickable, and it says it is picked (TODO 172)
   await expect(playerRow).toHaveAttribute('data-selected', 'false')
   await expect(playerRow.locator('.name')).toHaveText('spawn')
   await playerRow.locator('.name').click()
@@ -137,4 +144,79 @@ test('the entity list shows the entities of the level, and the search filters th
 
   await expect(list.locator('.row:not(.player-row)')).toHaveCount(0)
   await expect(list).toContainText('No entity matches the search.')
+})
+
+/**
+ * The list finds the entity a pick left in the store, even when the widget arrives after the pick.
+ *
+ * @remarks
+ * The owner asked for a picked entity to stand on the screen of the list (2026-11-24): the row of its folder is open, and
+ * the list scrolls to it. The pick here is a row of the list (the click writes the same store the markers of the walkable
+ * view write), and the widget arrives again on a preset switch: the list keeps no state of its own, so the reveal has to
+ * read the selection and the level when it mounts. The box of the list is the small one of the editor layout, so the last
+ * row of a folder is under its fold, and the reveal scrolls the folder to the row.
+ */
+test('the list opens the folder of the entity it arrives with, and scrolls to the row', async ({ page }) => {
+  test.setTimeout(120_000)
+
+  await page.setViewportSize({ width: 1631, height: 850 })
+  // the editor layout with the entity list in the place of the polygon inspector: the box of the list is 180 px high
+  await seedLayout(page, renameKinds(testLayout, { [WIDGET_KINDS.polygonInspector]: WIDGET_KINDS.entityList }))
+  await page.goto(editorUrl())
+  await waitForLevel(page)
+  await waitForLayoutSettled(page)
+
+  const list = page.locator('[data-widget-kind="entity-list"]')
+
+  await expect(list.locator('.AccordionRow').first()).toContainText('Player')
+
+  // the folder of the items, and its last row: the row is under the fold of the small box, and a click picks the entity
+  const itemsRow = list.locator('.AccordionRow', { hasText: 'items' })
+
+  await itemsRow.locator('.head').click()
+
+  const rows = itemsRow.locator('.row')
+
+  await expect(rows.last()).toBeVisible()
+
+  const pickedRow = rows.last()
+  const index = await pickedRow.getAttribute('data-entity-index')
+
+  await pickedRow.click()
+  await expect(pickedRow).toHaveAttribute('data-selected', 'true')
+
+  // the folder folds away, and the widget arrives again with the pick still in the store: another preset, then back
+  await itemsRow.locator('.head').click()
+  await expect(itemsRow.locator('.head')).toHaveAttribute('aria-expanded', 'false')
+
+  await page.locator('header button[aria-label="Presets"]').click()
+  await page.locator('.preset-menu .preset-row', { hasText: 'Lighter' }).click()
+  await waitForLayoutSettled(page)
+  await expect(page.locator('[data-widget-kind="entity-list"]')).toHaveCount(0)
+
+  await page.locator('header button[aria-label="Presets"]').click()
+  await page.locator('.preset-menu .preset-row', { hasText: 'Editor' }).click()
+  await waitForLayoutSettled(page)
+
+  const reopened = page.locator('[data-widget-kind="entity-list"]')
+  const reopenedItems = reopened.locator('.AccordionRow', { hasText: 'items' })
+
+  await expect(reopenedItems.locator('.head')).toHaveAttribute('aria-expanded', 'true')
+
+  const picked = reopened.locator('.row[data-selected="true"]')
+
+  await expect(picked).toHaveCount(1)
+  await expect(picked).toHaveAttribute('data-entity-index', index ?? '')
+  await expect(picked).toBeVisible()
+
+  // the row was under the fold, so the reveal scrolled the box of the folders to it
+  const folders = reopened.locator('.sections')
+
+  await expect
+    .poll(async () => {
+      return await folders.evaluate((node) => {
+        return node.scrollTop
+      })
+    })
+    .toBeGreaterThan(0)
 })

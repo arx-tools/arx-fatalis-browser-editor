@@ -1,4 +1,5 @@
 import { shallowRef, type ShallowRef } from 'vue'
+import { isPlayerSelected } from '../level/entities/playerSpawn.ts'
 
 /**
  * The entity the editor has selected.
@@ -44,6 +45,13 @@ export const entitySelectionStore: EntitySelectionStore = {
   hover: shallowRef<number | undefined>(undefined),
   select: (entity: number | undefined): void => {
     entitySelectionStore.entity.value = entity
+
+    // the player of the level is a pick of the list too (the row of the spawn), so the two cannot stand together: a pick
+    // of an entity takes the spawn away, the way a click on the entity list replaces what the crosshair had
+    // (2026-11-25, the owner)
+    if (entity !== undefined) {
+      isPlayerSelected.value = false
+    }
   },
   setHover: (entity: number | undefined): void => {
     entitySelectionStore.hover.value = entity

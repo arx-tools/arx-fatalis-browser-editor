@@ -1,7 +1,9 @@
-import { computed, shallowRef, type ComputedRef, type ShallowRef } from 'vue'
+import { computed, shallowRef, watch, type ComputedRef, type ShallowRef } from 'vue'
 import { onKeyboardAction } from '../keyboard/keyboard.ts'
+import { isPlayerSelected } from '../level/entities/playerSpawn.ts'
 import { entitySelectionStore } from './entitySelectionStore.ts'
 import { lightSelectionStore } from './lightSelectionStore.ts'
+import { textureSelectionStore } from './textureSelectionStore.ts'
 
 /**
  * What a gesture does with the polygons it touches.
@@ -161,12 +163,24 @@ export const selectionStore = createSelectionStore()
  * Only the clearing has a key of its own (`C`): the adding and the removing live on the modifiers of a
  * click in the walkable view, because they act on what the crosshair points at. The key clears the faces,
  * the lights and the entities together: the walkable view has one crosshair, and the author means what it picks.
+ * The row of the player is a pick of the same list (it is the spawn, not an entity of the DLF), so the key drops
+ * that too: with the row in the list, a pick left on the spawn reads as a selection the key does not see
+ * (2026-11-25, the owner).
  */
 export function startSelection(): void {
+  // the pick of a texture is the texture of the faces of the selection: a selection that goes away leaves no pick, or the
+  // tile stays yellow with nothing that could clear it (2026-11-25, the owner)
+  watch(selectionStore.polygons, (polygons) => {
+    if (polygons.size === 0) {
+      textureSelectionStore.clear()
+    }
+  })
+
   onKeyboardAction('clearSelection', () => {
     selectionStore.clear()
     lightSelectionStore.clear()
     entitySelectionStore.clear()
     entitySelectionStore.setHover(undefined)
+    isPlayerSelected.value = false
   })
 }

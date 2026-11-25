@@ -601,7 +601,7 @@ function removeRowRoom(room: number): void {
         </RowActionButton>
       </InspectorRow>
     </ul>
-    <EmptyMessage v-if="rows.length > 0 && shown.length === 0">No room matches the search</EmptyMessage>
+    <EmptyMessage v-if="rows.length > 0 && shown.length === 0">No room matches the search.</EmptyMessage>
     <section class="manage">
       <SectionTitle>Manage selection</SectionTitle>
       <div class="moves">

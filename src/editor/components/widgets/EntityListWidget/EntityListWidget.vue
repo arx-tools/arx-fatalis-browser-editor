@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ScanSearch } from 'lucide-vue-next'
-import { computed, reactive, shallowRef, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, shallowRef, useTemplateRef, watch } from 'vue'
 import EmptyMessage from '../../EmptyMessage.vue'
 import SearchField from '../../SearchField.vue'
 import WidgetHeading from '../../WidgetHeading.vue'
@@ -12,6 +12,7 @@ import { worldPositionToGame } from '../camera/cameraPose.ts'
 import { jumpPoseOf } from '../camera/jumpPose.ts'
 import { entitySelectionStore } from '../../../modules/selection/entitySelectionStore.ts'
 import { isPlayerSelected, playerSpawnOf } from '../../../modules/level/entities/playerSpawn.ts'
+import { createRevealGate, revealRowIn } from '../shared/revealRow.ts'
 import {
   ENTITY_JUMP_DISTANCE,
   entityRowsOf,
@@ -40,6 +41,11 @@ const props = defineProps<{
  * The entities of the level, in the order the list shows them.
  */
 const rows = shallowRef<readonly EntityRow[]>([])
+
+/**
+ * The gate of the reveal: a click in this list does not move it.
+ */
+const revealGate = createRevealGate()
 
 /**
  * The text of the search field.
@@ -138,6 +144,8 @@ function jumpTo(row: EntityRow): void {
 function selectRow(row: EntityRow): void {
   const selected = entitySelectionStore.entity.value === row.index
 
+  revealGate.suppress()
+
   if (selected) {
     entitySelectionStore.clear()
 
@@ -172,13 +180,26 @@ function jumpToPlayer(): void {
  * Picks the player of the level, or lets it go.
  */
 function togglePlayerSelection(): void {
-  isPlayerSelected.value = !isPlayerSelected.value
+  revealGate.suppress()
+
+  const selected = !isPlayerSelected.value
+
+  isPlayerSelected.value = selected
+
+  // the row of the spawn and the rows of the entities are the picks of the same list: one at a time
+  if (selected) {
+    entitySelectionStore.clear()
+  }
 }
 
 /**
- * Whether the section of the player is open: it starts open, so the spawn is the first thing the list shows.
+ * Whether the section of the player is open.
+ *
+ * @remarks
+ * It starts **closed**, the way the folders do (2026-11-25, the owner): the list is opened for the entities of a level,
+ * and the spawn is a row of its own that the author opens when the player is what they edit.
  */
-const isPlayerOpen = shallowRef(true)
+const isPlayerOpen = shallowRef(false)
 
 /**
  * Reads the entities of the level into the list.
@@ -196,6 +217,228 @@ function rebuild(): void {
 }
 
 watch(levelStore.map, rebuild, { immediate: true })
+
+/**
+ * The box of the accordions: the player and the folders scroll together, so the player stays reachable under the rows of
+ * a folder (2026-11-25, the owner: the second box of the list hid it).
+ */
+const scroller = useTemplateRef<HTMLDivElement>('scroller')
+
+/**
+ * The line of the spawn in the list.
+ */
+const playerRow = useTemplateRef<HTMLLIElement>('playerRow')
+
+/**
+ * How many frames a reveal follows the box for.
+ *
+ * @remarks
+ * The dock gives a widget its size after the widget is attached: the first scroll reads the box of the moment, and the
+ * passes after it read the box the author has. The layout pass of the dock is a frame or two long.
+ */
+const REVEAL_PASSES = 3
+
+/**
+ * The frame that waits for a box the dock has not laid out yet.
+ *
+ * @returns A promise that resolves on the next frame.
+ */
+function nextFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      resolve()
+    })
+  })
+}
+
+/**
+ * Reads the line of an entity the category box drew.
+ *
+ * @param index The index of the entity in the DLF list.
+ *
+ * @returns The line of the entity, or `null` while the box is not on the screen.
+ */
+function entityRowElementOf(index: number): HTMLElement | null {
+  const element = scroller.value
+
+  if (element === null) {
+    return null
+  }
+
+  for (const row of element.querySelectorAll<HTMLElement>(':scope [data-entity-index]')) {
+    if (row.dataset.entityIndex === String(index)) {
+      return row
+    }
+  }
+
+  return null
+}
+
+/**
+ * The reveal of the entity that is being worked out, so a selection that moves on takes the last one away.
+ */
+let entityRevealToken = 0
+
+/**
+ * The reveal of the player that is being worked out, so a pick that moves on takes the last one away.
+ */
+let playerRevealToken = 0
+
+/**
+ * The height of the sticky head of an accordion, in css pixels.
+ *
+ * @param element The box of the accordions.
+ *
+ * @returns The room the head of a folder takes at the top of the box.
+ */
+function stickyInsetOf(element: HTMLElement | null): number {
+  const head = element?.querySelector<HTMLElement>(':scope .AccordionRow > .head')
+
+  return head?.getBoundingClientRect().height ?? 0
+}
+
+/**
+ * Scrolls the box of the accordions to the picked entity, reading the geometry of the moment.
+ */
+function revealPickedEntity(): void {
+  const selected = entitySelectionStore.entity.value
+
+  if (selected === undefined) {
+    return
+  }
+
+  revealRowIn(scroller.value, entityRowElementOf(selected), stickyInsetOf(scroller.value))
+}
+
+/**
+ * Scrolls the box of the accordions to the row of the player, if the player is picked.
+ */
+function revealPickedPlayer(): void {
+  if (!isPlayerSelected.value) {
+    return
+  }
+
+  revealRowIn(scroller.value, playerRow.value, stickyInsetOf(scroller.value))
+}
+
+/**
+ * Puts the picked entity on the screen: opens its folder, and scrolls the row into the box.
+ *
+ * @remarks
+ * The owner asked for a selection to find its list (2026-11-24): an entity picked in the walkable view is on the screen of
+ * the list, in the folder it belongs to. A search that hides the entity is cleared, because the author picked an entity
+ * to see it; the folders the list folds away are opened on the way. The dock lays a widget out after it is attached, so
+ * the scroll runs again a couple of frames later: the box the author sees has its own height by then, and the row was on
+ * the screen of the box of the moment only.
+ */
+async function revealSelectedEntity(): Promise<void> {
+  const token = entityRevealToken + 1
+
+  entityRevealToken = token
+
+  const selected = entitySelectionStore.entity.value
+
+  if (selected === undefined) {
+    return
+  }
+
+  const row = rows.value.find((candidate) => {
+    return candidate.index === selected
+  })
+
+  if (row === undefined) {
+    return
+  }
+
+  const hidden = shown.value.every((candidate) => {
+    return candidate.index !== selected
+  })
+
+  if (hidden) {
+    query.value = ''
+  }
+
+  openSections.add(row.category)
+
+  // the folder and the search are written on the state, the list is drawn from it on the next tick
+  await nextTick()
+
+  for (let pass = 0; pass < REVEAL_PASSES; pass++) {
+    if (token !== entityRevealToken) {
+      return
+    }
+
+    revealPickedEntity()
+
+    await nextFrame()
+  }
+}
+
+/**
+ * Puts the row of the player on the screen, if the player is picked.
+ */
+async function revealSelectedPlayer(): Promise<void> {
+  const token = playerRevealToken + 1
+
+  playerRevealToken = token
+
+  if (!isPlayerSelected.value) {
+    return
+  }
+
+  isPlayerOpen.value = true
+
+  await nextTick()
+
+  for (let pass = 0; pass < REVEAL_PASSES; pass++) {
+    if (token !== playerRevealToken) {
+      return
+    }
+
+    revealPickedPlayer()
+
+    await nextFrame()
+  }
+}
+
+// a pick of the walkable view, a row of the selection inspector and a click in this list all write the same store
+watch(
+  () => {
+    return entitySelectionStore.entity.value
+  },
+  () => {
+    if (revealGate.take()) {
+      return
+    }
+
+    revealSelectedEntity().catch(() => {
+      // the reveal is a scroll of a widget: a box that went away takes it with it
+    })
+  },
+)
+
+watch(isPlayerSelected, (selected) => {
+  if (!selected || revealGate.take()) {
+    return
+  }
+
+  revealSelectedPlayer().catch(() => {
+    // the reveal is a scroll of a widget: a box that went away takes it with it
+  })
+})
+
+onMounted(() => {
+  // a widget that arrives with an entity picked (a preset switch, a drag into the dock) shows it: the dock builds the
+  // widget before it lays it out, so the reveal waits a frame for the box
+  requestAnimationFrame(() => {
+    revealSelectedEntity().catch(() => {
+      // the reveal is a scroll of a widget: a box that went away takes it with it
+    })
+    revealSelectedPlayer().catch(() => {
+      // the reveal is a scroll of a widget: a box that went away takes it with it
+    })
+  })
+})
 </script>
 
 <template>
@@ -206,10 +449,11 @@ watch(levelStore.map, rebuild, { immediate: true })
       </template>
     </WidgetHeading>
     <SearchField v-if="rows.length > 0" v-model="query" placeholder="Search entities" label="Search entities" />
-    <div class="sections">
+    <div ref="scroller" class="sections">
       <AccordionRow label="Player" value="spawn" :open="isPlayerOpen" @toggle="isPlayerOpen = !isPlayerOpen">
         <ul class="rows">
           <li
+            ref="playerRow"
             class="row player-row"
             :class="{ 'is-selected': isPlayerSelected }"
             :data-selected="isPlayerSelected"
@@ -228,40 +472,40 @@ watch(levelStore.map, rebuild, { immediate: true })
           </li>
         </ul>
       </AccordionRow>
-    </div>
-    <div v-if="rows.length > 0 && shown.length > 0" class="sections">
-      <AccordionRow
-        v-for="(section, index) in sections"
-        :key="section.category"
-        :label="section.label"
-        :value="String(section.rows.length)"
-        :stripe="index % 2 === 1"
-        :empty="section.rows.length === 0"
-        :open="isSectionOpen(section.category)"
-        @toggle="toggleSection(section.category)"
-      >
-        <ul class="rows">
-          <li
-            v-for="row in section.rows"
-            :key="row.index"
-            class="row"
-            :class="{ 'is-selected': entitySelectionStore.entity.value === row.index }"
-            :data-selected="entitySelectionStore.entity.value === row.index"
-            @click="selectRow(row)"
-          >
-            <span class="name">{{ row.entityName }}</span>
-            <button
-              class="jump"
-              type="button"
-              :aria-label="`Jump to entity ${row.entityName}`"
-              v-tooltip="`Jump to entity ${row.entityName}`"
-              @click.stop="jumpTo(row)"
+      <template v-if="shown.length > 0">
+        <AccordionRow
+          v-for="section in sections"
+          :key="section.category"
+          :label="section.label"
+          :value="String(section.rows.length)"
+          :empty="section.rows.length === 0"
+          :open="isSectionOpen(section.category)"
+          @toggle="toggleSection(section.category)"
+        >
+          <ul class="rows">
+            <li
+              v-for="row in section.rows"
+              :key="row.index"
+              class="row"
+              :class="{ 'is-selected': entitySelectionStore.entity.value === row.index }"
+              :data-selected="entitySelectionStore.entity.value === row.index"
+              :data-entity-index="row.index"
+              @click="selectRow(row)"
             >
-              <ScanSearch :size="13" />
-            </button>
-          </li>
-        </ul>
-      </AccordionRow>
+              <span class="name">{{ row.entityName }}</span>
+              <button
+                class="jump"
+                type="button"
+                :aria-label="`Jump to entity ${row.entityName}`"
+                v-tooltip="`Jump to entity ${row.entityName}`"
+                @click.stop="jumpTo(row)"
+              >
+                <ScanSearch :size="13" />
+              </button>
+            </li>
+          </ul>
+        </AccordionRow>
+      </template>
     </div>
     <EmptyMessage v-if="rows.length === 0">This level has no entities.</EmptyMessage>
     <EmptyMessage v-else-if="shown.length === 0">No entity matches the search.</EmptyMessage>
@@ -287,6 +531,7 @@ watch(levelStore.map, rebuild, { immediate: true })
 
   .sections {
     display: flex;
+    flex: 1;
     flex-direction: column;
     gap: 2px;
     min-height: 0;
@@ -294,6 +539,18 @@ watch(levelStore.map, rebuild, { immediate: true })
     // the rows stop before the scrollbar, the way the rows of the group inspector do: the bar takes the right edge
     padding: 0 10px 0 0;
     overflow-y: auto;
+  }
+
+  // the head of an accordion stays at the top of the box while the rows of its folder scroll under it; the widget's own
+  // color is under the head, or the rows would show through it (2026-11-25, the owner: the head of a folder is the name
+  // the author reads the rows by)
+  // the color is `background-color` and not the `background` shorthand: the shorthand would reset the image the shared
+  // row draws the hover with, and the head of a folder would not answer the pointer (2026-11-25, the owner)
+  .sections :deep(.AccordionRow > .head) {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background-color: $surface-app;
   }
 
   .rows {

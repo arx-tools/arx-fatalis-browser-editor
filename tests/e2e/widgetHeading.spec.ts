@@ -90,7 +90,7 @@ test('the heading is the same line with and without an action', async ({ page })
 
   await expect(page.locator('.lm-DockPanel-widget').first()).toBeVisible()
 
-  // the light work: the two widgets of the right column carry no action
+  // the light work: the light editor carries no action, the light inspector carries the total of the lights
   await page.locator('header button[aria-label="Presets"]').click()
   await page.locator('.preset-menu .preset-row', { hasText: 'Lighter' }).click()
 
@@ -100,7 +100,7 @@ test('the heading is the same line with and without an action', async ({ page })
   const inspector = await headingOf(page, 'light-inspector')
 
   expect(editor.hasAction).toBe(false)
-  expect(inspector.hasAction).toBe(false)
+  expect(inspector.hasAction).toBe(true)
   expect(editor.height).toBe(inspector.height)
   expect(editor.titleTop).toBe(inspector.titleTop)
 

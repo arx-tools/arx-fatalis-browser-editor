@@ -4,13 +4,16 @@ import { ArxLightFlags, type ArxLight, type ArxVector3 } from 'arx-convert/types
 import type { CameraPose } from '../../../../../src/editor/components/widgets/camera/cameraPose.ts'
 import {
   filteredLightRows,
+  isDynamicLight,
   lightIndexLabelOf,
   lightJumpPoseOf,
   lightPositionLabelOf,
+  lightRowWindowOf,
   lightRowsOf,
-  lightSelectionLabelOf,
+  lightSectionTopsOf,
+  lightSectionsOf,
   lightShapeLabelOf,
-  lightWindowOf,
+  revealScrollTopOf,
   type LightRow,
 } from '../../../../../src/editor/components/widgets/LightInspectorWidget/lightInspector.ts'
 
@@ -44,30 +47,130 @@ function light(overrides: Partial<ArxLight> = {}): ArxLight {
   }
 }
 
-void describe('lightWindowOf', () => {
+/**
+ * The rows of a small level: `staticCount` static lights, then `dynamicCount` semi-dynamic ones.
+ *
+ * @param staticCount How many static lights the level has.
+ * @param dynamicCount How many dynamic lights the level has.
+ *
+ * @returns The rows of the list, in the order of `map.lights`.
+ */
+function rowsOf(staticCount: number, dynamicCount: number): LightRow[] {
+  const lights: ArxLight[] = []
+
+  for (let index = 0; index < staticCount; index++) {
+    lights.push(light({ position: { x: index, y: 0, z: 0 } }))
+  }
+
+  for (let index = 0; index < dynamicCount; index++) {
+    lights.push(light({ flags: ArxLightFlags.SemiDynamic, position: { x: index, y: 1, z: 0 } }))
+  }
+
+  return lightRowsOf(lights, SCENE)
+}
+
+/**
+ * The heights the tests of the list measure: a row of 25 css pixels and a header of 20.
+ */
+const METRICS = { rowHeight: 25, headerHeight: 20 }
+
+void describe('lightRowWindowOf', () => {
   void it('draws the rows the box shows, with the overscan', () => {
-    assert.deepEqual(lightWindowOf(376, 0, 190, 25), { start: 0, end: 14, top: 0, bottom: 9050 })
+    assert.deepEqual(lightRowWindowOf(376, 0, 190, 25), { start: 0, end: 14, top: 0, bottom: 9050 })
   })
 
-  void it('moves the window with the scroll, and keeps the height of the whole list', () => {
-    assert.deepEqual(lightWindowOf(376, 1000, 190, 25), { start: 34, end: 54, top: 850, bottom: 8050 })
+  void it('moves the window with the scroll, and keeps the height of the whole section', () => {
+    assert.deepEqual(lightRowWindowOf(376, 1000, 190, 25), { start: 34, end: 54, top: 850, bottom: 8050 })
   })
 
   void it('stops at the last row', () => {
-    assert.deepEqual(lightWindowOf(376, 9210, 190, 25), { start: 362, end: 376, top: 9050, bottom: 0 })
+    assert.deepEqual(lightRowWindowOf(376, 9210, 190, 25), { start: 362, end: 376, top: 9050, bottom: 0 })
   })
 
-  void it('gives an empty window for an empty list and for a row of no height', () => {
-    assert.deepEqual(lightWindowOf(0, 0, 190, 25), { start: 0, end: 0, top: 0, bottom: 0 })
-    assert.deepEqual(lightWindowOf(10, 0, 190, 0), { start: 0, end: 0, top: 0, bottom: 0 })
+  void it('gives an empty window for an empty section and for a row of no height', () => {
+    assert.deepEqual(lightRowWindowOf(0, 0, 190, 25), { start: 0, end: 0, top: 0, bottom: 0 })
+    assert.deepEqual(lightRowWindowOf(10, 0, 190, 0), { start: 0, end: 0, top: 0, bottom: 0 })
   })
 
-  void it('keeps a stale scroll inside the list', () => {
-    assert.deepEqual(lightWindowOf(5, 9000, 190, 25), { start: 4, end: 5, top: 100, bottom: 0 })
+  void it('keeps a stale scroll inside the section', () => {
+    assert.deepEqual(lightRowWindowOf(5, 9000, 190, 25), { start: 4, end: 5, top: 100, bottom: 0 })
   })
 
   void it('draws the overscan of a box that has no size yet', () => {
-    assert.deepEqual(lightWindowOf(376, 0, 0, 25), { start: 0, end: 6, top: 0, bottom: 9250 })
+    assert.deepEqual(lightRowWindowOf(376, 0, 0, 25), { start: 0, end: 6, top: 0, bottom: 9250 })
+  })
+
+  void it('draws the top of a section the box has scrolled above', () => {
+    assert.deepEqual(lightRowWindowOf(376, -300, 190, 25), { start: 0, end: 14, top: 0, bottom: 9050 })
+  })
+})
+
+void describe('lightSectionTopsOf', () => {
+  void it('counts the header and the rows of the sections above', () => {
+    const sections = lightSectionsOf(rowsOf(10, 5))
+    const tops = lightSectionTopsOf(sections, METRICS, () => {
+      return true
+    })
+
+    // the static header (20) and the ten rows of the section (250)
+    assert.deepEqual(tops, { static: 0, dynamic: 270 })
+  })
+
+  void it('moves the section under it up when a section folds away', () => {
+    const sections = lightSectionsOf(rowsOf(10, 5))
+    const tops = lightSectionTopsOf(sections, METRICS, (section) => {
+      return section === 'dynamic'
+    })
+
+    assert.deepEqual(tops, { static: 0, dynamic: 20 })
+  })
+})
+
+void describe('lightSectionsOf', () => {
+  void it('groups the rows into the two sections, in the order of the list', () => {
+    const sections = lightSectionsOf(rowsOf(10, 5))
+
+    assert.deepEqual(
+      sections.map((section) => {
+        return [section.section, section.rows.length]
+      }),
+      [
+        ['static', 10],
+        ['dynamic', 5],
+      ],
+    )
+    assert.equal(sections[0]?.label, 'Static lights')
+    assert.equal(sections[1]?.label, 'Dynamic lights')
+    assert.equal(sections[0]?.rows[0]?.section, 'static')
+    assert.equal(sections[1]?.rows[0]?.index, 10)
+  })
+})
+
+void describe('revealScrollTopOf', () => {
+  void it('leaves the box alone when the entry is already on the screen', () => {
+    assert.equal(revealScrollTopOf(20, 25, 0, 190), 0)
+  })
+
+  void it('scrolls an entry under the box into it', () => {
+    assert.equal(revealScrollTopOf(300, 25, 0, 190), 135)
+  })
+
+  void it('scrolls an entry above the box up to its top', () => {
+    assert.equal(revealScrollTopOf(300, 25, 320, 190), 300)
+  })
+
+  void it('puts the entry at the top of a box that has no size yet', () => {
+    assert.equal(revealScrollTopOf(300, 25, 0, 0), 300)
+  })
+})
+
+void describe('isDynamicLight', () => {
+  void it('reads the semi-dynamic flag of the LLF', () => {
+    assert.equal(isDynamicLight(light()), false)
+    assert.equal(isDynamicLight(light({ flags: ArxLightFlags.SemiDynamic })), true)
+    // the fire is a static light of the level until the semi-dynamic bit says otherwise
+    assert.equal(isDynamicLight(light({ flags: ArxLightFlags.SpawnFire })), false)
+    assert.equal(isDynamicLight(light({ flags: ArxLightFlags.SemiDynamic | ArxLightFlags.SpawnFire })), true)
   })
 })
 
@@ -81,11 +184,13 @@ void describe('lightRowsOf', () => {
     assert.equal(rows.length, 2)
     assert.deepEqual(rows[0], {
       index: 0,
+      section: 'static',
       shape: 'star',
       position: { x: 8160, y: 1750.71, z: 880 },
       color: '#ff8000',
     })
     assert.equal(rows[1]?.index, 1)
+    assert.equal(rows[1]?.section, 'dynamic')
     assert.equal(rows[1]?.shape, 'bulb')
     assert.equal(rows[1]?.color, '#0000ff')
   })
@@ -124,7 +229,7 @@ void describe('lightJumpPoseOf', () => {
    * @returns A row of the list, with the place of the argument.
    */
   function rowAt(position: ArxVector3): LightRow {
-    return { index: 0, shape: 'star', position, color: '#ffffff' }
+    return { index: 0, section: 'static', shape: 'star', position, color: '#ffffff' }
   }
 
   void it('keeps the orientation of the camera, and puts the light 300 units ahead', () => {
@@ -226,14 +331,5 @@ void describe('filteredLightRows', () => {
       }),
       [3],
     )
-  })
-})
-
-void describe('lightSelectionLabelOf', () => {
-  void it('counts the lights, and says how many are selected', () => {
-    assert.equal(lightSelectionLabelOf(0, 0), '0 lights')
-    assert.equal(lightSelectionLabelOf(1, 0), '1 light')
-    assert.equal(lightSelectionLabelOf(376, 0), '376 lights')
-    assert.equal(lightSelectionLabelOf(376, 1), '376 lights · 1 selected')
   })
 })

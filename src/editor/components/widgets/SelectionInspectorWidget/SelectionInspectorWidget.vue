@@ -4,10 +4,11 @@ import { formatCount } from '../../../modules/format.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { entitySelectionStore } from '../../../modules/selection/entitySelectionStore.ts'
+import { textureKeyOf, textureSelectionStore } from '../../../modules/selection/textureSelectionStore.ts'
 import { lightSelectionStore } from '../../../modules/selection/lightSelectionStore.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
-import { lightIndexLabelOf } from '../LightInspectorWidget/lightInspector.ts'
-import { entityRowsOf } from '../../../modules/level/entities/entityRows.ts'
+import { lightIndexLabelOf, lightRowsOf, lightSectionsOf } from '../LightInspectorWidget/lightInspector.ts'
+import { ENTITY_CATEGORIES, entityRowsOf } from '../../../modules/level/entities/entityRows.ts'
 import {
   entryOfName,
   loadThumbnail,
@@ -102,29 +103,44 @@ const selectedFaces = computed<number[]>(() => {
 })
 
 /**
- * The selected lights, as the rows of the selection.
+ * The selected lights, grouped the way the Light Inspector groups them: the static lights and the dynamic ones.
  *
  * @remarks
- * The label is the one the light inspector gives the light (`light N`), so the two lists name a light the same way.
+ * The label of a row is the one the light inspector gives the light (`light N`), and the group says which kind the light
+ * is, so the author reads a pick the way the list of the lights reads it (2026-11-25, the owner). A group without a
+ * selected light is left out, the way the texture groups are.
  */
-const selectedLightRows = computed<Array<{ readonly index: number; readonly label: string }>>(() => {
-  return [...lightSelectionStore.lights.value]
-    .toSorted((first, second) => {
-      return first - second
+const selectedLightGroups = computed(() => {
+  const map = levelStore.map.value
+  const lights = lightSelectionStore.lights.value
+
+  if (map === undefined || lights.size === 0) {
+    return []
+  }
+
+  return lightSectionsOf(lightRowsOf(map.lights, map.scenePosition))
+    .map((section) => {
+      return {
+        ...section,
+        rows: section.rows.filter((row) => {
+          return lights.has(row.index)
+        }),
+      }
     })
-    .map((index) => {
-      return { index, label: lightIndexLabelOf(index) }
+    .filter((section) => {
+      return section.rows.length > 0
     })
 })
 
 /**
- * The selected entities, as the rows of the selection.
+ * The selected entities, grouped by the folder of the entity list.
  *
  * @remarks
  * An entity is named by its model and its identifier (`light_door_0113`), the way the entity list names it: the row is
- * read from the level, and an index the level no longer has is left out.
+ * read from the level, and an index the level no longer has is left out. The group is the folder of the list (the
+ * `system` of a `marker_0098`), so a pick reads with the category it came from (2026-11-25, the owner).
  */
-const selectedEntityRows = computed<Array<{ readonly index: number; readonly label: string }>>(() => {
+const selectedEntityGroups = computed(() => {
   const map = levelStore.map.value
   const selected = entitySelectionStore.entity.value
 
@@ -132,14 +148,76 @@ const selectedEntityRows = computed<Array<{ readonly index: number; readonly lab
     return []
   }
 
-  return entityRowsOf(map)
-    .filter((row) => {
-      return row.index === selected
-    })
-    .map((row) => {
-      return { index: row.index, label: row.entityName }
-    })
+  const rows = entityRowsOf(map).filter((row) => {
+    return row.index === selected
+  })
+
+  return ENTITY_CATEGORIES.map((category) => {
+    return {
+      category: category.id,
+      label: category.label,
+      rows: rows.filter((row) => {
+        return row.category === category.id
+      }),
+    }
+  }).filter((group) => {
+    return group.rows.length > 0
+  })
 })
+
+/**
+ * How many lights the selection holds.
+ */
+const selectedLightCount = computed(() => {
+  return lightSelectionStore.lights.value.size
+})
+
+/**
+ * How many entities the selection holds (one: the store keeps a single entity).
+ */
+const selectedEntityCount = computed(() => {
+  return selectedEntityGroups.value.reduce((count, group) => {
+    return count + group.rows.length
+  }, 0)
+})
+
+/**
+ * Picks a texture of the selection: the Texture Browser turns to its tile and highlights it.
+ *
+ * @remarks
+ * The rows of the textures are the way into the list of the textures (2026-11-25, the owner): a face of the level holds
+ * its texture, and the tile of it is a click away in the Texture Mapper. A texture the catalog does not carry (a missing
+ * one) has no tile to go to, so the pick stays where it was.
+ *
+ * @param name The name the level calls the texture.
+ */
+function pickTexture(name: string): void {
+  const entry = entryOfName(name)
+
+  if (entry === undefined) {
+    return
+  }
+
+  textureSelectionStore.select(entry)
+}
+
+/**
+ * Tells whether a texture of the selection is the picked one.
+ *
+ * @param name The name the level calls the texture.
+ *
+ * @returns True when the Texture Browser shows the row as picked.
+ */
+function isTextureSelected(name: string): boolean {
+  const entry = entryOfName(name)
+  const picked = textureSelectionStore.texture.value
+
+  if (entry === undefined || picked === undefined) {
+    return false
+  }
+
+  return textureKeyOf(entry) === textureKeyOf(picked)
+}
 
 /**
  * Picks a light of the list: the view gets the white ring of it.
@@ -188,14 +266,14 @@ const rows = computed<InspectorRow[]>(() => {
     {
       kind: 'lights',
       label: 'Lights',
-      value: String(selectedLightRows.value.length),
-      empty: selectedLightRows.value.length === 0,
+      value: String(selectedLightCount.value),
+      empty: selectedLightCount.value === 0,
     },
     {
       kind: 'entities',
       label: 'Entities',
-      value: String(selectedEntityRows.value.length),
-      empty: selectedEntityRows.value.length === 0,
+      value: String(selectedEntityCount.value),
+      empty: selectedEntityCount.value === 0,
     },
     {
       kind: 'faces',
@@ -229,6 +307,26 @@ function toggleRow(label: string): void {
     openRows.add(label)
   }
 }
+
+// a pick of the view opens the fold that lists it (2026-11-25, the owner): the lights and the entities are what the
+// author looks at, so the rows of them are on the screen. The faces stay closed: their indices are a debug read, and a
+// room selection is thousands of them.
+watch(lightSelectionStore.lights, (lights) => {
+  if (lights.size > 0) {
+    openRows.add('Lights')
+  }
+})
+
+watch(
+  () => {
+    return entitySelectionStore.entity.value
+  },
+  (entity) => {
+    if (entity !== undefined) {
+      openRows.add('Entities')
+    }
+  },
+)
 
 /**
  * Reads the pictures of the textures of the selection.
@@ -305,17 +403,37 @@ function thumbOf(name: string): string | undefined {
           <li v-for="face in selectedFaces" :key="face">{{ face }}</li>
         </ul>
 
-        <ul v-else-if="row.kind === 'lights'" class="faces">
-          <li v-for="light in selectedLightRows" :key="light.index" @click="selectLight(light.index)">
-            {{ light.label }}
-          </li>
-        </ul>
+        <div v-else-if="row.kind === 'lights'" class="groups">
+          <section v-for="group in selectedLightGroups" :key="group.section" class="group">
+            <h3>
+              <span class="source">{{ group.label }}</span>
+              <span class="count">
+                {{ formatCount(group.rows.length) }} {{ group.rows.length === 1 ? 'light' : 'lights' }}
+              </span>
+            </h3>
+            <ul class="faces">
+              <li v-for="light in group.rows" :key="light.index" @click="selectLight(light.index)">
+                {{ lightIndexLabelOf(light.index) }}
+              </li>
+            </ul>
+          </section>
+        </div>
 
-        <ul v-else-if="row.kind === 'entities'" class="faces">
-          <li v-for="entity in selectedEntityRows" :key="entity.index" @click="selectEntity(entity.index)">
-            {{ entity.label }}
-          </li>
-        </ul>
+        <div v-else-if="row.kind === 'entities'" class="groups">
+          <section v-for="group in selectedEntityGroups" :key="group.category" class="group">
+            <h3>
+              <span class="source">{{ group.label }}</span>
+              <span class="count">
+                {{ formatCount(group.rows.length) }} {{ group.rows.length === 1 ? 'entity' : 'entities' }}
+              </span>
+            </h3>
+            <ul class="faces">
+              <li v-for="entity in group.rows" :key="entity.index" @click="selectEntity(entity.index)">
+                {{ entity.entityName }}
+              </li>
+            </ul>
+          </section>
+        </div>
 
         <div v-else class="groups">
           <section v-for="group in summary.groups" :key="group.source" class="group">
@@ -324,7 +442,13 @@ function thumbOf(name: string): string | undefined {
               <span class="count">{{ formatCount(group.faces) }} {{ group.faces === 1 ? 'face' : 'faces' }}</span>
             </h3>
             <ul class="textures">
-              <li v-for="texture in group.textures" :key="texture.name" v-tooltip="texture.name">
+              <li
+                v-for="texture in group.textures"
+                :key="texture.name"
+                :class="{ 'is-selected': isTextureSelected(texture.name) }"
+                v-tooltip="`${texture.name} · show it in the Texture Mapper`"
+                @click="pickTexture(texture.name)"
+              >
                 <img v-if="thumbOf(texture.name) !== undefined" class="thumb" :src="thumbOf(texture.name)" alt="" />
                 <span v-else class="thumb placeholder" aria-hidden="true"></span>
                 <span class="name">{{ texture.name }}</span>
@@ -362,6 +486,11 @@ function thumbOf(name: string): string | undefined {
   min-height: 0;
   padding-right: 10px;
   overflow-y: auto;
+
+  // the fold is indented under its head, so the author reads what belongs to which row (2026-11-25, the owner)
+  :deep(.AccordionRow > .content) {
+    padding-left: 14px;
+  }
 }
 
 .faces {
@@ -387,6 +516,15 @@ function thumbOf(name: string): string | undefined {
 
 .groups {
   padding-top: 2px;
+}
+
+// the rows of a group are one step deeper than the group's own word, with a faint line from it to them: the accent of a
+// pushed row is not the only thing that says where it belongs (2026-11-25, the owner)
+.group .faces,
+.group .textures {
+  margin-left: 6px;
+  padding-left: 6px;
+  border-left: 1px solid rgba($text-strong, 0.1);
 }
 
 .group {
@@ -426,6 +564,19 @@ function thumbOf(name: string): string | undefined {
     align-items: center;
     gap: 6px;
     min-width: 0;
+    padding: 1px 4px;
+    border-radius: 3px;
+    cursor: pointer;
+
+    &:hover {
+      background: $surface-panel;
+    }
+
+    // the texture the Texture Mapper shows: the yellow of the selection in the views, because the picked texture is a
+    // pick of its own kind (2026-11-25, the owner)
+    &.is-selected {
+      background: rgba($selection, 0.15);
+    }
   }
 
   .thumb {

@@ -11,7 +11,7 @@ import { cameraStore } from '../camera/cameraStore.ts'
 import { worldPositionToGame } from '../camera/cameraPose.ts'
 import { jumpPoseOf } from '../camera/jumpPose.ts'
 import { entitySelectionStore } from '../../../modules/selection/entitySelectionStore.ts'
-import { isPlayerSelected, playerSpawnOf } from '../../../modules/level/entities/playerSpawn.ts'
+import { isPlayerSelected, playerEyeOf } from '../../../modules/level/entities/playerSpawn.ts'
 import { createRevealGate, revealRowIn } from '../shared/revealRow.ts'
 import RowActionButton from '../../RowActionButton.vue'
 import {
@@ -171,8 +171,9 @@ function jumpToPlayer(): void {
     return
   }
 
-  const spawn = playerSpawnOf(map)
-  const target = worldPositionToGame(arxVector3toVector3(spawn.position), map.scenePosition)
+  // the camera goes to the eye of the player, which is where the walkable view starts, not to the feet
+  const eye = playerEyeOf(map)
+  const target = worldPositionToGame(arxVector3toVector3(eye), map.scenePosition)
 
   cameraStore.moveCamera(jumpPoseOf(pose, target, ENTITY_JUMP_DISTANCE))
 }

@@ -89,11 +89,12 @@ const FLOOR_TEXTURE = { id: 1, filename: BLANK_LEVEL_TEXTURE }
  * How high the player stands above the floor of a blank level.
  *
  * @remarks
- * The game's Y axis points **down**, so the eye of the player is 180 units below the floor's 0 (the renderer mirrors
- * the axis, so the camera stands above the floor). The number is the Arx Level Generator's `heightOfThePlayer`, which
- * lifts a new level's player for the same reason ("so that he doesn't sink into the floor").
+ * The game's Y axis points **down**, so the eye of the player is 170 units below the floor's 0 (the renderer mirrors
+ * the axis, so the camera stands above the floor). The number is the engine's `Player::baseHeight()` (170), which puts
+ * the feet of the player exactly on the floor at 0; the old generator's 180 is close, but leaves the player 10 above it
+ * (2026-11-25, the owner).
  */
-const PLAYER_HEIGHT = 180
+const PLAYER_HEIGHT = 170
 
 /**
  * Where the player of a blank level stands, whatever the size of its floor: the middle, above it.

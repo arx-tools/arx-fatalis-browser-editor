@@ -2,7 +2,7 @@ import { Mesh, Vector3, type BufferGeometry, type Material, type MeshBasicMateri
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { loadInteractiveModel } from '../../../modules/level/entities/entitySpike.ts'
-import { playerSpawnOf } from '../../../modules/level/entities/playerSpawn.ts'
+import { PLAYER_EYE_HEIGHT, playerSpawnOf } from '../../../modules/level/entities/playerSpawn.ts'
 
 /**
  * The model of the player of a level: the human of the spawn point.
@@ -128,11 +128,14 @@ export async function loadPlayerModel(options: PlayerModelOptions): Promise<Play
     placeAt: (map: ArxMap): void => {
       const spawn = playerSpawnOf(map)
 
+      // the spawn is the feet of the player: the model of the game stands on it, and the eye (where the camera of the
+      // spawn looks from) is a height above it
       model.position.copy(arxVector3toVector3(spawn.position))
       // the camera looks along the game's yaw as `rotation.y = yaw - 180`, so the model of the player faces the way the
       // camera of the spawn looks
       model.rotation.set(0, ((spawn.yaw - 180) * Math.PI) / 180, 0)
-      spawnPosition.copy(model.position)
+      // the fade measures the eye of the player: the camera starts there, and the model stands a player below it
+      spawnPosition.copy(model.position).add(new Vector3(0, PLAYER_EYE_HEIGHT, 0))
     },
     fadeFor: (position: Vector3): void => {
       cameraPosition.copy(position)

@@ -170,7 +170,7 @@ test('the blank map of the notice starts on its spawn, not on the pose of the li
     .poll(() => {
       return new URL(page.url()).searchParams.get('position')
     })
-    .toBe('550,-180,550')
+    .toBe('550,-170,550')
   await expect
     .poll(() => {
       return new URL(page.url()).searchParams.get('rotation')

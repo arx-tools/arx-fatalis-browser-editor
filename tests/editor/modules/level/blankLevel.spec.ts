@@ -65,7 +65,7 @@ void describe('createBlankLevelFiles', () => {
     // the floor is flat, and the player stands above it: the stored position is relative to the scene position (the
     // middle of the quad), and the game's Y axis points down, so the eye is below the floor's 0 on it
     assert.deepEqual([box?.min.y, box?.max.y], [0, 0])
-    assert.deepEqual(map.player.position, { x: 0, y: -180, z: 0 })
+    assert.deepEqual(map.player.position, { x: 0, y: -170, z: 0 })
   })
 
   void it('names the texture of the floor, which is the own one of the generator', () => {
@@ -134,7 +134,7 @@ void describe('the presets of a new level', () => {
     // and the standing player is measured from there
     assert.deepEqual([box?.min.x, box?.min.z], [-half, -half])
     assert.deepEqual([box?.max.x, box?.max.z], [half, half])
-    assert.deepEqual(map.player.position, { x: 0, y: -180, z: 0 })
+    assert.deepEqual(map.player.position, { x: 0, y: -170, z: 0 })
   })
 })
 

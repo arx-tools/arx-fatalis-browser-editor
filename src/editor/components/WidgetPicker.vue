@@ -111,8 +111,8 @@ async function startDrag(event: PointerEvent, kind: string): Promise<void> {
           @pointerenter="spotlight(row.isPlaced ? row.kind : null)"
           @pointerleave="spotlight(null)"
         >
-          <Check v-if="row.isPlaced" class="mark" :size="13" aria-hidden="true" />
-          <GripVertical v-else class="grip" :size="13" aria-hidden="true" />
+          <Check v-if="row.isPlaced" class="mark" :size="14" aria-hidden="true" />
+          <GripVertical v-else class="grip" :size="14" aria-hidden="true" />
           <span class="name">{{ row.label }}</span>
           <button
             v-if="row.isPlaced"
@@ -123,7 +123,7 @@ async function startDrag(event: PointerEvent, kind: string): Promise<void> {
             @pointerdown.stop
             @click="remove(row.kind)"
           >
-            <Trash2 :size="13" />
+            <Trash2 :size="14" />
           </button>
           <!-- the place of the trash stays in a free row too, so the names of a column line up -->
           <span v-else class="trash-slot" aria-hidden="true" />

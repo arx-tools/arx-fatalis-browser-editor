@@ -15,7 +15,7 @@ import RenderPerformanceWidget from './components/widgets/RenderPerformanceWidge
 import SelectionInspectorWidget from './components/widgets/SelectionInspectorWidget/SelectionInspectorWidget.vue'
 import LightEditorWidget from './components/widgets/LightEditorWidget/LightEditorWidget.vue'
 import LightInspectorWidget from './components/widgets/LightInspectorWidget/LightInspectorWidget.vue'
-import TextureBrowserWidget from './components/widgets/TextureBrowserWidget/TextureBrowserWidget.vue'
+import TextureMapperWidget from './components/widgets/TextureMapperWidget/TextureMapperWidget.vue'
 import UndoRedoWidget from './components/widgets/UndoRedoWidget/UndoRedoWidget.vue'
 import UvMapperWidget from './components/widgets/UvMapperWidget/UvMapperWidget.vue'
 import View3DWidget from './components/widgets/View3DWidget/View3DWidget.vue'
@@ -196,7 +196,7 @@ export const widgetDefinitions: readonly WidgetDefinition[] = [
     label: 'Texture Mapper',
     group: 'controls',
     create: (label): Widget => {
-      return new VueWidget(TextureBrowserWidget, { label })
+      return new VueWidget(TextureMapperWidget, { label })
     },
   },
   {

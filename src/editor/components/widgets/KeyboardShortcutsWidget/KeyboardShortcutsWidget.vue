@@ -5,6 +5,9 @@ import { history } from '../../../modules/history/history.ts'
 import { redoLastStep, undoLastStep } from '../../../modules/level/edit/editing.ts'
 import { keyboardShortcutPartsOf } from '../../../modules/keyboard/keyboard.ts'
 import WidgetHeading from '../../WidgetHeading.vue'
+import IconButton from '../../IconButton.vue'
+import SectionTitle from '../../SectionTitle.vue'
+import ToggleButton from '../../ToggleButton.vue'
 import { editModeSwitches } from '../shared/editModes.ts'
 import { viewSwitches } from '../shared/levelDisplay.ts'
 import { helpSections, switchNames, type HelpKey, type HelpRow, type HelpToggle } from './helpRows.ts'
@@ -37,14 +40,19 @@ const icons = { command: Command, 'mouse-left': MouseLeft }
 /**
  * The label of the widget, from the widget definition.
  */
-const props = defineProps<{
-  readonly label: string
-  /**
-   * Whether the list draws its own heading (the default), or the box around it carries the title: the popup of the keys
-   * is a dialog, and the title of a dialog is its head (TODO 187).
-   */
-  readonly heading?: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    readonly label: string
+    /**
+     * Whether the list draws its own heading (the default), or the box around it carries the title: the popup of the keys
+     * is a dialog, and the title of a dialog is its head (TODO 187).
+     */
+    readonly heading?: boolean
+  }>(),
+  // the widget of the layout draws its heading, the dialog of the popup does not: a Boolean prop of Vue is `false` when
+  // it is left out, so the default has to be spelled out, or the widget loses its title (2026-11-25)
+  { heading: true },
+)
 
 /**
  * The caps of a row: the parts of the key of its action, or the hand-written cells of a gesture.
@@ -230,64 +238,59 @@ function toggleTitle(row: HelpRow): string {
 <template>
   <div class="KeyboardShortcutsWidget">
     <WidgetHeading v-if="props.heading !== false" :label="props.label" />
-    <section v-for="section in helpSections" :key="section.title" class="section">
-      <div class="section-head">
-        <h3 class="section-title">{{ section.title }}</h3>
-        <button
-          v-if="section.reset !== undefined"
-          class="reset-view"
-          type="button"
-          :disabled="section.reset.disabled()"
-          :aria-label="section.reset.title"
-          v-tooltip="section.reset.title"
-          @click="section.reset.run()"
-        >
-          <UndoDot class="reset-icon" />
-        </button>
-      </div>
-      <dl>
-        <template v-for="(row, rowIndex) in section.rows" :key="row.action">
-          <dt :class="{ 'is-disabled': isRowDisabled(row) }">
-            <template v-for="(key, index) in keysOf(row)" :key="index">
-              <span v-if="index > 0" class="plus">+</span>
-              <component :is="icons[key.icon]" v-if="key.kind === 'icon'" class="key-icon" />
-              <kbd v-else>{{ key.text }}</kbd>
-            </template>
-            <span v-if="row.suffix !== undefined" class="suffix">{{ row.suffix }}</span>
-          </dt>
-          <dd :class="{ 'is-disabled': isRowDisabled(row) }">
-            <span class="action">{{ row.action }}</span>
-            <span v-if="row.parent !== undefined" class="branch" aria-hidden="true">{{
-              branchOf(section.rows, rowIndex)
-            }}</span>
-            <button
-              v-if="row.button !== undefined"
-              class="history-button"
-              type="button"
-              :disabled="!isButtonEnabled(row.button)"
-              :aria-label="buttonLabel(row.button)"
-              v-tooltip="buttonLabel(row.button)"
-              @click="runHistory(row.button)"
-            >
-              <component :is="row.button === 'undo' ? Undo2 : Redo2" class="history-icon" />
-            </button>
-            <button
-              v-if="row.toggle !== undefined"
-              class="visibility"
-              :class="{ 'is-on': isOn(row.toggle) }"
-              type="button"
-              :disabled="!isToggleEnabled(row)"
-              :aria-pressed="isOn(row.toggle)"
-              :aria-label="toggleTitle(row)"
-              v-tooltip="toggleTitle(row)"
-              @click="flip(row.toggle)"
-            >
-              <component :is="isOn(row.toggle) ? Eye : EyeOff" class="visibility-icon" />
-            </button>
-          </dd>
-        </template>
-      </dl>
-    </section>
+    <div class="sections">
+      <section v-for="section in helpSections" :key="section.title" class="section">
+        <div class="section-head">
+          <SectionTitle class="section-title">{{ section.title }}</SectionTitle>
+          <IconButton
+            v-if="section.reset !== undefined"
+            class="reset-view"
+            :label="section.reset.title"
+            :disabled="section.reset.disabled()"
+            @click="section.reset.run()"
+          >
+            <UndoDot :size="14" />
+          </IconButton>
+        </div>
+        <dl>
+          <template v-for="(row, rowIndex) in section.rows" :key="row.action">
+            <dt :class="{ 'is-disabled': isRowDisabled(row) }">
+              <template v-for="(key, index) in keysOf(row)" :key="index">
+                <span v-if="index > 0" class="plus">+</span>
+                <component :is="icons[key.icon]" v-if="key.kind === 'icon'" class="key-icon" />
+                <kbd v-else>{{ key.text }}</kbd>
+              </template>
+              <span v-if="row.suffix !== undefined" class="suffix">{{ row.suffix }}</span>
+            </dt>
+            <dd :class="{ 'is-disabled': isRowDisabled(row) }">
+              <span class="action">{{ row.action }}</span>
+              <span v-if="row.parent !== undefined" class="branch" aria-hidden="true">{{
+                branchOf(section.rows, rowIndex)
+              }}</span>
+              <IconButton
+                v-if="row.button !== undefined"
+                class="history-button"
+                :label="buttonLabel(row.button)"
+                :disabled="!isButtonEnabled(row.button)"
+                @click="runHistory(row.button)"
+              >
+                <component :is="row.button === 'undo' ? Undo2 : Redo2" :size="14" />
+              </IconButton>
+              <ToggleButton
+                v-if="row.toggle !== undefined"
+                class="visibility"
+                :pressed="isOn(row.toggle)"
+                :label="toggleTitle(row)"
+                :disabled="!isToggleEnabled(row)"
+                @update:pressed="flip(row.toggle)"
+              >
+                <component :is="isOn(row.toggle) ? Eye : EyeOff" :size="14" />
+              </ToggleButton>
+            </dd>
+          </template>
+        </dl>
+      </section>
+    </div>
   </div>
 </template>
 
@@ -295,9 +298,21 @@ function toggleTitle(row: HelpRow): string {
 @use '../../../palette' as *;
 @use '../shared/infoRows' as *;
 
+// The keys: the heading stays above the list, and the sections scroll under it. The box ends with a padding, so the
+// last line of the list stops a little above the edge of the widget, the way the rows of the other lists do
+// (2026-11-25, the owner).
 .KeyboardShortcutsWidget {
+  display: flex;
+  flex-direction: column;
   height: 100%;
   padding: 0 8px 8px;
+
+  .sections {
+    flex: 1;
+    min-height: 0;
+    padding: 0 10px 8px 0;
+    overflow-y: auto;
+  }
 
   // the sections follow each other with a small gap, the first one right under the title
   .section + .section {
@@ -316,47 +331,11 @@ function toggleTitle(row: HelpRow): string {
     border-bottom: 1px solid $border-dark;
   }
 
-  // the name of a section: the look of the widget title, a size smaller and without the weight
-  .section-title {
+  // the name of a section: the caption of the shared SectionTitle, taking the room of the head
+  .section-head .section-title {
+    flex: 1;
     margin: 0;
-    color: $text-icon;
-    font-size: 11px;
-    font-weight: normal;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-
-  // the reset of the switches: the look of the show/hide buttons of the rows, on the header line
-  .reset-view {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 26px;
-    height: 22px;
     padding: 0;
-    color: $text-icon;
-    background: rgba($surface-app, 0.72);
-    border: 1px solid $border;
-    border-radius: 4px;
-    cursor: pointer;
-
-    &:hover {
-      color: $text;
-      background: $surface-panel;
-    }
-
-    // at the default state there is nothing to put back: the button is grayed out and does not react
-    &:disabled {
-      color: $text-subtle;
-      background: rgba($surface-app, 0.4);
-      border-color: $border-dark;
-      cursor: default;
-    }
-  }
-
-  .reset-icon {
-    width: 14px;
-    height: 14px;
   }
 
   dl {
@@ -444,66 +423,6 @@ function toggleTitle(row: HelpRow): string {
   }
 
   // the switch of a row: the look of the grid button of the fixed views
-  .visibility {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 26px;
-    height: 22px;
-    padding: 0;
-    color: $text-icon;
-    background: rgba($surface-app, 0.72);
-    border: 1px solid $border;
-    border-radius: 4px;
-    cursor: pointer;
-
-    &:hover:not(:disabled) {
-      background: $surface-panel;
-    }
-
-    // only the eye turns orange: the frame stays the neutral border of every button
-    &.is-on {
-      color: $accent;
-    }
-
-    // the child of a switch that is off: the eye keeps its look but says it can not be used now
-    &:disabled {
-      color: $border;
-      cursor: default;
-    }
-  }
-
-  .visibility-icon {
-    width: 14px;
-    height: 14px;
-  }
-
-  // the undo and the redo of the history: the frame of the visibility button, and it goes quiet where there is
-  // nothing to take back or make again
-  .history-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 26px;
-    height: 22px;
-    padding: 0;
-    color: $text-icon;
-    background: rgba($surface-app, 0.72);
-    border: 1px solid $border;
-    border-radius: 4px;
-    cursor: pointer;
-
-    &:hover:not(:disabled) {
-      background: $surface-panel;
-      color: $text;
-    }
-
-    &:disabled {
-      color: $border;
-      cursor: default;
-    }
-  }
-
   .history-icon {
     width: 14px;
     height: 14px;

@@ -80,7 +80,7 @@ test('a click on a texture paints the selected faces, and the history takes it b
   await expect(tile.first()).toBeEnabled()
 
   // the texture of the face is the one of the level, and no source of the editor has the file: the group says it
-  await expect(inspector.locator('.group .source')).toHaveText(['Missing'])
+  await expect(inspector.locator('.group .label')).toHaveText(['Missing'])
 
   // the pointer goes, so the click of the test lands on the tile and not on the canvas of the locked view
   await page.evaluate(() => {
@@ -91,7 +91,7 @@ test('a click on a texture paints the selected faces, and the history takes it b
   await tile.first().click()
 
   // the face draws with the placeholder now: the texture of the selection is a custom one, and there is one of it
-  await expect(inspector.locator('.group .source')).toHaveText(['Custom'])
+  await expect(inspector.locator('.group .label')).toHaveText(['Custom'])
   await expect(inspector.locator('.textures .name')).toHaveText(['jorge-[stone].jpg'])
   await expect(inspector.locator('.textures .count')).toHaveText(['1'])
 
@@ -105,7 +105,7 @@ test('a click on a texture paints the selected faces, and the history takes it b
     })
     .toBe(1)
 
-  await expect(inspector.locator('.group .source')).toHaveText(['Missing'])
+  await expect(inspector.locator('.group .label')).toHaveText(['Missing'])
   await expect(inspector.locator('.textures .count')).toHaveText(['1'])
 })
 
@@ -151,7 +151,7 @@ test('a new page starts at the top of the list, and the name of a tile is a capt
   // for anything but a thumbnail
   const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 
-  await textures.locator('.TextureBrowserWidget').evaluate((element, base64) => {
+  await textures.locator('.TextureMapperWidget').evaluate((element, base64) => {
     const view = element.ownerDocument.defaultView
 
     if (view === null) {
@@ -224,7 +224,7 @@ test('a new page starts at the top of the list, and the name of a tile is a capt
  *
  * @remarks
  * The owner asked for the same reveal the lights and the entities have (2026-11-25): a texture picked in the Selection
- * Inspector turns the Texture Browser to its page, clears the filter that hides it, and highlights the tile. The level is
+ * Inspector turns the Texture Mapper to its page, clears the filter that hides it, and highlights the tile. The level is
  * the blank one: its floor is painted with the placeholder texture of the generator, which is the one the browser
  * carries, so the face of the pick lists a texture the list can show (the level of the game names its own, and the
  * placeholder level is the one where the two meet). The faces come from a shift click on the room map of the top view, so

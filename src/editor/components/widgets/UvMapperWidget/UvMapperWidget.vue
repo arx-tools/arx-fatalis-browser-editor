@@ -738,16 +738,16 @@ watch(
       </label>
       <div v-if="shown !== undefined" class="turns">
         <ToolButton class="turn" label="Rotate counter-clockwise" @click="onTurn('rotate-ccw')">
-          <RotateCcw :size="13" />
+          <RotateCcw :size="14" />
         </ToolButton>
         <ToolButton class="turn" label="Rotate clockwise" @click="onTurn('rotate-cw')">
-          <RotateCw :size="13" />
+          <RotateCw :size="14" />
         </ToolButton>
         <ToolButton class="turn" label="Flip horizontally" @click="onTurn('flip-h')">
-          <SquareCenterlineDashedHorizontal :size="13" />
+          <SquareCenterlineDashedHorizontal :size="14" />
         </ToolButton>
         <ToolButton class="turn" label="Flip vertically" @click="onTurn('flip-v')">
-          <SquareCenterlineDashedVertical :size="13" />
+          <SquareCenterlineDashedVertical :size="14" />
         </ToolButton>
         <!-- the two buttons of the quad: a face that draws a quarter of its texture, and one that draws all of it -->
         <ToolButton
@@ -757,7 +757,7 @@ watch(
           :disabled="!isQuad"
           @click="onQuarter"
         >
-          <LayoutGrid :size="13" />
+          <LayoutGrid :size="14" />
         </ToolButton>
         <ToolButton
           class="turn"
@@ -765,7 +765,7 @@ watch(
           :disabled="!isQuad"
           @click="onMaximize"
         >
-          <Maximize :size="13" />
+          <Maximize :size="14" />
         </ToolButton>
       </div>
     </div>

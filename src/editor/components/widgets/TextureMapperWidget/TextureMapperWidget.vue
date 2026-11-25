@@ -26,10 +26,11 @@ import {
   thumbnailOf,
 } from '../../../modules/textures/textureCatalog.ts'
 import type { TextureEntry } from '../../../modules/textures/textureEntry.ts'
+import EmptyMessage from '../../EmptyMessage.vue'
 import SearchField from '../../SearchField.vue'
 import WidgetHeading from '../../WidgetHeading.vue'
 import { createRevealGate, revealRowIn } from '../shared/revealRow.ts'
-import { TEXTURES_PER_PAGE, texturePageOf } from './textureBrowser.ts'
+import { TEXTURES_PER_PAGE, texturePageOf } from './textureMapper.ts'
 
 /**
  * The label of the widget, from the widget definition.
@@ -463,7 +464,7 @@ async function onDrop(event: DragEvent): Promise<void> {
 <template>
   <div
     ref="root"
-    class="TextureBrowserWidget"
+    class="TextureMapperWidget"
     :class="{ 'is-drop-target': isDropTarget }"
     @dragenter.prevent
     @dragover="onDragOver"
@@ -511,6 +512,11 @@ async function onDrop(event: DragEvent): Promise<void> {
       </div>
     </div>
 
+    <EmptyMessage v-if="shown.total === 0 && textureCatalog.entries.value.length > 0">
+      No texture matches the search.
+    </EmptyMessage>
+    <EmptyMessage v-else-if="textureCatalog.entries.value.length === 0">The level has no textures.</EmptyMessage>
+
     <div class="pager">
       <button type="button" aria-label="Previous page" :disabled="shown.page <= 1" @click="page = shown.page - 1">
         <ChevronLeft :size="14" />
@@ -538,7 +544,7 @@ async function onDrop(event: DragEvent): Promise<void> {
 // The list of the textures a face can be painted with: the filter on top, the tiles in the middle (the
 // part that scrolls) and the pager under them. The widget fills the space the dock gives it, so a bigger
 // window shows more tiles and not a bigger tile.
-.TextureBrowserWidget {
+.TextureMapperWidget {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -619,13 +625,15 @@ async function onDrop(event: DragEvent): Promise<void> {
   text-align: center;
   cursor: pointer;
 
-  // the pointer draws the white ring of the hover of the markers (2026-11-25, the owner: the white of the light and the
-  // entity hover); the pick is the yellow of the selection, and the text on it is the dark of a widget, the way the
-  // corner chips of the UV Mapper keep theirs. The picked tile has no hover of its own: its state is the selection, and
-  // a second look under the pointer would read as neither (2026-11-25, the owner)
+  // the pointer takes the panel of the rows of the lists (2026-11-25, the owner: the white hover was a family of its
+  // own), and the name comes forward on it; the picked tile keeps the accent, its dark text, and no hover of its own:
+  // a selected row is not hovered, and a second look under the pointer would read as neither state
   &:hover:not([aria-disabled='true']):not(.is-selected) {
-    border-color: $text-strong;
-    background: rgba($text-strong, 0.06);
+    background: $surface-panel;
+
+    .name {
+      color: $text;
+    }
   }
 
   // a tile is a div, so the frame of the focus is drawn here (the browser draws one for a button by itself)
@@ -639,11 +647,12 @@ async function onDrop(event: DragEvent): Promise<void> {
     cursor: default;
   }
 
-  // the picked texture, and the textures of the selected faces: the full yellow of the selection of the views, so a tile
-  // reads as picked even when its picture is dark (2026-11-25, the owner)
+  // the picked texture, and the textures of the selected faces: the full accent of the picked rows, with the dark text of
+  // a chip, so a tile reads as picked even when its picture is dark (2026-11-25, the owner: the yellow belongs to the
+  // 3D view)
   &.is-selected {
-    border-color: $selection;
-    background: $selection;
+    border-color: $accent;
+    background: $accent;
     color: $surface-widget;
     cursor: default;
 

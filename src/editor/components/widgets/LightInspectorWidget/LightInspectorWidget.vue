@@ -9,6 +9,7 @@ import { selectionModeOf, selectionStore } from '../../../modules/selection/sele
 import type { LightMarkerShape } from '../shared/lightMarkers.ts'
 import { createRevealGate, revealRowIn } from '../shared/revealRow.ts'
 import AccordionRow from '../../AccordionRow.vue'
+import RowActionButton from '../../RowActionButton.vue'
 import ColorSwatch from '../../ColorSwatch.vue'
 import InspectorRow from '../../InspectorRow.vue'
 import EmptyMessage from '../../EmptyMessage.vue'
@@ -634,15 +635,9 @@ function jumpTo(row: LightRow): void {
             <span class="shape" v-tooltip="`${lightShapeLabelOf(row.shape)} · ${lightPositionLabelOf(row.position)}`">
               {{ lightShapeLabelOf(row.shape) }}
             </span>
-            <button
-              class="jump"
-              type="button"
-              :aria-label="`Jump to light ${row.index}`"
-              v-tooltip="`Jump to light ${row.index}`"
-              @click.stop="jumpTo(row)"
-            >
-              <ScanSearch :size="13" />
-            </button>
+            <RowActionButton class="jump" :label="`Jump to light ${row.index}`" muted @click.stop="jumpTo(row)">
+              <ScanSearch :size="14" />
+            </RowActionButton>
           </InspectorRow>
           <li
             v-if="view.window.bottom > 0"
@@ -783,19 +778,6 @@ function jumpTo(row: LightRow): void {
 
       .shape {
         flex: 1;
-      }
-
-      .jump {
-        flex: none;
-        padding: 0;
-        border: 0;
-        background: transparent;
-        color: $text-muted;
-        cursor: pointer;
-
-        &:hover {
-          color: $text-strong;
-        }
       }
     }
   }

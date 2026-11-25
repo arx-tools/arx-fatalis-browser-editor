@@ -12,7 +12,6 @@ const meta = {
     label: 'fix_inter',
     value: '130',
     open: false,
-    stripe: false,
   },
   tags: ['autodocs'],
 } satisfies Meta<typeof AccordionRow>
@@ -84,7 +83,6 @@ export const Rows: Story = {
             :key="row.label"
             :label="row.label"
             :value="row.value"
-            :stripe="index % 2 === 1"
             :open="open === row.label"
             @toggle="toggle(row.label)"
           >

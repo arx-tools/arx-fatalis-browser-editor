@@ -23,7 +23,7 @@ export function textureKeyOf(texture: TextureEntry): string {
  * The texture the editor has picked.
  *
  * @remarks
- * The pick is the tile of the Texture Browser, and the rows of the Selection Inspector write it too: a texture of the
+ * The pick is the tile of the Texture Mapper, and the rows of the Selection Inspector write it too: a texture of the
  * selected faces is a click away from its place in the list (2026-11-25, the owner). The store keeps the entry, so the
  * list knows which tile to highlight, and the widget that shows the list can scroll to it.
  */
@@ -45,7 +45,7 @@ export type TextureSelectionStore = {
 }
 
 /**
- * The single store of the texture pick: the Texture Browser and the Selection Inspector read this one.
+ * The single store of the texture pick: the Texture Mapper and the Selection Inspector read this one.
  */
 export const textureSelectionStore: TextureSelectionStore = {
   texture: shallowRef(undefined),

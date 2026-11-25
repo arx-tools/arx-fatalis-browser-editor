@@ -447,8 +447,8 @@ async function reconnectDir(): Promise<void> {
       :aria-label="`${stateLabel}. Set up the Arx data dir`"
       @click="openSetup"
     >
-      <Check v-if="hasFolder" :size="13" />
-      <TriangleAlert v-else :size="13" />
+      <Check v-if="hasFolder" :size="14" />
+      <TriangleAlert v-else :size="14" />
       <span class="name">Arx data dir</span>
     </button>
 

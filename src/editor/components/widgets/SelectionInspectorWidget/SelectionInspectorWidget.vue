@@ -17,6 +17,7 @@ import {
 } from '../../../modules/textures/textureCatalog.ts'
 import WidgetHeading from '../../WidgetHeading.vue'
 import AccordionRow from '../../AccordionRow.vue'
+import SectionTitle from '../../SectionTitle.vue'
 import { selectionSummaryOf, type SelectionSummary } from './selectionInspector.ts'
 
 /**
@@ -182,7 +183,7 @@ const selectedEntityCount = computed(() => {
 })
 
 /**
- * Picks a texture of the selection: the Texture Browser turns to its tile and highlights it.
+ * Picks a texture of the selection: the Texture Mapper turns to its tile and highlights it.
  *
  * @remarks
  * The rows of the textures are the way into the list of the textures (2026-11-25, the owner): a face of the level holds
@@ -206,7 +207,7 @@ function pickTexture(name: string): void {
  *
  * @param name The name the level calls the texture.
  *
- * @returns True when the Texture Browser shows the row as picked.
+ * @returns True when the Texture Mapper shows the row as picked.
  */
 function isTextureSelected(name: string): boolean {
   const entry = entryOfName(name)
@@ -390,11 +391,10 @@ function thumbOf(name: string): string | undefined {
 
     <div class="rows">
       <AccordionRow
-        v-for="(row, index) in rows"
+        v-for="row in rows"
         :key="row.kind"
         :label="row.label"
         :value="row.value"
-        :stripe="index % 2 === 1"
         :empty="row.empty"
         :open="isRowOpen(row.label)"
         @toggle="toggleRow(row.label)"
@@ -405,12 +405,9 @@ function thumbOf(name: string): string | undefined {
 
         <div v-else-if="row.kind === 'lights'" class="groups">
           <section v-for="group in selectedLightGroups" :key="group.section" class="group">
-            <h3>
-              <span class="source">{{ group.label }}</span>
-              <span class="count">
-                {{ formatCount(group.rows.length) }} {{ group.rows.length === 1 ? 'light' : 'lights' }}
-              </span>
-            </h3>
+            <SectionTitle :value="`${formatCount(group.rows.length)} ${group.rows.length === 1 ? 'light' : 'lights'}`">
+              {{ group.label }}
+            </SectionTitle>
             <ul class="faces">
               <li v-for="light in group.rows" :key="light.index" @click="selectLight(light.index)">
                 {{ lightIndexLabelOf(light.index) }}
@@ -421,12 +418,11 @@ function thumbOf(name: string): string | undefined {
 
         <div v-else-if="row.kind === 'entities'" class="groups">
           <section v-for="group in selectedEntityGroups" :key="group.category" class="group">
-            <h3>
-              <span class="source">{{ group.label }}</span>
-              <span class="count">
-                {{ formatCount(group.rows.length) }} {{ group.rows.length === 1 ? 'entity' : 'entities' }}
-              </span>
-            </h3>
+            <SectionTitle
+              :value="`${formatCount(group.rows.length)} ${group.rows.length === 1 ? 'entity' : 'entities'}`"
+            >
+              {{ group.label }}
+            </SectionTitle>
             <ul class="faces">
               <li v-for="entity in group.rows" :key="entity.index" @click="selectEntity(entity.index)">
                 {{ entity.entityName }}
@@ -437,10 +433,9 @@ function thumbOf(name: string): string | undefined {
 
         <div v-else class="groups">
           <section v-for="group in summary.groups" :key="group.source" class="group">
-            <h3>
-              <span class="source">{{ group.label }}</span>
-              <span class="count">{{ formatCount(group.faces) }} {{ group.faces === 1 ? 'face' : 'faces' }}</span>
-            </h3>
+            <SectionTitle :value="`${formatCount(group.faces)} ${group.faces === 1 ? 'face' : 'faces'}`">
+              {{ group.label }}
+            </SectionTitle>
             <ul class="textures">
               <li
                 v-for="texture in group.textures"
@@ -486,6 +481,15 @@ function thumbOf(name: string): string | undefined {
   min-height: 0;
   padding-right: 10px;
   overflow-y: auto;
+  // the head of a fold sticks to the top of the box while its rows scroll under it, with the color of the widget behind
+  // it (2026-11-25, the owner: the fold of a big selection kept its head out of the screen)
+  --row-head-color: #{$surface-app};
+
+  :deep(.AccordionRow > .head) {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
 
   // the fold is indented under its head, so the author reads what belongs to which row (2026-11-25, the owner)
   :deep(.AccordionRow > .content) {
@@ -530,24 +534,10 @@ function thumbOf(name: string): string | undefined {
 .group {
   margin-top: 8px;
 
-  h3 {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 6px;
-    margin: 0 0 3px;
-    font-size: 10px;
-    font-weight: normal;
-
-    .source {
-      color: $text-strong;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-    }
-
-    .count {
-      color: $text-subtle;
-    }
+  // the caption of the group is the shared SectionTitle, so a group of the selection reads like the groups of the other
+  // widgets; the number it carries is the count of its rows (2026-11-25, the owner)
+  :deep(.SectionTitle) {
+    margin-bottom: 3px;
   }
 }
 
@@ -572,10 +562,10 @@ function thumbOf(name: string): string | undefined {
       background: $surface-panel;
     }
 
-    // the texture the Texture Mapper shows: the yellow of the selection in the views, because the picked texture is a
-    // pick of its own kind (2026-11-25, the owner)
+    // the texture the Texture Mapper shows: the accent of the picked rows of the lists, the way the light and the entity
+    // rows are picked; the yellow is the color of the 3D view only (2026-11-25, the owner)
     &.is-selected {
-      background: rgba($selection, 0.15);
+      background: rgba($accent, 0.15);
     }
   }
 

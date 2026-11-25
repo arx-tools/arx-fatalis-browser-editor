@@ -18,6 +18,7 @@ import { faceCountLabelOf } from '../../../modules/rooms/roomList.ts'
 import { lightSelectionStore } from '../../../modules/selection/lightSelectionStore.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import InspectorRow from '../../InspectorRow.vue'
+import IconButton from '../../IconButton.vue'
 import RowActionButton from '../../RowActionButton.vue'
 import WidgetHeading from '../../WidgetHeading.vue'
 import { cameraStore } from '../camera/cameraStore.ts'
@@ -218,16 +219,10 @@ function removeGroup(row: FaceGroupRow): void {
   <div class="GroupInspectorWidget">
     <WidgetHeading :label="props.label">
       <template #actions>
-        <button
-          class="group-add"
-          type="button"
-          :disabled="selected === 0"
-          aria-label="Group the selected faces"
-          v-tooltip="'Group the selected faces'"
-          @click="createGroup"
-        >
+        <span class="total">Total: {{ rows.length }}</span>
+        <IconButton class="group-add" label="Group the selected faces" :disabled="selected === 0" @click="createGroup">
           <Plus :size="14" />
-        </button>
+        </IconButton>
       </template>
     </WidgetHeading>
     <p class="selection">{{ selectionLabel }}</p>
@@ -269,13 +264,13 @@ function removeGroup(row: FaceGroupRow): void {
         <span v-else class="name" v-tooltip="row.label">{{ row.label }}</span>
         <span class="count">{{ faceCountLabelOf(row.faceCount) }}</span>
         <RowActionButton :label="`Jump to ${row.label}`" muted @click.stop="jumpTo(row)" @dblclick.stop>
-          <ScanSearch :size="13" />
+          <ScanSearch :size="14" />
         </RowActionButton>
         <RowActionButton :label="`Rename ${row.label}`" muted @click.stop="startRename(row)" @dblclick.stop>
-          <Pencil :size="13" />
+          <Pencil :size="14" />
         </RowActionButton>
         <RowActionButton :label="`Delete ${row.label}`" muted danger @click.stop="removeGroup(row)">
-          <Trash2 :size="13" />
+          <Trash2 :size="14" />
         </RowActionButton>
       </InspectorRow>
     </ul>
@@ -298,30 +293,6 @@ function removeGroup(row: FaceGroupRow): void {
 }
 
 // the button of the heading: the frame and the size of the eye of the room inspector
-.group-add {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 22px;
-  padding: 0;
-  color: $text-icon;
-  background: rgba($surface-app, 0.72);
-  border: 1px solid $border;
-  border-radius: 4px;
-  cursor: pointer;
-
-  &:hover:not(:disabled) {
-    background: $surface-panel;
-  }
-
-  &:disabled {
-    opacity: 0.45;
-    cursor: default;
-  }
-}
-
 // the note of a level whose groups belong to another version of its file: the list under it is empty, and the note says
 // where the groups went
 .version-note {

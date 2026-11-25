@@ -139,6 +139,6 @@ test('the interface shows no em dash and no en dash', async ({ page }) => {
   const pager = page.locator('[data-widget-kind="textures"] .pager')
 
   // the label is a count when the page holds one texture (the level of the test has one), and a `from-to` range when it
-  // holds more: the range of a hyphen is the unit test's (`textureBrowser.spec.ts`), here the dash must be gone
+  // holds more: the range of a hyphen is the unit test's (`textureMapper.spec.ts`), here the dash must be gone
   await expect(pager).toHaveText(/^\d+(?:-\d+)? of [\s\d]+$/u)
 })

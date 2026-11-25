@@ -13,6 +13,7 @@ import { jumpPoseOf } from '../camera/jumpPose.ts'
 import { entitySelectionStore } from '../../../modules/selection/entitySelectionStore.ts'
 import { isPlayerSelected, playerSpawnOf } from '../../../modules/level/entities/playerSpawn.ts'
 import { createRevealGate, revealRowIn } from '../shared/revealRow.ts'
+import RowActionButton from '../../RowActionButton.vue'
 import {
   ENTITY_JUMP_DISTANCE,
   entityRowsOf,
@@ -460,15 +461,9 @@ onMounted(() => {
             @click="togglePlayerSelection"
           >
             <span class="name">spawn</span>
-            <button
-              class="jump"
-              type="button"
-              aria-label="Jump to the player"
-              v-tooltip="'Jump to the player'"
-              @click.stop="jumpToPlayer"
-            >
-              <ScanSearch :size="13" />
-            </button>
+            <RowActionButton class="jump" label="Jump to the player" muted @click.stop="jumpToPlayer">
+              <ScanSearch :size="14" />
+            </RowActionButton>
           </li>
         </ul>
       </AccordionRow>
@@ -493,15 +488,9 @@ onMounted(() => {
               @click="selectRow(row)"
             >
               <span class="name">{{ row.entityName }}</span>
-              <button
-                class="jump"
-                type="button"
-                :aria-label="`Jump to entity ${row.entityName}`"
-                v-tooltip="`Jump to entity ${row.entityName}`"
-                @click.stop="jumpTo(row)"
-              >
-                <ScanSearch :size="13" />
-              </button>
+              <RowActionButton class="jump" :label="`Jump to entity ${row.entityName}`" muted @click.stop="jumpTo(row)">
+                <ScanSearch :size="14" />
+              </RowActionButton>
             </li>
           </ul>
         </AccordionRow>
@@ -539,18 +528,17 @@ onMounted(() => {
     // the rows stop before the scrollbar, the way the rows of the group inspector do: the bar takes the right edge
     padding: 0 10px 0 0;
     overflow-y: auto;
+    // the color of the sticky heads under them: the rows must not show through a head (2026-11-25, the owner). The head
+    // takes it from the custom property of the shared accordion row, so the hover of the row still wins over the color:
+    // a background-color here would have the same weight as the hover, and the later rule would win.
+    --row-head-color: #{$surface-app};
   }
 
-  // the head of an accordion stays at the top of the box while the rows of its folder scroll under it; the widget's own
-  // color is under the head, or the rows would show through it (2026-11-25, the owner: the head of a folder is the name
-  // the author reads the rows by)
-  // the color is `background-color` and not the `background` shorthand: the shorthand would reset the image the shared
-  // row draws the hover with, and the head of a folder would not answer the pointer (2026-11-25, the owner)
+  // the head of an accordion stays at the top of the box while the rows of its folder scroll under it
   .sections :deep(.AccordionRow > .head) {
     position: sticky;
     top: 0;
     z-index: 1;
-    background-color: $surface-app;
   }
 
   .rows {
@@ -590,19 +578,7 @@ onMounted(() => {
       text-overflow: ellipsis;
     }
 
-    // the jump sits at the end of the row, the way the light inspector keeps it
-    .jump {
-      flex: none;
-      padding: 0;
-      color: $text-muted;
-      background: transparent;
-      border: 0;
-      cursor: pointer;
-
-      &:hover {
-        color: $text-strong;
-      }
-    }
+    // the jump is the row action of the shared button, the way the group inspector keeps it
   }
 }
 </style>

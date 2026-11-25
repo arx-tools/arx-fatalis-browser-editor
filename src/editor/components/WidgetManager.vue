@@ -270,7 +270,7 @@ onBeforeUnmount(() => {
               v-tooltip="`Undo the ${preset.label} layout`"
               @click="undoPreset(preset.id)"
             >
-              <Undo2 :size="13" />
+              <Undo2 :size="14" />
             </button>
             <button
               class="step"
@@ -280,7 +280,7 @@ onBeforeUnmount(() => {
               v-tooltip="`Redo the ${preset.label} layout`"
               @click="redoPreset(preset.id)"
             >
-              <Redo2 :size="13" />
+              <Redo2 :size="14" />
             </button>
           </div>
         </template>
@@ -382,8 +382,9 @@ onBeforeUnmount(() => {
       background: $surface-panel;
     }
 
+    // the preset on the dock takes the accent of the picked rows; the hover is the panel, so the two never look the same
     &.is-selected {
-      background: $surface-panel;
+      background: rgba($accent, 0.15);
     }
 
     // the chip of the preset: the check, the name, and the whole left side of the row

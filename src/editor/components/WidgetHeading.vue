@@ -55,6 +55,7 @@ defineProps<{
     display: flex;
     flex: none;
     align-items: center;
+    gap: 6px;
   }
 }
 </style>

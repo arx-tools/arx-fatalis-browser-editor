@@ -9,8 +9,8 @@ import { ChevronDown, Minus } from 'lucide-vue-next'
  * on the right), and a content under it when the row is open. The two went apart (the entity list had the stripes and the
  * whole-row hover, the inspector had neither inside the fold), so the row is one component now (2026-11-22, the owner).
  *
- * The stripes and the hover paint the **whole head**, not its cells: the head is one element, which is why the hover of
- * the inspector's rows stops at the value in the old markup.
+ * The stripe the two rows disagreed on is gone (2026-11-25, the owner): the head is one line, the hover paints all of
+ * it, and the lists that need a stripe keep it on their own rows.
  */
 const props = defineProps<{
   /**
@@ -25,10 +25,6 @@ const props = defineProps<{
    * Whether the content is on the screen.
    */
   readonly open: boolean
-  /**
-   * Whether the row carries a stripe: the list passes the parity of the row, so a longer list reads like a table.
-   */
-  readonly stripe?: boolean
   /**
    * Whether the row has nothing to show.
    *
@@ -59,7 +55,7 @@ function toggle(): void {
 </script>
 
 <template>
-  <div class="AccordionRow" :class="{ 'is-stripe': stripe === true, 'is-empty': empty === true }">
+  <div class="AccordionRow" :class="{ 'is-empty': empty === true }">
     <div
       class="head"
       :role="empty === true ? undefined : 'button'"
@@ -83,20 +79,12 @@ function toggle(): void {
 <style scoped lang="scss">
 @use '../palette' as *;
 
-// the row of a folded list: the head is one element, so the stripe and the hover cover the label, the value and the arrow
-// together. The stripe is a step darker than the widget, the hover a step lighter, so a striped row still answers the
-// pointer
+// the row of a folded list: the head is one element, so the hover covers the label, the value and the arrow together
 .AccordionRow {
   // the whole row is a control, not a text: the label, the value and the rows under it are clicked, and a shift click
   // that would select a name instead of picking a row is a lost gesture (2026-11-24, the owner: shift click on the
   // entity list selected the text). The `none` is inherited, so the content of the fold is covered with the head.
   user-select: none;
-
-  // the stripe is the color of the row, and the hover is an image over it, so a hovered striped row keeps its stripe and
-  // only takes the tint (a hover that replaced the color would wipe the stripe out)
-  &.is-stripe > .head {
-    background-color: rgba($surface-panel, 0.45);
-  }
 
   > .head {
     display: flex;
@@ -106,20 +94,19 @@ function toggle(): void {
     border-radius: 3px;
     cursor: pointer;
     user-select: none;
-
-    &:hover {
-      background-image: linear-gradient(rgba($text-strong, 0.06), rgba($text-strong, 0.06));
-    }
+    // the color the head paints with: a widget that keeps the head on the top of a long list sets it (the rows under the
+    // sticky head must not show through), and the list that does not have a color of its own leaves the head transparent
+    background-color: var(--row-head-color, transparent);
   }
 
-  // the row with nothing to show: no pointer and no hover tint, but the stripe it may carry stays (2026-11-22, the
-  // owner: the off state must not change the base color)
+  // the head of a row with something to show takes the panel under the pointer; the empty row does not react at all
+  // (2026-11-22, the owner: the off state must not change the base color)
+  &:not(.is-empty) > .head:hover {
+    background: $surface-panel;
+  }
+
   &.is-empty > .head {
     cursor: default;
-
-    &:hover {
-      background-image: none;
-    }
   }
 
   .label {

@@ -5,7 +5,7 @@ import type { TextureEntry } from '../../../../../src/editor/modules/textures/te
 import {
   TEXTURES_PER_PAGE,
   texturePageOf,
-} from '../../../../../src/editor/components/widgets/TextureBrowserWidget/textureBrowser.ts'
+} from '../../../../../src/editor/components/widgets/TextureMapperWidget/textureMapper.ts'
 
 /**
  * Builds a list of textures, none of them like another.

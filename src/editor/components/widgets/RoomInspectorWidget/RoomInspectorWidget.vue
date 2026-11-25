@@ -30,6 +30,7 @@ import SearchField from '../../SearchField.vue'
 import InspectorRow from '../../InspectorRow.vue'
 import RowActionButton from '../../RowActionButton.vue'
 import SectionTitle from '../../SectionTitle.vue'
+import ToggleButton from '../../ToggleButton.vue'
 import WidgetHeading from '../../WidgetHeading.vue'
 import { isMeshVisible, isRoomColorsVisible, toggleRoomColors } from '../shared/levelDisplay.ts'
 import { roomProblemsOf, type RoomProblem } from './roomInspector.ts'
@@ -525,18 +526,16 @@ function removeRowRoom(room: number): void {
   <div class="RoomInspectorWidget">
     <WidgetHeading :label="props.label">
       <template #actions>
-        <button
+        <span class="total">Total: {{ rows.length }}</span>
+        <ToggleButton
           class="map-toggle"
-          :class="{ 'is-on': showsRooms }"
-          type="button"
+          :pressed="showsRooms"
+          :label="toggleTooltip"
           :disabled="!isMeshVisible"
-          :aria-pressed="showsRooms"
-          :aria-label="toggleTooltip"
-          v-tooltip="toggleTooltip"
-          @click="toggleRoomColors()"
+          @update:pressed="toggleRoomColors()"
         >
           <component :is="showsRooms ? Eye : EyeOff" :size="14" />
-        </button>
+        </ToggleButton>
       </template>
     </WidgetHeading>
     <p class="selection">{{ selectionLabel }}</p>
@@ -588,7 +587,7 @@ function removeRowRoom(room: number): void {
           @click.stop="startRename(row.room)"
           @dblclick.stop
         >
-          <Pencil :size="13" />
+          <Pencil :size="14" />
         </RowActionButton>
         <RowActionButton
           v-if="row.room !== NO_ROOM"
@@ -597,7 +596,7 @@ function removeRowRoom(room: number): void {
           danger
           @click.stop="removeRowRoom(row.room)"
         >
-          <Trash2 :size="13" />
+          <Trash2 :size="14" />
         </RowActionButton>
       </InspectorRow>
     </ul>
@@ -660,38 +659,6 @@ function removeRowRoom(room: number): void {
   height: 100%;
   padding: 0 8px 8px;
   font-size: 13px;
-}
-
-// the switch of the title: the frame and the sizes of the eye of the key help, so the same switch reads the same in
-// both places (and the orange eye says the map is on)
-.map-toggle {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 22px;
-  padding: 0;
-  color: $text-icon;
-  background: rgba($surface-app, 0.72);
-  border: 1px solid $border;
-  border-radius: 4px;
-  cursor: pointer;
-
-  &:hover:not(:disabled) {
-    background: $surface-panel;
-  }
-
-  // only the eye turns orange: the frame stays the neutral border of every button
-  &.is-on {
-    color: $accent;
-  }
-
-  // the map is not drawn without the mesh, so the switch is disabled with it; its state stays as it was left
-  &:disabled {
-    color: $border;
-    cursor: default;
-  }
 }
 
 // the note of a level whose names belong to another version of its file: the list under it says the rooms without their

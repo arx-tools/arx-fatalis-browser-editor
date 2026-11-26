@@ -11,6 +11,7 @@ import {
   type BuildTunnelRecord,
   type DeleteRoomsRecord,
   type HistoryRecord,
+  type ImportMeshRecord,
   type MutableLevel,
   type PasteFacesRecord,
   type RotateFacesRecord,
@@ -567,6 +568,125 @@ function colorsOf(polygons: readonly ArxPolygon[], palette: readonly ArxColor[])
 }
 
 /**
+ * The faces a step put at the end of the level, with the block of colors they took.
+ */
+type AppendedFaces = {
+  /**
+   * The polygons of the step, as they went into the level.
+   */
+  readonly inserted: readonly ArxPolygon[]
+  /**
+   * How many colors the step appended to the palette.
+   */
+  readonly appended: number
+}
+
+/**
+ * Puts polygons at the end of the level, with a block of colors of their own.
+ *
+ * @remarks
+ * The two steps that bring faces of their own (a paste and an import) land here: the colors are appended to the palette
+ * of the level, and every corner of a face names its color, so a bake that moves the light of the place can move the
+ * colors of the new faces with it. The room of a face is the one the record gives (the import), or no room at all (the
+ * paste, which a face of another room would take the flat color of).
+ *
+ * @param level The level to add to.
+ * @param polygons The polygons to put in, as the record holds them.
+ * @param colors The colors of the corners, or `undefined` to read them from the palette of the level.
+ * @param room The room every face takes, or `undefined` to keep the one it carries.
+ *
+ * @returns The faces that went in and how many colors came with them.
+ */
+function appendFacesOf(
+  level: MutableLevel,
+  polygons: readonly ArxPolygon[],
+  colors: readonly ArxColor[] | undefined,
+  room?: number,
+): AppendedFaces {
+  const start = level.llf.colors.length
+  const block = colors ?? colorsOf(polygons, level.llf.colors)
+
+  level.addLightingColors(block)
+
+  let offset = 0
+
+  const inserted = polygons.map((polygon) => {
+    const copy = structuredClone(polygon)
+
+    if (room !== undefined) {
+      copy.room = room
+    }
+
+    let count = 3
+
+    if (isQuad(copy)) {
+      count = 4
+    }
+
+    for (let vertex = 0; vertex < copy.vertices.length; vertex = vertex + 1) {
+      let colorIndex = start + offset
+
+      // the fourth vertex of a triangle has no color of its own: it takes the first one, which the game does not read
+      if (vertex < count) {
+        colorIndex = colorIndex + vertex
+      }
+
+      copy.vertices[vertex].llfColorIdx = colorIndex
+    }
+
+    offset = offset + count
+
+    return copy
+  })
+
+  addPolygonsAtTheEndOf(level, inserted)
+
+  return { inserted, appended: block.length }
+}
+
+/**
+ * Builds the command of an imported mesh.
+ *
+ * @remarks
+ * The faces go to the end of the level, the way a paste puts them, with the block of colors they take; the container of
+ * the texture is added when the level did not have one with that name (the import of a level that never used the missing
+ * texture of the generator). The undo takes the faces, the colors and the container back together, so a level edited and
+ * undone is the level that was loaded.
+ *
+ * @param record The record of the step.
+ * @param level The level the step changes.
+ *
+ * @returns The command of the step.
+ */
+function importMeshCommandOf(record: ImportMeshRecord, level: MutableLevel): HistoryCommand {
+  let inserted: readonly ArxPolygon[] = []
+  let appended = 0
+
+  return {
+    label: labelOf(record),
+    record,
+    apply: (): void => {
+      if (record.addedTexture) {
+        level.addTextureContainer(record.texture.id, record.texture.name)
+      }
+
+      const faces = appendFacesOf(level, record.polygons, record.colors)
+
+      inserted = faces.inserted
+      appended = faces.appended
+    },
+    revert: (): void => {
+      level.polygons.remove(inserted)
+      level.removeLightingColors(appended)
+
+      if (record.addedTexture) {
+        level.removeTextureContainer(record.texture.id)
+      }
+    },
+  }
+}
+
+/**
  * Builds the command of a paste.
  *
  * @remarks
@@ -580,7 +700,7 @@ function colorsOf(polygons: readonly ArxPolygon[], palette: readonly ArxColor[])
  * @returns The command of the step.
  */
 function pasteFacesCommandOf(record: PasteFacesRecord, level: MutableLevel): HistoryCommand {
-  let inserted: ArxPolygon[] = []
+  let inserted: readonly ArxPolygon[] = []
   let appended = 0
   let label = `Paste ${String(record.polygons.length)} faces`
 
@@ -592,50 +712,13 @@ function pasteFacesCommandOf(record: PasteFacesRecord, level: MutableLevel): His
     label,
     record,
     apply: (): void => {
-      const start = level.llf.colors.length
-      let colors: readonly ArxColor[]
+      // the paste makes a new face of the level, and it is in no room yet: the room of the source is a fact of the faces
+      // it was cut from, and a pasted face that kept it takes the flat color of that room in the room map, so it
+      // disappears over a floor of the same room (the carpet of the throne room lifted over its own floor, 2026-11-24)
+      const faces = appendFacesOf(level, record.polygons, record.colors, NO_ROOM)
 
-      if (record.colors === undefined) {
-        colors = colorsOf(record.polygons, level.llf.colors)
-      } else {
-        colors = record.colors
-      }
-
-      let offset = 0
-
-      level.addLightingColors(colors)
-      appended = colors.length
-
-      inserted = record.polygons.map((polygon) => {
-        const copy = structuredClone(polygon)
-
-        // the paste makes a new face of the level, and it is in no room yet: the room of the source is a fact of the
-        // faces it was cut from, and a pasted face that kept it takes the flat color of that room in the room map, so it
-        // disappears over a floor of the same room (the carpet of the throne room lifted over its own floor, 2026-11-24)
-        copy.room = NO_ROOM
-        let count = 3
-
-        if (isQuad(copy)) {
-          count = 4
-        }
-
-        for (let vertex = 0; vertex < copy.vertices.length; vertex = vertex + 1) {
-          let colorIndex = start + offset
-
-          // the fourth vertex of a triangle has no color of its own: it takes the first one, which the game does not read
-          if (vertex < count) {
-            colorIndex = colorIndex + vertex
-          }
-
-          copy.vertices[vertex].llfColorIdx = colorIndex
-        }
-
-        offset = offset + count
-
-        return copy
-      })
-
-      addPolygonsAtTheEndOf(level, inserted)
+      inserted = faces.inserted
+      appended = faces.appended
     },
     revert: (): void => {
       level.polygons.remove(inserted)
@@ -673,6 +756,10 @@ export function commandOf(record: HistoryRecord, level: MutableLevel): HistoryCo
 
   if (record.kind === 'setEntityPosition') {
     return entityPositionCommandOf(record, level)
+  }
+
+  if (record.kind === 'importMesh') {
+    return importMeshCommandOf(record, level)
   }
 
   if (record.kind === 'setSpawn') {

@@ -1,3 +1,4 @@
+import type { ArxPolygon } from 'arx-convert/types'
 import { shallowRef, watch, type ShallowRef } from 'vue'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { history, metadataCommandOf, type HistoryCommand } from '../../history/history.ts'
@@ -5,7 +6,7 @@ import { historyOfMap, rememberMapHistory, type HistorySnapshot } from '../../hi
 import { dropStoredHistory, readStoredHistory } from '../../history/mapHistoryStorage.ts'
 import { commandOf } from '../../history/commands.ts'
 import { createDeleteFacesRecord } from '../../history/records/faces.ts'
-import type { HistoryRecord, PasteFacesRecord, SetLightRecord } from '../../history/records/types.ts'
+import type { HistoryRecord, ImportMeshRecord, PasteFacesRecord, SetLightRecord } from '../../history/records/types.ts'
 import { onKeyboardAction } from '../../keyboard/keyboard.ts'
 import { bumpPortalRevision } from '../../rooms/portalSync.ts'
 import { selectionStore } from '../../selection/selectionStore.ts'
@@ -110,22 +111,22 @@ function refreshLightPaletteOf(record: SetLightRecord): void {
 }
 
 /**
- * Bakes the light of the faces a paste put at the end of the level.
+ * Bakes the light of the faces a step put at the end of the level.
  *
  * @remarks
- * The pasted faces own corners the palette does not have a color for yet, so they are baked when they go in: the step
- * that takes them back out does not bake them again. A level that is not on the store has nothing to bake.
+ * A pasted or an imported face owns corners the palette does not have a color for yet, so they are baked when they go
+ * in: the step that takes them back out does not bake them again. A level that is not on the store has nothing to bake.
  *
- * @param record The record of the step.
+ * @param polygons The polygons the step put at the end of the level.
  */
-function refreshPastedFaces(record: PasteFacesRecord): void {
+function refreshAppendedFaces(polygons: readonly ArxPolygon[]): void {
   const map = levelStore.map.value
 
   if (map === undefined) {
     return
   }
 
-  const count = record.polygons.length
+  const count = polygons.length
 
   refreshLightPaletteOfFaces(
     map,
@@ -149,6 +150,81 @@ function refreshPastedFaces(record: PasteFacesRecord): void {
  */
 function keepsThePaint(record: HistoryRecord): boolean {
   return record.kind === 'setUv' || record.kind === 'setEntityPosition'
+}
+
+/**
+ * Tells whether a step puts faces of its own at the end of the level.
+ *
+ * @param record The record of the step.
+ *
+ * @returns True when the step appends the faces it holds.
+ */
+function appendsFaces(record: HistoryRecord): record is ImportMeshRecord | PasteFacesRecord {
+  return record.kind === 'importMesh' || record.kind === 'pasteFaces'
+}
+
+/**
+ * Bakes the light a step of the level asks for, by the kind of the step.
+ *
+ * @remarks
+ * A step changes the level in place, and the palette (the bake of the light of the corners) has to follow the part of
+ * the level it touched: a light, the faces a step moved, the faces a paste or an import put in, the portals of a tunnel.
+ * The steps that keep the colors of their faces (a group, a room, a texture, a uv, an entity, the spawn) ask for
+ * nothing: a bake of the whole palette is about half a second on a big level.
+ *
+ * @param record The record of the step.
+ */
+function bakeLightsOf(record: HistoryRecord): void {
+  switch (record.kind) {
+    // a tunnel brings its portals and takes them out with itself: the outline and the room warnings follow them
+    case 'buildTunnel': {
+      bumpPortalRevision()
+      break
+    }
+
+    // a light edit moves the markers and their shapes with the fields of the light, and the palette of the level with
+    // the light itself (the undo and the redo take the palette back the same way the live edit moved it)
+    case 'setLight': {
+      touchLights()
+      refreshLightPaletteOf(record)
+      break
+    }
+
+    // an entity that moves takes its marker and its row in the list with it (the undo puts them back the same way)
+    case 'setEntityPosition': {
+      touchEntities()
+      break
+    }
+
+    // a face that moves takes the light of its new place: the corners it owns are baked again, so a pasted or a
+    // dragged face does not keep the color of the place it came from
+    case 'rotateFaces':
+    case 'scaleFaces':
+    case 'translateFaces': {
+      refreshLightPaletteOfFacesOf(record.faces)
+      break
+    }
+
+    // the faces a step puts at the end of the level (a paste, an import) are baked by the step itself, on the apply
+    case 'importMesh':
+    case 'pasteFaces': {
+      break
+    }
+
+    // the steps that keep the colors of their faces: a group, a room, a texture, a uv or the spawn changes no light
+    case 'createFaceGroup':
+    case 'deleteFaceGroups':
+    case 'deleteFaces':
+    case 'deleteRooms':
+    case 'renameFaceGroup':
+    case 'setRoom':
+    case 'setRoomName':
+    case 'setSpawn':
+    case 'setTexture':
+    case 'setUv': {
+      break
+    }
+  }
 }
 
 /**
@@ -180,59 +256,13 @@ function withRevision(command: HistoryCommand): HistoryCommand {
       textureRevision.value = textureRevision.value + 1
     }
 
-    switch (step.record.kind) {
-      // a tunnel brings its portals and takes them out with itself: the outline and the room warnings follow them
-      case 'buildTunnel': {
-        bumpPortalRevision()
-        break
-      }
-
-      // a light edit moves the markers and their shapes with the fields of the light, and the palette of the level with
-      // the light itself (the undo and the redo take the palette back the same way the live edit moved it)
-      case 'setLight': {
-        touchLights()
-        refreshLightPaletteOf(step.record)
-        break
-      }
-
-      // an entity that moves takes its marker and its row in the list with it (the undo puts them back the same way)
-      case 'setEntityPosition': {
-        touchEntities()
-        break
-      }
-
-      // a face that moves takes the light of its new place: the corners it owns are baked again, so a pasted or a
-      // dragged face does not keep the color of the place it came from
-      case 'rotateFaces':
-      case 'scaleFaces':
-      case 'translateFaces': {
-        refreshLightPaletteOfFacesOf(step.record.faces)
-        break
-      }
-
-      // the pasted faces get their own colors when they go in: their bake happens on the apply, not on the undo
-      case 'pasteFaces': {
-        if (applied) {
-          refreshPastedFaces(step.record)
-        }
-
-        break
-      }
-
-      // the steps that keep the colors of their faces: a group, a room, a texture, a uv or the spawn changes no light
-      case 'createFaceGroup':
-      case 'deleteFaceGroups':
-      case 'deleteFaces':
-      case 'deleteRooms':
-      case 'renameFaceGroup':
-      case 'setRoom':
-      case 'setRoomName':
-      case 'setSpawn':
-      case 'setTexture':
-      case 'setUv': {
-        break
-      }
+    // the faces a step puts at the end of the level (a paste, an import) get the light of the place they land on: the
+    // bake happens on the apply, not on the undo
+    if (applied && appendsFaces(step.record)) {
+      refreshAppendedFaces(step.record.polygons)
     }
+
+    bakeLightsOf(step.record)
   }
 
   return {
@@ -304,7 +334,7 @@ export function undoLastStep(): void {
   history.undo()
   bumpLightingCacheVersion()
 
-  if (step?.record.kind === 'deleteFaces' || step?.record.kind === 'pasteFaces') {
+  if (step?.record.kind === 'deleteFaces' || step?.record.kind === 'importMesh' || step?.record.kind === 'pasteFaces') {
     selectionStore.clear()
   }
 }
@@ -318,7 +348,7 @@ export function redoLastStep(): void {
   history.redo()
   bumpLightingCacheVersion()
 
-  if (step?.record.kind === 'deleteFaces' || step?.record.kind === 'pasteFaces') {
+  if (step?.record.kind === 'deleteFaces' || step?.record.kind === 'importMesh' || step?.record.kind === 'pasteFaces') {
     selectionStore.clear()
   }
 }

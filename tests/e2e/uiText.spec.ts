@@ -101,8 +101,9 @@ test('the map control names the chosen map with its group, and the list keeps th
   await expect(map.locator('select')).toBeFocused()
   await page.keyboard.press('Escape')
 
-  // the sections of the middle bar are separated by a dot
-  await expect(page.locator('.levels .dot')).toHaveCount(3)
+  // the sections of the middle bar are separated by a dot: the level, the data directory, the maps, the import of a
+  // mesh and the export
+  await expect(page.locator('.levels .dot')).toHaveCount(4)
 
   const dots = await page.locator('.levels .dot').evaluateAll((nodes) => {
     return nodes.map((node) => {
@@ -110,7 +111,7 @@ test('the map control names the chosen map with its group, and the list keeps th
     })
   })
 
-  expect(dots).toEqual(['·', '·', '·'])
+  expect(dots).toEqual(['·', '·', '·', '·'])
 })
 
 test('the interface shows no em dash and no en dash', async ({ page }) => {

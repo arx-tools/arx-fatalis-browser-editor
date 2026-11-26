@@ -492,6 +492,20 @@ void describe('buildExportFts', () => {
       return buildExportFts(map.fts, [])
     }, /no polygon left/u)
   })
+
+  void it('names the face that is outside the map, instead of a library error', () => {
+    const map = flatMap()
+    const moved = map.polygons[3]
+
+    // a step that pushed the face past the grid of the file: the export can not place it, and it says which one
+    for (const vertex of moved.vertices) {
+      vertex.z = -420
+    }
+
+    assert.throws(() => {
+      return buildExportFts(map.fts, map.polygons)
+    }, /The face 3 is outside the map: its middle is at x .*, z -420/u)
+  })
 })
 
 void describe('exportLevelFiles', () => {

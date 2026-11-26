@@ -4,6 +4,7 @@
 import { siGithub } from 'simple-icons'
 import DataDirPicker from './DataDirPicker.vue'
 import ExportMap from './ExportMap.vue'
+import ImportObj from './ImportObj.vue'
 import LevelSelector from './LevelSelector.vue'
 import MapsToOpen from './MapsToOpen.vue'
 import WidgetManager from './WidgetManager.vue'
@@ -61,6 +62,8 @@ const build = ` (${EDITOR_INFO.commit}, ${EDITOR_INFO.builtAt})`
       <DataDirPicker />
       <span class="dot" aria-hidden="true">·</span>
       <MapsToOpen />
+      <span class="dot" aria-hidden="true">·</span>
+      <ImportObj />
       <span class="dot" aria-hidden="true">·</span>
       <ExportMap />
     </div>

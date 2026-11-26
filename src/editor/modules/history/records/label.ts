@@ -1,4 +1,12 @@
-import type { HistoryRecord, SetEntityPositionRecord, SetSpawnRecord } from './types.ts'
+import type {
+  HistoryRecord,
+  ImportMeshRecord,
+  RotateFacesRecord,
+  ScaleFacesRecord,
+  SetEntityPositionRecord,
+  SetSpawnRecord,
+  TranslateFacesRecord,
+} from './types.ts'
 
 /**
  * The caption of a move of the spawn.
@@ -33,6 +41,54 @@ function entityPositionLabelOf(record: SetEntityPositionRecord): string {
   }
 
   return `Move ${String(record.indices.length)} entities`
+}
+
+/**
+ * The caption of an imported mesh.
+ *
+ * @param record The record of the step.
+ *
+ * @returns `Import 467 faces`, or `Import a face` when the mesh is one face.
+ */
+function importLabelOf(record: ImportMeshRecord): string {
+  if (record.polygons.length === 1) {
+    return 'Import a face'
+  }
+
+  return `Import ${String(record.polygons.length)} faces`
+}
+
+/**
+ * The word of a step that moves, turns or scales the faces of the selection.
+ *
+ * @remarks
+ * The three steps of the gizmo read the same way in the history (`Move 4 face(s)`), and only the verb tells them apart.
+ */
+const FACE_STEP_VERBS = {
+  translateFaces: 'Move',
+  rotateFaces: 'Rotate',
+  scaleFaces: 'Scale',
+} as const
+
+/**
+ * The kinds of the steps the gizmo makes: the three the history spells with a verb of their own.
+ */
+const FACE_STEP_KINDS = new Set<HistoryRecord['kind']>(['translateFaces', 'rotateFaces', 'scaleFaces'])
+
+/**
+ * The steps the gizmo makes, which the history names with a verb and the count of the faces.
+ */
+type FaceStepRecord = TranslateFacesRecord | RotateFacesRecord | ScaleFacesRecord
+
+/**
+ * Tells whether the gizmo made the step on the stack.
+ *
+ * @param record The entry of the history, with its kind.
+ *
+ * @returns True when the entry moved, turned or scaled faces.
+ */
+function isFaceStep(record: HistoryRecord): record is FaceStepRecord {
+  return FACE_STEP_KINDS.has(record.kind)
 }
 
 /**
@@ -91,6 +147,10 @@ export function labelOf(record: HistoryRecord): string {
     return entityPositionLabelOf(record)
   }
 
+  if (record.kind === 'importMesh') {
+    return importLabelOf(record)
+  }
+
   if (record.kind === 'setUv') {
     if (record.faces.length === 1) {
       return `Move the uv of face ${String(record.faces[0])}`
@@ -103,16 +163,8 @@ export function labelOf(record: HistoryRecord): string {
     return `Build a tunnel of ${String(record.added.length)} face(s)`
   }
 
-  if (record.kind === 'translateFaces') {
-    return `Move ${String(record.faces.length)} face(s)`
-  }
-
-  if (record.kind === 'rotateFaces') {
-    return `Rotate ${String(record.faces.length)} face(s)`
-  }
-
-  if (record.kind === 'scaleFaces') {
-    return `Scale ${String(record.faces.length)} face(s)`
+  if (isFaceStep(record)) {
+    return `${FACE_STEP_VERBS[record.kind]} ${String(record.faces.length)} face(s)`
   }
 
   if (record.kind === 'pasteFaces') {

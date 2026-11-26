@@ -49,6 +49,51 @@ export const LOCK_GUARD_MS = 300
 export const GAME_TURN = new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), Math.PI)
 
 /**
+ * How much of the scale the center handle makes a drag of the selection takes, as a factor of it.
+ *
+ * @remarks
+ * The three arrows of the gizmo scale the selection along an axis, and the factor of the drag is the ratio of the pointer
+ * to the pivot along that axis, which is a steady number. The **center handle** is the other way: `TransformControls`
+ * scales it by the **distance of the pointer from the pivot**, against the distance the press started at, and the press
+ * starts on the handle, which sits on the pivot. A few pixels of travel is then a big ratio, and the selection jumps.
+ * The selection takes this much of that ratio, so the same drag steers: an eighth of it is about two hundred pixels of
+ * travel for a doubling (2026-11-26, the owner: the center handle was too sensitive, and then still too quick at a
+ * quarter).
+ */
+const UNIFORM_SCALE_SPEED = 0.125
+
+/**
+ * The scale the selection takes from the scale of the gizmo.
+ *
+ * @remarks
+ * The arrows of the gizmo hand over the factor of the drag as it is, and the center handle takes
+ * {@link UNIFORM_SCALE_SPEED} of it (see the constant). The factors are kept away from zero (`MIN_SCALE_FACTOR` of
+ * `ArxMap`): a face turned into a line could not be undone.
+ *
+ * @param raw The scale of the gizmo, as the drag made it.
+ * @param uniform Whether the drag is the center handle (the three axes at once).
+ *
+ * @returns The scale of the selection.
+ */
+export function steeredScaleOf(raw: ArxVector3, uniform: boolean): ArxVector3 {
+  if (!uniform) {
+    return {
+      x: Math.max(MIN_SCALE_FACTOR, raw.x),
+      y: Math.max(MIN_SCALE_FACTOR, raw.y),
+      z: Math.max(MIN_SCALE_FACTOR, raw.z),
+    }
+  }
+
+  function steeredOf(factor: number): number {
+    const growth = (factor - 1) * UNIFORM_SCALE_SPEED
+
+    return Math.max(MIN_SCALE_FACTOR, 1 + growth)
+  }
+
+  return { x: steeredOf(raw.x), y: steeredOf(raw.y), z: steeredOf(raw.z) }
+}
+
+/**
  * The axis and the angle of a turn.
  */
 export type TurnAxisAngle = {
@@ -479,11 +524,7 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
       return
     }
 
-    const total = {
-      x: Math.max(MIN_SCALE_FACTOR, proxy.scale.x),
-      y: Math.max(MIN_SCALE_FACTOR, proxy.scale.y),
-      z: Math.max(MIN_SCALE_FACTOR, proxy.scale.z),
-    }
+    const total = steeredScaleOf({ x: proxy.scale.x, y: proxy.scale.y, z: proxy.scale.z }, controls.axis === 'XYZ')
 
     proxy.scale.set(total.x, total.y, total.z)
 

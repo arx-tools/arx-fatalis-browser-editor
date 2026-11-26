@@ -8,7 +8,7 @@ import {
   type ArxPolygon,
   ArxLightFlags,
 } from 'arx-convert/types'
-import { getCellCoords, isQuad, MAP_WIDTH_IN_CELLS } from 'arx-convert/utils'
+import { getCellCoords, isQuad, MAP_DEPTH_IN_CELLS, MAP_WIDTH_IN_CELLS } from 'arx-convert/utils'
 import { getHeaderSize } from 'arx-header-size'
 import JSZip from 'jszip'
 import type { ArxMap } from '../../../generator/ArxMap.ts'
@@ -180,6 +180,41 @@ export function cellOrderedPolygonsOf(polygons: readonly ArxPolygon[]): ArxPolyg
 }
 
 /**
+ * The size of the square the polygons of an FTS are sorted into, in the units of the game.
+ */
+const MAP_SIZE = MAP_WIDTH_IN_CELLS * 100
+
+/**
+ * Tells the author which face is outside the map, before the file is written.
+ *
+ * @remarks
+ * An FTS sorts its polygons into a grid of 160 x 160 cells of a hundred units, so a face outside that square has no cell
+ * and `FTS.save` throws a `TypeError` of a library instead of a sentence. A face leaves the square when a step moves it
+ * or an imported mesh is scaled past it, and the game can not place it either, so the export says which face and where.
+ *
+ * @param polygons The polygons the file is written from.
+ *
+ * @throws `Error` with the index and the middle of the first face outside the map.
+ */
+function assertInMapOf(polygons: readonly ArxPolygon[]): void {
+  for (const [index, polygon] of polygons.entries()) {
+    const [cellX, cellY] = getCellCoords(polygon.vertices)
+
+    if (cellX >= 0 && cellX < MAP_WIDTH_IN_CELLS && cellY >= 0 && cellY < MAP_DEPTH_IN_CELLS) {
+      continue
+    }
+
+    const [a, b, c] = polygon.vertices
+    const x = ((a?.x ?? 0) + (b?.x ?? 0) + (c?.x ?? 0)) / 3
+    const z = ((a?.z ?? 0) + (b?.z ?? 0) + (c?.z ?? 0)) / 3
+
+    throw new Error(
+      `The face ${index} is outside the map: its middle is at x ${x.toFixed(0)}, z ${z.toFixed(0)}, and the map holds 0 to ${MAP_SIZE}. Move it back, or undo the step that moved it.`,
+    )
+  }
+}
+
+/**
  * Rebuilds the scene of a level from the polygons the editor holds.
  *
  * @remarks
@@ -205,6 +240,8 @@ export function buildExportFts(fts: ArxFTS, polygons: readonly ArxPolygon[]): Ar
   if (polygons.length === 0) {
     throw new Error('The level has no polygon left, there is nothing to export.')
   }
+
+  assertInMapOf(polygons)
 
   // the ids the level uses are written without the holes (166/5): a room with nothing in it is a room the game walks
   // for nothing, and every place that names a room follows the same map

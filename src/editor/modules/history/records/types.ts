@@ -602,6 +602,45 @@ export type EntityPositionEdit = {
 }
 
 /**
+ * The step that puts a mesh of the generator into the level.
+ *
+ * @remarks
+ * An imported mesh is a list of polygons of its own (see `modules/level/import/objPolygons.ts`), and the step holds them
+ * the way a paste does: the polygons travel in the record, because nothing of the level names them. The texture is the
+ * one container the faces draw with (the missing one of the level, unless the level already has it), and the step adds
+ * it when it was not there: the undo takes the container, the colors and the faces away together.
+ *
+ * The `room` of a face is on the polygon itself: an import makes a room of its own (see `ImportObj.vue`), and the export
+ * writes it like any other.
+ */
+export type ImportMeshRecord = {
+  /**
+   * The version of the shape of this record, see {@link HISTORY_RECORD_VERSION}.
+   */
+  readonly version: number
+  /**
+   * What the step does, which names its payload.
+   */
+  readonly kind: 'importMesh'
+  /**
+   * The faces to put at the end of the level, with their room and their container.
+   */
+  readonly polygons: readonly ArxPolygon[]
+  /**
+   * The colors of the corners, in the order of the polygons: three or four per face.
+   */
+  readonly colors?: readonly ArxColor[]
+  /**
+   * The container the faces draw with.
+   */
+  readonly texture: TextureReference
+  /**
+   * Whether the step adds the container to the level (the level had no container with that name).
+   */
+  readonly addedTexture: boolean
+}
+
+/**
  * The step that moves entities of the level.
  *
  * @remarks
@@ -709,6 +748,7 @@ export type HistoryRecord =
   | DeleteFaceGroupsRecord
   | DeleteFacesRecord
   | DeleteRoomsRecord
+  | ImportMeshRecord
   | PasteFacesRecord
   | RenameFaceGroupRecord
   | RotateFacesRecord

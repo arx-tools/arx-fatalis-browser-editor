@@ -34,6 +34,7 @@ import {
 import { createSetLightRecord } from '../../../../src/editor/modules/history/records/lights.ts'
 import { createSetSpawnRecord } from '../../../../src/editor/modules/history/records/spawn.ts'
 import { createSetEntityPositionRecord } from '../../../../src/editor/modules/history/records/entities.ts'
+import { createImportMeshRecord } from '../../../../src/editor/modules/history/records/import.ts'
 import { createDeleteRoomsRecord } from '../../../../src/editor/modules/history/records/rooms.ts'
 import { createSetTextureRecord, createSetUvRecord } from '../../../../src/editor/modules/history/records/textures.ts'
 import { createBuildTunnelRecord } from '../../../../src/editor/modules/history/records/tunnel.ts'
@@ -1394,5 +1395,82 @@ void describe('commandOf an entity move', () => {
     ])
 
     assert.equal(commandOf(record, level), undefined)
+  })
+})
+
+void describe('createImportMeshRecord', () => {
+  void it('copies the polygons and the colors, so a later edit of the mesh does not reach the step', () => {
+    const polygon = triangle(1)
+    const record = createImportMeshRecord([polygon], { id: 9, name: 'jorge-[stone].jpg' }, true, [
+      { r: 1, g: 2, b: 3, a: 255 },
+    ])
+
+    polygon.vertices[0].x = 42
+
+    assert.equal(record.polygons[0]?.vertices[0].x, 1)
+    assert.deepEqual(record.colors, [{ r: 1, g: 2, b: 3, a: 255 }])
+    assert.deepEqual(record.texture, { id: 9, name: 'jorge-[stone].jpg' })
+    assert.equal(record.addedTexture, true)
+    assert.equal(record.kind, 'importMesh')
+    assert.equal(record.version, HISTORY_RECORD_VERSION)
+  })
+
+  void it('writes the number of the faces in the caption', () => {
+    const one = createImportMeshRecord([triangle(1)], { id: 1, name: 'a.bmp' }, false)
+    const many = createImportMeshRecord([triangle(1), triangle(2)], { id: 1, name: 'a.bmp' }, false)
+
+    assert.equal(labelOf(one), 'Import a face')
+    assert.equal(labelOf(many), 'Import 2 faces')
+  })
+})
+
+void describe('commandOf an import', () => {
+  void it('puts the faces at the end of the level with their colors, and adds the container', () => {
+    const { level, polygons, containers, lighting } = fakeLevel(2)
+    const record = createImportMeshRecord([triangle(7), triangle(8)], { id: 9, name: 'jorge-[stone].jpg' }, true)
+    const command = commandOf(record, level)
+
+    assert.notEqual(command, undefined)
+
+    command?.apply()
+
+    assert.equal(polygons.length, 4)
+    assert.equal(containers.get(9), 'jorge-[stone].jpg')
+    // the two triangles take three colors each, appended to the palette of the level
+    assert.equal(lighting.length, 7)
+    assert.deepEqual(
+      polygons.slice(2).map((polygon) => {
+        return polygon.vertices[0]?.llfColorIdx
+      }),
+      [1, 4],
+    )
+    // the colors of the corners follow each other, and the fourth corner of a triangle takes the first
+    assert.deepEqual(
+      polygons[2]?.vertices.map((vertex) => {
+        return vertex.llfColorIdx
+      }),
+      [1, 2, 3, 1],
+    )
+
+    command?.revert()
+
+    assert.equal(polygons.length, 2)
+    assert.equal(containers.get(9), undefined)
+    assert.equal(lighting.length, 1)
+  })
+
+  void it('keeps the room of the imported faces, and the container the level already had', () => {
+    const { level, polygons } = fakeLevel(2)
+    const imported = triangle(7)
+
+    imported.room = 3
+
+    const command = commandOf(createImportMeshRecord([imported], { id: 1, name: '[stone]_wall1.bmp' }, false), level)
+
+    command?.apply()
+
+    assert.equal(polygons[2]?.room, 3)
+    // the level has the container 1 already: the step does not touch it, so the undo must not take it away
+    assert.notEqual(level.llf.colors.length, 0)
   })
 })

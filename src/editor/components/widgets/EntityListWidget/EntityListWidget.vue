@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ScanSearch } from 'lucide-vue-next'
+import { Camera, ScanSearch } from 'lucide-vue-next'
 import { computed, nextTick, onMounted, reactive, shallowRef, useTemplateRef, watch } from 'vue'
 import EmptyMessage from '../../EmptyMessage.vue'
 import SearchField from '../../SearchField.vue'
@@ -11,7 +11,15 @@ import { cameraStore } from '../camera/cameraStore.ts'
 import { worldPositionToGame } from '../camera/cameraPose.ts'
 import { jumpPoseOf } from '../camera/jumpPose.ts'
 import { entitySelectionStore } from '../../../modules/selection/entitySelectionStore.ts'
-import { isPlayerSelected, playerEyeOf } from '../../../modules/level/entities/playerSpawn.ts'
+import {
+  isPlayerSelected,
+  playerEyeOf,
+  playerSpawnOf,
+  spawnFromCameraOf,
+} from '../../../modules/level/entities/playerSpawn.ts'
+import { createSetSpawnRecord } from '../../../modules/history/records/spawn.ts'
+import { commandOf } from '../../../modules/history/commands.ts'
+import { runStep } from '../../../modules/level/edit/editing.ts'
 import { createRevealGate, revealRowIn } from '../shared/revealRow.ts'
 import RowActionButton from '../../RowActionButton.vue'
 import {
@@ -176,6 +184,35 @@ function jumpToPlayer(): void {
   const target = worldPositionToGame(arxVector3toVector3(eye), map.scenePosition)
 
   cameraStore.moveCamera(jumpPoseOf(pose, target, ENTITY_JUMP_DISTANCE))
+}
+
+/**
+ * Puts the spawn where the camera stands, and turns it the way the camera looks.
+ *
+ * @remarks
+ * The camera of the walkable view stands on the eye of the player, so the pose it reports is the spawn under it: the
+ * author walks to the place, and one click makes it the start of the level. The pitch of the camera does not come with
+ * it (the game zeroes it), and the write is a step of the history, so the undo puts the spawn back.
+ */
+function setSpawnToCamera(): void {
+  const pose = cameraStore.pose.value
+  const map = levelStore.map.value
+
+  if (pose === undefined || map === undefined) {
+    return
+  }
+
+  // the camera reports the place of the view, which is the world: the spawn of the DLF is in the space of the level,
+  // which the scene position shifts (see the spawn of the blank level, and the jump of the row)
+  const scene = map.scenePosition
+  const eye = { x: pose.position.x - scene.x, y: pose.position.y - scene.y, z: pose.position.z - scene.z }
+  const command = commandOf(createSetSpawnRecord(playerSpawnOf(map), spawnFromCameraOf(eye, pose.angle.yaw)), map)
+
+  if (command === undefined) {
+    return
+  }
+
+  runStep(command)
 }
 
 /**
@@ -464,6 +501,14 @@ onMounted(() => {
             <span class="name">spawn</span>
             <RowActionButton class="jump" label="Jump to the player" muted @click.stop="jumpToPlayer">
               <ScanSearch :size="14" />
+            </RowActionButton>
+            <RowActionButton
+              class="from-camera"
+              label="Put the spawn where the camera stands"
+              muted
+              @click.stop="setSpawnToCamera"
+            >
+              <Camera :size="14" />
             </RowActionButton>
           </li>
         </ul>

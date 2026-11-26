@@ -100,6 +100,9 @@ void describe('useSelectionDrag.pickUnderCrosshair', () => {
       map: () => {
         return { polygons: [], triangleToPolygon: [] } as unknown as ArxMap
       },
+      playerMeshes: () => {
+        return []
+      },
       meshes: () => {
         return []
       },
@@ -153,6 +156,9 @@ void describe('useSelectionDrag.pickUnderCrosshair', () => {
       map: () => {
         return { polygons: [], triangleToPolygon: [] } as unknown as ArxMap
       },
+      playerMeshes: () => {
+        return []
+      },
       meshes: () => {
         return []
       },
@@ -201,6 +207,9 @@ void describe('useSelectionDrag.pickUnderCrosshair', () => {
       },
       map: () => {
         return { polygons: [], triangleToPolygon: [], vertexToPolygons: [] } as unknown as ArxMap
+      },
+      playerMeshes: () => {
+        return []
       },
       meshes: () => {
         return []
@@ -251,6 +260,9 @@ void describe('useSelectionDrag.pickUnderCrosshair', () => {
       map: () => {
         return { polygons: [], triangleToPolygon: [], vertexToPolygons: [] } as unknown as ArxMap
       },
+      playerMeshes: () => {
+        return []
+      },
       meshes: () => {
         return []
       },
@@ -298,6 +310,9 @@ void describe('useSelectionDrag.pickUnderCrosshair', () => {
       },
       map: () => {
         return { polygons: [], triangleToPolygon: [], vertexToPolygons: [] } as unknown as ArxMap
+      },
+      playerMeshes: () => {
+        return []
       },
       meshes: () => {
         return []
@@ -347,6 +362,9 @@ void describe('useSelectionDrag.pickUnderCrosshair', () => {
       },
       map: () => {
         return { polygons: [], triangleToPolygon: [] } as unknown as ArxMap
+      },
+      playerMeshes: () => {
+        return []
       },
       meshes: () => {
         return []

@@ -35,6 +35,7 @@ import {
 } from './overlays.ts'
 import { createPolygonSelectionOverlay, type PolygonSelectionOverlay } from './polygonSelection.ts'
 import type { SelectionGizmo } from './selectionGizmo.ts'
+import type { SpawnGizmo } from './spawnGizmo.ts'
 import type { SelectionDrag } from './useSelectionDrag.ts'
 
 export type LevelHandles = {
@@ -59,6 +60,7 @@ export type LevelContext = {
   readonly lightGizmo: () => LightGizmo | undefined
   readonly loop: FrameLoop
   readonly selectionGizmo: () => SelectionGizmo | undefined
+  readonly spawnGizmo: () => SpawnGizmo | undefined
   readonly view: ViewScene<PerspectiveCamera>
 }
 
@@ -180,11 +182,16 @@ export function attachLevel(map: ArxMap, context: LevelContext): LevelHandles {
       loop.requestRender()
     },
     canLock: (): boolean => {
-      return (context.selectionGizmo()?.canLock() ?? true) && (context.lightGizmo()?.canLock() ?? true)
+      return (
+        (context.selectionGizmo()?.canLock() ?? true) &&
+        (context.lightGizmo()?.canLock() ?? true) &&
+        (context.spawnGizmo()?.canLock() ?? true)
+      )
     },
     onLockChange: (locked: boolean): void => {
       context.selectionGizmo()?.setEnabled(!locked)
       context.lightGizmo()?.setEnabled(!locked)
+      context.spawnGizmo()?.setEnabled(!locked)
 
       if (locked) {
         loop.startLoop()

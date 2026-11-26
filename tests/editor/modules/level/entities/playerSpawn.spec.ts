@@ -5,6 +5,7 @@ import {
   playerEyeOf,
   playerSpawnOf,
   setPlayerSpawn,
+  spawnFromCameraOf,
   type PlayerSpawn,
   type SpawnOwner,
 } from '../../../../../src/editor/modules/level/entities/playerSpawn.ts'
@@ -49,6 +50,19 @@ void describe('the spawn of the player', () => {
     setPlayerSpawn(map, spawn)
 
     assert.deepEqual(playerSpawnOf(map), spawn)
+  })
+
+  void it('takes the spawn under the camera: the eye is where it stands, the feet are below it', () => {
+    // the camera of the walkable view stands on the eye of the player: the spawn is the same place, the feet below it
+    const spawn = spawnFromCameraOf({ x: 100, y: -PLAYER_EYE_HEIGHT, z: 200 }, 45)
+
+    assert.deepEqual(spawn, { position: { x: 100, y: 0, z: 200 }, yaw: 45 })
+  })
+
+  void it('leaves the height of the camera in the y of the feet, so a camera in the air makes a spawn there', () => {
+    const spawn = spawnFromCameraOf({ x: 0, y: 30, z: 0 }, 0)
+
+    assert.deepEqual(spawn.position, { x: 0, y: 30 + PLAYER_EYE_HEIGHT, z: 0 })
   })
 
   void it('keeps the y of the spawn off the axis of the renderer, which mirrors it', () => {

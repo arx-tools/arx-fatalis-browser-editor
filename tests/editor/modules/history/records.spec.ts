@@ -31,6 +31,7 @@ import {
   type SetLightEdit,
 } from '../../../../src/editor/modules/history/records/types.ts'
 import { createSetLightRecord } from '../../../../src/editor/modules/history/records/lights.ts'
+import { createSetSpawnRecord } from '../../../../src/editor/modules/history/records/spawn.ts'
 import { createDeleteRoomsRecord } from '../../../../src/editor/modules/history/records/rooms.ts'
 import { createSetTextureRecord, createSetUvRecord } from '../../../../src/editor/modules/history/records/textures.ts'
 import { createBuildTunnelRecord } from '../../../../src/editor/modules/history/records/tunnel.ts'
@@ -251,6 +252,7 @@ function fakeLevel(count: number): {
         }
       },
       lights,
+      player: { position: { x: 100, y: -170, z: 200 }, orientation: { a: 0, b: 90, g: 0 } },
       setLights: (changes: ReadonlyArray<{ readonly index: number; readonly light: ArxLight }>): void => {
         for (const change of changes) {
           if (lights[change.index] !== undefined) {
@@ -1202,5 +1204,57 @@ void describe('commandOf a room delete', () => {
     const record = createDeleteRoomsRecord([{ index: 5, room: 1 }], [])
 
     assert.equal(commandOf(record, level), undefined)
+  })
+})
+
+void describe('a move of the spawn', () => {
+  void it('copies the two snapshots, so a later edit of the level does not reach them', () => {
+    const before = { position: { x: 100, y: 0, z: 200 }, yaw: 90 }
+    const after = { position: { x: 150, y: 0, z: 250 }, yaw: 180 }
+    const record = createSetSpawnRecord(before, after)
+
+    before.position.x = 0
+    after.position.z = 0
+
+    assert.deepEqual(record.before, { position: { x: 100, y: 0, z: 200 }, yaw: 90 })
+    assert.deepEqual(record.after, { position: { x: 150, y: 0, z: 250 }, yaw: 180 })
+    assert.equal(record.version, HISTORY_RECORD_VERSION)
+    assert.equal(record.kind, 'setSpawn')
+  })
+
+  void it('writes the feet as the eye of the DLF on apply, and puts them back on revert', () => {
+    const { level } = fakeLevel(2)
+    const command = commandOf(
+      createSetSpawnRecord(
+        { position: { x: 100, y: 0, z: 200 }, yaw: 90 },
+        { position: { x: 150, y: 10, z: 250 }, yaw: 180 },
+      ),
+      level,
+    )
+
+    assert.notEqual(command, undefined)
+
+    command?.apply()
+    // the DLF keeps the eye: the feet are the height of the player above it in the game's Y, which points down
+    assert.deepEqual(level.player.position, { x: 150, y: 10 - 170, z: 250 })
+    assert.equal(level.player.orientation.b, 180)
+
+    command?.revert()
+    assert.deepEqual(level.player.position, { x: 100, y: 0 - 170, z: 200 })
+    assert.equal(level.player.orientation.b, 90)
+  })
+
+  void it('says whether the step moved the spawn, or only turned it', () => {
+    const moved = createSetSpawnRecord(
+      { position: { x: 0, y: 0, z: 0 }, yaw: 0 },
+      { position: { x: 10, y: 0, z: 0 }, yaw: 0 },
+    )
+    const turned = createSetSpawnRecord(
+      { position: { x: 0, y: 0, z: 0 }, yaw: 0 },
+      { position: { x: 0, y: 0, z: 0 }, yaw: 90 },
+    )
+
+    assert.equal(labelOf(moved), 'Move the spawn')
+    assert.equal(labelOf(turned), 'Turn the spawn')
   })
 })

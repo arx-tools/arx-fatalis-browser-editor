@@ -1,4 +1,4 @@
-import type { ArxColor, ArxLight, ArxPolygon, ArxPortal, ArxVector3 } from 'arx-convert/types'
+import type { ArxColor, ArxLight, ArxPolygon, ArxPortal, ArxRotation, ArxVector3 } from 'arx-convert/types'
 import type { FaceRoom, FaceTexture } from '../../../../generator/ArxMap.ts'
 import type { FaceUv } from '../../../../generator/arxMap/uvs.ts'
 import type { PolygonInsertion } from '../../../../generator/arxMap/removal.ts'
@@ -582,6 +582,50 @@ export type LightChange = {
  * The union grows with the kinds of the steps: `deleteFaces` and `setTexture` today, `moveVertex`, `moveLight` and the
  * rest as they arrive.
  */
+/**
+ * The spawn of a player, the way a step copies it.
+ *
+ * @remarks
+ * It is the shape of the `PlayerSpawn` of the level module: the feet of the player and the yaw it faces, so a step read
+ * back from the storage does not have to know the module.
+ */
+export type SpawnSnapshot = {
+  /**
+   * Where the feet of the player stand, in the game's coordinates.
+   */
+  readonly position: ArxVector3
+  /**
+   * The way the player faces, in degrees, around the Y axis of the game.
+   */
+  readonly yaw: number
+}
+
+/**
+ * The step that moves the spawn of the player.
+ *
+ * @remarks
+ * The spawn is the `player` of the DLF header, so the step keeps the whole pose: the undo puts the place and the yaw
+ * back together, the way the keep of a light does.
+ */
+export type SetSpawnRecord = {
+  /**
+   * The version of the shape of this record, see {@link HISTORY_RECORD_VERSION}.
+   */
+  readonly version: number
+  /**
+   * What the step does, which names its payload.
+   */
+  readonly kind: 'setSpawn'
+  /**
+   * The spawn before the step.
+   */
+  readonly before: SpawnSnapshot
+  /**
+   * The spawn after it.
+   */
+  readonly after: SpawnSnapshot
+}
+
 export type HistoryRecord =
   | BuildTunnelRecord
   | CreateFaceGroupRecord
@@ -594,6 +638,7 @@ export type HistoryRecord =
   | ScaleFacesRecord
   | SetLightRecord
   | SetRoomNameRecord
+  | SetSpawnRecord
   | SetRoomRecord
   | SetTextureRecord
   | SetUvRecord
@@ -732,6 +777,16 @@ export type MutableLevel = {
    * @param changes The lights the step sets.
    */
   setLights(changes: readonly LightChange[]): void
+  /**
+   * The player of the level: the eye of the spawn, and the way it faces.
+   *
+   * @remarks
+   * It is the `player` of the DLF header (see the `playerSpawn` module), and a step of the spawn writes it.
+   */
+  readonly player: {
+    readonly position: ArxVector3
+    readonly orientation: ArxRotation
+  }
 }
 
 /**

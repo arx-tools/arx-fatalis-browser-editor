@@ -1,5 +1,5 @@
 import type { ArxPolygon, ArxVector3 } from 'arx-convert/types'
-import type { Group, PerspectiveCamera, Mesh } from 'three'
+import { Raycaster, Vector2, type Group, type PerspectiveCamera, type Mesh } from 'three'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { usedVerticesOf } from '../../../../generator/polygons.ts'
 import { crosshairStore } from '../../../modules/crosshair/crosshairStore.ts'
@@ -8,6 +8,7 @@ import { inGroupOf, selectedGroupPolygons } from '../../../modules/groups/groupS
 import { isKeyDown } from '../../../modules/keyboard/keyboard.ts'
 import { fillAreaOf, type SelectionFill } from '../../../modules/selection/fillArea.ts'
 import { entitySelectionStore } from '../../../modules/selection/entitySelectionStore.ts'
+import { isPlayerSelected } from '../../../modules/level/entities/playerSpawn.ts'
 import { lightHoverStore } from '../../../modules/selection/lightHoverStore.ts'
 import { lightSelectionStore } from '../../../modules/selection/lightSelectionStore.ts'
 import { selectionModeOf, selectionStore, type SelectionMode } from '../../../modules/selection/selectionStore.ts'
@@ -66,6 +67,12 @@ export type SelectionDragContext = {
    * @returns The meshes, without a copy.
    */
   readonly meshes: () => readonly Mesh[]
+  /**
+   * The meshes of the model of the player in the scene: the spawn is a target of the view.
+   *
+   * @returns The meshes that are on the screen, without a copy.
+   */
+  readonly playerMeshes: () => readonly Mesh[]
   /**
    * The overlay that draws the crosshair outline and the fill of the selection.
    *
@@ -140,6 +147,47 @@ export type SelectionDrag = {
 }
 
 /**
+ * The middle of the canvas, in the space the pick reads a screen point in.
+ */
+const CROSSHAIR_POINT = new Vector2(0, 0)
+
+/**
+ * Tells whether the model of the player is the nearest thing under the crosshair.
+ *
+ * @remarks
+ * The model of the spawn stands in the scene like the markers: a ray through the middle of the screen hits it, and it
+ * is the target of the click **when it is nearer than the level**. A model behind a wall is not: the wall is what the
+ * author looks at. A view without a model (a level of a data directory without it) has nothing to pick.
+ *
+ * @param camera The camera of the view.
+ * @param level The meshes of the level.
+ * @param player The meshes of the model of the player that are on the screen.
+ *
+ * @returns True when the model is the nearest thing under the crosshair.
+ */
+export function playerIsNearest(camera: PerspectiveCamera, level: readonly Mesh[], player: readonly Mesh[]): boolean {
+  if (player.length === 0) {
+    return false
+  }
+
+  camera.updateMatrixWorld()
+
+  const raycaster = new Raycaster()
+  raycaster.near = camera.near
+  raycaster.far = camera.far
+  raycaster.setFromCamera(CROSSHAIR_POINT, camera)
+
+  const levelHit = raycaster.intersectObjects([...level], false)[0]
+  const playerHit = raycaster.intersectObjects([...player], false)[0]
+
+  if (playerHit === undefined) {
+    return false
+  }
+
+  return levelHit === undefined || playerHit.distance < levelHit.distance
+}
+
+/**
  * Builds the selection gesture of the walkable view.
  *
  * @param context What the gesture reads from the view.
@@ -147,7 +195,7 @@ export type SelectionDrag = {
  * @returns The handlers the widget binds.
  */
 export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
-  const { view, map, meshes, overlay, entityMarkers, lightMarkers, controls } = context
+  const { view, map, meshes, playerMeshes, overlay, entityMarkers, lightMarkers, controls } = context
 
   /**
    * What a running drag does with the faces it sweeps over.
@@ -341,6 +389,26 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
     return entityMarkerIndexAt(scene.camera, markers)
   }
 
+  /**
+   * Tells whether the model of the player is under the crosshair, in front of the level.
+   *
+   * @remarks
+   * The model of the spawn stands in the scene like the markers: a ray through the middle of the screen hits it, and it
+   * is the target of the click **when it is nearer than the level**. A model behind a wall is not: the wall is what the
+   * author looks at.
+   *
+   * @returns True when the model is the nearest thing under the crosshair.
+   */
+  function playerUnderCrosshair(): boolean {
+    const scene = view()
+
+    if (scene === undefined) {
+      return false
+    }
+
+    return playerIsNearest(scene.camera, meshes(), playerMeshes())
+  }
+
   return {
     onMouseDown: (event): void => {
       if (controls()?.isLocked !== true) {
@@ -381,6 +449,16 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
 
       if (entity !== undefined) {
         entitySelectionStore.select(entity)
+        selectionStore.clear()
+        lightSelectionStore.clear()
+
+        return
+      }
+
+      // the model of the player: the spawn is a target like the markers, and the nearest thing under the crosshair wins
+      if (playerUnderCrosshair()) {
+        isPlayerSelected.value = true
+        entitySelectionStore.clear()
         selectionStore.clear()
         lightSelectionStore.clear()
 
@@ -482,6 +560,14 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
       // the green outline of the face under the crosshair goes while an entity is aimed at: the white ring is the mark
       // of what the click takes, and a face behind it is not it (2026-11-24, the owner)
       if (entityHover !== undefined) {
+        crosshairStore.set(undefined)
+        paint.setCursor([], dragMode ?? selectionModeOfKeys())
+
+        return
+      }
+
+      // the model of the player is a target too: the outline of the face behind it goes while the crosshair is on it
+      if (playerUnderCrosshair()) {
         crosshairStore.set(undefined)
         paint.setCursor([], dragMode ?? selectionModeOfKeys())
 

@@ -14,6 +14,16 @@ import { shallowRef, type ShallowRef } from 'vue'
 export const PLAYER_EYE_HEIGHT = 170
 
 /**
+ * How tall the model of the player is, in the game's units.
+ *
+ * @remarks
+ * The game draws the player with the `human_base` model: its feet are at 0 and the top of its head at 180, while the eye
+ * is at {@link PLAYER_EYE_HEIGHT} of it. The editor puts the gizmo of the spawn in the **middle** of that model, the way
+ * the gizmo of a light stands at the light, so the spawn is edited where the player is on the screen.
+ */
+export const PLAYER_MODEL_HEIGHT = 180
+
+/**
  * What the spawn of a level is read from, and written to: the player of the map, which is the player of the DLF header.
  *
  * @remarks
@@ -102,6 +112,26 @@ export function playerEyeOf(map: SpawnOwner): { readonly x: number; readonly y: 
   const { position } = map.player
 
   return { x: position.x, y: position.y, z: position.z }
+}
+
+/**
+ * The spawn under the camera: where it stands, and the way it looks.
+ *
+ * @remarks
+ * The camera of the walkable view stands on the eye of the player, so the author takes its pose and the spawn is under
+ * it. The pitch and the roll of the camera are left out, because the game zeroes the pitch on a load (see
+ * {@link PlayerSpawn}).
+ *
+ * @param eye The position of the camera, in the game's coordinates.
+ * @param yaw The yaw of the camera, in degrees.
+ *
+ * @returns The spawn the camera makes.
+ */
+export function spawnFromCameraOf(eye: ArxVector3, yaw: number): PlayerSpawn {
+  return {
+    position: { x: eye.x, y: eye.y + PLAYER_EYE_HEIGHT, z: eye.z },
+    yaw,
+  }
 }
 
 /**

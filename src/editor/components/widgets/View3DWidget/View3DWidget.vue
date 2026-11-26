@@ -35,6 +35,7 @@ import { useSelectionDrag } from './useSelectionDrag.ts'
 import { createOrientationGizmo, type OrientationGizmo } from './orientationGizmo.ts'
 import type { PolygonSelectionOverlay } from './polygonSelection.ts'
 import { createLightGizmo, type LightGizmo } from './lightGizmo.ts'
+import { createSpawnGizmo, type SpawnGizmo } from './spawnGizmo.ts'
 import { createParticleField, type ParticleField } from './particleField.ts'
 import { createSelectionGizmo, type SelectionGizmo } from './selectionGizmo.ts'
 import { cancelNormalsRebuild, type OverlayHost } from './overlays.ts'
@@ -54,6 +55,10 @@ let selectionGizmo: SelectionGizmo | undefined
  * The move gizmo of the selected lights, or `undefined` before the view is built.
  */
 let lightGizmo: LightGizmo | undefined
+/**
+ * The gizmo of the spawn of the player, or `undefined` before the view is built.
+ */
+let spawnGizmo: SpawnGizmo | undefined
 /**
  * The particles of the level in this view, or `undefined` before the view is built.
  */
@@ -104,6 +109,9 @@ const dragSelection = useSelectionDrag({
   },
   meshes: () => {
     return shown
+  },
+  playerMeshes: () => {
+    return playerModel?.meshes() ?? []
   },
   overlay: () => {
     return selection
@@ -340,6 +348,15 @@ function createScene(): void {
       loop.requestRender()
     },
   })
+  // the spawn moves and turns with a gizmo of its own, while the player of the level is selected
+  spawnGizmo = createSpawnGizmo({
+    scene: view.scene,
+    camera: view.camera,
+    canvas: target,
+    onRender: (): void => {
+      loop.requestRender()
+    },
+  })
   // the particles of the level: the fire of the lights, and the smoke it fades into
   particleField = createParticleField({
     scene: view.scene,
@@ -371,6 +388,9 @@ function showMap(map: ArxMap): void {
     dragSelection,
     lightGizmo: () => {
       return lightGizmo
+    },
+    spawnGizmo: () => {
+      return spawnGizmo
     },
     loop,
     selectionGizmo: () => {
@@ -598,6 +618,8 @@ onBeforeUnmount(() => {
   selectionGizmo = undefined
   lightGizmo?.dispose()
   lightGizmo = undefined
+  spawnGizmo?.dispose()
+  spawnGizmo = undefined
   particleField?.dispose()
   particleField = undefined
 

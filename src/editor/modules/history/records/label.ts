@@ -1,4 +1,24 @@
-import type { HistoryRecord } from './types.ts'
+import type { HistoryRecord, SetSpawnRecord } from './types.ts'
+
+/**
+ * The caption of a move of the spawn.
+ *
+ * @param record The record of the step.
+ *
+ * @returns `Move the spawn`, or `Turn the spawn` when the feet stayed where they were.
+ */
+function spawnLabelOf(record: SetSpawnRecord): string {
+  const moved =
+    record.before.position.x !== record.after.position.x ||
+    record.before.position.y !== record.after.position.y ||
+    record.before.position.z !== record.after.position.z
+
+  if (!moved) {
+    return 'Turn the spawn'
+  }
+
+  return 'Move the spawn'
+}
 
 /**
  * The caption of a step, from its record.
@@ -46,6 +66,10 @@ export function labelOf(record: HistoryRecord): string {
     }
 
     return `Edit ${String(record.indices.length)} lights`
+  }
+
+  if (record.kind === 'setSpawn') {
+    return spawnLabelOf(record)
   }
 
   if (record.kind === 'setUv') {

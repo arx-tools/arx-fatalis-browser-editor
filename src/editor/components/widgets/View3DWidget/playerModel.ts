@@ -142,6 +142,17 @@ export type PlayerModel = {
    */
   readonly placeAt: (map: ArxMap) => void
   /**
+   * The meshes of the model that are on the screen, for the pick of the walkable view.
+   *
+   * @remarks
+   * The whole model and its first person variant are two meshes of the one group, and only one of them is drawn: the
+   * pick reads the one the author sees. The model of the spawn is not a face of the level, so the ray of the pick can
+   * not find it through the level's mesh.
+   *
+   * @returns The meshes that are drawn.
+   */
+  readonly meshes: () => Mesh[]
+  /**
    * Follows the camera: fades the model near the spawn, and shows the first person variant while the camera is in the
    * body.
    *
@@ -281,6 +292,17 @@ export async function loadPlayerModel(options: PlayerModelOptions): Promise<Play
       if (hasCamera) {
         followCamera()
       }
+    },
+    meshes: (): Mesh[] => {
+      const drawn: Mesh[] = []
+
+      for (const mesh of [whole, firstPerson]) {
+        if (mesh?.visible === true) {
+          drawn.push(mesh)
+        }
+      }
+
+      return drawn
     },
     updateFor: (position: Vector3): void => {
       cameraPosition.copy(position)

@@ -5,6 +5,7 @@ import type { PolygonInsertion } from '../../../generator/arxMap/removal.ts'
 import { forgetRoomNames, renameRoom } from '../rooms/roomNames.ts'
 import { NO_ROOM } from '../rooms/roomList.ts'
 import { bumpRoomRevision } from '../rooms/roomRevision.ts'
+import { setPlayerSpawn } from '../level/entities/playerSpawn.ts'
 import {
   HISTORY_RECORD_VERSION,
   type BuildTunnelRecord,
@@ -16,6 +17,7 @@ import {
   type ScaleFacesRecord,
   type SetLightRecord,
   type SetRoomRecord,
+  type SetSpawnRecord,
   type SetTextureRecord,
   type SetUvRecord,
   type TranslateFacesRecord,
@@ -301,6 +303,32 @@ function lightCommandOf(record: SetLightRecord, level: MutableLevel): HistoryCom
           return { index: record.indices[at], light }
         }),
       )
+    },
+  }
+}
+
+/**
+ * Builds the command of a move of the spawn.
+ *
+ * @remarks
+ * The spawn is the `player` of the DLF header, so the two halves of the step are the whole pose: the apply writes the
+ * spawn of the record and the undo the one of the press. The gizmo writes the level while it drags, so the apply of a
+ * step that just happened writes the same place again.
+ *
+ * @param record The record of the step.
+ * @param level The level the step changes.
+ *
+ * @returns The command of the step.
+ */
+function spawnCommandOf(record: SetSpawnRecord, level: MutableLevel): HistoryCommand {
+  return {
+    label: labelOf(record),
+    record,
+    apply: (): void => {
+      setPlayerSpawn(level, record.after)
+    },
+    revert: (): void => {
+      setPlayerSpawn(level, record.before)
     },
   }
 }
@@ -596,6 +624,10 @@ export function commandOf(record: HistoryRecord, level: MutableLevel): HistoryCo
 
   if (record.kind === 'setLight') {
     return lightCommandOf(record, level)
+  }
+
+  if (record.kind === 'setSpawn') {
+    return spawnCommandOf(record, level)
   }
 
   if (record.kind === 'setUv') {

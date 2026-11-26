@@ -184,7 +184,7 @@ function withRevision(command: HistoryCommand): HistoryCommand {
         break
       }
 
-      // the steps that keep the colors of their faces: a group, a room, a texture or a uv changes no light
+      // the steps that keep the colors of their faces: a group, a room, a texture, a uv or the spawn changes no light
       case 'createFaceGroup':
       case 'deleteFaceGroups':
       case 'deleteFaces':
@@ -192,6 +192,7 @@ function withRevision(command: HistoryCommand): HistoryCommand {
       case 'renameFaceGroup':
       case 'setRoom':
       case 'setRoomName':
+      case 'setSpawn':
       case 'setTexture':
       case 'setUv': {
         break

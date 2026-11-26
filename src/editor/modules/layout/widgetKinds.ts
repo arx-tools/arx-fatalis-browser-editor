@@ -75,6 +75,10 @@ export const WIDGET_KINDS = {
    */
   entityList: 'entity-list',
   /**
+   * The picked entity and the spawn of the player: the place they take, and the drop to the floor.
+   */
+  entityEditor: 'entity-editor',
+  /**
    * The groups of faces the author made, by the level they belong to.
    */
   groupInspector: 'group-inspector',

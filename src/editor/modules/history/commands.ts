@@ -15,6 +15,7 @@ import {
   type PasteFacesRecord,
   type RotateFacesRecord,
   type ScaleFacesRecord,
+  type SetEntityPositionRecord,
   type SetLightRecord,
   type SetRoomRecord,
   type SetSpawnRecord,
@@ -301,6 +302,50 @@ function lightCommandOf(record: SetLightRecord, level: MutableLevel): HistoryCom
       level.setLights(
         record.before.map((light, at) => {
           return { index: record.indices[at], light }
+        }),
+      )
+    },
+  }
+}
+
+/**
+ * Builds the command of a move of an entity.
+ *
+ * @remarks
+ * The two halves are the two places of the record: the step writes the place after the drop, the undo the one of the
+ * press. The lists are aligned (the index, the place before it and the place after it), and a record whose lists do not
+ * line up, or an entity the level no longer has, gives no command instead of writing the wrong index.
+ *
+ * @param record The record of the step.
+ * @param level The level the step changes.
+ *
+ * @returns The command, or undefined when an entity of the record is not in the level.
+ */
+function entityPositionCommandOf(record: SetEntityPositionRecord, level: MutableLevel): HistoryCommand | undefined {
+  if (record.before.length !== record.indices.length || record.after.length !== record.indices.length) {
+    return undefined
+  }
+
+  for (const index of record.indices) {
+    if (level.entities[index] === undefined) {
+      return undefined
+    }
+  }
+
+  return {
+    label: labelOf(record),
+    record,
+    apply: (): void => {
+      level.setEntityPositions(
+        record.after.map((position, at) => {
+          return { index: record.indices[at], position }
+        }),
+      )
+    },
+    revert: (): void => {
+      level.setEntityPositions(
+        record.before.map((position, at) => {
+          return { index: record.indices[at], position }
         }),
       )
     },
@@ -624,6 +669,10 @@ export function commandOf(record: HistoryRecord, level: MutableLevel): HistoryCo
 
   if (record.kind === 'setLight') {
     return lightCommandOf(record, level)
+  }
+
+  if (record.kind === 'setEntityPosition') {
+    return entityPositionCommandOf(record, level)
   }
 
   if (record.kind === 'setSpawn') {

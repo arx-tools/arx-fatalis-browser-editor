@@ -20,6 +20,7 @@ import {
 import { createSetSpawnRecord } from '../../../modules/history/records/spawn.ts'
 import { commandOf } from '../../../modules/history/commands.ts'
 import { runStep } from '../../../modules/level/edit/editing.ts'
+import { entitiesRevision } from '../../../modules/level/edit/entityEditing.ts'
 import { createRevealGate, revealRowIn } from '../shared/revealRow.ts'
 import RowActionButton from '../../RowActionButton.vue'
 import {
@@ -255,7 +256,9 @@ function rebuild(): void {
   rows.value = entityRowsOf(map)
 }
 
-watch(levelStore.map, rebuild, { immediate: true })
+// the rows carry the place of the entity (the jump of a row reads it), so a step that moves an entity builds them again
+// (the entity editor, and the undo or the redo of its step)
+watch([levelStore.map, entitiesRevision], rebuild, { immediate: true })
 
 /**
  * The box of the accordions: the player and the folders scroll together, so the player stays reachable under the rows of

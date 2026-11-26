@@ -1,4 +1,4 @@
-import type { ArxVector3 } from 'arx-convert/types'
+import type { ArxInteractiveObject, ArxVector3 } from 'arx-convert/types'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 
 /**
@@ -106,6 +106,38 @@ export function categoryOf(name: string): EntityCategory | undefined {
 }
 
 /**
+ * Reads the model of an entity out of its path: the last segment, without the `.asl` some of them carry.
+ *
+ * @param name The name of the DLF object, like `fix_inter/light_door`.
+ *
+ * @returns The model, like `light_door`.
+ */
+export function entityKindOf(name: string): string {
+  const segment = name.slice(name.lastIndexOf('/') + 1)
+
+  if (segment.endsWith('.asl')) {
+    return segment.slice(0, -4)
+  }
+
+  return segment
+}
+
+/**
+ * Reads the name an entity has in the game: the model and the identifier on four digits, like `light_door_0113`.
+ *
+ * @remarks
+ * The list and the entity editor write the same name (2026-11-22, the owner: the rows read the game's names), so the
+ * rule lives here once.
+ *
+ * @param object The interactive object of the DLF.
+ *
+ * @returns The name of the entity in the game.
+ */
+export function entityNameOf(object: ArxInteractiveObject): string {
+  return `${entityKindOf(object.name)}_${String(object.identifier).padStart(4, '0')}`
+}
+
+/**
  * Reads the rows of the entity list from the level.
  *
  * @param map The level to read.
@@ -123,19 +155,12 @@ export function entityRowsOf(map: ArxMap): EntityRow[] {
       continue
     }
 
-    const segment = object.name.slice(object.name.lastIndexOf('/') + 1)
-    let kind = segment
-
-    if (kind.endsWith('.asl')) {
-      kind = kind.slice(0, -4)
-    }
-
     rows.push({
       index,
       identifier: object.identifier,
       name: object.name,
-      kind,
-      entityName: `${kind}_${String(object.identifier).padStart(4, '0')}`,
+      kind: entityKindOf(object.name),
+      entityName: entityNameOf(object),
       category,
       position: object.position,
     })

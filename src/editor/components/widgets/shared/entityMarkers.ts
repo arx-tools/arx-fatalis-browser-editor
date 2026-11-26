@@ -145,6 +145,33 @@ export function createEntityMarkers(
 }
 
 /**
+ * Moves the markers to the places the entities have now.
+ *
+ * @remarks
+ * The markers are built once, when the level is attached, so an edit of an entity (the drop to the floor of the entity
+ * editor, and the undo or the redo of that step) has to write the sprites. The rings are not touched here: the caller
+ * draws them again with {@link setEntityMarkerHighlight}, which reads the places of the markers.
+ *
+ * @param markers The group {@link createEntityMarkers} built.
+ * @param entities The interactive objects of the level, in the order of the DLF.
+ */
+export function updateEntityMarkers(markers: Group, entities: readonly ArxInteractiveObject[]): void {
+  for (const child of markers.children) {
+    const index: unknown = child.userData.entityIndex
+
+    if (typeof index !== 'number' || !(child instanceof Sprite)) {
+      continue
+    }
+
+    const entity = entities[index]
+
+    if (entity !== undefined) {
+      child.position.copy(arxVector3toVector3(entity.position))
+    }
+  }
+}
+
+/**
  * Reads the entity whose marker the crosshair of a view points at.
  *
  * @param camera The camera of the view.

@@ -515,8 +515,9 @@ export type ExportOptions = ExportLights & {
  * Rebuilds the description of a level.
  *
  * @remarks
- * The editor does not edit entities yet, so the description is the one that was loaded; only the count of the polygons
- * of the scene it names follows the export (the header carries it).
+ * The description is the one that was loaded, with the **places** the entity editor wrote in it (they live in the DLF the
+ * editor holds, see `ArxMap.setEntityPositions`); only the count of the polygons of the scene it names follows the
+ * export (the header carries it).
  *
  * @param dlf The description as it was loaded.
  * @param polygonCount The number of polygons the exported scene has.

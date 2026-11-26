@@ -1,5 +1,15 @@
 import { DLF, FTS, LLF } from 'arx-convert'
-import type { ArxColor, ArxDLF, ArxFTS, ArxLight, ArxLLF, ArxPolygon, ArxPortal, ArxVector3 } from 'arx-convert/types'
+import type {
+  ArxColor,
+  ArxDLF,
+  ArxFTS,
+  ArxInteractiveObject,
+  ArxLight,
+  ArxLLF,
+  ArxPolygon,
+  ArxPortal,
+  ArxVector3,
+} from 'arx-convert/types'
 import { BufferAttribute, BufferGeometry, Mesh } from 'three'
 import { isQuad } from 'arx-convert/utils'
 import { refillFromGeometry, refillGeometry } from './arxMap/removal.ts'
@@ -194,8 +204,9 @@ export class ArxMap {
    * The general description of the level, as it was loaded.
    *
    * @remarks
-   * The editor does not edit entities yet, so the description goes out the way it came in: the export writes it back
-   * from here (see `modules/export/exportLevel.ts`) instead of the bytes of the file.
+   * The editor edits the **place** of an entity (the drop to the floor of the entity editor, see
+   * {@link setEntityPositions}), so the description goes out from here (the export writes it back, see
+   * `modules/export/exportLevel.ts`) instead of the bytes of the file.
    */
   readonly dlf: ArxDLF
   /**
@@ -417,6 +428,41 @@ export class ArxMap {
     for (const change of changes) {
       if (this.llf.lights[change.index] !== undefined) {
         this.llf.lights[change.index] = change.light
+      }
+    }
+  }
+
+  /**
+   * The interactive objects of the level, in the order of the DLF.
+   *
+   * @remarks
+   * The entity list, the markers of the walkable view and the entity editor read this list: the **place** in it is what
+   * tells two entities with the same name and identifier apart (see `EntitySelectionStore`). The objects are the ones of
+   * the DLF header, so an edit of a place is what the export writes.
+   */
+  get entities(): readonly ArxInteractiveObject[] {
+    return this.dlf.interactiveObjects
+  }
+
+  /**
+   * Writes the places of entities of the level, by their index in the DLF.
+   *
+   * @remarks
+   * The entity editor writes the place of an entity (drop to floor today, the transform later) and the step of the
+   * history writes it again on undo and redo, so the two paths go through this one, the way {@link setLights} serves the
+   * light editor. The vector of the entity is **written into** (and not replaced), so a snapshot the editor holds keeps
+   * its own numbers: a live edit must not reach back into a step.
+   *
+   * @param changes The entities, with the place each of them takes.
+   */
+  setEntityPositions(changes: ReadonlyArray<{ readonly index: number; readonly position: ArxVector3 }>): void {
+    for (const change of changes) {
+      const entity = this.dlf.interactiveObjects[change.index]
+
+      if (entity !== undefined) {
+        entity.position.x = change.position.x
+        entity.position.y = change.position.y
+        entity.position.z = change.position.z
       }
     }
   }

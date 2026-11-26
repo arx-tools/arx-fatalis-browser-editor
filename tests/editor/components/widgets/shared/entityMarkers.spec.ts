@@ -7,6 +7,7 @@ import {
   type EntityMarkerTextures,
   entityMarkerIndexAt,
   setEntityMarkerHighlight,
+  updateEntityMarkers,
 } from '../../../../../src/editor/components/widgets/shared/entityMarkers.ts'
 
 /**
@@ -141,5 +142,35 @@ void describe('entityMarkerIndexAt', () => {
     group.updateMatrixWorld(true)
 
     assert.equal(entityMarkerIndexAt(camera, group), undefined)
+  })
+})
+
+void describe('updateEntityMarkers', () => {
+  void it('moves the markers to the places the entities have now', () => {
+    const group = createEntityMarkers(
+      [entity('items/provisions/pie', { x: 0, y: 0, z: 0 }), entity('npc/human_base', { x: 10, y: 0, z: 0 })],
+      texturesOf(),
+    )
+
+    updateEntityMarkers(group, [
+      entity('items/provisions/pie', { x: 5, y: -20, z: 7 }),
+      entity('npc/human_base', { x: 10, y: 0, z: 0 }),
+    ])
+
+    const marker = group.children.find((child) => {
+      return child.userData.entityIndex === 0
+    })
+
+    // the space of the view mirrors x and y of the game, the way it builds the level
+    assert.deepEqual([marker?.position.x, marker?.position.y, marker?.position.z], [-5, 20, 7])
+  })
+
+  void it('leaves the ring of the selection to the caller, so a moved marker draws it again', () => {
+    const group = createEntityMarkers([entity('items/provisions/pie', { x: 0, y: 0, z: 0 })], texturesOf())
+
+    updateEntityMarkers(group, [entity('items/provisions/pie', { x: 0, y: -40, z: 0 })])
+
+    // only the caller knows what is selected: the update moves the markers and nothing else
+    assert.equal(ringOf(group, 'entity-focus-ring').visible, false)
   })
 })

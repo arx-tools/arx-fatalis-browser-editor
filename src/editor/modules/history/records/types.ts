@@ -1,4 +1,12 @@
-import type { ArxColor, ArxLight, ArxPolygon, ArxPortal, ArxRotation, ArxVector3 } from 'arx-convert/types'
+import type {
+  ArxColor,
+  ArxInteractiveObject,
+  ArxLight,
+  ArxPolygon,
+  ArxPortal,
+  ArxRotation,
+  ArxVector3,
+} from 'arx-convert/types'
 import type { FaceRoom, FaceTexture } from '../../../../generator/ArxMap.ts'
 import type { FaceUv } from '../../../../generator/arxMap/uvs.ts'
 import type { PolygonInsertion } from '../../../../generator/arxMap/removal.ts'
@@ -571,6 +579,75 @@ export type LightChange = {
 }
 
 /**
+ * One entity of a step: the place before the edit and the place after it.
+ *
+ * @remarks
+ * The entity editor writes the place of the entity on the draft as the author drops it, so the step that goes on the
+ * stack holds the two **places**, not the movement: the same shape replays on the load, and the undo puts the place of
+ * the file back.
+ */
+export type EntityPositionEdit = {
+  /**
+   * The entity, by its index in the DLF.
+   */
+  readonly index: number
+  /**
+   * The place before the step.
+   */
+  readonly before: ArxVector3
+  /**
+   * The place after it.
+   */
+  readonly after: ArxVector3
+}
+
+/**
+ * The step that moves entities of the level.
+ *
+ * @remarks
+ * The entity editor writes the place of an entity (today the drop to the floor, later a transform), and the step keeps
+ * the two places: the undo puts the one of the press back. The place is the local space of the level, the one the DLF
+ * keeps (see `playerSpawn`), and the three lists are aligned the way the ones of {@link SetLightRecord} are: a step of
+ * several entities writes them together, the indices sorted.
+ */
+export type SetEntityPositionRecord = {
+  /**
+   * The version of the shape of this record, see {@link HISTORY_RECORD_VERSION}.
+   */
+  readonly version: number
+  /**
+   * What the step does, which names its payload.
+   */
+  readonly kind: 'setEntityPosition'
+  /**
+   * The entities, by their index in the DLF, sorted.
+   */
+  readonly indices: readonly number[]
+  /**
+   * The places before the step, in the order of {@link indices}.
+   */
+  readonly before: readonly ArxVector3[]
+  /**
+   * The places after it, in the same order.
+   */
+  readonly after: readonly ArxVector3[]
+}
+
+/**
+ * A change of the place of an entity, as the command and the level speak it.
+ */
+export type EntityPositionChange = {
+  /**
+   * The entity, by its index in the DLF.
+   */
+  readonly index: number
+  /**
+   * The place it takes.
+   */
+  readonly position: ArxVector3
+}
+
+/**
  * A step the way a JSON can hold it.
  *
  * @remarks
@@ -636,6 +713,7 @@ export type HistoryRecord =
   | RenameFaceGroupRecord
   | RotateFacesRecord
   | ScaleFacesRecord
+  | SetEntityPositionRecord
   | SetLightRecord
   | SetRoomNameRecord
   | SetSpawnRecord
@@ -777,6 +855,20 @@ export type MutableLevel = {
    * @param changes The lights the step sets.
    */
   setLights(changes: readonly LightChange[]): void
+  /**
+   * The interactive objects of the level, as the DLF holds them.
+   *
+   * @remarks
+   * The step of an entity reads the list to check that the entity it moves is still there (the way a light step checks
+   * the LLF), and writes the place of one through {@link setEntityPositions}.
+   */
+  readonly entities: readonly ArxInteractiveObject[]
+  /**
+   * Writes the places of entities of the level, by their index in the DLF.
+   *
+   * @param changes The entities the step sets.
+   */
+  setEntityPositions(changes: readonly EntityPositionChange[]): void
   /**
    * The player of the level: the eye of the spawn, and the way it faces.
    *

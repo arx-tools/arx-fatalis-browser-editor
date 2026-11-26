@@ -400,7 +400,23 @@ test('every layout keeps its own history, and the steps of the menu take it back
   await expect(page.locator('header button[aria-label="Presets"] .name')).toHaveText('Viewer')
   await expect(keys).toHaveAttribute('data-locked-width', /.+/u)
 
-  // and the history is in the browser, so a reload brings the layout back as it was left
+  // and the history is in the browser, so a reload brings the layout back as it was left. The write of the histories is
+  // debounced: a reload takes the storage of the moment, so the test asks it until the viewer holds the lock step
+  // (`layoutUndo.spec.ts` waits the same way)
+  await expect
+    .poll(async () => {
+      const stored = await page.evaluate(() => {
+        return localStorage.getItem('layoutHistories')
+      })
+
+      if (stored === null) {
+        return undefined
+      }
+
+      return (JSON.parse(stored) as { viewer?: { index?: number } }).viewer?.index
+    })
+    .toBe(1)
+
   await page.reload()
 
   await expect(page.locator('header button[aria-label="Presets"] .name')).toHaveText('Viewer')
@@ -616,14 +632,19 @@ test('a fixed view keeps its canvas across the layouts that show it', async ({ p
 })
 
 /**
- * The Entities preset: the list is the left column, the right one keeps the plan, the history and the selection.
+ * The Entities preset: the editor and the list are the left column, the right one keeps the plan, the history and the
+ * selection.
  *
  * @remarks
- * The owner rearranged the copy of the rooms layout for the entity work (2026-11-22): the entity list takes the whole
- * left column (in place of the statistics and the selection inspector), and the right column keeps the plan and the
- * history, with the selection inspector in the place the list had.
+ * The owner rearranged the copy of the rooms layout for the entity work (2026-11-22): the left column is the entities (in
+ * place of the statistics and the selection inspector), and the right column keeps the plan and the history, with the
+ * selection inspector in the place the list had. The entity editor came over the list (2026-11-26): the column of 350 is
+ * split in two, the editor takes a locked 200 at the top and the list the rest, so the editor keeps its size and the list
+ * does not have to be locked.
  */
-test('the entities preset puts the list on the left, and the selection inspector on the right', async ({ page }) => {
+test('the entities preset puts the editor and the list on the left, and the selection inspector on the right', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1631, height: 850 })
   await page.goto(editorUrl())
 
@@ -634,16 +655,22 @@ test('the entities preset puts the list on the left, and the selection inspector
   await waitForLayoutSettled(page)
 
   const list = await boxOf(page, 'entity-list')
+  const editor = await boxOf(page, 'entity-editor')
   const view = await boxOf(page, '3d-view')
   const plan = await boxOf(page, 'top-view')
   const undo = await boxOf(page, 'undo-redo')
   const selection = await boxOf(page, 'selection-inspector')
 
-  // the list is the left column, the whole height, and the numbers of the level are not on this layout
+  // the left column: the editor of the entities over the list of them, and the numbers of the level are not on this
+  // layout
+  expect(editor.left).toBe(0)
+  expect(editor.width).toBe(350)
+  expect(editor.height).toBe(200)
+  expect(editor.top).toBe(view.top)
   expect(list.left).toBe(0)
   expect(list.width).toBe(350)
-  expect(list.top).toBe(view.top)
-  expect(list.height).toBeGreaterThan(600)
+  expect(list.top).toBe(editor.top + editor.height + 4)
+  expect(list.height).toBeGreaterThan(400)
   expect(await page.locator('[data-widget-kind="map-statistics"]').count()).toBe(0)
 
   // the right column: the plan, the history, and the selection inspector under them

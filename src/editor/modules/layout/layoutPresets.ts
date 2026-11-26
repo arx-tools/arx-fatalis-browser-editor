@@ -35,6 +35,15 @@ export type FactoryPreset = {
 const UNDO_ROW_HEIGHT = 60
 
 /**
+ * The height of the entity editor over the entity inspector, in pixels.
+ *
+ * @remarks
+ * The owner's size for the first widget of the entity work (2026-11-26): **350 × 200**, locked, in the left column of
+ * the `Entities` preset, so the list under it takes the rest of the column without a lock of its own.
+ */
+const ENTITY_EDITOR_HEIGHT = 200
+
+/**
  * The height of the undo and redo row of the `Editor` preset, in pixels.
  *
  * @remarks
@@ -362,19 +371,33 @@ export const roomsLayout: LayoutNode = {
  *
  * @remarks
  * The owner asked for a copy of the rooms layout (2026-11-22) and then rearranged it for the entity work: the **entity
- * list** is the whole **left column** (in place of the statistics and the selection inspector), the walkable view is the
+ * list** is the **left column** (in place of the statistics and the selection inspector), the walkable view is the
  * middle, and the right column is the plan, the history and the **selection inspector** (in the place the list had in the
  * copy, for a while). The tree is written out (and not cloned from the rooms one) so the two layouts can part ways; the
  * function keys follow the rows, so this one is `F6` and the blank layout has none.
+ *
+ * The **entity editor** came over the list (2026-11-26, the owner): the 350 wide column is split in two, the editor takes
+ * a locked **200** at the top and the list what is left, so the editor keeps its size and the list does not have to be
+ * locked (the count of the entities needs the room more than the editor does). The editor is the first write of an
+ * entity: the drop to the floor of TODO 199, and the spawn of the player.
  */
 export const entitiesLayout: LayoutNode = {
   type: 'split',
   orientation: 'horizontal',
   sizes: [fixed(350), auto(1), fixed(350)],
   children: [
-    // the left column is the list alone (the owner, 2026-11-22): the entity work reads the entities and not the numbers
-    // of the level, and the list takes the whole height the statistics and the selection inspector shared
-    { type: 'widget', kind: WIDGET_KINDS.entityList },
+    // the left column: the editor of the picked entity over the list of them (the owner, 2026-11-26)
+    {
+      type: 'split',
+      orientation: 'vertical',
+      sizes: [fixed(ENTITY_EDITOR_HEIGHT), auto(1)],
+      children: [
+        { type: 'widget', kind: WIDGET_KINDS.entityEditor },
+        // the list takes the whole rest of the column: it is the read of the entities, and the editor above it is the
+        // write of one (the owner, 2026-11-22: the entity work reads the entities and not the numbers of the level)
+        { type: 'widget', kind: WIDGET_KINDS.entityList },
+      ],
+    },
     { type: 'widget', kind: WIDGET_KINDS.view3d },
     {
       type: 'split',

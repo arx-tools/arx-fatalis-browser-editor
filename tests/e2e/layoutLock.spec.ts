@@ -346,9 +346,15 @@ test('a preset switched in the edit mode comes with the locks on the plates', as
     })
     .toBe(1)
 
-  // the three locks of the rooms preset are on the plates: the plan, the statistics and the steps
+  // the three locks of the rooms preset are on the plates: the plan, the statistics and the steps. The plates are mounted
+  // before the dock lays the new columns out (the badge is the width of the moment), so the plan is read until the
+  // columns of the preset are on the screen; the other two share the same layout pass
   await expect(page.locator('.WidgetOverlay .size')).toHaveCount(3)
-  expect(await badgeOf(page, 'top-view')).toBe('350 × 260')
+  await expect
+    .poll(async () => {
+      return await badgeOf(page, 'top-view')
+    })
+    .toBe('350 × 260')
   expect(await badgeOf(page, 'map-statistics')).toBe('350 × 200')
   expect(await badgeOf(page, 'undo-redo')).toBe('350 × 60')
 })

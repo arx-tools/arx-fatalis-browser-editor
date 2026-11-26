@@ -1,4 +1,4 @@
-import type { HistoryRecord, SetSpawnRecord } from './types.ts'
+import type { HistoryRecord, SetEntityPositionRecord, SetSpawnRecord } from './types.ts'
 
 /**
  * The caption of a move of the spawn.
@@ -18,6 +18,21 @@ function spawnLabelOf(record: SetSpawnRecord): string {
   }
 
   return 'Move the spawn'
+}
+
+/**
+ * The caption of a move of an entity.
+ *
+ * @param record The record of the step.
+ *
+ * @returns `Move entity 12`, or `Move 3 entities` when the step moves more than one.
+ */
+function entityPositionLabelOf(record: SetEntityPositionRecord): string {
+  if (record.indices.length === 1) {
+    return `Move entity ${String(record.indices[0])}`
+  }
+
+  return `Move ${String(record.indices.length)} entities`
 }
 
 /**
@@ -70,6 +85,10 @@ export function labelOf(record: HistoryRecord): string {
 
   if (record.kind === 'setSpawn') {
     return spawnLabelOf(record)
+  }
+
+  if (record.kind === 'setEntityPosition') {
+    return entityPositionLabelOf(record)
   }
 
   if (record.kind === 'setUv') {

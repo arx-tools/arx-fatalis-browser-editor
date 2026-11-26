@@ -4,6 +4,7 @@ import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { activeFaceGroups } from '../../../modules/groups/groupState.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
+import { entitiesRevision } from '../../../modules/level/edit/entityEditing.ts'
 import { lightsRevision } from '../../../modules/level/edit/lightEditing.ts'
 import { isDynamicLightsVisible, isStaticLightsVisible } from '../../../modules/level/edit/dynamicLights.ts'
 import { lightingProfile } from '../../../modules/level/edit/lightingProfile.ts'
@@ -24,7 +25,7 @@ import {
   isRoomColorsVisible,
   isWireframeVisible,
 } from '../shared/levelDisplay.ts'
-import { setEntityMarkerHighlight } from '../shared/entityMarkers.ts'
+import { setEntityMarkerHighlight, updateEntityMarkers } from '../shared/entityMarkers.ts'
 import { updateLightMarkers, type LightMarkerTextures } from '../shared/lightMarkers.ts'
 import type { LevelWireframe } from '../shared/levelScene.ts'
 import type { LightRadiusSpheres } from '../shared/lightRadiusSpheres.ts'
@@ -187,6 +188,21 @@ export function bindViewWatches(host: ViewWatchesHost): Array<() => void> {
     },
   )
 
+  // an entity that moved takes its marker with it: the markers are built once, and the rows of the list read the place
+  // from the DLF again (the entity editor, and the undo or the redo of its step)
+  const stopEntitiesRevision = watch(entitiesRevision, () => {
+    const markers = host.entityMarkers()
+    const map = host.loadedMap()
+
+    if (markers !== undefined && map !== undefined) {
+      updateEntityMarkers(markers, map.entities)
+      // the rings stand on the markers: a moved marker leaves the ring of the selection behind without this
+      setEntityMarkerHighlight(markers, entitySelectionStore.entity.value, entitySelectionStore.hover.value)
+    }
+
+    host.loop().requestRender()
+  })
+
   // the portal outline is a switch of every view at once: the same ref is read by the six fixed ones
 
   const stopPortals = watch(isPortalsVisible, () => {
@@ -251,6 +267,7 @@ export function bindViewWatches(host: ViewWatchesHost): Array<() => void> {
     stopMesh,
     stopLights,
     stopEntities,
+    stopEntitiesRevision,
     stopPortals,
     stopPortalRevision,
     stopRooms,

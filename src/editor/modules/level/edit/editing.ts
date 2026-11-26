@@ -5,13 +5,14 @@ import { historyOfMap, rememberMapHistory, type HistorySnapshot } from '../../hi
 import { dropStoredHistory, readStoredHistory } from '../../history/mapHistoryStorage.ts'
 import { commandOf } from '../../history/commands.ts'
 import { createDeleteFacesRecord } from '../../history/records/faces.ts'
-import type { SetLightRecord } from '../../history/records/types.ts'
+import type { HistoryRecord, PasteFacesRecord, SetLightRecord } from '../../history/records/types.ts'
 import { onKeyboardAction } from '../../keyboard/keyboard.ts'
 import { bumpPortalRevision } from '../../rooms/portalSync.ts'
 import { selectionStore } from '../../selection/selectionStore.ts'
 import { refreshLightPalette, refreshLightPaletteOfFaces, type LightPaletteChange } from './lightPalette.ts'
 import { bumpLightingCacheVersion } from './lightingCache.ts'
 import { touchLights } from './lightEditing.ts'
+import { touchEntities } from './entityEditing.ts'
 import { levelStore } from './levelStore.ts'
 
 /**
@@ -109,6 +110,48 @@ function refreshLightPaletteOf(record: SetLightRecord): void {
 }
 
 /**
+ * Bakes the light of the faces a paste put at the end of the level.
+ *
+ * @remarks
+ * The pasted faces own corners the palette does not have a color for yet, so they are baked when they go in: the step
+ * that takes them back out does not bake them again. A level that is not on the store has nothing to bake.
+ *
+ * @param record The record of the step.
+ */
+function refreshPastedFaces(record: PasteFacesRecord): void {
+  const map = levelStore.map.value
+
+  if (map === undefined) {
+    return
+  }
+
+  const count = record.polygons.length
+
+  refreshLightPaletteOfFaces(
+    map,
+    Array.from({ length: count }, (_, position) => {
+      return map.polygons.length - count + position
+    }),
+  )
+}
+
+/**
+ * Tells whether a step leaves the paint of the level alone.
+ *
+ * @remarks
+ * The paint of a big level is the expensive half of a step (it rebuilds the groups of 45 000 faces), so a step that
+ * changes neither the triangles, their order nor their materials does not ask for it. A uv edit keeps all three, and an
+ * entity step does not touch the mesh at all: its marker and its row follow it.
+ *
+ * @param record The record of the step.
+ *
+ * @returns True when the step leaves the paint of the level as it is.
+ */
+function keepsThePaint(record: HistoryRecord): boolean {
+  return record.kind === 'setUv' || record.kind === 'setEntityPosition'
+}
+
+/**
  * Wraps a step, so the views follow what it does.
  *
  * @remarks
@@ -132,8 +175,8 @@ function withRevision(command: HistoryCommand): HistoryCommand {
     bumpLevelRevision()
     bumpLightingCacheVersion()
 
-    // a uv edit keeps the triangles, their order and their materials: the paint of the level is not stale
-    if (step.record.kind !== 'setUv') {
+    // the paint follows a step that changed something of what it draws: a moved corner of a face, a texture, a group
+    if (!keepsThePaint(step.record)) {
       textureRevision.value = textureRevision.value + 1
     }
 
@@ -152,6 +195,12 @@ function withRevision(command: HistoryCommand): HistoryCommand {
         break
       }
 
+      // an entity that moves takes its marker and its row in the list with it (the undo puts them back the same way)
+      case 'setEntityPosition': {
+        touchEntities()
+        break
+      }
+
       // a face that moves takes the light of its new place: the corners it owns are baked again, so a pasted or a
       // dragged face does not keep the color of the place it came from
       case 'rotateFaces':
@@ -163,24 +212,10 @@ function withRevision(command: HistoryCommand): HistoryCommand {
 
       // the pasted faces get their own colors when they go in: their bake happens on the apply, not on the undo
       case 'pasteFaces': {
-        if (!applied) {
-          break
+        if (applied) {
+          refreshPastedFaces(step.record)
         }
 
-        const map = levelStore.map.value
-
-        if (map === undefined) {
-          break
-        }
-
-        const count = step.record.polygons.length
-
-        refreshLightPaletteOfFaces(
-          map,
-          Array.from({ length: count }, (_, position) => {
-            return map.polygons.length - count + position
-          }),
-        )
         break
       }
 

@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import {
   ArxPolygonFlags,
   type ArxColor,
+  type ArxInteractiveObject,
   type ArxLight,
   type ArxPolygon,
   type ArxPortal,
@@ -32,9 +33,26 @@ import {
 } from '../../../../src/editor/modules/history/records/types.ts'
 import { createSetLightRecord } from '../../../../src/editor/modules/history/records/lights.ts'
 import { createSetSpawnRecord } from '../../../../src/editor/modules/history/records/spawn.ts'
+import { createSetEntityPositionRecord } from '../../../../src/editor/modules/history/records/entities.ts'
 import { createDeleteRoomsRecord } from '../../../../src/editor/modules/history/records/rooms.ts'
 import { createSetTextureRecord, createSetUvRecord } from '../../../../src/editor/modules/history/records/textures.ts'
 import { createBuildTunnelRecord } from '../../../../src/editor/modules/history/records/tunnel.ts'
+
+/**
+ * An interactive object of the test: a mug that stands where the test puts it.
+ *
+ * @param index Which entity it is: the identifier follows from it, so two are never the same object.
+ *
+ * @returns The interactive object, with the fields a DLF holds.
+ */
+function entity(index: number): ArxInteractiveObject {
+  return {
+    name: 'items/movable/mug',
+    position: { x: index, y: 0, z: 0 },
+    orientation: { a: 0, b: 0, g: 0 },
+    identifier: index,
+  }
+}
 
 /**
  * A triangle of the test, with everything a polygon has: four vertices (the file holds four, the flag says how many
@@ -71,16 +89,21 @@ function triangle(index: number): ArxPolygon {
  * one to come back to. The level keeps its containers in a map, the way the FTS keeps them in a list.
  *
  * @param count How many polygons it starts with.
+ * @param entityCount How many interactive objects the level carries (the entities the steps of a place move).
  *
- * @returns The level, the list of polygons behind it and the containers.
+ * @returns The level, the list of polygons behind it, the containers and the entities.
  */
-function fakeLevel(count: number): {
+function fakeLevel(
+  count: number,
+  entityCount = 0,
+): {
   level: MutableLevel
   polygons: ArxPolygon[]
   containers: Map<number, string>
   lighting: ArxColor[]
   portals: ArxPortal[]
   lights: ArxLight[]
+  entities: ArxInteractiveObject[]
 } {
   // the list of the level: an array of polygons with the operations a step calls (the map owns the real one)
   const polygons = Array.from({ length: count }, (_, index) => {
@@ -90,6 +113,10 @@ function fakeLevel(count: number): {
   const lighting: ArxColor[] = [{ r: 1, g: 2, b: 3, a: 1 }]
   const portals: ArxPortal[] = []
   const lights: ArxLight[] = []
+  // the interactive objects of the level: the entity editor writes their place, the way the DLF of the map holds them
+  const entities: ArxInteractiveObject[] = Array.from({ length: entityCount }, (_, index) => {
+    return entity(index)
+  })
 
   Object.assign(polygons, {
     remove: (removed: readonly ArxPolygon[]): void => {
@@ -202,6 +229,7 @@ function fakeLevel(count: number): {
     lighting,
     portals,
     lights,
+    entities,
     level: {
       polygons,
       llf: { colors: lighting },
@@ -257,6 +285,18 @@ function fakeLevel(count: number): {
         for (const change of changes) {
           if (lights[change.index] !== undefined) {
             lights[change.index] = change.light
+          }
+        }
+      },
+      entities,
+      setEntityPositions: (changes: ReadonlyArray<{ readonly index: number; readonly position: ArxVector3 }>): void => {
+        for (const change of changes) {
+          const object = entities[change.index]
+
+          if (object !== undefined) {
+            object.position.x = change.position.x
+            object.position.y = change.position.y
+            object.position.z = change.position.z
           }
         }
       },
@@ -1256,5 +1296,103 @@ void describe('a move of the spawn', () => {
 
     assert.equal(labelOf(moved), 'Move the spawn')
     assert.equal(labelOf(turned), 'Turn the spawn')
+  })
+})
+
+void describe('createSetEntityPositionRecord', () => {
+  void it('sorts the entities by their index, and reads one twice once', () => {
+    const record = createSetEntityPositionRecord([
+      { index: 3, before: { x: 0, y: 0, z: 0 }, after: { x: 1, y: 2, z: 3 } },
+      { index: 1, before: { x: 4, y: 5, z: 6 }, after: { x: 7, y: 8, z: 9 } },
+      { index: 3, before: { x: 1, y: 1, z: 1 }, after: { x: 2, y: 2, z: 2 } },
+    ])
+
+    assert.deepEqual(record.indices, [1, 3])
+    // the first edit of an entity is the one the step keeps, whatever came after it
+    assert.deepEqual(record.after, [
+      { x: 7, y: 8, z: 9 },
+      { x: 1, y: 2, z: 3 },
+    ])
+    assert.equal(record.version, HISTORY_RECORD_VERSION)
+    assert.equal(record.kind, 'setEntityPosition')
+  })
+
+  void it('copies the two places, so a later edit of the level does not reach them', () => {
+    const before = { x: 100, y: 0, z: 200 }
+    const after = { x: 100, y: -40, z: 200 }
+    const record = createSetEntityPositionRecord([{ index: 0, before, after }])
+
+    before.x = 0
+    after.y = 0
+
+    assert.deepEqual(record.before, [{ x: 100, y: 0, z: 200 }])
+    assert.deepEqual(record.after, [{ x: 100, y: -40, z: 200 }])
+  })
+
+  void it('writes the number of the entities in the caption', () => {
+    const one = createSetEntityPositionRecord([{ index: 3, before: { x: 0, y: 0, z: 0 }, after: { x: 0, y: 1, z: 0 } }])
+    const many = createSetEntityPositionRecord([
+      { index: 1, before: { x: 0, y: 0, z: 0 }, after: { x: 0, y: 1, z: 0 } },
+      { index: 2, before: { x: 0, y: 0, z: 0 }, after: { x: 0, y: 1, z: 0 } },
+    ])
+
+    assert.equal(labelOf(one), 'Move entity 3')
+    assert.equal(labelOf(many), 'Move 2 entities')
+  })
+})
+
+void describe('commandOf an entity move', () => {
+  void it('writes the place of the entity on apply, and puts it back on revert', () => {
+    const { level, entities } = fakeLevel(2, 2)
+    const command = commandOf(
+      createSetEntityPositionRecord([{ index: 1, before: { x: 1, y: 0, z: 0 }, after: { x: 1, y: 240, z: 0 } }]),
+      level,
+    )
+
+    assert.notEqual(command, undefined)
+
+    command?.apply()
+    assert.deepEqual(entities[1]?.position, { x: 1, y: 240, z: 0 })
+    // the entity the step does not hold stays where it was
+    assert.deepEqual(entities[0]?.position, { x: 0, y: 0, z: 0 })
+
+    command?.revert()
+    assert.deepEqual(entities[1]?.position, { x: 1, y: 0, z: 0 })
+  })
+
+  void it('writes the entities of a step together, so one undo takes them all back', () => {
+    const { level, entities } = fakeLevel(2, 2)
+    const command = commandOf(
+      createSetEntityPositionRecord([
+        { index: 0, before: { x: 0, y: 0, z: 0 }, after: { x: 0, y: 50, z: 0 } },
+        { index: 1, before: { x: 1, y: 0, z: 0 }, after: { x: 1, y: 60, z: 0 } },
+      ]),
+      level,
+    )
+
+    command?.apply()
+    assert.deepEqual(
+      entities.map((object) => {
+        return object.position.y
+      }),
+      [50, 60],
+    )
+
+    command?.revert()
+    assert.deepEqual(
+      entities.map((object) => {
+        return object.position.y
+      }),
+      [0, 0],
+    )
+  })
+
+  void it('gives no command when an entity of the record is not in the level', () => {
+    const { level } = fakeLevel(2, 1)
+    const record = createSetEntityPositionRecord([
+      { index: 4, before: { x: 0, y: 0, z: 0 }, after: { x: 0, y: 1, z: 0 } },
+    ])
+
+    assert.equal(commandOf(record, level), undefined)
   })
 })

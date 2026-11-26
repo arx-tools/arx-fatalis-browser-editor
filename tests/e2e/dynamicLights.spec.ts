@@ -322,11 +322,18 @@ test('the flicker stops while the tab is hidden, and comes back with it', async 
     })
   }
 
-  // the layer is on: its ticker asks for frames all the time
+  // the layer is on: its ticker asks for frames all the time (the poll waits for a slow runner, the threshold is the
+  // chain running at all, not the frame rate of the machine)
   await resetCount()
-  await page.waitForTimeout(300)
 
-  expect(await rafCalls()).toBeGreaterThan(5)
+  await expect
+    .poll(
+      async () => {
+        return await rafCalls()
+      },
+      { timeout: 3000 },
+    )
+    .toBeGreaterThan(5)
 
   // the page says it is hidden, and the chain of the layer stops with it
   await page.evaluate(() => {
@@ -352,9 +359,15 @@ test('the flicker stops while the tab is hidden, and comes back with it', async 
   await page.waitForTimeout(200)
 
   await resetCount()
-  await page.waitForTimeout(300)
 
-  expect(await rafCalls()).toBeGreaterThan(5)
+  await expect
+    .poll(
+      async () => {
+        return await rafCalls()
+      },
+      { timeout: 3000 },
+    )
+    .toBeGreaterThan(5)
 })
 
 test('the particles are the fizz of the dynamic lights: their switch is disabled while the layer is off', async ({

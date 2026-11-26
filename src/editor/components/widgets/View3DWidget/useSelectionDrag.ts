@@ -208,6 +208,16 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
   let dragMode: SelectionMode | undefined
 
   /**
+   * Whether the first face of the running gesture replaces the selection.
+   *
+   * @remarks
+   * A `replace` gesture replaces the faces with its **first pick**, in one write of the store: a press that emptied the
+   * selection first would leave the list of the inspector empty for a frame, and the widget would build it again (the
+   * whole `ul` of the textures, 2026-11-26, the owner).
+   */
+  let replacePending = false
+
+  /**
    * The vertices of the faces the drag has taken into the selection: the connection test of the next face.
    *
    * @remarks
@@ -284,6 +294,12 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
     const sweep = pickConnectedPolygon()
 
     if (sweep === undefined) {
+      // a press that found no face is a click on the void: it drops the selection, the way it did when the press cleared
+      if (replacePending) {
+        replacePending = false
+        selectionStore.clear()
+      }
+
       return
     }
 
@@ -307,6 +323,14 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
     const vertices = polygons.flatMap((member) => {
       return usedVerticesOf(member)
     })
+
+    if (replacePending) {
+      replacePending = false
+      selectionStore.selectMany(faces, 'replace')
+      dragVertices = [...dragVertices, ...vertices]
+
+      return
+    }
 
     if (dragMode === 'remove') {
       selectionStore.selectMany(faces, 'remove')
@@ -471,8 +495,8 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
       dragVertices = []
 
       if (dragMode === 'replace') {
-        selectionStore.clear()
         lightSelectionStore.clear()
+        replacePending = true
       }
 
       selectUnderCrosshair()
@@ -484,6 +508,7 @@ export function useSelectionDrag(context: SelectionDragContext): SelectionDrag {
 
       dragMode = undefined
       dragVertices = []
+      replacePending = false
     },
     onDoubleClick: (event): void => {
       const scene = view()

@@ -505,7 +505,19 @@ export async function paintLevel(map: ArxMap, zipData?: ArrayBuffer): Promise<vo
     zipImages = await zipImageNames(zipData)
   }
 
-  publishLevelTextures({ map, fromZip: zipFiles, fromDataDir, zipImages, zip: zipData })
+  // the pictures the paint decoded, so the list of the textures makes its thumbnails of them instead of reading and
+  // decoding the same files a second time (2026-11-26, the owner)
+  const images = new Map<string, ImageBitmap>()
+
+  for (const [name, texture] of textures) {
+    const image = texture.image as ImageBitmap | undefined
+
+    if (image !== undefined) {
+      images.set(name, image)
+    }
+  }
+
+  publishLevelTextures({ map, fromZip: zipFiles, fromDataDir, zipImages, zip: zipData, images })
 
   // the user has to know what came from where: the rest of the containers is what the placeholder stands in for
   console.info(

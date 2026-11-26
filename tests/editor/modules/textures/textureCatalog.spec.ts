@@ -2,7 +2,12 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import JSZip from 'jszip'
 import type { ArxMap } from '../../../../src/generator/ArxMap.ts'
-import { bytesOf, publishLevelTextures } from '../../../../src/editor/modules/textures/textureCatalog.ts'
+import {
+  bitmapOf,
+  bytesOf,
+  loadBitmap,
+  publishLevelTextures,
+} from '../../../../src/editor/modules/textures/textureCatalog.ts'
 
 /**
  * A zip that carries one image, the way the zip of a level carries its textures.
@@ -36,6 +41,7 @@ void describe('bytesOf', () => {
       fromDataDir: [],
       zipImages: ['pcgame_box_art_big_rigs.png'],
       zip,
+      images: new Map(),
     })
 
     const bytes = await bytesOf({ source: 'custom', name: 'pcgame_box_art_big_rigs.png' })
@@ -53,7 +59,14 @@ void describe('bytesOf', () => {
 
     const zip = await archive.generateAsync({ type: 'arraybuffer' })
 
-    publishLevelTextures({ map: LEVEL, fromZip: new Map(), fromDataDir: [], zipImages: ['one.png', 'two.png'], zip })
+    publishLevelTextures({
+      map: LEVEL,
+      fromZip: new Map(),
+      fromDataDir: [],
+      zipImages: ['one.png', 'two.png'],
+      zip,
+      images: new Map(),
+    })
 
     const one = await bytesOf({ source: 'custom', name: 'one.png' })
     const two = await bytesOf({ source: 'custom', name: 'two.png' })
@@ -66,7 +79,14 @@ void describe('bytesOf', () => {
     const content = new Uint8Array([9])
     const zip = await zipOf('Screen-Neofetch.JPG', content)
 
-    publishLevelTextures({ map: LEVEL, fromZip: new Map(), fromDataDir: [], zipImages: ['Screen-Neofetch.JPG'], zip })
+    publishLevelTextures({
+      map: LEVEL,
+      fromZip: new Map(),
+      fromDataDir: [],
+      zipImages: ['Screen-Neofetch.JPG'],
+      zip,
+      images: new Map(),
+    })
 
     const bytes = await bytesOf({ source: 'custom', name: 'screen-neofetch.jpg' })
 
@@ -76,8 +96,56 @@ void describe('bytesOf', () => {
   void it('gives nothing for a name no source of the level has', async () => {
     const zip = await zipOf('one.png', new Uint8Array([1]))
 
-    publishLevelTextures({ map: LEVEL, fromZip: new Map(), fromDataDir: [], zipImages: ['one.png'], zip })
+    publishLevelTextures({
+      map: LEVEL,
+      fromZip: new Map(),
+      fromDataDir: [],
+      zipImages: ['one.png'],
+      zip,
+      images: new Map(),
+    })
 
     assert.equal(await bytesOf({ source: 'custom', name: 'two.png' }), undefined)
+  })
+})
+
+void describe('the pictures of the level', () => {
+  void it('takes the picture the paint decoded, instead of reading and decoding the file again', async () => {
+    // the paint decoded the texture for the material of the faces: the list draws its thumbnail from that very picture
+    const picture = {} as unknown as ImageBitmap
+
+    publishLevelTextures({
+      map: LEVEL,
+      fromZip: new Map(),
+      fromDataDir: [],
+      zipImages: [],
+      zip: undefined,
+      images: new Map([['[stone]_wall1.bmp', picture]]),
+    })
+
+    const entry = { source: 'custom', name: '[stone]_wall1.jpg' } as const
+
+    await loadBitmap(entry)
+
+    assert.equal(bitmapOf(entry).value, picture)
+  })
+
+  void it('finds the picture by the stem, so the name of the level and of the file may differ', async () => {
+    const picture = {} as unknown as ImageBitmap
+
+    publishLevelTextures({
+      map: LEVEL,
+      fromZip: new Map(),
+      fromDataDir: [],
+      zipImages: [],
+      zip: undefined,
+      images: new Map([['jorge-[stone].jpg', picture]]),
+    })
+
+    const entry = { source: 'arx', name: 'jorge-[stone].bmp' } as const
+
+    await loadBitmap(entry)
+
+    assert.equal(bitmapOf(entry).value, picture)
   })
 })

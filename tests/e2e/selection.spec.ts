@@ -152,6 +152,6 @@ test('the selection inspector opens the face ids and the textures', async ({ pag
   // both can be open at the same time: the textures come back under the ids, and the ids stay
   await texturesValue.click()
   await expect(texturesRow).toHaveAttribute('aria-expanded', 'true')
-  await expect(widget.locator('.groups .group').first()).toBeVisible()
+  await expect(widget.locator('.groups .group:visible').first()).toBeVisible()
   await expect(faceIds).toHaveCount(1)
 })

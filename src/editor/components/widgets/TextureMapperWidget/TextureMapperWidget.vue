@@ -21,12 +21,12 @@ import {
 import {
   addDroppedTextures,
   entryOfName,
-  loadThumbnails,
+  loadPictures,
   textureCatalog,
-  thumbnailOf,
 } from '../../../modules/textures/textureCatalog.ts'
 import type { TextureEntry } from '../../../modules/textures/textureEntry.ts'
 import EmptyMessage from '../../EmptyMessage.vue'
+import TextureThumb from '../../TextureThumb.vue'
 import SearchField from '../../SearchField.vue'
 import WidgetHeading from '../../WidgetHeading.vue'
 import { createRevealGate, revealRowIn } from '../shared/revealRow.ts'
@@ -334,7 +334,7 @@ const materials = computed(() => {
 watch(
   shown,
   async (current) => {
-    await loadThumbnails(current.entries)
+    await loadPictures(current.entries)
   },
   { immediate: true },
 )
@@ -357,17 +357,6 @@ watch(
   },
   { flush: 'post' },
 )
-
-/**
- * The thumbnail of a texture, if it is read already.
- *
- * @param entry The texture of a tile.
- *
- * @returns The data url of the thumbnail, or `undefined` while the tile shows a placeholder.
- */
-function thumbOf(entry: TextureEntry): string | undefined {
-  return thumbnailOf(entry).value
-}
 
 /**
  * The title of a tile: the name, the material the game hears and where the texture comes from.
@@ -506,8 +495,7 @@ async function onDrop(event: DragEvent): Promise<void> {
         @keydown.enter.prevent="paint(entry)"
         @keydown.space.prevent="paint(entry)"
       >
-        <img v-if="thumbOf(entry) !== undefined" class="thumb" :src="thumbOf(entry)" alt="" />
-        <span v-else class="thumb placeholder" aria-hidden="true"></span>
+        <TextureThumb class="thumb" :entry="entry" />
         <span class="name">{{ entry.name }}</span>
       </div>
     </div>
@@ -662,18 +650,10 @@ async function onDrop(event: DragEvent): Promise<void> {
   }
 
   .thumb {
-    display: block;
     width: 100%;
     max-width: 64px;
     aspect-ratio: 1;
     border-radius: 3px;
-    object-fit: cover;
-    image-rendering: auto;
-  }
-
-  .placeholder {
-    border: 1px solid $border-dark;
-    background: $surface-panel;
   }
 
   // the name is a caption, not a file to copy (2026-11-25, the owner: the ellipsis cuts it anyway): the text of a tile is

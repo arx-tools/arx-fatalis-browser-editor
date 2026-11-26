@@ -28,8 +28,12 @@ const GROUP_LABELS: Readonly<Record<SelectionTextureSource, string>> = {
 
 /**
  * The order of the groups.
+ *
+ * @remarks
+ * The widget renders a section for every group of the order, and hides the ones the selection has none of: a section
+ * that keeps its place in the DOM is not built again when the selection moves to another group (2026-11-26, the owner).
  */
-const GROUP_ORDER: readonly SelectionTextureSource[] = ['arx-materials', 'arx-items', 'custom', 'missing']
+export const GROUP_ORDER: readonly SelectionTextureSource[] = ['arx-materials', 'arx-items', 'custom', 'missing']
 
 /**
  * One texture of the selection, with how many faces draw with it.

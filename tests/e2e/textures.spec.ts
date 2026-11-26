@@ -223,14 +223,13 @@ test('a new page starts at the top of the list, and the name of a tile is a capt
  * The texture of the selected faces finds its tile: the rows of the Selection Inspector pick it, and the list shows it.
  *
  * @remarks
- * The owner asked for the same reveal the lights and the entities have (2026-11-25): a texture picked in the Selection
- * Inspector turns the Texture Mapper to its page, clears the filter that hides it, and highlights the tile. The level is
- * the blank one: its floor is painted with the placeholder texture of the generator, which is the one the browser
- * carries, so the face of the pick lists a texture the list can show (the level of the game names its own, and the
- * placeholder level is the one where the two meet). The faces come from a shift click on the room map of the top view, so
- * the test needs no pointer lock.
+ * The selection inspector reads the textures the picked faces draw with, in the groups of the list. The rows are a read
+ * of the selection, not a control (2026-11-26, the owner): they have no hover, no pick and no highlight of their own —
+ * the Texture Mapper keeps its own tile selection. The level is the blank one: its floor is painted with the placeholder
+ * texture of the generator, which is the one the browser carries. The faces come from a shift click on the room map of
+ * the top view, so the test needs no pointer lock.
  */
-test('a texture picked in the selection inspector is on the screen of the texture list', async ({ page }) => {
+test('the selection inspector lists the textures of the picked faces', async ({ page }) => {
   test.setTimeout(120_000)
 
   await seedLayout(page, painterLayout())
@@ -271,18 +270,7 @@ test('a texture picked in the selection inspector is on the screen of the textur
 
   await expect(row).toHaveCount(1)
 
-  // the search hides the texture: the list has no tile of it
-  const search = textures.getByRole('searchbox', { name: 'Search textures' })
-
-  await search.fill('no-such-texture')
-  await expect(tile).toHaveCount(0)
-
-  // the click on the row of the inspector picks the texture: the list clears the filter and highlights the tile
-  await row.click()
-
-  await expect(search).toHaveValue('')
-  await expect(tile).toHaveCount(1)
-  await expect(tile).toHaveClass(/is-selected/)
-  await expect(row).toHaveClass(/is-selected/)
-  await expect(tile).toBeVisible()
+  // the row is a read of the selection: it has no pick of its own (the tile is the yellow of the level's own texture,
+  // which is a mark of the mapper, not a pick of the row)
+  await expect(row).not.toHaveClass(/is-selected/)
 })

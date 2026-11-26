@@ -4,7 +4,7 @@ import { BLANK_LEVEL_TEXTURE, GENERATOR_ASSETS } from '../../../generator/assets
 import type { ArxMap } from '../../../generator/ArxMap.ts'
 import { dataDirState, listDataDirTextures, readDataFile } from '../level/source/dataDir.ts'
 import { TEXTURE_FOLDER } from '../level/source/dataDir/url.ts'
-import { decodeTextureBitmap, thumbnailUrlOf } from './image.ts'
+import { decodeTextureBitmap } from './image.ts'
 import { groupOf, type TextureGroup } from './search.ts'
 import type { TextureEntry } from './textureEntry.ts'
 
@@ -19,7 +19,7 @@ import type { TextureEntry } from './textureEntry.ts'
  * of another level's faces, so opening another map starts the custom group again.
  *
  * The widget shows the entries of {@link textureCatalog.entries}, and the thumbnails are read on demand
- * ({@link loadThumbnail}): a data directory has a few thousand textures, and a page of the list is a hundred of them.
+ * ({@link loadBitmap}): a data directory has a few thousand textures, and a page of the list is a hundred of them.
  */
 
 /**
@@ -138,6 +138,15 @@ export type LevelTextureSources = {
    * when its tile comes on the screen (or a face is painted with it), from this archive.
    */
   readonly zip: ArrayBuffer | undefined
+  /**
+   * The pictures the level was painted with, by the name the level calls the texture.
+   *
+   * @remarks
+   * The paint decodes the textures of the level for the materials of the faces, and the list needs the **same** picture
+   * for its thumbnails: a texture the level draws with is already decoded (and in the memory of the page), so a tile of
+   * it does not read the file again (2026-11-26, the owner).
+   */
+  readonly images: ReadonlyMap<string, ImageBitmap>
 }
 
 /**
@@ -151,19 +160,19 @@ const gameTextures = shallowRef<readonly string[]>([])
 const levelSources = shallowRef<LevelTextureSources | undefined>(undefined)
 
 /**
+ * The pictures of the textures of the level, by the stem of their name.
+ *
+ * @remarks
+ * The list matches a texture by its **stem** (the level may call `[stone]_wall1.bmp` what the data directory has as
+ * `[stone]_wall1.jpg`), so the pictures are indexed the same way: a tile of the level's texture finds the decoded image
+ * the paint already holds, and the thumbnail is a canvas of it (see {@link loadBitmap}).
+ */
+let levelImages: ReadonlyMap<string, ImageBitmap> | undefined
+
+/**
  * The files the user dropped on the texture list, in the order they were dropped.
  */
 const dropped = shallowRef<readonly TextureEntry[]>([])
-
-/**
- * The entries of the list, by their key (the source and the name).
- */
-const thumbnails = new Map<string, ShallowRef<string | undefined>>()
-
-/**
- * The thumbnails that are being read, so the same image is not decoded twice.
- */
-const loading = new Map<string, Promise<void>>()
 
 /**
  * The key of a texture in the caches of the module.
@@ -317,8 +326,8 @@ export async function bytesOf(entry: TextureEntry): Promise<ArrayBuffer | undefi
  * The decoded images of the textures, by their key.
  *
  * @remarks
- * The uv mapper draws the texture of a face at the size of its square, and the tile of the list needs the same image
- * small: the bitmap is decoded **once** per texture and both read it (the thumbnail is a canvas of the bitmap).
+ * The uv mapper draws the texture of a face at the size of its square, the tile of the list and the row of the inspector
+ * draw it into their canvas: the bitmap is decoded **once** per texture, and the widgets read it from here.
  */
 const bitmaps = new Map<string, ShallowRef<ImageBitmap | undefined>>()
 
@@ -359,6 +368,15 @@ export async function loadBitmap(entry: TextureEntry): Promise<void> {
     return
   }
 
+  // the texture of the level is already decoded: the paint holds its picture, and the list draws its thumbnail from it
+  const painted = levelImages?.get(stemOf(entry.name))
+
+  if (painted !== undefined) {
+    bitmap.value = painted
+
+    return
+  }
+
   const pending = decoding.get(key)
 
   if (pending !== undefined) {
@@ -388,86 +406,23 @@ export async function loadBitmap(entry: TextureEntry): Promise<void> {
 }
 
 /**
- * The thumbnail of a texture, as a reactive value.
- *
- * @remarks
- * A tile of the list reads this: the value is `undefined` until the image is decoded ({@link loadThumbnail}), and the
- * tile shows a placeholder in the meantime. The same entry gives the same value across the widgets (the selection
- * inspector shows the thumbnails of the texture list), because the cache is the module's.
- *
- * @param entry The texture.
- *
- * @returns The data url of the thumbnail, or `undefined` while it is not read.
- */
-export function thumbnailOf(entry: TextureEntry): ShallowRef<string | undefined> {
-  const key = keyOf(entry)
-  let thumbnail = thumbnails.get(key)
-
-  if (thumbnail === undefined) {
-    thumbnail = shallowRef<string | undefined>(undefined)
-    thumbnails.set(key, thumbnail)
-  }
-
-  return thumbnail
-}
-
-/**
- * Reads the thumbnail of a texture, when it is not read yet.
- *
- * @param entry The texture.
- */
-export async function loadThumbnail(entry: TextureEntry): Promise<void> {
-  const key = keyOf(entry)
-  const thumbnail = thumbnailOf(entry)
-
-  if (thumbnail.value !== undefined) {
-    return
-  }
-
-  const pending = loading.get(key)
-
-  if (pending !== undefined) {
-    await pending
-
-    return
-  }
-
-  const task = (async (): Promise<void> => {
-    try {
-      await loadBitmap(entry)
-
-      const bitmap = bitmapOf(entry).value
-
-      if (bitmap !== undefined) {
-        thumbnail.value = thumbnailUrlOf(bitmap)
-      }
-    } finally {
-      loading.delete(key)
-    }
-  })()
-
-  loading.set(key, task)
-  await task
-}
-
-/**
- * The thumbnails of a page of the list, a few at a time.
+ * The pictures of a page of the list, a few at a time.
  *
  * @remarks
  * A page is a hundred textures: asking for all of them at once is a hundred decodes and a hundred files from the data
- * directory in one burst. The walk keeps {@link THUMBNAIL_PARALLEL} of them in flight, and a texture that is read already
+ * directory in one burst. The walk keeps {@link PICTURE_PARALLEL} of them in flight, and a texture that is read already
  * costs nothing.
  */
-const THUMBNAIL_PARALLEL = 6
+const PICTURE_PARALLEL = 6
 
 /**
- * Reads the thumbnails of the entries that have none yet.
+ * Reads the pictures of the entries that have none yet, so the tiles of the page have something to draw.
  *
  * @param entries The textures of the page.
  */
-export async function loadThumbnails(entries: readonly TextureEntry[]): Promise<void> {
+export async function loadPictures(entries: readonly TextureEntry[]): Promise<void> {
   const waiting = entries.filter((entry) => {
-    return thumbnailOf(entry).value === undefined
+    return bitmapOf(entry).value === undefined
   })
   let next = 0
 
@@ -478,13 +433,13 @@ export async function loadThumbnails(entries: readonly TextureEntry[]): Promise<
       next = next + 1
 
       if (entry !== undefined) {
-        await loadThumbnail(entry)
+        await loadBitmap(entry)
       }
     }
   }
 
   await Promise.all(
-    Array.from({ length: Math.min(THUMBNAIL_PARALLEL, waiting.length) }, async () => {
+    Array.from({ length: Math.min(PICTURE_PARALLEL, waiting.length) }, async () => {
       await worker()
     }),
   )
@@ -505,6 +460,11 @@ export function publishLevelTextures(sources: LevelTextureSources): void {
   const previous = levelSources.value
 
   levelSources.value = sources
+  levelImages = new Map(
+    [...sources.images].map(([name, image]) => {
+      return [stemOf(name), image]
+    }),
+  )
 
   if (previous?.map === sources.map) {
     return
@@ -513,8 +473,6 @@ export function publishLevelTextures(sources: LevelTextureSources): void {
   zipArchive = undefined
 
   dropped.value = []
-  thumbnails.clear()
-  loading.clear()
   bitmaps.clear()
   decoding.clear()
 }

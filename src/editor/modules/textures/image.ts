@@ -212,46 +212,6 @@ export async function decodeTextureBitmap(name: string, bytes: ArrayBuffer): Pro
 }
 
 /**
- * The size of the shorter side of a thumbnail, in pixels.
- *
- * @remarks
- * The texture list shows a hundred of them at once, and a thumbnail of a few dozen pixels is enough for the eye to tell
- * a brick from a leaf: a bigger one would cost the page a megabyte of png data for the same read.
- */
-const THUMBNAIL_SIZE = 64
-
-/**
- * Makes a small picture of an image, for a list of textures.
- *
- * @remarks
- * The picture is a data url, so it can be the `src` of an `img` without a second decoder round (the bytes of the texture
- * are not read again for the tile). A texture is drawn into a square without keeping its proportions — the tiles of the
- * list are squares, and a texture of the game is nearly always one.
- *
- * @param bitmap The decoded image.
- * @param size The side of the square, {@link THUMBNAIL_SIZE} by default.
- *
- * @returns The data url of the picture.
- */
-export function thumbnailUrlOf(bitmap: ImageBitmap, size = THUMBNAIL_SIZE): string {
-  const canvas = document.createElement('canvas')
-
-  canvas.width = size
-  canvas.height = size
-
-  const context = canvas.getContext('2d')
-
-  if (context === null) {
-    return ''
-  }
-
-  context.imageSmoothingQuality = 'high'
-  context.drawImage(bitmap, 0, 0, size, size)
-
-  return canvas.toDataURL('image/png')
-}
-
-/**
  * Reads the average color of the pixels of an image.
  *
  * @remarks

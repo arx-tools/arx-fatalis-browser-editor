@@ -142,14 +142,16 @@ export type PlayerModel = {
    */
   readonly placeAt: (map: ArxMap) => void
   /**
-   * The meshes of the model that are on the screen, for the pick of the walkable view.
+   * The meshes of the model the pick of the walkable view can take.
    *
    * @remarks
-   * The whole model and its first person variant are two meshes of the one group, and only one of them is drawn: the
-   * pick reads the one the author sees. The model of the spawn is not a face of the level, so the ray of the pick can
-   * not find it through the level's mesh.
+   * The whole model and its first person variant are two meshes of the one group, and only one of them is drawn. The
+   * pick takes the model while the camera stands **outside** it: standing in the body, the crosshair looks through the
+   * player's own legs at the face behind them, and the spawn is not what the author aims at (2026-11-26: the portals
+   * e2e found the model instead of the floor). The model of the spawn is not a face of the level, so the ray of the
+   * pick can not find it through the level's mesh.
    *
-   * @returns The meshes that are drawn.
+   * @returns The mesh the pick may take, or nothing while the camera is in the body.
    */
   readonly meshes: () => Mesh[]
   /**
@@ -294,15 +296,12 @@ export async function loadPlayerModel(options: PlayerModelOptions): Promise<Play
       }
     },
     meshes: (): Mesh[] => {
-      const drawn: Mesh[] = []
-
-      for (const mesh of [whole, firstPerson]) {
-        if (mesh?.visible === true) {
-          drawn.push(mesh)
-        }
+      // the body of the player is not a target while the camera stands in it: the author looks through it at a face
+      if (firstPersonShown) {
+        return []
       }
 
-      return drawn
+      return [whole]
     },
     updateFor: (position: Vector3): void => {
       cameraPosition.copy(position)

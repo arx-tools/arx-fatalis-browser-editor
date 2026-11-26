@@ -4,21 +4,16 @@ import { formatCount } from '../../../modules/format.ts'
 import { levelRevision } from '../../../modules/level/edit/editing.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { entitySelectionStore } from '../../../modules/selection/entitySelectionStore.ts'
-import { textureKeyOf, textureSelectionStore } from '../../../modules/selection/textureSelectionStore.ts'
 import { lightSelectionStore } from '../../../modules/selection/lightSelectionStore.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import { lightIndexLabelOf, lightRowsOf, lightSectionsOf } from '../LightInspectorWidget/lightInspector.ts'
 import { ENTITY_CATEGORIES, entityRowsOf } from '../../../modules/level/entities/entityRows.ts'
-import {
-  entryOfName,
-  loadThumbnail,
-  textureGroupOfName,
-  thumbnailOf,
-} from '../../../modules/textures/textureCatalog.ts'
+import { entryOfName, loadPictures, textureGroupOfName } from '../../../modules/textures/textureCatalog.ts'
+import TextureThumb from '../../TextureThumb.vue'
 import WidgetHeading from '../../WidgetHeading.vue'
 import AccordionRow from '../../AccordionRow.vue'
 import SectionTitle from '../../SectionTitle.vue'
-import { selectionSummaryOf, type SelectionSummary } from './selectionInspector.ts'
+import { GROUP_ORDER, selectionSummaryOf, type SelectionSummary } from './selectionInspector.ts'
 
 /**
  * The label of the widget, from the widget definition.
@@ -183,44 +178,6 @@ const selectedEntityCount = computed(() => {
 })
 
 /**
- * Picks a texture of the selection: the Texture Mapper turns to its tile and highlights it.
- *
- * @remarks
- * The rows of the textures are the way into the list of the textures (2026-11-25, the owner): a face of the level holds
- * its texture, and the tile of it is a click away in the Texture Mapper. A texture the catalog does not carry (a missing
- * one) has no tile to go to, so the pick stays where it was.
- *
- * @param name The name the level calls the texture.
- */
-function pickTexture(name: string): void {
-  const entry = entryOfName(name)
-
-  if (entry === undefined) {
-    return
-  }
-
-  textureSelectionStore.select(entry)
-}
-
-/**
- * Tells whether a texture of the selection is the picked one.
- *
- * @param name The name the level calls the texture.
- *
- * @returns True when the Texture Mapper shows the row as picked.
- */
-function isTextureSelected(name: string): boolean {
-  const entry = entryOfName(name)
-  const picked = textureSelectionStore.texture.value
-
-  if (entry === undefined || picked === undefined) {
-    return false
-  }
-
-  return textureKeyOf(entry) === textureKeyOf(picked)
-}
-
-/**
  * Picks a light of the list: the view gets the white ring of it.
  *
  * @param index The index of the light in `map.lights`.
@@ -286,6 +243,25 @@ const rows = computed<InspectorRow[]>(() => {
 })
 
 /**
+ * The groups of the textures of the selection, with the groups it has none of.
+ *
+ * @remarks
+ * The slots follow {@link GROUP_ORDER}: every group has a section in the DOM, and the ones the selection has no texture
+ * of are hidden. The change of a selection that moves from one group to another then hides and shows a section instead of
+ * building the list again (2026-11-26, the owner: the whole list was rebuilt on every click).
+ */
+const textureGroupSlots = computed(() => {
+  return GROUP_ORDER.map((source) => {
+    return {
+      source,
+      group: summary.value.groups.find((group) => {
+        return group.source === source
+      }),
+    }
+  })
+})
+
+/**
  * Tells whether a row is open.
  *
  * @param label The caption of the row, like `Faces`.
@@ -336,16 +312,20 @@ watch(
  * The tiles of the groups need the pictures of the texture list: it is the same cache, so a texture the list showed is
  * free here, and a texture of a level without a data directory stays a placeholder.
  */
-async function loadSelectionThumbnails(): Promise<void> {
-  for (const group of summary.value.groups) {
-    for (const texture of group.textures) {
+async function loadSelectionPictures(): Promise<void> {
+  const entries = summary.value.groups.flatMap((group) => {
+    return group.textures.flatMap((texture) => {
       const entry = entryOfName(texture.name)
 
-      if (entry !== undefined) {
-        await loadThumbnail(entry)
+      if (entry === undefined) {
+        return []
       }
-    }
-  }
+
+      return [entry]
+    })
+  })
+
+  await loadPictures(entries)
 }
 
 watch(
@@ -362,27 +342,10 @@ watch(
   ],
   async () => {
     summary.value = summaryOfLevel()
-    await loadSelectionThumbnails()
+    await loadSelectionPictures()
   },
   { immediate: true },
 )
-
-/**
- * The thumbnail of a texture of the selection.
- *
- * @param name The name the level calls the texture.
- *
- * @returns The data url of the thumbnail, or `undefined` while the tile shows a placeholder.
- */
-function thumbOf(name: string): string | undefined {
-  const entry = entryOfName(name)
-
-  if (entry === undefined) {
-    return undefined
-  }
-
-  return thumbnailOf(entry).value
-}
 </script>
 
 <template>
@@ -432,20 +395,16 @@ function thumbOf(name: string): string | undefined {
         </div>
 
         <div v-else class="groups">
-          <section v-for="group in summary.groups" :key="group.source" class="group">
-            <SectionTitle :value="`${formatCount(group.faces)} ${group.faces === 1 ? 'face' : 'faces'}`">
-              {{ group.label }}
+          <section v-for="slot in textureGroupSlots" :key="slot.source" v-show="slot.group !== undefined" class="group">
+            <SectionTitle
+              v-if="slot.group !== undefined"
+              :value="`${formatCount(slot.group.faces)} ${slot.group.faces === 1 ? 'face' : 'faces'}`"
+            >
+              {{ slot.group.label }}
             </SectionTitle>
             <ul class="textures">
-              <li
-                v-for="texture in group.textures"
-                :key="texture.name"
-                :class="{ 'is-selected': isTextureSelected(texture.name) }"
-                v-tooltip="`${texture.name} · show it in the Texture Mapper`"
-                @click="pickTexture(texture.name)"
-              >
-                <img v-if="thumbOf(texture.name) !== undefined" class="thumb" :src="thumbOf(texture.name)" alt="" />
-                <span v-else class="thumb placeholder" aria-hidden="true"></span>
+              <li v-for="texture in slot.group?.textures ?? []" :key="texture.name">
+                <TextureThumb class="thumb" :entry="entryOfName(texture.name)" />
                 <span class="name">{{ texture.name }}</span>
                 <span class="count">{{ formatCount(texture.count) }}</span>
               </li>
@@ -549,6 +508,8 @@ function thumbOf(name: string): string | undefined {
   padding: 0;
   list-style: none;
 
+  // the list is a read of the selection, not a control: a row has no hover, it can not be picked, and the name is not
+  // a text to select and copy (2026-11-26, the owner)
   li {
     display: flex;
     align-items: center;
@@ -556,17 +517,7 @@ function thumbOf(name: string): string | undefined {
     min-width: 0;
     padding: 1px 4px;
     border-radius: 3px;
-    cursor: pointer;
-
-    &:hover {
-      background: $surface-panel;
-    }
-
-    // the texture the Texture Mapper shows: the accent of the picked rows of the lists, the way the light and the entity
-    // rows are picked; the yellow is the color of the 3D view only (2026-11-25, the owner)
-    &.is-selected {
-      background: rgba($accent, 0.15);
-    }
+    user-select: none;
   }
 
   .thumb {
@@ -574,12 +525,6 @@ function thumbOf(name: string): string | undefined {
     width: 20px;
     height: 20px;
     border-radius: 2px;
-    object-fit: cover;
-  }
-
-  .placeholder {
-    border: 1px solid $border-dark;
-    background: $surface-panel;
   }
 
   .name {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
+import { onBeforeUnmount, onMounted, shallowRef, useTemplateRef, watch } from 'vue'
 import { Magnet } from 'lucide-vue-next'
 import { PerspectiveCamera, type Group, type Mesh } from 'three'
 import Crosshair from '../../Crosshair.vue'
@@ -78,6 +78,16 @@ let lightRadiusSpheres: LightRadiusSpheres | undefined
 let lightTextures: LightMarkerTextures | undefined
 let spikeEntity: Group | undefined
 let playerModel: PlayerModel | undefined
+
+/**
+ * Whether the model of the player is on the screen.
+ *
+ * @remarks
+ * The model arrives after the level (it is an FTL of the data directory, decoded and added to the scene when it is
+ * read), so a test that picks it, or an author who asks the view, has to know when it is placed: the widget says it
+ * with an attribute of its own. It is the one signal the view can give about a thing that is not in the level.
+ */
+const hasPlayerModel = shallowRef(false)
 let entityMarkers: Group | undefined
 let portalLines: PortalOverlay | undefined
 
@@ -449,6 +459,7 @@ function showMap(map: ArxMap): void {
       playerModel = model
       model?.placeAt(map)
       model?.updateFor(scene.camera.position)
+      hasPlayerModel.value = model !== undefined
       loop.requestRender()
     })
     .catch(() => {
@@ -494,6 +505,7 @@ function hideMap(): void {
   entityMarkers = undefined
   playerModel?.dispose()
   playerModel = undefined
+  hasPlayerModel.value = false
   loadedMap = undefined
   spikeEntity = undefined
 }
@@ -648,7 +660,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="host" class="View3DWidget">
+  <div ref="host" class="View3DWidget" :data-player-model="hasPlayerModel">
     <canvas ref="canvas" class="stage"></canvas>
     <!-- the crosshair marks the middle of the level: while the level loads, the status text is there -->
     <Crosshair v-if="status === '' && hasLevel" />

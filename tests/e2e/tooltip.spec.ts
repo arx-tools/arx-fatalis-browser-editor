@@ -44,7 +44,10 @@ test('a step of a layout takes the layout back when the tooltip of its button is
   await page.mouse.move(box.x + halfWidth, box.y + halfHeight)
   await page.waitForTimeout(1200)
 
-  await expect(page.locator('.v-popper--theme-tooltip .v-popper__inner')).toContainText('Undo the Viewer layout')
+  // the tooltip of the button the pointer left stays in the DOM (hidden): the shown one is the one this test reads
+  await expect(page.locator('.v-popper--theme-tooltip .v-popper__inner:visible')).toContainText(
+    'Undo the Viewer layout',
+  )
 
   await page.mouse.down()
   await page.mouse.up()

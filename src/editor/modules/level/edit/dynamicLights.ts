@@ -216,6 +216,57 @@ function restoreStaticLights(): void {
 }
 
 /**
+ * Tells whether the layer has a color of its own to draw.
+ *
+ * @remarks
+ * A layer with no burning light, or with lights that reached no corner of the level, has no table to write: the baked
+ * colors of the level are the picture, and the layer writes nothing over them.
+ *
+ * @returns True when the model has a corner, or a light of a drag, to draw.
+ */
+function hasDrawnColors(): boolean {
+  if (model === undefined) {
+    return false
+  }
+
+  return model.vertices.length > 0 || (model.live !== undefined && model.live.actives.length > 0)
+}
+
+/**
+ * Draws the baked light of the level back, when the layer has no color of its own to draw.
+ *
+ * @remarks
+ * The layer writes its own colors over the baked ones while a light of it burns, and a layer whose lights all went out
+ * has no table to write: the colors of the last lit frame would stay on the level (2026-11-26, the owner: a light that
+ * `starts extinguished` kept lighting the level). The baked colors come back, or the black of the static switch when it
+ * is off, the way the switches of the layer leave the level.
+ */
+function restoreBakedFrame(): void {
+  const map = levelStore.map.value
+  let geometry: BufferGeometry | undefined
+
+  if (map !== undefined) {
+    geometry = solidGeometryOf(map)
+  }
+
+  if (map === undefined || geometry === undefined) {
+    isApplied = false
+    isBlackened = false
+
+    return
+  }
+
+  if (isStaticLightOn()) {
+    writeBakedColors(map)
+    isBlackened = false
+  } else {
+    isBlackened = blackenDynamicLightModel(geometry)
+  }
+
+  isApplied = false
+}
+
+/**
  * Draws a frame of the layer, when the model still belongs to the geometry.
  *
  * @returns True when the color attribute was written.
@@ -231,6 +282,12 @@ function applyFrame(): boolean {
 
   if (geometry === undefined || isDynamicLightModelStale(model, geometry)) {
     return false
+  }
+
+  if (!hasDrawnColors()) {
+    restoreBakedFrame()
+
+    return true
   }
 
   const applied = applyDynamicLightModel(model, geometry, Math.random, isStaticLightOn())
@@ -377,7 +434,8 @@ function step(now: number): void {
  * Starts the animation frame chain of the layer, if it is not running already.
  */
 function startTicker(): void {
-  if (frame !== 0) {
+  // a layer with nothing to draw has no flicker to run
+  if (frame !== 0 || !hasDrawnColors()) {
     return
   }
 
@@ -398,6 +456,34 @@ function stopTicker(): void {
 }
 
 /**
+ * Builds the layer again, and draws it at once.
+ *
+ * @remarks
+ * The palette and the layer are two halves of the same light: a light that turns semi-dynamic leaves the baked palette
+ * on one frame, and the layer draws it on the next one. The rebuild of a light that **appears or goes out** is
+ * therefore not waited for (the wait of {@link scheduleRebuild} is for a drag, which writes on every frame): the layer
+ * takes the light in the frame of the palette, so the level does not flash (2026-11-26, the owner: the step of a
+ * history, and the flags, turned the light off for a moment or lit it twice).
+ */
+function rebuildFrame(): void {
+  rebuild()
+
+  if (model === undefined || !isOverridden() || views.size === 0) {
+    return
+  }
+
+  paintStaticLights()
+
+  if (applyFrame()) {
+    renderViews()
+
+    if (model !== undefined && hasDrawnColors()) {
+      startTicker()
+    }
+  }
+}
+
+/**
  * Waits for the level to settle, then builds the layer again.
  */
 function scheduleRebuild(): void {
@@ -411,18 +497,7 @@ function scheduleRebuild(): void {
 
   rebuildTimer = setTimeout(() => {
     rebuildTimer = undefined
-    rebuild()
-
-    if (model === undefined || !isOverridden() || views.size === 0) {
-      return
-    }
-
-    paintStaticLights()
-
-    if (applyFrame()) {
-      renderViews()
-      startTicker()
-    }
+    rebuildFrame()
   }, REBUILD_DELAY_IN_MS)
 }
 
@@ -465,8 +540,9 @@ function sync(): void {
     rebuild()
   }
 
-  if (model === undefined || model.lights.length === 0 || model.vertices.length === 0) {
+  if (model === undefined || !hasDrawnColors()) {
     stopTicker()
+    restoreBakedFrame()
     renderViews()
 
     return
@@ -628,7 +704,8 @@ export function startDynamicLights(): void {
     const changed = changedWeightLightsOf(model, map)
 
     if (changed === undefined) {
-      scheduleRebuild()
+      // a light appeared or went out: the palette and the layer change in the same frame, or the level flashes
+      rebuildFrame()
 
       return
     }

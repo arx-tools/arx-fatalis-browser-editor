@@ -98,14 +98,30 @@ async function modelOf(entity: ArxInteractiveObject, modelName: string, fetchImp
  *
  * @param ftl The model of the entity.
  * @param fetchImpl The fetch to read the data directory with.
+ * @param textureUrls The urls of the files the build carries, by the name the containers store.
  *
  * @returns A material for each texture container of the model.
  */
-async function materialsOf(ftl: ArxFTL, fetchImpl: typeof fetch): Promise<MeshBasicMaterial[]> {
+async function materialsOf(
+  ftl: ArxFTL,
+  fetchImpl: typeof fetch,
+  textureUrls: Readonly<Record<string, string>> = {},
+): Promise<MeshBasicMaterial[]> {
   const materials: MeshBasicMaterial[] = []
 
   for (const container of ftl.textureContainers) {
-    const bytes = await readDataFile(`graph/obj3d/textures/${container.filename}`, fetchImpl)
+    const fromDataDir = await readDataFile(`graph/obj3d/textures/${container.filename}`, fetchImpl)
+    const url = textureUrls[container.filename]
+    let bytes: ArrayBuffer | undefined = fromDataDir
+
+    if (bytes === undefined && url !== undefined) {
+      const response = await fetchImpl(url)
+
+      if (response.ok) {
+        bytes = await response.arrayBuffer()
+      }
+    }
+
     let map: Texture | undefined
 
     if (bytes !== undefined) {
@@ -315,6 +331,24 @@ export type InteractiveModelOptions = {
    * out; a later body variant would turn it back on, the way `ARX_INTERACTIVE_HideGore(io)` does with no flag.
    */
   readonly hideGore?: boolean
+  /**
+   * The url of the model, for the case the data directory has no such file.
+   *
+   * @remarks
+   * A level made from nothing has no data directory to read the player's model from, and the generator carries it: the
+   * url is where the file of the build is read. A data directory that has the model wins over it, so a level of the game
+   * draws the model of its own install.
+   */
+  readonly modelUrl?: string
+  /**
+   * The urls of the textures of the model, by the name its containers store.
+   *
+   * @remarks
+   * A level made from nothing has no data directory, and the model of the generator draws with flat colors without its
+   * textures: the map says where the build keeps the files, and a data directory that has one wins over it (the way the
+   * model itself does).
+   */
+  readonly textureUrls?: Readonly<Record<string, string>>
 }
 
 /**
@@ -365,14 +399,24 @@ export async function loadInteractiveModelViews(
   fetchImpl: typeof fetch = fetch,
   options: InteractiveModelOptions = {},
 ): Promise<InteractiveModelViews | undefined> {
-  const bytes = await readDataFile(modelPath, fetchImpl)
+  let bytes = await readDataFile(modelPath, fetchImpl)
+
+  if (bytes === undefined && options.modelUrl !== undefined) {
+    const response = await fetchImpl(options.modelUrl)
+
+    if (!response.ok) {
+      return undefined
+    }
+
+    bytes = await response.arrayBuffer()
+  }
 
   if (bytes === undefined) {
     return undefined
   }
 
   const ftl = FTL.load(unpackedFtlOf(bytes))
-  const materials = await materialsOf(ftl, fetchImpl)
+  const materials = await materialsOf(ftl, fetchImpl, options.textureUrls)
   let gore: Set<number> | undefined
 
   if (options.hideGore === true) {

@@ -1,5 +1,6 @@
 import { Vector3, type Box3, type Material, type Mesh, type MeshBasicMaterial, type Scene } from 'three'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
+import { GENERATOR_MODELS, GENERATOR_MODEL_TEXTURES } from '../../../../generator/assets.ts'
 import { arxVector3toVector3 } from '../../../../generator/meshes.ts'
 import { loadInteractiveModelViews } from '../../../modules/level/entities/entitySpike.ts'
 import { PLAYER_EYE_HEIGHT, playerSpawnOf } from '../../../modules/level/entities/playerSpawn.ts'
@@ -193,11 +194,14 @@ function materialsOfMesh(mesh: Mesh): Material[] {
  *
  * @param options What the model reads from the widget.
  *
- * @returns The handle of the model, or `undefined` when the data directory has no `human_base` model.
+ * @returns The handle of the model, or `undefined` when neither the data directory nor the generator has the model.
  */
 export async function loadPlayerModel(options: PlayerModelOptions): Promise<PlayerModel | undefined> {
   const views = await loadInteractiveModelViews(PLAYER_MODEL_PATH, FIRST_PERSON_SELECTION, fetch, {
     hideGore: true,
+    // a level made from nothing has no data directory: the model of the generator stands in for the game's file
+    modelUrl: GENERATOR_MODELS[PLAYER_MODEL_PATH],
+    textureUrls: GENERATOR_MODEL_TEXTURES,
   }).catch(() => {
     return undefined
   })

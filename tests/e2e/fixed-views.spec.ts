@@ -156,24 +156,31 @@ async function markerCenterOf(page: Page, kind: string): Promise<Point | undefin
 }
 
 /**
- * The position the url carries: the camera writes its pose there, throttled.
+ * Reads the position the camera has.
+ *
+ * @remarks
+ * The numbers are the readout of the walkable view: the pose the camera store holds, which is the one the drag writes
+ * and the camera form reads. The url carries the same pose behind a 150 ms throttle, and a read of it right after a
+ * gesture could carry the position of the gesture before it (2026-11-26: the linear mapping of a drag failed on a
+ * loaded machine this way).
  *
  * @param page The page to read.
  *
- * @returns The three numbers of the position, or an empty list before the first write.
+ * @returns The three numbers of the position, or an empty list while the readout has none.
  */
-function positionOf(page: Page): number[] {
-  const value = new URL(page.url()).searchParams.get('position') ?? ''
+async function positionOf(page: Page): Promise<number[]> {
+  const text = (await page.locator('[data-widget-kind="3d-view"] .hud').textContent()) ?? ''
+  const match = /position\s+(?<x>-?\d+(?:\.\d+)?)\s+(?<y>-?\d+(?:\.\d+)?)\s+(?<z>-?\d+(?:\.\d+)?)/u.exec(text)
 
-  if (value === '') {
+  if (match?.groups === undefined) {
     return []
   }
 
-  return value.split(',').map(Number)
+  return [Number(match.groups.x), Number(match.groups.y), Number(match.groups.z)]
 }
 
 /**
- * Waits until the url carries another position than the one in the argument.
+ * Waits until the camera has another position than the one in the argument.
  *
  * @param page The page to watch.
  * @param before The position the camera had.
@@ -181,8 +188,8 @@ function positionOf(page: Page): number[] {
 async function expectPositionChange(page: Page, before: readonly number[]): Promise<void> {
   await expect
     .poll(
-      () => {
-        return positionOf(page)
+      async () => {
+        return await positionOf(page)
       },
       { timeout: 5000 },
     )
@@ -288,7 +295,7 @@ test('a click at the framed view puts the marker under the pointer, and moves th
   await openTheViews(page)
 
   for (const kind of VIEWS) {
-    const before = positionOf(page)
+    const before = await positionOf(page)
     const point = await pointOf(canvasOf(page, kind), 0.4, 0.45)
 
     await page.mouse.click(point.x, point.y)
@@ -306,7 +313,7 @@ test('a click outside the level moves the camera too', async ({ page }) => {
   await openTheViews(page)
 
   for (const kind of [WIDGET_KINDS.topView, WIDGET_KINDS.leftView]) {
-    const before = positionOf(page)
+    const before = await positionOf(page)
     const point = await pointOf(canvasOf(page, kind), 0.08, 0.08)
 
     await page.mouse.click(point.x, point.y)
@@ -332,19 +339,19 @@ test('a drag at the framed view follows the pointer, and the mapping is linear',
   await page.mouse.down()
   await page.waitForTimeout(300)
 
-  const pressed = positionOf(page)
+  const pressed = await positionOf(page)
 
   await page.mouse.move(middle.x, middle.y, { steps: 5 })
   await page.waitForTimeout(300)
 
-  const atMiddle = positionOf(page)
+  const atMiddle = await positionOf(page)
   const atMiddleMarker = await markerCenterOf(page, WIDGET_KINDS.topView)
 
   await page.mouse.move(end.x, end.y, { steps: 5 })
   await page.mouse.up()
   await page.waitForTimeout(300)
 
-  const atEnd = positionOf(page)
+  const atEnd = await positionOf(page)
   const atEndMarker = await markerCenterOf(page, WIDGET_KINDS.topView)
 
   // the pointer follows the drag: the marker is where the pointer is, without a raycast in the way
@@ -382,7 +389,7 @@ test('a click lands under the pointer in a landscape and in a portrait view', as
     await page.setViewportSize(size)
     await page.waitForTimeout(600)
 
-    const before = positionOf(page)
+    const before = await positionOf(page)
     const point = await pointOf(canvasOf(page, WIDGET_KINDS.leftView), 0.35, 0.6)
 
     await page.mouse.click(point.x, point.y)
@@ -431,7 +438,7 @@ test('a zoomed view is a magnifier: the click moves the camera, and the marker s
 
   const canvas = canvasOf(page, WIDGET_KINDS.topView)
   const center = await centerOf(canvas)
-  const before = positionOf(page)
+  const before = await positionOf(page)
   const point = await pointOf(canvas, 0.3, 0.35)
 
   await page.mouse.click(point.x, point.y)
@@ -467,13 +474,13 @@ test('a zoomed view does not drag, and a jump re-frames it', async ({ page }) =>
   await page.mouse.down()
   await page.waitForTimeout(400)
 
-  const before = positionOf(page)
+  const before = await positionOf(page)
 
   await page.mouse.move(start.x + 60, start.y + 40, { steps: 6 })
   await page.mouse.up()
   await page.waitForTimeout(500)
 
-  expect(positionOf(page)).toEqual(before)
+  expect(await positionOf(page)).toEqual(before)
 
   const center = await centerOf(canvas)
   const marker = await markerCenterOf(page, WIDGET_KINDS.topView)

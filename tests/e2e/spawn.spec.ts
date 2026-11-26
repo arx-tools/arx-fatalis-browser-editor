@@ -3,7 +3,17 @@ import { expect, test, type Page } from '@playwright/test'
 import { DLF } from 'arx-convert'
 import JSZip from 'jszip'
 import { jumpPoseOf } from '../../src/editor/components/widgets/camera/jumpPose.ts'
+import { WIDGET_KINDS } from '../../src/editor/modules/layout/widgetKinds.ts'
 import { unpackArxFile } from '../../src/generator/files.ts'
+import {
+  editorUrlForLevel,
+  lockPointer,
+  nextFrames,
+  readPose,
+  seedLayout,
+  waitForLayoutSettled,
+  writePose,
+} from './support/editor.ts'
 
 /**
  * The spawn of the player (TODO 172): the camera button of its row, and the pick of its model in the walkable view.
@@ -231,4 +241,108 @@ test('the export writes the spawn the camera gave the level', async ({ page }) =
 
   expect(dlf.header.player.position).toEqual({ x: 0, y: -170, z: 150 })
   expect(dlf.header.player.orientation.b).toBe(180)
+})
+
+/**
+ * The layout of the pick: the entity list (the row of the player is the answer), the walkable view and the camera form
+ * (the camera has to leave the body of the player, or the model is not a target).
+ */
+const PICK_LAYOUT = {
+  type: 'split',
+  orientation: 'horizontal',
+  sizes: [
+    { kind: 'fixed', px: 360 },
+    { kind: 'auto', ratio: 1 },
+    { kind: 'fixed', px: 300 },
+  ],
+  children: [
+    { type: 'widget', kind: WIDGET_KINDS.entityList },
+    { type: 'widget', kind: WIDGET_KINDS.view3d },
+    { type: 'widget', kind: WIDGET_KINDS.cameraControls },
+  ],
+} as const
+
+/**
+ * Picks the spawn of the level under the crosshair of the walkable view.
+ *
+ * @remarks
+ * The camera of a level starts at the spawn, that is, inside the body of the player: the model is not a target there, so
+ * the camera steps 60 units back along its own forward first (the jump of a row, without the row). The click of the
+ * crosshair then lands on the model, and the row of the player says it is picked.
+ *
+ * @param page The page of the test.
+ */
+async function pickTheSpawn(page: Page): Promise<void> {
+  const list = page.locator('[data-widget-kind="entity-list"]')
+  const view = page.locator('[data-widget-kind="3d-view"] canvas').first()
+
+  await expect(list.locator('.AccordionRow').first()).toContainText('Player')
+  await waitForLayoutSettled(page)
+
+  // the row of the player starts folded away: the pick opens it, and the row says it is picked
+  await list.locator('.AccordionRow').first().locator('.head').click()
+
+  const player = list.locator('.player-row')
+
+  await expect(player).toHaveCount(1)
+  await expect(player).toHaveAttribute('data-selected', 'false')
+
+  // the model of the player arrives after the level, and the pick needs it on the screen: the view says when it is placed
+  await expect(page.locator('[data-widget-kind="3d-view"] [data-player-model]')).toHaveAttribute(
+    'data-player-model',
+    'true',
+  )
+
+  const pose = await readPose(page)
+  const eye = { x: Number(pose.x), y: Number(pose.y), z: Number(pose.z) }
+  const angle = { pitch: Number(pose.pitch), yaw: Number(pose.yaw) }
+  const stepped = jumpPoseOf({ position: eye, angle }, eye, 60)
+
+  await writePose(page, {
+    ...pose,
+    x: String(stepped.position.x),
+    y: String(stepped.position.y),
+    z: String(stepped.position.z),
+  })
+
+  await lockPointer(page, view)
+
+  // a click under the pointer lock reads the crosshair, which stands on the model. The click is made again while the
+  // row is not picked: the model of the view changes to the whole one on a frame of its own (the camera left the body),
+  // and the first click can land before that frame (2026-11-26, the textures of the model made the frame later)
+  await expect
+    .poll(
+      async () => {
+        await page.mouse.down()
+        await page.mouse.up()
+        await nextFrames(page, 2)
+
+        return await player.getAttribute('data-selected')
+      },
+      { timeout: 5000 },
+    )
+    .toBe('true')
+}
+
+test('the model of the player picks the spawn with a click of the walkable view', async ({ page, browserName }) => {
+  // the pick of the walkable view reads the gesture under the pointer lock: that is chromium only in this suite
+  test.skip(browserName !== 'chromium', 'the pointer lock of the walkable view needs chromium here')
+  test.setTimeout(120_000)
+
+  // the fixture data dir carries the `human_base` model of the game, so the walkable view draws the player of the level
+  await seedLayout(page, PICK_LAYOUT)
+  await page.goto(editorUrlForLevel(8))
+
+  await pickTheSpawn(page)
+})
+
+test('the model of the generator picks the spawn of a blank level', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'the pointer lock of the walkable view needs chromium here')
+  test.setTimeout(120_000)
+
+  // a level made from nothing has no data directory: the model of the player comes from the build of the generator
+  await seedLayout(page, PICK_LAYOUT)
+  await page.goto('/?map=blank-flat')
+
+  await pickTheSpawn(page)
 })

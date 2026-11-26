@@ -424,3 +424,66 @@ test('the fields of the Light Editor follow the flags of the light', async ({ pa
   await setFlag('Semi-dynamic', false)
   await expect(editor.locator('.separator')).toHaveCount(1)
 })
+
+/**
+ * A light that starts extinguished puts the level out at once.
+ *
+ * @remarks
+ * A semi-dynamic light is drawn by the dynamic layer, and the layer's table is its own colors over the baked ones. When
+ * the light goes out the layer has no table to write, and the colors of the last lit frame would stay on the level: the
+ * level has to go dark (2026-11-26, the owner: the light of the `starts extinguished` flag kept lighting the level, and
+ * the layer only caught up when another flag was written).
+ *
+ * The blank level is the one of the test: its only light is the one that burns, so the picture is the layer's answer
+ * without a second light confounding it.
+ */
+test('a light that starts extinguished puts the level out at once', async ({ page }) => {
+  await page.goto('/?map=blank-flat')
+  await page.locator('header button[aria-label="Presets"]').click()
+  await page.locator('.preset-menu .preset-row', { hasText: 'Lighter' }).click()
+  await waitForLayoutSettled(page)
+
+  // the camera goes to the light: the floor around it is what the light does
+  await page.locator('[data-widget-kind="light-inspector"] .jump').first().click()
+  await nextFrames(page, 3)
+
+  const editor = page.locator('[data-widget-kind="light-editor"]')
+  const stage = page.locator('[data-widget-kind="3d-view"] canvas').first()
+
+  /**
+   * Turns a flag of the light to a state.
+   *
+   * @param name The label of the flag.
+   * @param on Whether the flag goes on.
+   */
+  async function setFlag(name: string, on: boolean): Promise<void> {
+    const button = editor.getByRole('button', { name, exact: true })
+    const pressed = (await button.getAttribute('aria-pressed')) === 'true'
+
+    if (pressed !== on) {
+      await button.click()
+    }
+  }
+
+  // the layer of the dynamic lights draws the semi-dynamic light of the blank level
+  await page.locator('#dynamic-lights').click()
+  await nextFrames(page, 3)
+
+  await setFlag('Semi-dynamic', true)
+  await page.waitForTimeout(800)
+  await nextFrames(page, 3)
+
+  const burning = await stage.screenshot()
+
+  await setFlag('Extinguishable', true)
+  await setFlag('Starts extinguished', true)
+  await page.waitForTimeout(1200)
+  await nextFrames(page, 3)
+
+  const out = await stage.screenshot()
+  const difference = await screenshotDifference(page, burning, out)
+
+  // the light is out: the floor goes dark, and the colors of the lit frame do not stay
+  expect(difference.differing).toBeGreaterThan(50)
+  expect(difference.firstSum).toBeGreaterThan(difference.secondSum)
+})

@@ -1,5 +1,5 @@
 import type { ArxVector3 } from 'arx-convert/types'
-import { MathUtils, Object3D, Quaternion, Vector3, type Camera, type Scene } from 'three'
+import { MathUtils, Object3D, Quaternion, Vector2, Vector3, type Camera, type Scene } from 'three'
 import { TransformControls } from 'three/addons/controls/TransformControls.js'
 import { watch } from 'vue'
 import { MIN_SCALE_FACTOR, type ArxMap } from '../../../../generator/ArxMap.ts'
@@ -31,9 +31,18 @@ import {
   snapPlaneEnabled,
   snapVertexEnabled,
 } from '../shared/snapping.ts'
-import { gizmoPlaceOf, isSelectionOnView, type GizmoBounds } from './gizmoPlace.ts'
+import {
+  anchorOfPoint,
+  isOnView,
+  nearestSurfaceIndexOf,
+  pointOfAnchor,
+  surfaceOf,
+  type Surface,
+  type SurfaceAnchor,
+} from './gizmoPlace.ts'
 import { createEdgeSnap, type EdgeSnap, type EdgeSnapResult } from './edgeSnap.ts'
 import { createPlaneSnap, type PlaneSnap, type PlaneSnapResult } from './planeSnap.ts'
+import type { SurfaceHit } from './polygonSelection.ts'
 import { createVertexSnap, type VertexSnap, type VertexSnapResult } from './vertexSnap.ts'
 import { selectionCenterOf } from './selectionCenter.ts'
 
@@ -56,6 +65,11 @@ export const LOCK_GUARD_MS = 300
  * way the compass and the coordinate readout do: the green Y down the game's Y, the red X the game's X.
  */
 export const GAME_TURN = new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), Math.PI)
+
+/**
+ * The crosshair of the walkable view: the middle of it, in normalized device coordinates.
+ */
+const CROSSHAIR = new Vector2(0, 0)
 
 /**
  * How much of the scale the center handle makes a drag of the selection takes, as a factor of it.
@@ -170,6 +184,18 @@ export type SelectionGizmoOptions = {
    * Asks the view for a frame, so a moved gizmo or a dragged selection is drawn.
    */
   readonly onRender: () => void
+  /**
+   * Reads the faces of the level under a point of the view, with the point of each, nearest first.
+   *
+   * @remarks
+   * The handle stands on the surface of the selection, and the place the author looks at is the point of the face under
+   * the crosshair: the handle takes the nearest face of that ray that is one of the selected ones, and falls back on the
+   * points of the selected faces when the ray meets none of them (see `place`). The ray is read to its end, so a mesh
+   * that covers the selection does not take the handle away from it.
+   *
+   * @returns The faces and the point of each, nearest first; empty when the ray meets nothing.
+   */
+  readonly surfaceAt?: (point: Vector2) => readonly SurfaceHit[]
 }
 
 /**
@@ -177,7 +203,8 @@ export type SelectionGizmoOptions = {
  */
 export type SelectionGizmo = {
   /**
-   * Puts the handle on its place again, on the camera of the frame: the middle of the view moves with the camera.
+   * Puts the handle on its place again, on the camera of the frame: the place is read through the camera, so a camera
+   * that turns moves it.
    */
   readonly place: () => void
   /**
@@ -200,62 +227,21 @@ export type SelectionGizmo = {
 }
 
 /**
- * Reads the box of a selection in the world, the frame the gizmo and the camera of the view are in.
- *
- * @param map The level of the faces.
- * @param faces The indices of the selected faces.
- * @param offset The scene position of the level, which the world subtracts.
- *
- * @returns The box around every corner of the faces.
- */
-function boundsOf(map: ArxMap, faces: readonly number[], offset: Vector3): GizmoBounds | undefined {
-  let minX = Number.POSITIVE_INFINITY
-  let maxX = Number.NEGATIVE_INFINITY
-  let minY = Number.POSITIVE_INFINITY
-  let maxY = Number.NEGATIVE_INFINITY
-  let minZ = Number.POSITIVE_INFINITY
-  let maxZ = Number.NEGATIVE_INFINITY
-
-  for (const index of faces) {
-    const polygon = map.polygons[index]
-
-    if (polygon === undefined) {
-      continue
-    }
-
-    for (const vertex of polygon.vertices) {
-      const world = arxVector3toVector3(vertex).sub(offset)
-
-      minX = Math.min(minX, world.x)
-      maxX = Math.max(maxX, world.x)
-      minY = Math.min(minY, world.y)
-      maxY = Math.max(maxY, world.y)
-      minZ = Math.min(minZ, world.z)
-      maxZ = Math.max(maxZ, world.z)
-    }
-  }
-
-  if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(minZ)) {
-    return undefined
-  }
-
-  return { minX, maxX, minY, maxY, minZ, maxZ }
-}
-
-/**
  * Builds the gizmo that moves the selected faces along the three axes of the scene.
  *
  * @remarks
- * The gizmo of three (`TransformControls`) is attached to a proxy at the **middle of the selection**; the proxy is the
- * only object it moves, and the drag writes the corners of the selected faces from it. The axes are the **game's**, the
- * same frame the compass of the corner shows: the proxy stands turned by {@link GAME_TURN}, so the arrows point where
- * the readout and the url say (the green Y down the game's Y), and a drag moves the level the way the arrow points.
+ * The gizmo of three (`TransformControls`) is attached to a proxy that **stands on the surface of the selection**; the
+ * proxy is the only object it moves, and the drag writes the corners of the selected faces from it. The axes are the
+ * **game's**, the same frame the compass of the corner shows: the proxy stands turned by {@link GAME_TURN}, so the
+ * arrows point where the readout and the url say (the green Y down the game's Y), and a drag moves the level the way
+ * the arrow points.
  *
  * The drag writes the model on every frame (the view follows it), and the step of the history goes on the stack when
  * the pointer is let go: the model is taken back to the start of the drag first, so the one command adds the whole
- * offset once. The middle of the selection is read again when the selection or the level changes; the gizmo is hidden
- * while nothing is selected or while the author hid it with `E` (`transformVisible`), and it can not be grabbed while
- * the camera holds the pointer (Escape releases it).
+ * offset once. The surface the handle stands on is read again when the selection or the level changes, and every frame
+ * of the camera puts the handle where the camera looks at (see `place`); the gizmo is hidden while nothing is selected
+ * or while the author hid it with `E` (`transformVisible`), and it can not be grabbed while the camera holds the
+ * pointer (Escape releases it).
  *
  * @param options What the gizmo reads from the widget.
  *
@@ -314,13 +300,39 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
    */
   let dragFootprint: ShadowFootprint | undefined
   /**
-   * The middle of the selection in the world, kept for the frames that follow the camera between two syncs.
+   * The points of the selection the handle may stand on, sampled when the selection is read.
+   *
+   * @remarks
+   * A camera that moves reads the place of the handle again, and a big selection has too many faces to project them
+   * all: the points are sampled here (see `surfaceOf`), and the frames of the camera walk the samples. A still camera
+   * reads nothing.
    */
-  let pivotPlace: Vector3 | undefined
+  let surface: Surface | undefined
   /**
-   * The box of the selection in the world, so the frames of the camera know whether any of it is still on the view.
+   * The point of the selection the handle stands on.
+   *
+   * @remarks
+   * The handle is a point of the mesh: the drag, the step of the history and its undo move the corners of the face, and
+   * the handle goes with them. It stays that point until the camera moves or the selection changes, which is when a new
+   * point is read (2026-11-27, the owner).
    */
-  let pivotBounds: GizmoBounds | undefined
+  let anchor: SurfaceAnchor | undefined
+  /**
+   * The camera the anchor was read through.
+   *
+   * @remarks
+   * A still camera leaves the handle on the point it has, whatever the step of an edit does under it: only a camera
+   * that moved (or a new selection) reads a new point. The position and the turn of it are the read of a frame.
+   */
+  const placedCamera = { position: new Vector3(), quaternion: new Quaternion(), known: false }
+  /**
+   * The selection the anchor was read from, by the set the store keeps it in: a new set is a new selection.
+   */
+  let placedSelection: ReadonlySet<number> | undefined
+  /**
+   * How many faces the level had when the anchor was read: a delete or an insert moves the faces of the list.
+   */
+  let placedPolygonCount: number | undefined
   /**
    * The snap of the translate drag, when it is on. The vertices are collected at the first frame that needs them.
    */
@@ -372,49 +384,194 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
   }
 
   /**
-   * Puts the handle on its place again, on the camera of the frame.
+   * Tells whether the camera stands where the anchor of the handle was read.
+   *
+   * @returns True when the handle has the camera it was placed through.
+   */
+  function cameraIsStill(): boolean {
+    return (
+      placedCamera.known &&
+      options.camera.position.equals(placedCamera.position) &&
+      options.camera.quaternion.equals(placedCamera.quaternion)
+    )
+  }
+
+  /**
+   * Reads the camera the handle was placed through.
+   */
+  function rememberCamera(): void {
+    placedCamera.position.copy(options.camera.position)
+    placedCamera.quaternion.copy(options.camera.quaternion)
+    placedCamera.known = true
+  }
+
+  /**
+   * Holds the proxy in the gizmo.
+   */
+  function attachProxy(): void {
+    if (controls.object !== proxy) {
+      controls.attach(proxy)
+    }
+  }
+
+  /**
+   * Puts the handle on a point of the selection, and reads the anchor of it.
+   *
+   * @param point The point, in the world.
+   * @param face The face of the point in the level.
+   * @param offset The scene position of the level, which the world subtracts.
+   *
+   * @returns True when the handle stands on the point; false when the face is not one this build reads.
+   */
+  function placeOn(point: Vector3, face: number, offset: Vector3): boolean {
+    const polygon = map?.polygons[face]
+
+    if (polygon === undefined) {
+      return false
+    }
+
+    const read = anchorOfPoint(point, polygon, face, offset)
+
+    if (read === undefined) {
+      return false
+    }
+
+    anchor = read
+    attachProxy()
+    proxy.position.copy(point)
+    rememberCamera()
+
+    return true
+  }
+
+  /**
+   * Keeps the handle on the point of the mesh it has, while the camera stands.
+   *
+   * @param level The level of the face of the handle.
+   * @param offset The scene position of the level, which the world subtracts.
+   *
+   * @returns True when the handle stands on that point.
+   */
+  function placeKept(level: ArxMap, offset: Vector3): boolean {
+    if (anchor === undefined || !cameraIsStill()) {
+      return false
+    }
+
+    const kept = pointOfAnchor(anchor, level, offset)
+
+    if (kept === undefined || !isOnView(kept, options.camera)) {
+      return false
+    }
+
+    attachProxy()
+    proxy.position.copy(kept)
+
+    return true
+  }
+
+  /**
+   * Puts the handle on the nearest point of the selection under the crosshair.
    *
    * @remarks
-   * The place of the handle is read through the camera (the middle of the view), so a camera that turns or moves leaves
-   * the handle on the last place: the loop of the view calls this on every frame. A drag owns the place of the proxy (its
-   * position is the start of the gesture), so it waits for the release.
+   * The ray of the crosshair is read to its end, and the nearest face of it that is **selected** is the answer: a mesh
+   * that is not selected (a tree over a floor) is not a place of the handle, and it does not take the handle away from
+   * the art either (2026-11-27, the owner).
+   *
+   * @param offset The scene position of the level, which the world subtracts.
+   *
+   * @returns True when the handle stands on a point of the selection.
    */
-  function place(): void {
-    if (dragging || mode === undefined || pivotPlace === undefined || pivotBounds === undefined) {
+  function placeOnTheCrosshair(offset: Vector3): boolean {
+    for (const hit of options.surfaceAt?.(CROSSHAIR) ?? []) {
+      if (selectionStore.polygons.value.has(hit.polygon) && placeOn(hit.point, hit.polygon, offset)) {
+        return true
+      }
+    }
+
+    return false
+  }
+
+  /**
+   * Puts the handle on the nearest point of the selection, whether the camera sees it or not.
+   */
+  function placeOnNearest(): void {
+    if (surface === undefined) {
       return
     }
 
-    // a selection that left the view takes the handle with it: nothing under the arrows would say what they move
-    if (!isSelectionOnView(options.camera, pivotBounds)) {
+    const index = nearestSurfaceIndexOf(surface.points, options.camera)
+
+    // nothing of the selection is on the view: nothing under the arrows would say what they move
+    if (index === undefined) {
+      anchor = undefined
       controls.detach()
 
       return
     }
 
-    if (controls.object !== proxy) {
-      controls.attach(proxy)
+    const base = index * 3
+
+    anchor = surface.anchors[index]
+    attachProxy()
+    proxy.position.set(surface.points[base] ?? 0, surface.points[base + 1] ?? 0, surface.points[base + 2] ?? 0)
+    rememberCamera()
+  }
+
+  /**
+   * Puts the handle on its place again, on the camera of the frame.
+   *
+   * @remarks
+   * The handle stands **on the surface of the selection**, and it is a point of the mesh: a step of the history (the
+   * drag that has just been let go, a turn, a scale, an undo) moves the corners of its face, and the handle goes with
+   * them, at the same place of the selection it had before (2026-11-27, the owner: the handle jumped to an other point
+   * of the selection when the drag was let go).
+   *
+   * A new point is read only when the camera moved: the nearest face of the selection under the crosshair when the ray
+   * of it meets one, and otherwise a point of the selection nearest to the line of the crosshair (see
+   * `surfaceCandidatesOf`). Every point of it is a point of the mesh, so the arrows ride on the art the author reads,
+   * and a face that is not selected does not move it either (2026-11-27, the owner). A selection that left the view has
+   * no candidate at all: the handle is hidden, and it comes back with the mesh.
+   *
+   * The drag reads the same world units wherever the handle stands (a move of the handle along an axis is one length,
+   * whatever the place of it is), so a selection moves the same way from a placed handle. A drag owns the place of the
+   * proxy (its position is the start of the gesture), so it waits for the release.
+   */
+  function place(): void {
+    if (dragging || mode === undefined || map === undefined || surface === undefined) {
+      return
     }
 
-    proxy.position.copy(gizmoPlaceOf(options.camera, pivotPlace))
+    const offset = arxVector3toVector3(map.scenePosition)
+
+    if (placeKept(map, offset)) {
+      return
+    }
+
+    if (placeOnTheCrosshair(offset)) {
+      return
+    }
+
+    placeOnNearest()
   }
 
   /**
    * Puts the handle away, and forgets the place of it.
    *
    * @remarks
-   * Nothing is selected, or the author hid the gizmo of the mode with `E` and `Q`. The last place of the handle is kept
-   * for the frames that follow the camera, so a hide drops it too: the frame of the camera would put the handle back on
-   * the selection (2026-11-27, the `1` of the e2e).
+   * Nothing is selected, or the author hid the gizmo of the mode with `E` and `Q`. The place of the handle is kept for
+   * the frames that follow the camera, so a hide drops it too: the frame of the camera would put the handle back on the
+   * selection (2026-11-27, the `1` of the e2e).
    */
   function hide(): void {
     controls.detach()
     mode = undefined
-    pivotPlace = undefined
-    pivotBounds = undefined
+    surface = undefined
+    anchor = undefined
+    placedCamera.known = false
   }
 
   /**
-   * Reads the selection and puts the gizmo on the middle of its box.
+   * Reads the selection and puts the gizmo on the surface of it, at the point the camera looks at.
    */
   function sync(): void {
     if (dragging) {
@@ -422,7 +579,19 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
     }
 
     map = levelStore.map.value
-    faces = [...selectionStore.polygons.value]
+    const selection = selectionStore.polygons.value
+
+    faces = [...selection]
+
+    // a new selection takes the handle to a point of it (the point of the old one may not be in the new selection at
+    // all), and so does a level with another number of faces: a delete or an insert moves the faces of the list, and the
+    // face of the anchor would not be the one it was read from (2026-11-27)
+    if (selection !== placedSelection || map?.polygons.length !== placedPolygonCount) {
+      anchor = undefined
+    }
+
+    placedSelection = selection
+    placedPolygonCount = map?.polygons.length
 
     // the gizmos are tools of an edit: the author hides them with `E` and `Q`, and the selection stays as it is
     const wanted = wantedMode()
@@ -447,22 +616,17 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
     }
 
     const offset = arxVector3toVector3(map.scenePosition)
-    const world = arxVector3toVector3(center).sub(offset)
 
-    // the handle stands in the middle of the view, at the depth of the middle of the selection: the author grabs the
-    // arrows without zooming out, and the drag reads the same world units wherever the handle stands (2026-11-27)
-    pivotPlace = new Vector3(world.x, world.y, world.z)
-    pivotBounds = boundsOf(map, faces, offset)
-    proxy.position.copy(gizmoPlaceOf(options.camera, pivotPlace))
     // a turn or a scale of the last drag left the proxy turned or sized, and the gizmo of the next one is read from it:
     // the proxy stands in the game's frame and in its own size between two drags
     proxy.quaternion.copy(GAME_TURN)
     proxy.scale.set(1, 1, 1)
 
-    if (controls.object !== proxy) {
-      controls.attach(proxy)
-    }
-
+    // the points of the surface are read here, once per selection or level change, and a camera that moved walks them:
+    // the handle stands on the art, at the point the camera looks at, and the author grabs the arrows without zooming
+    // out (2026-11-27)
+    surface = surfaceOf(map, faces, offset)
+    place()
     options.onRender()
   }
 

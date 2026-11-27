@@ -433,6 +433,43 @@ export async function lockPointer(page: Page, view: Locator): Promise<void> {
 }
 
 /**
+ * How far above its middle the green arrow of the selection gizmo is pressed, in pixels.
+ *
+ * @remarks
+ * The gizmo draws with a size of its own on the screen, so the arrow is at a steady place: the picker of it is a wide
+ * tube along the axis, and this is well inside it on a canvas of any height this widget takes.
+ */
+const ARROW_ABOVE_MIDDLE = 60
+
+/**
+ * The point of a walkable view the green arrow of the selection gizmo is pressed at.
+ *
+ * @remarks
+ * The handle of a selection stands **on the surface of it, at the point under the crosshair**: that is the middle of the
+ * canvas, and the arrows of the gizmo reach out of it. The picker of an arrow is a generous tube along the axis (wider
+ * than the drawn arrow), so a press this far above the middle grabs the green one, whatever the widget is sized to
+ * (2026-11-27, the handle on the surface of the selection).
+ *
+ * @param view The canvas of the walkable view.
+ *
+ * @returns The point, in the coordinates of the page.
+ */
+export async function gizmoArrowPoint(view: Locator): Promise<{ readonly x: number; readonly y: number }> {
+  const box = await view.boundingBox()
+
+  if (box === null) {
+    throw new Error('the view has no box')
+  }
+
+  const halfWidth = box.width / 2
+  const halfHeight = box.height / 2
+  const middleX = box.x + halfWidth
+  const middleY = box.y + halfHeight
+
+  return { x: middleX, y: middleY - ARROW_ABOVE_MIDDLE }
+}
+
+/**
  * What a gesture of the walkable view does.
  */
 export type SelectionGesture = {

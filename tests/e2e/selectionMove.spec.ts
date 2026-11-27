@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 import {
   clickCrosshair,
   editorUrl,
+  gizmoArrowPoint,
   layoutWithSelectionInspector,
   layoutWithTheKeys,
   lockPointer,
@@ -17,10 +18,11 @@ import {
  * The move gizmo of the walkable view: the drag of an axis, the step it leaves and the undo of it.
  *
  * @remarks
- * The gizmo is a `TransformControls` at the middle of the selection, so its arrows are at a place of the view, not in
- * the DOM: the test presses the green one at the pixels the editor layout of the level 8 puts it on. The pointer has to
- * be free to grab it, so the test releases the lock the way the browser does (Escape is the user's way, the page's is
- * the same event). The firefox of the suite does not keep a pointer lock, so the test runs in chromium.
+ * The gizmo is a `TransformControls` on the surface of the selection, at the point under the crosshair, so its arrows are
+ * at a place of the view, not in the DOM: the test presses the green one above the middle of the canvas (see
+ * `gizmoArrowPoint`). The pointer has to be free to grab it, so the test releases the lock the way the browser does
+ * (Escape is the user's way, the page's is the same event). The firefox of the suite does not keep a pointer lock, so the
+ * test runs in chromium.
  */
 test('the gizmo moves the selected face, and the undo takes it back', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium', 'the pointer lock of the walkable view needs chromium here')
@@ -63,10 +65,12 @@ test('the gizmo moves the selected face, and the undo takes it back', async ({ p
     })
     .toBe(true)
 
-  // the green arrow of the gizmo, from the middle of the face up
-  await page.mouse.move(890, 230)
+  // the green arrow of the gizmo, from the middle of the view up: the handle stands on the surface of the selection
+  const arrow = await gizmoArrowPoint(view)
+
+  await page.mouse.move(arrow.x, arrow.y)
   await page.mouse.down()
-  await page.mouse.move(890, 150, { steps: 8 })
+  await page.mouse.move(arrow.x, arrow.y - 80, { steps: 8 })
   await page.mouse.up()
 
   await expect(undo).toBeEnabled()
@@ -89,9 +93,9 @@ test('the gizmo moves the selected face, and the undo takes it back', async ({ p
   await page.locator('.snap-toggle').click()
   await expect(page.locator('.snap-toggle')).toHaveAttribute('aria-pressed', 'true')
 
-  await page.mouse.move(890, 230)
+  await page.mouse.move(arrow.x, arrow.y)
   await page.mouse.down()
-  await page.mouse.move(890, 150, { steps: 8 })
+  await page.mouse.move(arrow.x, arrow.y - 80, { steps: 8 })
   await page.mouse.up()
   await page.waitForTimeout(300)
 
@@ -188,10 +192,13 @@ test('1 hides the transform gizmo, and the selection stays', async ({ page, brow
     })
     .toBe('false')
 
-  // the arrow that moved the face a moment ago is not there: the same press leaves the history alone
-  await page.mouse.move(890, 230)
+  // the arrow that moved the face a moment ago is not there: the same press is the camera's gesture, and the history
+  // stays as it is
+  const arrow = await gizmoArrowPoint(view)
+
+  await page.mouse.move(arrow.x, arrow.y)
   await page.mouse.down()
-  await page.mouse.move(890, 150, { steps: 8 })
+  await page.mouse.move(arrow.x, arrow.y - 80, { steps: 8 })
   await page.mouse.up()
   await page.waitForTimeout(500)
 
@@ -214,12 +221,13 @@ test('1 hides the transform gizmo, and the selection stays', async ({ page, brow
 
   await expect(keys.getByRole('button', { name: 'Hide the transform gizmo' })).toHaveAttribute('aria-pressed', 'true')
 
-  // the arrow of the face under the crosshair moves it again: the aim is the one of the click that made the selection
+  // the arrow of the surface under the crosshair moves it again: the aim is the one of the click that made the
+  // selection
   await writePose(page, spawn)
 
-  await page.mouse.move(890, 230)
+  await page.mouse.move(arrow.x, arrow.y)
   await page.mouse.down()
-  await page.mouse.move(890, 150, { steps: 8 })
+  await page.mouse.move(arrow.x, arrow.y - 80, { steps: 8 })
   await page.mouse.up()
 
   await expect(undo).toBeEnabled()
@@ -320,15 +328,17 @@ test('a move and its undo leave the red fill of a group on the fixed views', asy
 
   const before = await top.screenshot()
 
-  // the green arrow of the gizmo, from the middle of the face up, as the drag test above does it
+  // the green arrow of the gizmo, from the middle of the view up, as the drag test above does it
   await page.evaluate(() => {
     globalThis.document.exitPointerLock()
   })
   await page.waitForTimeout(500)
 
-  await page.mouse.move(890, 230)
+  const arrow = await gizmoArrowPoint(view)
+
+  await page.mouse.move(arrow.x, arrow.y)
   await page.mouse.down()
-  await page.mouse.move(890, 150, { steps: 8 })
+  await page.mouse.move(arrow.x, arrow.y - 80, { steps: 8 })
   await page.mouse.up()
 
   await expect(undo).toBeEnabled()

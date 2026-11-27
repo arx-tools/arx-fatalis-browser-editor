@@ -33,7 +33,7 @@ import type { CameraControls } from './cameraControls.ts'
 import { createFrameLoop } from './frameLoop.ts'
 import { useSelectionDrag } from './useSelectionDrag.ts'
 import { createOrientationGizmo, type OrientationGizmo } from './orientationGizmo.ts'
-import type { PolygonSelectionOverlay } from './polygonSelection.ts'
+import { pickSurfacePointsAt, type PolygonSelectionOverlay } from './polygonSelection.ts'
 import { createLightGizmo, type LightGizmo } from './lightGizmo.ts'
 import { createSpawnGizmo, type SpawnGizmo } from './spawnGizmo.ts'
 import { createParticleField, type ParticleField } from './particleField.ts'
@@ -351,6 +351,16 @@ function createScene(): void {
     canvas: target,
     onRender: (): void => {
       loop.requestRender()
+    },
+    surfaceAt: (point) => {
+      const scene = view
+      const level = loadedMap
+
+      if (scene === undefined || level === undefined) {
+        return []
+      }
+
+      return pickSurfacePointsAt(scene.camera, point, shown, level.triangleToPolygon)
     },
   })
   // the lights move with a gizmo of their own: a point light has no direction, so it has the translate mode only

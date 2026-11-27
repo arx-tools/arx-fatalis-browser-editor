@@ -99,16 +99,39 @@ type PickRequest = {
    * How many faces to read at most.
    */
   readonly limit: number
+  /**
+   * Whether the walk of the ray stops at the first face it meets.
+   *
+   * @remarks
+   * The pick of a face under the crosshair wants the nearest one only: the tree of the level stops at it instead of
+   * walking the ray through every wall of it. A pick that reads the level **around** a face (the handle of a selection
+   * that another mesh covers) walks the whole ray.
+   */
+  readonly firstHit?: boolean
 }
 
 /**
- * Reads the polygons under a point of a view, nearest first.
+ * A face of the level the ray met, and the point of it the ray crossed.
+ */
+export type SurfaceHit = {
+  /**
+   * The face, by its index in the level.
+   */
+  readonly polygon: number
+  /**
+   * The point of the face, in the world.
+   */
+  readonly point: Vector3
+}
+
+/**
+ * Reads the faces under a point of a view, nearest first, with the point of each.
  *
  * @param request The camera, the point, the meshes and the limit of the pick.
  *
- * @returns The polygon indices, nearest first.
+ * @returns The faces and their points, nearest first.
  */
-function pickPolygonsFrom(request: PickRequest): number[] {
+function hitsFrom(request: PickRequest): SurfaceHit[] {
   const { camera, point, meshes, triangleToPolygon, limit } = request
 
   camera.updateMatrixWorld()
@@ -119,26 +142,81 @@ function pickPolygonsFrom(request: PickRequest): number[] {
   raycaster.near = camera.near
   raycaster.far = camera.far
   // the first face the ray meets is the answer: the tree stops at it instead of reading every face along the ray
-  raycaster.firstHitOnly = true
+  raycaster.firstHitOnly = request.firstHit !== false
   raycaster.setFromCamera(point, camera)
 
-  const polygons: number[] = []
+  const hits: SurfaceHit[] = []
 
   for (const hit of raycaster.intersectObjects([...meshes], false)) {
     const polygon = polygonOfHit(hit, meshes, triangleToPolygon)
 
-    if (polygon === undefined || polygons.includes(polygon)) {
+    if (
+      polygon === undefined ||
+      hits.some((found) => {
+        return found.polygon === polygon
+      })
+    ) {
       continue
     }
 
-    polygons.push(polygon)
+    hits.push({ polygon, point: hit.point.clone() })
 
-    if (polygons.length >= limit) {
+    if (hits.length >= limit) {
       break
     }
   }
 
-  return polygons
+  return hits
+}
+
+/**
+ * Reads the polygons under a point of a view, nearest first.
+ *
+ * @param request The camera, the point, the meshes and the limit of the pick.
+ *
+ * @returns The polygon indices, nearest first.
+ */
+function pickPolygonsFrom(request: PickRequest): number[] {
+  return hitsFrom(request).map((hit) => {
+    return hit.polygon
+  })
+}
+
+/**
+ * How many faces a ray of the view reads at most.
+ *
+ * @remarks
+ * A ray through a level meets the faces of the walls, the floors and the ceilings on the way: the handle of a selection
+ * that one of them covers stands on the face of the selection behind it, and the whole ray is what says where that face
+ * is (2026-11-27, the owner). A level is a few faces deep on a ray, so this is a ceiling that a normal level never
+ * reaches.
+ */
+const RAY_FACES = 64
+
+/**
+ * Reads the faces of the level a ray of the view meets, with the point of each, nearest first.
+ *
+ * @remarks
+ * The handle of the selection stands on the surface of the mesh: a face middle is on it, but the middle of a big face
+ * is not the place the author looks at, so the handle asks the view first, and takes the point of a face under a ray
+ * of it when that face is in the selection (2026-11-27, the owner). The whole ray is read, and not the first face of
+ * it: a mesh that is not selected (a tree over a floor) must not take the handle away from the art it moves (the same
+ * day, the owner: the handle jumped between the corners of the selected faces while the tree covered them).
+ *
+ * @param camera The camera of the walkable view.
+ * @param point The point of the view, in normalized device coordinates.
+ * @param meshes The meshes of the level in this view.
+ * @param triangleToPolygon The triangle map of the level.
+ *
+ * @returns The faces and the point of each, nearest first; empty when the ray meets nothing.
+ */
+export function pickSurfacePointsAt(
+  camera: PerspectiveCamera,
+  point: Vector2,
+  meshes: readonly ThreeMesh[],
+  triangleToPolygon: readonly number[],
+): SurfaceHit[] {
+  return hitsFrom({ camera, point, meshes, triangleToPolygon, limit: RAY_FACES, firstHit: false })
 }
 
 /**

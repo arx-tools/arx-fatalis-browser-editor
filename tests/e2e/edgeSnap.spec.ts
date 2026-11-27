@@ -21,7 +21,7 @@ import {
  * The pose the owner framed the hole with when the map was exported.
  *
  * @remarks
- * The face in the hole sits at the crosshair of this pose (see {@link SELECT_AT} and {@link ARROW_AT}), and the camera
+ * The face in the hole sits near the crosshair of this pose (see {@link SELECT_AT} and {@link ARROW_FROM_MIDDLE}), and the camera
  * of a zip that has no stored pose starts on the spawn: the test writes this one into the camera form, the way a hand
  * would.
  */
@@ -37,14 +37,18 @@ const CAMERA_POSE = { x: '715.68', y: '-389.28', z: '628.50', pitch: '54.30', ya
 const SELECT_AT = { x: 481, y: 423 }
 
 /**
- * Where the red arrow of the X axis is on the canvas, and how far the drag goes along it.
+ * Where the red arrow of the X axis is, from the middle of the canvas, and how far the drag goes along it.
  *
  * @remarks
+ * The handle of the gizmo stands on the surface of the selection, at the point under the crosshair, which is the middle
+ * of the canvas (2026-11-27): the arrow is a steady offset of it, so the test reads the place of the crosshair and
+ * presses that far from it.
+ *
  * The arrow is the game's X: the drag moves the face toward the hole edge that stands 12.068 units to its right. Nine
  * pixels are about eight units, so the raw end of the drag is 4 units short of the edge, inside the 12 pixel threshold:
  * the edge rail is expected to pull the face onto the edge exactly.
  */
-const ARROW_AT = { x: 394.68, y: 440.6 }
+const ARROW_FROM_MIDDLE = { x: -86.32, y: 17.6 }
 const DRAG_PIXELS = { x: -8.82, y: 1.79 }
 
 /**
@@ -267,10 +271,15 @@ test('the edge rail snaps the face of the hole onto the edge of the hole along X
   await magnet.click()
   await expect(magnet).toHaveAttribute('aria-pressed', 'true')
 
-  // the red arrow of the gizmo: the drag runs along it, toward the edge of the hole
-  await page.mouse.move(box.x + ARROW_AT.x, box.y + ARROW_AT.y)
+  // the red arrow of the gizmo: the drag runs along it, toward the edge of the hole. The handle stands at the point
+  // under the crosshair, the middle of the canvas, and the arrow is the offset of it
+  const halfWidth = box.width / 2
+  const halfHeight = box.height / 2
+  const arrow = { x: box.x + halfWidth + ARROW_FROM_MIDDLE.x, y: box.y + halfHeight + ARROW_FROM_MIDDLE.y }
+
+  await page.mouse.move(arrow.x, arrow.y)
   await page.mouse.down()
-  await page.mouse.move(box.x + ARROW_AT.x + DRAG_PIXELS.x, box.y + ARROW_AT.y + DRAG_PIXELS.y, { steps: 6 })
+  await page.mouse.move(arrow.x + DRAG_PIXELS.x, arrow.y + DRAG_PIXELS.y, { steps: 6 })
   await page.mouse.up()
 
   await expect

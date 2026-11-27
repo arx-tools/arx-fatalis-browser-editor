@@ -7,10 +7,10 @@ import {
   type ArxVector3,
   ArxPolygonFlags,
 } from 'arx-convert/types'
-import { type Mesh, MathUtils, Raycaster, Vector3 } from 'three'
-// eslint-disable-next-line import-x/no-unassigned-import -- the `firstHitOnly` option of the raycaster is typed by it
-import 'three-mesh-bvh'
+import { DoubleSide, MathUtils, Ray as ThreeRay, Vector3 } from 'three'
+import type { MeshBVH } from 'three-mesh-bvh'
 import type { LightingCalculatorMode } from '../types.ts'
+import { accelerateRaycast } from '../meshes/bvh.ts'
 import {
   GLOBAL_LIGHT_FACTOR,
   ambientOf,
@@ -21,22 +21,37 @@ import {
   normalOfCorner,
 } from './colors.ts'
 import { cellHashOfPosition, lightGridOf } from './grid.ts'
-import type { BakeContext, CornerBake, LightGrid, LightingOptions } from './types.ts'
+import type { BakeContext, Blocker, CornerBake, LightGrid, LightingOptions } from './types.ts'
 
 /**
- * Tells whether a scene object blocks the way of the light.
+ * Tells whether the level blocks the way of the light of a corner.
  *
- * @param raycaster The raycaster of the bake, with its first-hit option on.
- * @param blockers The meshes of the level.
+ * @param options What the bake of the corner reads.
  * @param from The position of the light.
- * @param direction The unit vector from the corner to the light.
+ * @param distance How far the corner is from it.
  *
- * @returns True when a mesh is between the two.
+ * @returns True when a blocker stands between the two.
  */
-function isOccluded(raycaster: Raycaster, blockers: Mesh[], from: Vector3, direction: Vector3): boolean {
-  raycaster.set(from, direction.clone().negate())
+function isBlocked(options: CornerBake, from: Vector3, distance: number): boolean {
+  const { blockers, ray, toLight } = options
 
-  return raycaster.intersectObjects(blockers, false).length > 0
+  if (blockers.length === 0) {
+    return false
+  }
+
+  for (const blocker of blockers) {
+    ray.origin.copy(from)
+    ray.direction.copy(toLight).negate()
+    // the tree reads the space of the mesh: the ray goes through the matrix of the mesh, and the tree answers the first
+    // triangle it meets; a face nearer than the corner is the one that casts the shadow
+    ray.applyMatrix4(blocker.inverse)
+
+    if (blocker.tree.raycastFirst(ray, DoubleSide, 0, distance * 0.99) !== null) {
+      return true
+    }
+  }
+
+  return false
 }
 
 /**
@@ -83,25 +98,6 @@ export function fillCandidatesOf(context: BakeContext, grid: LightGrid): void {
   }
 
   context.corner.candidateCount = at
-}
-
-/**
- * Tells whether a mesh blocks the light on its way to the corner.
- *
- * @param options What the bake of the corner reads.
- * @param from The position of the light.
- * @param distance How far the corner is from it.
- *
- * @returns True when a blocker stands between the two.
- */
-function isBlocked(options: CornerBake, from: Vector3, distance: number): boolean {
-  if (options.blockers.length === 0) {
-    return false
-  }
-
-  options.raycaster.far = distance * 0.99
-
-  return isOccluded(options.raycaster, options.blockers, from, options.toLight)
 }
 
 /**
@@ -234,19 +230,33 @@ export function bakeContextOf(
   }
 
   const shadows = options.shadows ?? true
-  let blockers: Mesh[] = []
+  const blockers: Blocker[] = []
   let factor = GLOBAL_LIGHT_FACTOR
 
   if (shadows && options.occluders !== undefined && options.mode === 'Realistic') {
-    blockers = [...options.occluders]
+    for (const mesh of options.occluders) {
+      // the level builds the tree when it makes its mesh, and a mesh without one (a wall of a test) gets it here: the
+      // tree is what the bake of a big level can afford to walk per corner
+      if (mesh.geometry.boundsTree === undefined) {
+        accelerateRaycast(mesh)
+      }
+
+      const tree = mesh.geometry.boundsTree as MeshBVH | undefined
+
+      if (tree === undefined) {
+        continue
+      }
+
+      // the tree answers in the space of the mesh, and the bake keeps the way into it: the meshes of a level do not move
+      // while the bake of its palette runs
+      mesh.updateWorldMatrix(true, false)
+      blockers.push({ tree, inverse: mesh.matrixWorld.clone().invert() })
+    }
   }
 
   if (options.mode === 'Realistic') {
     factor = 1
   }
-
-  const raycaster = new Raycaster()
-  raycaster.firstHitOnly = true
 
   const candidates = lights.keys().toArray()
 
@@ -259,7 +269,7 @@ export function bakeContextOf(
       candidates,
       candidateCount: candidates.length,
       blockers,
-      raycaster,
+      ray: new ThreeRay(),
       factor,
       ambient: ambientOf(options.mode, options.ambientFloor ?? 0),
       toLight: new Vector3(),

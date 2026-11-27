@@ -144,27 +144,16 @@ function rememberPaletteOf(map: ArxMap, key: string, colors: ArxColor[]): void {
 }
 
 /**
- * Bakes the palette of the level with the profile of the widget.
+ * Bakes the palette of the map on the screen with the profile of the widget.
  *
  * @remarks
- * The palette is the light of the level, and the material of the mesh is unlit: the bake writes the palette, and the
- * paint of the textures writes the colors of the geometry after it. The `Realistic` profile runs without the shadow
- * rays: the bake with them costs about five seconds on a big level, and the widget has no switch for it yet.
+ * The steps of {@link bakeLighting}: the cache of the profile, the chunks of the bake, and the paint that takes the
+ * colors onto the mesh. The timing of the caller covers this call, and a bake the chunks of a newer one made stale ends
+ * here without writing its colors.
  *
- * The bake runs in chunks (the spinner of the widget shows it), and a bake that a newer profile change or a newer map
- * made stale writes nothing: the newer bake owns the palette.
- *
- * The bake runs at the start of the widget: a map that arrives is baked with the profile, and a profile change bakes
- * the map on the screen. A light edit does not come through here: it bakes only the corners its light changed (see
- * `lightPalette.ts`).
+ * @param map The level to bake.
  */
-export async function bakeLighting(): Promise<void> {
-  const map = levelStore.map.value
-
-  if (map === undefined) {
-    return
-  }
-
+async function bakeLightingOnce(map: ArxMap): Promise<void> {
   const profile = lightingProfile.value
 
   setFlatLight(map, flatLightOfProfile(profile, flatLuminosity.value))
@@ -205,6 +194,41 @@ export async function bakeLighting(): Promise<void> {
     if (generation === bakeGeneration) {
       isBakingLighting.value = false
     }
+  }
+}
+
+/**
+ * Bakes the palette of the level with the profile of the widget.
+ *
+ * @remarks
+ * The palette is the light of the level, and the material of the mesh is unlit: the bake writes the palette, and the
+ * paint of the textures writes the colors of the geometry after it. The `Realistic` profile runs without the shadow
+ * rays: the bake with them costs about five seconds on a big level, and the widget has no switch for it yet.
+ *
+ * The bake runs in chunks (the spinner of the widget shows it), and a bake that a newer profile change or a newer map
+ * made stale writes nothing: the newer bake owns the palette.
+ *
+ * The bake runs at the start of the widget: a map that arrives is baked with the profile, and a profile change bakes
+ * the map on the screen. A light edit does not come through here: it bakes only the corners its light changed (see
+ * `lightPalette.ts`).
+ */
+export async function bakeLighting(): Promise<void> {
+  const map = levelStore.map.value
+
+  if (map === undefined) {
+    return
+  }
+
+  // the timing of the bake, in the console of the browser: the realistic profile is the one with the shadows, and the
+  // owner watches it there (2026-11-27)
+  const label = `bakeLighting (${lightingProfile.value})`
+
+  console.time(label)
+
+  try {
+    await bakeLightingOnce(map)
+  } finally {
+    console.timeEnd(label)
   }
 }
 

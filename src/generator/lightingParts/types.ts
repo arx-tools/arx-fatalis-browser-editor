@@ -1,5 +1,6 @@
 import type { ArxLight } from 'arx-convert/types'
-import type { Raycaster, Vector3, Mesh } from 'three'
+import type { Matrix4, Mesh, Ray, Vector3 } from 'three'
+import type { MeshBVH } from 'three-mesh-bvh'
 import type { LightingCalculatorMode } from '../types.ts'
 
 /**
@@ -101,6 +102,26 @@ export type LightGridCache = {
  * these and moves it from corner to corner, so the loop does not allocate a new context for each of the hundred thousand
  * corners of a big level.
  */
+/**
+ * A mesh of the level the bake tests the light against.
+ *
+ * @remarks
+ * The tree of the triangles answers a ray in the space of the **mesh**, so the bake keeps the mesh turned around, and
+ * every ray of a corner goes through it before the tree reads it. The tree is asked directly, and not through the
+ * `Raycaster` of three, which builds an intersection object on every call: a level of the game asks hundreds of
+ * thousands of times (2026-11-27, the owner: the realistic bake of level 1 took forty seconds).
+ */
+export type Blocker = {
+  /**
+   * The tree of the triangles of the mesh.
+   */
+  readonly tree: MeshBVH
+  /**
+   * The matrix that takes a point of the world into the space of the mesh.
+   */
+  readonly inverse: Matrix4
+}
+
 export type CornerBake = {
   /**
    * The position of the corner in the frame of the scene.
@@ -115,13 +136,13 @@ export type CornerBake = {
    */
   readonly lights: ReadonlyArray<{ readonly light: ArxLight; readonly position: Vector3 }>
   /**
-   * The meshes that block the light, for the realistic profile.
+   * The meshes that block the light, for the realistic profile, with the way into their own space.
    */
-  readonly blockers: Mesh[]
+  readonly blockers: readonly Blocker[]
   /**
-   * The raycaster of the bake.
+   * The ray of the bake, in the space of the world: the tests of the corners reuse it.
    */
-  readonly raycaster: Raycaster
+  readonly ray: Ray
   /**
    * The factor of the profile on the intensity of a light.
    */

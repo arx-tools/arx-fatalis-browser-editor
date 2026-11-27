@@ -33,7 +33,16 @@ import type { HistorySnapshot } from '../history/mapHistory.ts'
 import { syncGeneratedPortals } from '../level/edit/generatedPortals.ts'
 import { paletteBakeOptionsOf } from '../level/edit/lightingProfile.ts'
 import { guardPolygonsOf } from '../level/mapGuards.ts'
+import { NO_ROOM } from '../rooms/roomList.ts'
 import { clippedToMapOf } from '../../../generator/clipToMap.ts'
+import {
+  floorTileOf,
+  floorsUnderOf,
+  nearestFaceOf,
+  spawnFeetOf,
+  spawnFloorProbeOf,
+  spawnOutsideMapOf,
+} from '../level/entities/spawnFloor.ts'
 import { editorSettingsJsonOf, SETTINGS_PATH, SOURCE_FOLDER } from '../level/source/editorSettings.ts'
 import type { StoredPose } from '../level/source/maps/mapPoses.ts'
 import type { LevelFiles } from '../level/source/levelSource.ts'
@@ -648,6 +657,8 @@ type ExportedPolygons = {
  * @param options The options of the export: whether the archive centers the map.
  *
  * @returns The polygons of the archive, and what the map cut of them.
+ *
+ * @throws When the spawn of the level stands outside the map: the game would open the level without a player.
  */
 function exportedPolygonsOf(map: ArxMap, options: ExportOptions): ExportedPolygons {
   const polygons = map.visiblePolygons
@@ -659,8 +670,28 @@ function exportedPolygonsOf(map: ArxMap, options: ExportOptions): ExportedPolygo
   }
 
   const clip = clippedToMapOf(withGuards)
+  const exported = [...clip.polygons]
+  const feet = spawnFeetOf(map)
 
-  return { ...clip, polygons: cellOrderedPolygonsOf(clip.polygons) }
+  // the spawn of the level is the point the game loads the player on: a spawn off the map opens the level without a
+  // player, so the export says so and stops, and a spawn over a hole gets the tile the generator put under its feet
+  // (2026-10-31, 2026-11-26, the owner)
+  if (spawnOutsideMapOf(feet)) {
+    throw new Error(
+      `The spawn of the level stands outside the map: its feet are at x ${feet.x.toFixed(0)}, z ${feet.z.toFixed(0)}, and the map holds 0 to ${MAP_SIZE}. The game loads the player there, so the level would open without one. Move the spawn back to the map.`,
+    )
+  }
+
+  if (floorsUnderOf(exported, spawnFloorProbeOf(map)).length === 0) {
+    const nearest = nearestFaceOf(exported, feet)
+    const tile = floorTileOf(feet, nearest?.textureContainerId ?? 0, nearest?.room ?? NO_ROOM)
+
+    // the tile stands under the feet of the player, and it is cut the way the faces of the level are: a spawn near the
+    // edge of the map gets half a tile, the part of the square the game has a cell for
+    exported.push(...clippedToMapOf([tile]).polygons)
+  }
+
+  return { ...clip, polygons: cellOrderedPolygonsOf(exported) }
 }
 
 export function exportLevelFiles(map: ArxMap, options: ExportOptions = {}): LevelFiles {

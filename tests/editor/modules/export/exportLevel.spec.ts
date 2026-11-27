@@ -11,6 +11,7 @@ import {
 } from '../../../../src/editor/modules/level/blankLevel.ts'
 import { MAP_GUARD_FAR, MAP_GUARD_SIZE } from '../../../../src/editor/modules/level/mapGuards.ts'
 import { MAP_LIMIT } from '../../../../src/generator/clipToMap.ts'
+import { setPlayerSpawn } from '../../../../src/editor/modules/level/entities/playerSpawn.ts'
 import { NO_ROOM } from '../../../../src/editor/modules/rooms/roomList.ts'
 import { syncGeneratedPortals } from '../../../../src/editor/modules/level/edit/generatedPortals.ts'
 import { lightingProfile, paletteBakeOptionsOf } from '../../../../src/editor/modules/level/edit/lightingProfile.ts'
@@ -436,6 +437,41 @@ void describe('the corners that center the map', () => {
     exportLevelFiles(map, { centerMap: true })
 
     assert.equal(map.polygons.length, before)
+  })
+})
+
+void describe('the spawn of the level', () => {
+  void it('puts a tile under a spawn that stands over a hole', () => {
+    const map = flatMap()
+
+    // the spawn of the flat level leaves the floor and stands over a hole of the map: the export puts the tile of the
+    // generator under its feet, so the player does not fall through the level on its first step
+    setPlayerSpawn(map, { position: { x: -5000, y: 0, z: -5000 }, yaw: 0 })
+
+    const files = exportLevelFiles(map)
+    const scene = FTS.load(unpackArxFile(files.fts, 'fts'))
+    const tile = scene.polygons.find((polygon) => {
+      return polygon.vertices.every((vertex) => {
+        return Math.abs(vertex.x - 1000) <= 50 && Math.abs(vertex.z - 1000) <= 50
+      })
+    })
+
+    assert.notStrictEqual(tile, undefined)
+    // the tile is a floor of the level around it: a quad, a hundred units of it, in the room of the nearest face
+    assert.equal(tile?.room, 1)
+    assert.equal(tile?.norm.y, -1)
+    // the level of the editor is not touched: the tile lives in the archive
+    assert.equal(map.polygons.length, 11 * 11)
+  })
+
+  void it('refuses a spawn that stands outside the map, instead of writing a level without a player', () => {
+    const map = flatMap()
+
+    setPlayerSpawn(map, { position: { x: 20_000, y: 0, z: -6000 }, yaw: 0 })
+
+    assert.throws(() => {
+      return exportLevelFiles(map)
+    }, /The spawn of the level stands outside the map: its feet are at x 26000, z 0/u)
   })
 })
 

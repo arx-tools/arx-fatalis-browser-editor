@@ -276,8 +276,13 @@ let selectionOverlay: PolygonSelectionOverlay | undefined
  * frame is drawn.
  */
 function requestRender(): void {
+  // a frame already asked for draws this state too, so the request waits for it: a caller that asks on every frame
+  // (the camera of the walkable view, while the author walks under the pointer lock) would cancel the frame of the
+  // last ask over and over, and a zoomed view would follow the camera only when the walk stopped (2026-11-27, the
+  // owner). The walkable view carries the same guard since the particles of a level asked on every frame
+  // (2026-11-23).
   if (frame !== 0) {
-    cancelAnimationFrame(frame)
+    return
   }
 
   if (watchdog !== undefined) {

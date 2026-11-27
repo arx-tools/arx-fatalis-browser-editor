@@ -61,6 +61,32 @@ const failure = ref('')
  * What the archive took from the textures of the level, as the dialog says it when the export is done.
  */
 const summary = ref('')
+/**
+ * What the archive left of the level, in the notices of the dialog: the faces the square of the map cut.
+ */
+const notices = ref<string[]>([])
+
+/**
+ * Reads the faces the square of the map left out of the archive, as one short notice.
+ *
+ * @param clipped How many faces lost a part of themselves to the square of the map.
+ * @param dropped How many faces stood outside the square whole.
+ *
+ * @returns The notice, or an empty text when the map had no face outside it.
+ */
+function truncatedTextOf(clipped: number, dropped: number): string {
+  const count = clipped + dropped
+
+  if (count === 1) {
+    return '1 face is truncated from the export due to partially or fully being out of bounds.'
+  }
+
+  if (count > 1) {
+    return `${String(count)} faces are truncated from the export due to partially or fully being out of bounds.`
+  }
+
+  return ''
+}
 
 /**
  * Reads the count of the textures of an archive as a sentence.
@@ -289,7 +315,7 @@ async function exportIt(): Promise<void> {
     // are read here, where the page can fetch an asset of the build, and the archive only writes the bytes
     const textures = await exportTexturesFor(current, levelTextureSources())
 
-    const { name, data } = await exportLevelZip(
+    const { name, data, clipped, dropped } = await exportLevelZip(
       current,
       (value): void => {
         percent.value = value
@@ -319,6 +345,15 @@ async function exportIt(): Promise<void> {
     )
 
     summary.value = texturesOfText(textures.textures.length)
+
+    const truncated = truncatedTextOf(clipped, dropped)
+
+    notices.value = []
+
+    if (truncated !== '') {
+      notices.value = [truncated]
+    }
+
     downloadBinaryAs(name, data, 'application/zip')
     showMark('done')
   } catch (error) {
@@ -409,6 +444,11 @@ onBeforeUnmount(() => {
       <section v-if="warnings.length > 0" class="warnings">
         <SectionTitle>Warnings</SectionTitle>
         <p v-for="warning in warnings" :key="warning.text" class="warning">{{ warning.text }}</p>
+      </section>
+
+      <section v-if="notices.length > 0" class="notices">
+        <SectionTitle>Notices</SectionTitle>
+        <p v-for="notice in notices" :key="notice" class="notice">{{ notice }}</p>
       </section>
 
       <p v-if="summary !== ''" class="summary">{{ summary }}</p>
@@ -550,6 +590,25 @@ onBeforeUnmount(() => {
   .SectionTitle {
     padding: 0;
   }
+}
+
+// the notices of the archive: the frame of the warnings, and a quiet line under the title (the faces the map cut read as
+// a note and not as a problem of the level)
+.notices {
+  margin: 0 -12px 14px;
+  padding: 8px 12px 0;
+  border-top: 1px solid $border-dark;
+
+  .SectionTitle {
+    padding: 0;
+  }
+}
+
+.notice {
+  margin: 0 0 2px;
+  color: $text-muted;
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 // the title of the block is the one of the Room Inspector (`SectionTitle`: a small white caption), so the two read the

@@ -10,6 +10,7 @@ import {
   FLAT_PRESET,
 } from '../../../../src/editor/modules/level/blankLevel.ts'
 import { MAP_GUARD_FAR, MAP_GUARD_SIZE } from '../../../../src/editor/modules/level/mapGuards.ts'
+import { MAP_LIMIT } from '../../../../src/generator/clipToMap.ts'
 import { NO_ROOM } from '../../../../src/editor/modules/rooms/roomList.ts'
 import { syncGeneratedPortals } from '../../../../src/editor/modules/level/edit/generatedPortals.ts'
 import { lightingProfile, paletteBakeOptionsOf } from '../../../../src/editor/modules/level/edit/lightingProfile.ts'
@@ -435,6 +436,43 @@ void describe('the corners that center the map', () => {
     exportLevelFiles(map, { centerMap: true })
 
     assert.equal(map.polygons.length, before)
+  })
+})
+
+void describe('the faces the map cuts at the export', () => {
+  void it('cuts a face that stands past the map, instead of refusing it', () => {
+    const map = flatMap()
+    const moved = map.polygons[3]
+
+    assert.notStrictEqual(moved, undefined)
+    // a step that pushes the face over the origin of the map: half of it stands outside it now
+    map.polygons.translate([3], { x: 0, y: 0, z: -5500 })
+
+    const files = exportLevelFiles(map)
+    const scene = FTS.load(unpackArxFile(files.fts, 'fts'))
+
+    assert.ok(
+      scene.polygons.every((polygon) => {
+        return polygon.vertices.every((vertex) => {
+          return vertex.x >= 0 && vertex.x <= MAP_LIMIT && vertex.z >= 0 && vertex.z <= MAP_LIMIT
+        })
+      }),
+    )
+    // the part of the face that stays is written, and the level itself is not touched
+    assert.equal(map.polygons.length, 11 * 11)
+  })
+
+  void it('says how many faces the map cut, and how many it left out', async () => {
+    const map = flatMap()
+
+    // one face over the origin (a part of it stays), and one that stands outside the map whole
+    map.polygons.translate([3], { x: 0, y: 0, z: -5500 })
+    map.polygons.translate([4], { x: 0, y: 0, z: -6000 })
+
+    const archive = await exportLevelZip(map, undefined, {})
+
+    assert.equal(archive.clipped, 1)
+    assert.equal(archive.dropped, 1)
   })
 })
 

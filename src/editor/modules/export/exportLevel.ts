@@ -33,6 +33,7 @@ import type { HistorySnapshot } from '../history/mapHistory.ts'
 import { syncGeneratedPortals } from '../level/edit/generatedPortals.ts'
 import { paletteBakeOptionsOf } from '../level/edit/lightingProfile.ts'
 import { guardPolygonsOf } from '../level/mapGuards.ts'
+import { clippedToMapOf } from '../../../generator/clipToMap.ts'
 import { editorSettingsJsonOf, SETTINGS_PATH, SOURCE_FOLDER } from '../level/source/editorSettings.ts'
 import type { StoredPose } from '../level/source/maps/mapPoses.ts'
 import type { LevelFiles } from '../level/source/levelSource.ts'
@@ -616,28 +617,50 @@ export function buildExportDlf(dlf: ArxDLF, polygonCount: number, levelIndex?: n
  * @throws When the level has no polygon left (`buildExportFts` throws).
  */
 /**
+ * What the export did to the faces of the level on the way to the files.
+ */
+type ExportedPolygons = {
+  /**
+   * The polygons of the archive, in the order the FTS writes them.
+   */
+  readonly polygons: ArxPolygon[]
+  /**
+   * How many faces the square of the map cut a part of.
+   */
+  readonly clipped: number
+  /**
+   * How many faces stood outside the map whole, and are left out.
+   */
+  readonly dropped: number
+}
+
+/**
  * Reads the polygons the files of the archive are written from, in the order the FTS writes them.
  *
  * @remarks
  * The corners that center the map join the list here and not in the level: they are the quads the game reads the arrow
- * of the player from, and the level of the editor is not the place of them (2026-11-27, the owner). The order is the one
- * of the cells either way, because the palette of the lighting goes with it.
+ * of the player from, and the level of the editor is not the place of them (2026-11-27, the owner). The faces that stand
+ * past the square of the map are **cut down to it** here too, the way the Arx Level Generator cut them at its own end:
+ * the game has a cell for the faces of the square only, and a face that stands past it can not be written at all
+ * (TODO 106). The order is the one of the cells either way, because the palette of the lighting goes with it.
  *
  * @param map The level to write.
  * @param options The options of the export: whether the archive centers the map.
  *
- * @returns The polygons of the archive, the corners included when the export asks for them.
+ * @returns The polygons of the archive, and what the map cut of them.
  */
-function exportedPolygonsOf(map: ArxMap, options: ExportOptions): ArxPolygon[] {
+function exportedPolygonsOf(map: ArxMap, options: ExportOptions): ExportedPolygons {
   const polygons = map.visiblePolygons
+  const container = polygons[0]?.textureContainerId ?? map.polygons[0]?.textureContainerId ?? 0
+  let withGuards = [...polygons]
 
-  if (options.centerMap !== true) {
-    return cellOrderedPolygonsOf(polygons)
+  if (options.centerMap === true) {
+    withGuards = [...polygons, ...guardPolygonsOf(container)]
   }
 
-  const container = polygons[0]?.textureContainerId ?? map.polygons[0]?.textureContainerId ?? 0
+  const clip = clippedToMapOf(withGuards)
 
-  return cellOrderedPolygonsOf([...polygons, ...guardPolygonsOf(container)])
+  return { ...clip, polygons: cellOrderedPolygonsOf(clip.polygons) }
 }
 
 export function exportLevelFiles(map: ArxMap, options: ExportOptions = {}): LevelFiles {
@@ -646,7 +669,7 @@ export function exportLevelFiles(map: ArxMap, options: ExportOptions = {}): Leve
   syncGeneratedPortals(map)
   // the faces a group hides are not in the level that is written: they are out of the mesh, and the export leaves them
   // out. The polygons go in the order the FTS file writes them: the loader gives the palette its indices in that order
-  const source = exportedPolygonsOf(map, options)
+  const source = exportedPolygonsOf(map, options).polygons
   const scene = FTS.save(buildExportFts(map.fts, source))
   const colors = freshPaletteOf(map, source, options)
   const lighting = LLF.save(buildExportLlf({ ...map.llf, colors }, source, options))
@@ -928,12 +951,25 @@ export async function exportLevelZip(
   map: ArxMap,
   onProgress?: ExportProgressHandler,
   options: ExportOptions = {},
-): Promise<{ readonly name: string; readonly data: ArrayBuffer; readonly textures: number }> {
+): Promise<{
+  readonly name: string
+  readonly data: ArrayBuffer
+  readonly textures: number
+  /**
+   * How many faces the square of the map cut a part of.
+   */
+  readonly clipped: number
+  /**
+   * How many faces stood outside the map whole, and are left out.
+   */
+  readonly dropped: number
+}> {
   // the portals of a flat level come from its rooms: the file is written with the portals of the rooms it has now
   syncGeneratedPortals(map)
   // the faces a group hides are not in the level that is written: they are out of the mesh, and the export leaves them
   // out. The polygons go in the order the FTS file writes them: the loader gives the palette its indices in that order
-  const source = exportedPolygonsOf(map, options)
+  const exported = exportedPolygonsOf(map, options)
+  const source = exported.polygons
 
   onProgress?.(EXPORT_PROGRESS.start)
   await nextPaint()
@@ -1028,5 +1064,7 @@ export async function exportLevelZip(
     name: exportZipNameOf(new Date(options.exportedAt ?? Date.now())),
     data,
     textures: options.textures?.length ?? 0,
+    clipped: exported.clipped,
+    dropped: exported.dropped,
   }
 }

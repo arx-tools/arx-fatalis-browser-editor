@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
+import { fileURLToPath } from 'node:url'
 import { expect, test } from '@playwright/test'
-import { LLF } from 'arx-convert'
+import { FTS, LLF } from 'arx-convert'
 import JSZip from 'jszip'
 import { roomsLayout } from '../../src/editor/modules/layout/layoutPresets.ts'
 import { testLayout } from '../support/layouts.ts'
@@ -28,6 +29,21 @@ import {
  * the screen.
  */
 test.setTimeout(120_000)
+
+/**
+ * The cube of the import, a unit wide in the file.
+ */
+const CUBE_OBJ = fileURLToPath(new URL('fixtures/import/cube.obj', import.meta.url))
+
+/**
+ * The scale the test gives the cube, so it stands over the edges of the map on every side.
+ *
+ * @remarks
+ * The cube lands on the origin of a blank level (6000 on the X and the Z), and a face of it is this many units wide: the
+ * four faces of the sides stand outside the map whole, and the top and the bottom cross it, so the export cuts two faces
+ * down to the map and leaves four out (TODO 106).
+ */
+const OUT_OF_BOUNDS_SCALE = 30_000
 
 test('the export dialog writes the level under the fields of the dialog', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
@@ -366,4 +382,53 @@ test('the names of the rooms and the groups travel in the zip, and come back wit
 
   await expect(page.locator('[data-widget-kind="room-inspector"] li.room').first()).toContainText('Hall')
   await expect(page.locator('[data-widget-kind="group-inspector"] li.group').first()).toContainText('Floor')
+})
+
+test('the faces that stand past the map are cut down to it at the export', async ({ page }) => {
+  await page.setViewportSize({ width: 1631, height: 850 })
+
+  await seedLayout(page, testLayout)
+  await page.goto('/?map=blank-flat')
+
+  await waitForLevel(page)
+
+  // a cube of the units of the file, scaled to stand over the edges of the map on every side: the game has a cell of the
+  // map for a face inside it only, and the export cuts the ones that stand past it
+  await page.locator('header button[aria-label="Import a mesh from an OBJ file"]').click()
+
+  const importDialog = page.locator('[role="dialog"][aria-label="Import OBJ"]')
+
+  await expect(importDialog).toBeVisible()
+
+  await page.locator('.ImportObj input[type="file"]').setInputFiles(CUBE_OBJ)
+  await importDialog.locator('#import-obj-scale').fill(String(OUT_OF_BOUNDS_SCALE))
+  await importDialog.locator('footer button').click()
+  await expect(importDialog).toBeHidden()
+
+  await page.locator('header button[aria-label="Export the level as a zip"]').click()
+
+  const dialog = page.locator('[role="dialog"][aria-label="Export Map"]')
+
+  await expect(dialog).toBeVisible()
+
+  const [download] = await Promise.all([page.waitForEvent('download'), dialog.locator('.export').click()])
+  const archive = await JSZip.loadAsync(await readFile((await download.path()) ?? ''))
+
+  // the dialog says what the map cut, in a notice of its own under the summary
+  await expect(dialog.locator('.notices')).toContainText(
+    '6 faces are truncated from the export due to partially or fully being out of bounds.',
+  )
+  await expect(dialog.locator('.summary')).toHaveText('The archive carries the one texture the game does not have.')
+
+  // and the file carries no corner outside the square of the map, which is what the game can place
+  const index = await dialog.locator('#export-level-index').inputValue()
+  const bytes = await archive.file(`game/graph/levels/level${index}/fast.fts`)?.async('arraybuffer')
+  const scene = FTS.load(unpackArxFile(bytes ?? new ArrayBuffer(0), 'fts'))
+  const outside = scene.polygons.filter((polygon) => {
+    return polygon.vertices.some((vertex) => {
+      return vertex.x < 0 || vertex.x > 15_999 || vertex.z < 0 || vertex.z > 15_999
+    })
+  })
+
+  expect(outside).toHaveLength(0)
 })

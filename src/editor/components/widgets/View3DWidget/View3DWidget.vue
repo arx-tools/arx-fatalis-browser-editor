@@ -162,6 +162,10 @@ const loop = createFrameLoop({
   gizmo: () => {
     return gizmo
   },
+  follow: () => {
+    // the handle of the selection is read through the camera: a camera that turns moves the middle of the view with it
+    selectionGizmo?.place()
+  },
   afterRender: () => {
     // the contour of the crosshair is a screen-space pass, and it goes over the scene it was drawn from
     const sceneCamera = view?.camera

@@ -52,6 +52,15 @@ export type FrameLoopContext = {
    * Draws the overlays that come after the scene on the same canvas, like the contour of the crosshair.
    */
   readonly afterRender?: () => void
+  /**
+   * Follows the camera of the frame, before it is drawn.
+   *
+   * @remarks
+   * A handle of the view that stands on the screen (the gizmo of the selection) has to be put on its place again when the
+   * camera moves: the place is read through the camera, and a camera that turned leaves the last place behind. The loop
+   * runs on every frame of the lock, and the call is a projection of one point.
+   */
+  readonly follow?: () => void
 }
 
 /**
@@ -193,6 +202,7 @@ export function createFrameLoop(context: FrameLoopContext): FrameLoop {
     }
 
     updateDrag()
+    context.follow?.()
 
     viewScene.renderer.render(viewScene.scene, viewScene.camera)
     context.afterRender?.()

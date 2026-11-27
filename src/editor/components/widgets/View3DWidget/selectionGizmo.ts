@@ -31,6 +31,7 @@ import {
   snapPlaneEnabled,
   snapVertexEnabled,
 } from '../shared/snapping.ts'
+import { gizmoPlaceOf, isSelectionOnView, type GizmoBounds } from './gizmoPlace.ts'
 import { createEdgeSnap, type EdgeSnap, type EdgeSnapResult } from './edgeSnap.ts'
 import { createPlaneSnap, type PlaneSnap, type PlaneSnapResult } from './planeSnap.ts'
 import { createVertexSnap, type VertexSnap, type VertexSnapResult } from './vertexSnap.ts'
@@ -176,6 +177,10 @@ export type SelectionGizmoOptions = {
  */
 export type SelectionGizmo = {
   /**
+   * Puts the handle on its place again, on the camera of the frame: the middle of the view moves with the camera.
+   */
+  readonly place: () => void
+  /**
    * Turns the pointer of the gizmo on or off.
    *
    * @param enabled False while the camera holds the pointer (the gizmo is drawn, but can not be grabbed).
@@ -192,6 +197,49 @@ export type SelectionGizmo = {
    * Frees the gizmo and takes it out of the scene.
    */
   readonly dispose: () => void
+}
+
+/**
+ * Reads the box of a selection in the world, the frame the gizmo and the camera of the view are in.
+ *
+ * @param map The level of the faces.
+ * @param faces The indices of the selected faces.
+ * @param offset The scene position of the level, which the world subtracts.
+ *
+ * @returns The box around every corner of the faces.
+ */
+function boundsOf(map: ArxMap, faces: readonly number[], offset: Vector3): GizmoBounds | undefined {
+  let minX = Number.POSITIVE_INFINITY
+  let maxX = Number.NEGATIVE_INFINITY
+  let minY = Number.POSITIVE_INFINITY
+  let maxY = Number.NEGATIVE_INFINITY
+  let minZ = Number.POSITIVE_INFINITY
+  let maxZ = Number.NEGATIVE_INFINITY
+
+  for (const index of faces) {
+    const polygon = map.polygons[index]
+
+    if (polygon === undefined) {
+      continue
+    }
+
+    for (const vertex of polygon.vertices) {
+      const world = arxVector3toVector3(vertex).sub(offset)
+
+      minX = Math.min(minX, world.x)
+      maxX = Math.max(maxX, world.x)
+      minY = Math.min(minY, world.y)
+      maxY = Math.max(maxY, world.y)
+      minZ = Math.min(minZ, world.z)
+      maxZ = Math.max(maxZ, world.z)
+    }
+  }
+
+  if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(minZ)) {
+    return undefined
+  }
+
+  return { minX, maxX, minY, maxY, minZ, maxZ }
 }
 
 /**
@@ -266,6 +314,14 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
    */
   let dragFootprint: ShadowFootprint | undefined
   /**
+   * The middle of the selection in the world, kept for the frames that follow the camera between two syncs.
+   */
+  let pivotPlace: Vector3 | undefined
+  /**
+   * The box of the selection in the world, so the frames of the camera know whether any of it is still on the view.
+   */
+  let pivotBounds: GizmoBounds | undefined
+  /**
    * The snap of the translate drag, when it is on. The vertices are collected at the first frame that needs them.
    */
   let vertexSnap: VertexSnap | undefined
@@ -316,6 +372,48 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
   }
 
   /**
+   * Puts the handle on its place again, on the camera of the frame.
+   *
+   * @remarks
+   * The place of the handle is read through the camera (the middle of the view), so a camera that turns or moves leaves
+   * the handle on the last place: the loop of the view calls this on every frame. A drag owns the place of the proxy (its
+   * position is the start of the gesture), so it waits for the release.
+   */
+  function place(): void {
+    if (dragging || mode === undefined || pivotPlace === undefined || pivotBounds === undefined) {
+      return
+    }
+
+    // a selection that left the view takes the handle with it: nothing under the arrows would say what they move
+    if (!isSelectionOnView(options.camera, pivotBounds)) {
+      controls.detach()
+
+      return
+    }
+
+    if (controls.object !== proxy) {
+      controls.attach(proxy)
+    }
+
+    proxy.position.copy(gizmoPlaceOf(options.camera, pivotPlace))
+  }
+
+  /**
+   * Puts the handle away, and forgets the place of it.
+   *
+   * @remarks
+   * Nothing is selected, or the author hid the gizmo of the mode with `E` and `Q`. The last place of the handle is kept
+   * for the frames that follow the camera, so a hide drops it too: the frame of the camera would put the handle back on
+   * the selection (2026-11-27, the `1` of the e2e).
+   */
+  function hide(): void {
+    controls.detach()
+    mode = undefined
+    pivotPlace = undefined
+    pivotBounds = undefined
+  }
+
+  /**
    * Reads the selection and puts the gizmo on the middle of its box.
    */
   function sync(): void {
@@ -330,7 +428,7 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
     const wanted = wantedMode()
 
     if (wanted === undefined || map === undefined || faces.length === 0) {
-      controls.detach()
+      hide()
 
       return
     }
@@ -338,7 +436,7 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
     const center = selectionCenterOf(map, faces)
 
     if (center === undefined) {
-      controls.detach()
+      hide()
 
       return
     }
@@ -351,7 +449,11 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
     const offset = arxVector3toVector3(map.scenePosition)
     const world = arxVector3toVector3(center).sub(offset)
 
-    proxy.position.set(world.x, world.y, world.z)
+    // the handle stands in the middle of the view, at the depth of the middle of the selection: the author grabs the
+    // arrows without zooming out, and the drag reads the same world units wherever the handle stands (2026-11-27)
+    pivotPlace = new Vector3(world.x, world.y, world.z)
+    pivotBounds = boundsOf(map, faces, offset)
+    proxy.position.copy(gizmoPlaceOf(options.camera, pivotPlace))
     // a turn or a scale of the last drag left the proxy turned or sized, and the gizmo of the next one is read from it:
     // the proxy stands in the game's frame and in its own size between two drags
     proxy.quaternion.copy(GAME_TURN)
@@ -845,6 +947,7 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
   controls.addEventListener('mouseUp', onMouseUp)
 
   return {
+    place,
     setEnabled: (enabled: boolean): void => {
       controls.enabled = enabled
     },

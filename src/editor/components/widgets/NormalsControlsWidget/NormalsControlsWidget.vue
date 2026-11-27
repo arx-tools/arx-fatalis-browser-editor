@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Power } from 'lucide-vue-next'
+import { Eye } from 'lucide-vue-next'
 import FieldLabel from '../../FieldLabel.vue'
 import ToggleButton from '../../ToggleButton.vue'
 import { isNormalsVisible } from '../shared/levelDisplay.ts'
@@ -19,6 +19,28 @@ const powerTooltip = computed<string>(() => {
   }
 
   return 'Show the normals'
+})
+
+/**
+ * The text of the tooltip of the vertex normals: what the next click does.
+ */
+const vertexTooltip = computed<string>(() => {
+  if (vertexNormalsVisible.value) {
+    return 'Hide the vertex normals'
+  }
+
+  return 'Show the vertex normals'
+})
+
+/**
+ * The text of the tooltip of the face normals: what the next click does.
+ */
+const faceTooltip = computed<string>(() => {
+  if (faceNormalsVisible.value) {
+    return 'Hide the face normals'
+  }
+
+  return 'Show the face normals'
 })
 
 /**
@@ -54,7 +76,7 @@ function setFace(value: boolean): void {
     <!-- the switch of the layer: the `N` flips the same ref, so the key help's eye and this button are one switch -->
     <FieldLabel class="field" inline label="Normals">
       <ToggleButton :pressed="isNormalsVisible" label="Normals" :tooltip="powerTooltip" @update:pressed="setVisible">
-        <Power :size="14" aria-hidden="true" />
+        <Eye :size="14" aria-hidden="true" />
       </ToggleButton>
     </FieldLabel>
 
@@ -68,11 +90,11 @@ function setFace(value: boolean): void {
           <ToggleButton
             :pressed="vertexNormalsVisible"
             label="Vertex normals"
-            tooltip="Show the normal of every corner"
+            :tooltip="vertexTooltip"
             :disabled="!isNormalsVisible"
             @update:pressed="setVertex"
           >
-            <Power :size="12" aria-hidden="true" />
+            <Eye :size="14" aria-hidden="true" />
           </ToggleButton>
         </div>
         <div class="type-row">
@@ -80,11 +102,11 @@ function setFace(value: boolean): void {
           <ToggleButton
             :pressed="faceNormalsVisible"
             label="Face normals"
-            tooltip="Show the normal of every face"
+            :tooltip="faceTooltip"
             :disabled="!isNormalsVisible"
             @update:pressed="setFace"
           >
-            <Power :size="12" aria-hidden="true" />
+            <Eye :size="14" aria-hidden="true" />
           </ToggleButton>
         </div>
       </div>

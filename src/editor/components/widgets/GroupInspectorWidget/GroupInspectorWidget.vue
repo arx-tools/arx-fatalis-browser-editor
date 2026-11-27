@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Eye, EyeOff, Pencil, Plus, ScanSearch, Trash2 } from 'lucide-vue-next'
+import { Pencil, Plus, Power, ScanSearch, Trash2 } from 'lucide-vue-next'
 import { computed, nextTick, shallowRef, useTemplateRef } from 'vue'
 import {
   createFaceGroupFromSelection,
@@ -206,6 +206,25 @@ function toggleVisibility(row: FaceGroupRow): void {
 }
 
 /**
+ * The text of the tooltip of the visibility of a group.
+ *
+ * @remarks
+ * A hidden group is not only out of the view: the export writes the level without its faces, so the switch is a power
+ * and the tooltip says what the archive carries (2026-11-27, the owner: the switch of an export setting is the power).
+ *
+ * @param row The group the switch stands on.
+ *
+ * @returns What the next click does, and what the export carries.
+ */
+function visibilityTooltip(row: FaceGroupRow): string {
+  if (row.visible) {
+    return 'Hide the group. Affects the export.'
+  }
+
+  return 'Show the group. Affects the export.'
+}
+
+/**
  * Takes a group out of its level.
  *
  * @param row The group to take out.
@@ -240,12 +259,12 @@ function removeGroup(row: FaceGroupRow): void {
       >
         <RowActionButton
           :label="row.visible ? `Hide ${row.label}` : `Show ${row.label}`"
+          :tooltip="visibilityTooltip(row)"
           :pressed="row.visible"
           @click.stop="toggleVisibility(row)"
           @dblclick.stop
         >
-          <Eye v-if="row.visible" :size="14" />
-          <EyeOff v-else :size="14" />
+          <Power :size="14" />
         </RowActionButton>
         <input
           v-if="renaming === row.id"

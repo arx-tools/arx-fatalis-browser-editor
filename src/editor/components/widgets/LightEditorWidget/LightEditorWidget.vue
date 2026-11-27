@@ -463,6 +463,28 @@ const showsFlare = computed<boolean>(() => {
 const visibleFlags = computed<readonly LightFlagField[]>(() => {
   return [...LIGHT_FLAGS, ...conditionalLightFlagsOf(fields.flags)]
 })
+
+/**
+ * The text of the tooltip of the fall start sphere: what the next click does.
+ */
+const fallStartTooltip = computed<string>(() => {
+  if (fallStartSphereVisible.value) {
+    return 'Hide the fall start sphere'
+  }
+
+  return 'Show the fall start sphere'
+})
+
+/**
+ * The text of the tooltip of the fall end sphere: what the next click does.
+ */
+const fallEndTooltip = computed<string>(() => {
+  if (fallEndSphereVisible.value) {
+    return 'Hide the fall end sphere'
+  }
+
+  return 'Show the fall end sphere'
+})
 </script>
 
 <template>
@@ -503,6 +525,7 @@ const visibleFlags = computed<readonly LightFlagField[]>(() => {
         <ToggleButton
           :pressed="fallStartSphereVisible"
           label="Fall start sphere"
+          :tooltip="fallStartTooltip"
           @update:pressed="fallStartSphereVisible = $event"
         >
           <Eye :size="14" aria-hidden="true" />
@@ -522,6 +545,7 @@ const visibleFlags = computed<readonly LightFlagField[]>(() => {
         <ToggleButton
           :pressed="fallEndSphereVisible"
           label="Fall end sphere"
+          :tooltip="fallEndTooltip"
           @update:pressed="fallEndSphereVisible = $event"
         >
           <Eye :size="14" aria-hidden="true" />
@@ -530,7 +554,12 @@ const visibleFlags = computed<readonly LightFlagField[]>(() => {
       <div class="flags">
         <div v-for="flag in visibleFlags" :key="flag.bit" class="flag">
           <span>{{ flag.label }}</span>
-          <ToggleButton :pressed="hasFlag(flag.bit)" :label="flag.label" @update:pressed="toggleFlag(flag.bit, $event)">
+          <ToggleButton
+            :pressed="hasFlag(flag.bit)"
+            :label="flag.label"
+            tooltip="The flag of the light in the level. Affects the export."
+            @update:pressed="toggleFlag(flag.bit, $event)"
+          >
             <Power :size="14" />
           </ToggleButton>
         </div>

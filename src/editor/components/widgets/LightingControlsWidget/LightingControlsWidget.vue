@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { LoaderCircle, Power } from 'lucide-vue-next'
+import { Eye, LoaderCircle, Power } from 'lucide-vue-next'
 import { computed } from 'vue'
 import FieldLabel from '../../FieldLabel.vue'
 import ToggleButton from '../../ToggleButton.vue'
@@ -150,6 +150,36 @@ const dynamicLights = computed<boolean>({
 })
 
 /**
+ * The text of the tooltip of the static lights: what the next click does, and what the export carries.
+ *
+ * @remarks
+ * The two light layers are of the level, so the export writes them: a layer that is off here is off in the archive too
+ * (2026-11-27, the owner: the switch of an export setting is the power, and its tooltip says so).
+ */
+const staticLightsTooltip = computed<string>(() => {
+  if (staticLights.value) {
+    return 'Turn the static lights off. Affects the export.'
+  }
+
+  return 'Turn the static lights on. Affects the export.'
+})
+
+/**
+ * The text of the tooltip of the dynamic light layer: what the next click does, and what the export carries.
+ *
+ * @remarks
+ * The semi-dynamic lights of the layer are left out of the archive while the layer is off, the same way the static light
+ * is left out of the palette.
+ */
+const dynamicLightsTooltip = computed<string>(() => {
+  if (dynamicLights.value) {
+    return 'Turn the dynamic lights off. Affects the export.'
+  }
+
+  return 'Turn the dynamic lights on. Affects the export.'
+})
+
+/**
  * The particles of the level, bound to the switch.
  *
  * @remarks
@@ -168,6 +198,16 @@ const particles = computed<boolean>({
   set: (value: boolean): void => {
     particlesVisible.value = value
   },
+})
+/**
+ * The text of the tooltip of the particles: what the next click does, the way every switch of the dock says it.
+ */
+const particlesTooltip = computed<string>(() => {
+  if (particles.value) {
+    return 'Hide the particles'
+  }
+
+  return 'Show the particles'
 })
 </script>
 
@@ -212,6 +252,7 @@ const particles = computed<boolean>({
           id="static-lights"
           :pressed="staticLights"
           label="Static lights"
+          :tooltip="staticLightsTooltip"
           @update:pressed="staticLights = $event"
         >
           <Power :size="14" aria-hidden="true" />
@@ -225,6 +266,7 @@ const particles = computed<boolean>({
           id="dynamic-lights"
           :pressed="dynamicLights"
           label="Dynamic lights"
+          :tooltip="dynamicLightsTooltip"
           @update:pressed="dynamicLights = $event"
         >
           <Power :size="14" aria-hidden="true" />
@@ -239,9 +281,10 @@ const particles = computed<boolean>({
           :pressed="particles"
           :disabled="!dynamicLights"
           label="Particles"
+          :tooltip="particlesTooltip"
           @update:pressed="particles = $event"
         >
-          <Power :size="14" aria-hidden="true" />
+          <Eye :size="14" aria-hidden="true" />
         </ToggleButton>
       </div>
     </FieldLabel>

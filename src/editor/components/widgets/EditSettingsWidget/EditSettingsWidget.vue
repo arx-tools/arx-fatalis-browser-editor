@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Power } from 'lucide-vue-next'
+import { Eye } from 'lucide-vue-next'
 import FieldLabel from '../../FieldLabel.vue'
 import NumberField from '../../NumberField.vue'
 import ToggleButton from '../../ToggleButton.vue'
@@ -153,7 +153,7 @@ function onThresholdBlur(): void {
     <FieldLabel class="field" inline label="Snapping">
       <div class="row">
         <ToggleButton :pressed="enabled" label="Snapping" :tooltip="snappingTooltip" @update:pressed="enabled = $event">
-          <Power :size="14" aria-hidden="true" />
+          <Eye :size="14" aria-hidden="true" />
         </ToggleButton>
       </div>
     </FieldLabel>
@@ -169,7 +169,7 @@ function onThresholdBlur(): void {
             :disabled="!enabled"
             @update:pressed="vertex = $event"
           >
-            <Power :size="12" aria-hidden="true" />
+            <Eye :size="14" aria-hidden="true" />
           </ToggleButton>
         </div>
         <div class="type-row">
@@ -181,7 +181,7 @@ function onThresholdBlur(): void {
             :disabled="!enabled"
             @update:pressed="edge = $event"
           >
-            <Power :size="12" aria-hidden="true" />
+            <Eye :size="14" aria-hidden="true" />
           </ToggleButton>
         </div>
         <div class="type-row">
@@ -193,7 +193,7 @@ function onThresholdBlur(): void {
             :disabled="!enabled"
             @update:pressed="plane = $event"
           >
-            <Power :size="12" aria-hidden="true" />
+            <Eye :size="14" aria-hidden="true" />
           </ToggleButton>
         </div>
       </div>

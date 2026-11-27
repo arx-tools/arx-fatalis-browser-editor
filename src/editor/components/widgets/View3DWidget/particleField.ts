@@ -10,8 +10,14 @@ import {
   type Scene,
   type Texture,
 } from 'three'
+import { watch } from 'vue'
+import { dataDirState } from '../../../modules/level/source/dataDir.ts'
 import { MAX_PARTICLES, type ParticleFrame, type ParticleTexture } from '../../../modules/particles/particles.ts'
-import { particleTextureOf, whiteTextureOf } from '../../../modules/particles/particleTextures.ts'
+import {
+  forgetParticleTextures,
+  particleTextureOf,
+  whiteTextureOf,
+} from '../../../modules/particles/particleTextures.ts'
 
 /**
  * The vertex shader of a particle: a quad of the size of the particle, turned by its angle, always facing the camera.
@@ -199,28 +205,70 @@ export function createParticleField(options: { readonly onRender: () => void; re
 
     fields.set(kind, field)
 
-    void particleTextureOf(kind)
-      .then((texture: Texture) => {
-        material.uniforms.map.value = texture
-        ready = ready + 1
-
-        if (ready >= 2) {
-          mesh.visible = visible
-        }
-
-        options.onRender()
-      })
-      .catch(() => {
-        // the placeholder is the white pixel: a particle without its image still shows where it is
-        ready = ready + 1
-        options.onRender()
-      })
-
     return field
   }
 
   createField('fire')
   createField('smoke')
+
+  /**
+   * Asks for the textures of the field.
+   *
+   * @remarks
+   * The field is built when the view is, and the data directory of the session may arrive after it: a folder the browser
+   * remembers is read asynchronously, and an uploaded folder comes later still. Until it is there the particles draw
+   * with the placeholder of the level, so a change of the folder reads them again (2026-11-27, the owner: the fire of a
+   * level of the game drew the jorge pattern).
+   */
+  /**
+   * Reads the texture of one field.
+   *
+   * @param kind The texture the field draws with.
+   * @param field The field to write it into.
+   */
+  function loadTextureOf(kind: ParticleTexture, field: Field): void {
+    /**
+     * Counts the texture in, and shows the field when both of them are there.
+     */
+    function settle(): void {
+      ready = ready + 1
+
+      if (ready >= 2) {
+        field.mesh.visible = visible
+      }
+
+      options.onRender()
+    }
+
+    void particleTextureOf(kind)
+      .then((texture: Texture) => {
+        field.material.uniforms.map.value = texture
+        settle()
+      })
+      .catch(() => {
+        // the placeholder is the white pixel: a particle without its image still shows where it is
+        settle()
+      })
+  }
+
+  /**
+   * Reads the textures of the fields of the view.
+   */
+  function loadTextures(): void {
+    ready = 0
+
+    for (const [kind, field] of fields) {
+      loadTextureOf(kind, field)
+    }
+  }
+
+  // the folder of the game changes under the particles: another folder picked, or the first one the browser reads
+  const stopDataDirWatch = watch(dataDirState, () => {
+    forgetParticleTextures()
+    loadTextures()
+  })
+
+  loadTextures()
 
   return {
     update: (frames: readonly ParticleFrame[]): void => {
@@ -270,6 +318,8 @@ export function createParticleField(options: { readonly onRender: () => void; re
       options.onRender()
     },
     dispose: (): void => {
+      stopDataDirWatch()
+
       for (const field of fields.values()) {
         options.scene.remove(field.mesh)
         field.geometry.dispose()

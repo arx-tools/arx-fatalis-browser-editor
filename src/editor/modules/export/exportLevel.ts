@@ -34,6 +34,7 @@ import { syncGeneratedPortals } from '../level/edit/generatedPortals.ts'
 import { paletteBakeOptionsOf } from '../level/edit/lightingProfile.ts'
 import { guardPolygonsOf } from '../level/mapGuards.ts'
 import { NO_ROOM } from '../rooms/roomList.ts'
+import { BLANK_LEVEL_TEXTURE } from '../../../generator/assets.ts'
 import { clippedToMapOf } from '../../../generator/clipToMap.ts'
 import {
   floorTileOf,
@@ -684,7 +685,12 @@ function exportedPolygonsOf(map: ArxMap, options: ExportOptions): ExportedPolygo
 
   if (floorsUnderOf(exported, spawnFloorProbeOf(map)).length === 0) {
     const nearest = nearestFaceOf(exported, feet)
-    const tile = floorTileOf(feet, nearest?.textureContainerId ?? 0, nearest?.room ?? NO_ROOM)
+    // the tile of a hole takes the placeholder of the generator (the jorge), so the author sees in the game where the
+    // floor under the spawn was missing, and the room of the nearest face, so the game draws it at all (a face of no
+    // room is not drawn). A level without the placeholder takes the texture around the spawn (2026-11-27, the owner)
+    const placeholder = map.textureContainerIdOfName(BLANK_LEVEL_TEXTURE)
+    const texture = placeholder ?? nearest?.textureContainerId ?? 0
+    const tile = floorTileOf(feet, texture, nearest?.room ?? NO_ROOM)
 
     // the tile stands under the feet of the player, and it is cut the way the faces of the level are: a spawn near the
     // edge of the map gets half a tile, the part of the square the game has a cell for

@@ -12,6 +12,7 @@ import {
 import { MAP_GUARD_FAR, MAP_GUARD_SIZE } from '../../../../src/editor/modules/level/mapGuards.ts'
 import { MAP_LIMIT } from '../../../../src/generator/clipToMap.ts'
 import { setPlayerSpawn } from '../../../../src/editor/modules/level/entities/playerSpawn.ts'
+import { BLANK_LEVEL_TEXTURE } from '../../../../src/generator/assets.ts'
 import { NO_ROOM } from '../../../../src/editor/modules/rooms/roomList.ts'
 import { syncGeneratedPortals } from '../../../../src/editor/modules/level/edit/generatedPortals.ts'
 import { lightingProfile, paletteBakeOptionsOf } from '../../../../src/editor/modules/level/edit/lightingProfile.ts'
@@ -457,9 +458,11 @@ void describe('the spawn of the level', () => {
     })
 
     assert.notStrictEqual(tile, undefined)
-    // the tile is a floor of the level around it: a quad, a hundred units of it, in the room of the nearest face
+    // the tile is a floor of the level around it: a quad, a hundred units of it, in the room of the nearest face, with
+    // the placeholder of the generator on it, so the author sees it in the game
     assert.equal(tile?.room, 1)
     assert.equal(tile?.norm.y, -1)
+    assert.equal(tile?.textureContainerId, map.textureContainerIdOfName(BLANK_LEVEL_TEXTURE))
     // the level of the editor is not touched: the tile lives in the archive
     assert.equal(map.polygons.length, 11 * 11)
   })

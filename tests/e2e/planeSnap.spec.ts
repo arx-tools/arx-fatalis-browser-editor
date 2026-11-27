@@ -1,7 +1,7 @@
 import type { Buffer } from 'node:buffer'
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import JSZip from 'jszip'
-import { createBlankLevelFiles, FLAT_PRESET } from '../../src/editor/modules/level/blankLevel.ts'
+import { BLANK_LEVEL_ORIGIN, createBlankLevelFiles, FLAT_PRESET } from '../../src/editor/modules/level/blankLevel.ts'
 import { exportLevelFiles } from '../../src/editor/modules/export/exportLevel.ts'
 import { testLayout } from '../support/layouts.ts'
 import { ArxMap } from '../../src/generator/ArxMap.ts'
@@ -18,6 +18,16 @@ import {
 } from './support/editor.ts'
 
 /**
+ * The middle of the floor of the blank level, in the coordinates of the level: the map of the test is built from it.
+ *
+ * @remarks
+ * The blank level starts with its floor around {@link BLANK_LEVEL_ORIGIN} (2026-11-27, the 323): the cells of the map,
+ * the pit and the pose are counted from the middle of that floor, so the numbers do not have to move when the origin of
+ * a blank level does.
+ */
+const FLOOR = { x: BLANK_LEVEL_ORIGIN.x, z: BLANK_LEVEL_ORIGIN.z }
+
+/**
  * The pose the camera of the test takes: it looks at the middle of the face of the pit.
  *
  * @remarks
@@ -25,7 +35,14 @@ import {
  * owner's archive pose, turned a little to put the face in the middle of the crosshair: the walkable view reads the
  * face under the crosshair, and the gizmo stands on the middle of the selection.
  */
-const CAMERA_POSE = { x: '715.68', y: '-389.28', z: '628.50', pitch: '55.62', yaw: '153.15', roll: '0.00' }
+const CAMERA_POSE = {
+  x: String(FLOOR.x + 165.68),
+  y: '-389.28',
+  z: String(FLOOR.z + 78.5),
+  pitch: '55.62',
+  yaw: '153.15',
+  roll: '0.00',
+}
 
 /**
  * Where the green arrow of the Y axis is on the canvas, and how far the drag goes.
@@ -98,11 +115,15 @@ function cellIndex(map: ArxMap, x: number, z: number): number {
 async function zipOfThePit(): Promise<Buffer> {
   const files = createBlankLevelFiles(FLAT_PRESET)
   const map = new ArxMap(files.dlf, files.fts, files.llf, new Settings({ seed: '1' }))
-  const hole = [cellIndex(map, 500, 300), cellIndex(map, 600, 300), cellIndex(map, 500, 400)]
+  const hole = [
+    cellIndex(map, FLOOR.x - 50, FLOOR.z - 250),
+    cellIndex(map, FLOOR.x + 50, FLOOR.z - 250),
+    cellIndex(map, FLOOR.x - 50, FLOOR.z - 150),
+  ]
 
   map.polygons.delete(hole)
 
-  const raised = cellIndex(map, 600, 400)
+  const raised = cellIndex(map, FLOOR.x + 50, FLOOR.z - 150)
 
   map.polygons.translate([raised], FACE_OFFSET)
 
@@ -115,10 +136,10 @@ async function zipOfThePit(): Promise<Buffer> {
   const pit = structuredClone(source)
 
   pit.vertices = [
-    { x: 500, y: PIT_Y, z: 300, u: 0, v: 0, llfColorIdx: 0 },
-    { x: 700, y: PIT_Y, z: 300, u: 1, v: 0, llfColorIdx: 1 },
-    { x: 500, y: PIT_Y, z: 500, u: 0, v: 1, llfColorIdx: 2 },
-    { x: 700, y: PIT_Y, z: 500, u: 1, v: 1, llfColorIdx: 3 },
+    { x: FLOOR.x - 50, y: PIT_Y, z: FLOOR.z - 250, u: 0, v: 0, llfColorIdx: 0 },
+    { x: FLOOR.x + 150, y: PIT_Y, z: FLOOR.z - 250, u: 1, v: 0, llfColorIdx: 1 },
+    { x: FLOOR.x - 50, y: PIT_Y, z: FLOOR.z - 50, u: 0, v: 1, llfColorIdx: 2 },
+    { x: FLOOR.x + 150, y: PIT_Y, z: FLOOR.z - 50, u: 1, v: 1, llfColorIdx: 3 },
   ]
   pit.area = 40_000
 
@@ -135,7 +156,7 @@ async function zipOfThePit(): Promise<Buffer> {
   archive.file(
     'editor/settings.json',
     JSON.stringify({
-      camera: { position: [715.68, -389.28, 628.5], rotation: [55.62, 153.15, 0] },
+      camera: { position: [FLOOR.x + 165.68, -389.28, FLOOR.z + 78.5], rotation: [55.62, 153.15, 0] },
     }),
   )
   archive.file(

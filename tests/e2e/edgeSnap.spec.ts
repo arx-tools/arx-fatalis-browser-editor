@@ -1,7 +1,7 @@
 import type { Buffer } from 'node:buffer'
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import JSZip from 'jszip'
-import { createBlankLevelFiles, FLAT_PRESET } from '../../src/editor/modules/level/blankLevel.ts'
+import { BLANK_LEVEL_ORIGIN, createBlankLevelFiles, FLAT_PRESET } from '../../src/editor/modules/level/blankLevel.ts'
 import { exportLevelFiles } from '../../src/editor/modules/export/exportLevel.ts'
 import { testLayout } from '../support/layouts.ts'
 import { ArxMap } from '../../src/generator/ArxMap.ts'
@@ -18,6 +18,16 @@ import {
 } from './support/editor.ts'
 
 /**
+ * The middle of the floor of the blank level, in the coordinates of the level: the map of the test is built from it.
+ *
+ * @remarks
+ * The blank level starts with its floor around {@link BLANK_LEVEL_ORIGIN} (2026-11-27, the 323): the cells of the map,
+ * the edge of the hole and the pose are counted from the middle of that floor, so the numbers do not have to move when
+ * the origin of a blank level does.
+ */
+const FLOOR = { x: BLANK_LEVEL_ORIGIN.x, z: BLANK_LEVEL_ORIGIN.z }
+
+/**
  * The pose the owner framed the hole with when the map was exported.
  *
  * @remarks
@@ -25,7 +35,14 @@ import {
  * of a zip that has no stored pose starts on the spawn: the test writes this one into the camera form, the way a hand
  * would.
  */
-const CAMERA_POSE = { x: '715.68', y: '-389.28', z: '628.50', pitch: '54.30', yaw: '166.24', roll: '0.00' }
+const CAMERA_POSE = {
+  x: String(FLOOR.x + 165.68),
+  y: '-389.28',
+  z: String(FLOOR.z + 78.5),
+  pitch: '54.30',
+  yaw: '166.24',
+  roll: '0.00',
+}
 
 /**
  * Where the middle of the face in the hole is on the canvas of the view, in pixels.
@@ -64,12 +81,12 @@ const FACE_OFFSET = { x: -12, y: 0, z: -44 }
 /**
  * The edge of the hole the face is dragged onto, in the coordinates of the level.
  */
-const HOLE_EDGE_X = 700
+const HOLE_EDGE_X = FLOOR.x + 150
 
 /**
  * The right edge of the moved face in the level of the map.
  */
-const FACE_EDGE_X = 688
+const FACE_EDGE_X = HOLE_EDGE_X - 12
 
 /**
  * Tells whether the box of a polygon is a cell of the flat level.
@@ -115,10 +132,14 @@ function cellIndex(map: ArxMap, x: number, z: number): number {
 async function zipOfTheHole(): Promise<Buffer> {
   const files = createBlankLevelFiles(FLAT_PRESET)
   const map = new ArxMap(files.dlf, files.fts, files.llf, new Settings({ seed: '1' }))
-  const hole = [cellIndex(map, 500, 300), cellIndex(map, 600, 300), cellIndex(map, 500, 400)]
+  const hole = [
+    cellIndex(map, FLOOR.x - 50, FLOOR.z - 250),
+    cellIndex(map, FLOOR.x + 50, FLOOR.z - 250),
+    cellIndex(map, FLOOR.x - 50, FLOOR.z - 150),
+  ]
 
   map.polygons.delete(hole)
-  map.polygons.translate([cellIndex(map, 600, 400)], FACE_OFFSET)
+  map.polygons.translate([cellIndex(map, FLOOR.x + 50, FLOOR.z - 150)], FACE_OFFSET)
 
   const level = 'level1'
   const output = exportLevelFiles(map)

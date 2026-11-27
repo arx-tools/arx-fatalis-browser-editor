@@ -131,7 +131,7 @@ function urlPositionOf(page: Page, values?: readonly number[]): string | undefin
 }
 
 test('the camera button puts the spawn where the camera stands, and the undo takes it back', async ({ page }) => {
-  const rig = await openTheSpawn(page, 'position=550,-170,700&rotation=0,180,0')
+  const rig = await openTheSpawn(page, 'position=6000,-170,6150&rotation=0,180,0')
 
   // the selection is not a step of the history: only the move of the spawn is
   await expect(rig.undo).toBeDisabled()
@@ -147,7 +147,7 @@ test('the camera button puts the spawn where the camera stands, and the undo tak
     .poll(() => {
       return urlPositionOf(page)
     })
-    .toBe(urlPositionOf(page, jumpedTo(page, 550, -170, 700)))
+    .toBe(urlPositionOf(page, jumpedTo(page, 6000, -170, 6150)))
 
   // the undo puts the spawn back under the middle of the floor, and the jump goes there
   await rig.undo.click()
@@ -156,7 +156,7 @@ test('the camera button puts the spawn where the camera stands, and the undo tak
     .poll(() => {
       return urlPositionOf(page)
     })
-    .toBe(urlPositionOf(page, jumpedTo(page, 550, -170, 550)))
+    .toBe(urlPositionOf(page, jumpedTo(page, 6000, -170, 6000)))
 
   // and the redo brings the one of the camera back
   await rig.redo.click()
@@ -165,13 +165,13 @@ test('the camera button puts the spawn where the camera stands, and the undo tak
     .poll(() => {
       return urlPositionOf(page)
     })
-    .toBe(urlPositionOf(page, jumpedTo(page, 550, -170, 700)))
+    .toBe(urlPositionOf(page, jumpedTo(page, 6000, -170, 6150)))
 })
 
 test('the gizmo moves the spawn, and the undo takes it back', async ({ page }) => {
   // the camera looks at the middle of the player from 150 units away and 80 down: the middle of the model stands in the
   // middle of the view, where the gizmo is, and its arrows are the pixels around the middle
-  const rig = await openTheSpawn(page, 'position=550,-170,700&rotation=28.1,180,0')
+  const rig = await openTheSpawn(page, 'position=6000,-170,6150&rotation=28.1,180,0')
   const box = await rig.view.boundingBox()
 
   if (box === null) {
@@ -202,7 +202,7 @@ test('the gizmo moves the spawn, and the undo takes it back', async ({ page }) =
     .poll(() => {
       return urlPositionOf(page)
     })
-    .not.toBe(urlPositionOf(page, jumpedTo(page, 550, -170, 550)))
+    .not.toBe(urlPositionOf(page, jumpedTo(page, 6000, -170, 6000)))
 
   // the undo puts the spawn back under the middle of the floor
   await rig.undo.click()
@@ -211,11 +211,11 @@ test('the gizmo moves the spawn, and the undo takes it back', async ({ page }) =
     .poll(() => {
       return urlPositionOf(page)
     })
-    .toBe(urlPositionOf(page, jumpedTo(page, 550, -170, 550)))
+    .toBe(urlPositionOf(page, jumpedTo(page, 6000, -170, 6000)))
 })
 
 test('the export writes the spawn the camera gave the level', async ({ page }) => {
-  const rig = await openTheSpawn(page, 'position=550,-170,700&rotation=0,180,0')
+  const rig = await openTheSpawn(page, 'position=6000,-170,6150&rotation=0,180,0')
 
   await rig.player.locator('.from-camera').click()
 
@@ -236,7 +236,7 @@ test('the export writes the spawn the camera gave the level', async ({ page }) =
   }
 
   // the description of the level keeps the eye of the player, in the space of the level: the camera stands at the spawn,
-  // and the scene position of the level shifts the world the url carries (550, 0, 550 on the blank level)
+  // and the scene position of the level shifts the world the url carries (6000, 0, 6000 on the blank level)
   const dlf = DLF.load(unpackArxFile(packed, 'dlf'))
 
   expect(dlf.header.player.position).toEqual({ x: 0, y: -170, z: 150 })

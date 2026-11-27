@@ -4,7 +4,13 @@ import { DLF, FTS, LLF } from 'arx-convert'
 import { isQuad } from 'arx-convert/utils'
 import { ArxLightFlags, type ArxColor, type ArxLight, type ArxLLF, type ArxPolygon } from 'arx-convert/types'
 import JSZip from 'jszip'
-import { createBlankLevelFiles, FLAT_PRESET } from '../../../../src/editor/modules/level/blankLevel.ts'
+import {
+  BLANK_LEVEL_ORIGIN,
+  createBlankLevelFiles,
+  FLAT_PRESET,
+} from '../../../../src/editor/modules/level/blankLevel.ts'
+import { MAP_GUARD_FAR, MAP_GUARD_SIZE } from '../../../../src/editor/modules/level/mapGuards.ts'
+import { NO_ROOM } from '../../../../src/editor/modules/rooms/roomList.ts'
 import { syncGeneratedPortals } from '../../../../src/editor/modules/level/edit/generatedPortals.ts'
 import { lightingProfile, paletteBakeOptionsOf } from '../../../../src/editor/modules/level/edit/lightingProfile.ts'
 import { EDITOR_GROUPS_PATH, EDITOR_ROOMS_PATH } from '../../../../src/editor/modules/editorFiles.ts'
@@ -372,6 +378,66 @@ void describe('buildExportManifest', () => {
   })
 })
 
+void describe('the corners that center the map', () => {
+  void it('adds the two quads at the corners when the export centers the map', () => {
+    const map = flatMap()
+    const without = exportLevelFiles(map)
+    const withGuards = exportLevelFiles(map, { centerMap: true })
+
+    const plain = FTS.load(unpackArxFile(without.fts, 'fts'))
+    const guarded = FTS.load(unpackArxFile(withGuards.fts, 'fts'))
+
+    assert.equal(guarded.polygons.length, plain.polygons.length + 2)
+    // the guards stand in no room, at the corners of the map: the game draws the faces of a room only
+    assert.deepEqual(
+      guarded.polygons
+        .filter((polygon) => {
+          return polygon.room === NO_ROOM
+        })
+        .map((polygon) => {
+          return polygon.vertices.map((vertex) => {
+            return [vertex.x, vertex.z]
+          })
+        }),
+      [
+        [
+          [0, 0],
+          [MAP_GUARD_SIZE, 0],
+          [0, MAP_GUARD_SIZE],
+          [MAP_GUARD_SIZE, MAP_GUARD_SIZE],
+        ],
+        [
+          [MAP_GUARD_FAR - MAP_GUARD_SIZE, MAP_GUARD_FAR - MAP_GUARD_SIZE],
+          [MAP_GUARD_FAR, MAP_GUARD_FAR - MAP_GUARD_SIZE],
+          [MAP_GUARD_FAR - MAP_GUARD_SIZE, MAP_GUARD_FAR],
+          [MAP_GUARD_FAR, MAP_GUARD_FAR],
+        ],
+      ],
+    )
+  })
+
+  void it('counts the guards in the files that name the polygons', () => {
+    const map = flatMap()
+    const files = exportLevelFiles(map, { centerMap: true })
+    const plain = exportLevelFiles(map)
+    const description = DLF.load(unpackArxFile(files.dlf, 'dlf'))
+    const descriptionOfThePlain = DLF.load(unpackArxFile(plain.dlf, 'dlf'))
+    const lighting = LLF.load(unpackArxFile(files.llf, 'llf'))
+
+    assert.equal(description.header.numberOfPolygonsInFTS, descriptionOfThePlain.header.numberOfPolygonsInFTS + 2)
+    assert.equal(lighting.header.numberOfPolygonsInFTS, description.header.numberOfPolygonsInFTS)
+  })
+
+  void it('leaves the level alone, so the guards are not faces of the editor', () => {
+    const map = flatMap()
+    const before = map.polygons.length
+
+    exportLevelFiles(map, { centerMap: true })
+
+    assert.equal(map.polygons.length, before)
+  })
+})
+
 void describe('buildExportFts', () => {
   void it('keeps the polygons and rebuilds the rooms and the distances', () => {
     const map = flatMap()
@@ -452,7 +518,7 @@ void describe('buildExportFts', () => {
         const side = polygon.vertices[0]?.x ?? 0
         let room = 1
 
-        if (side < 600) {
+        if (side < BLANK_LEVEL_ORIGIN.x) {
           room = 2
         }
 
@@ -600,7 +666,9 @@ void describe('exportLevelFiles', () => {
       return { r: 255, g: 255, b: 255, a: 255 }
     })
 
-    // the first face of the map goes to a cell the file writes last, under a blue light
+    // the first face of the map goes to a cell the file writes last, under a blue light. The light of the file is in
+    // the space of the scene: the face moved 5000 from its corner, and the half of the floor (550) is what the scene
+    // takes off the level's own coordinates
     map.polygons.translate([0], { x: 5000, y: 0, z: 5000 })
     map.llf.lights = [
       {
@@ -617,8 +685,10 @@ void describe('exportLevelFiles', () => {
       const files = exportLevelFiles(map)
       const scene = FTS.load(unpackArxFile(files.fts, 'fts'))
       const lighting = LLF.load(unpackArxFile(files.llf, 'llf'))
+      // the floor of the level ends at 6550 around its origin, and the moved face stands at 10450: the far cell is the
+      // one the file writes last
       const moved = scene.polygons.find((polygon) => {
-        return (polygon.vertices[0]?.x ?? 0) > 4000
+        return (polygon.vertices[0]?.x ?? 0) > 8000
       })
 
       assert.notEqual(moved, undefined)

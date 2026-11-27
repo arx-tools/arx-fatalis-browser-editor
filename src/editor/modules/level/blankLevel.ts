@@ -16,6 +16,22 @@ import { packLevelFile, packWholeFile } from './source/packedFile.ts'
 export const NEW_QUEST_LEVEL_INDEX = 1
 
 /**
+ * Where the origin of a blank level stands in the game's map, in game units.
+ *
+ * @remarks
+ * A level of Arx Fatalis is a square of 16000 units (160 cells of 100 on a side), and the game places a level by the
+ * absolute coordinates of its polygons: a level built around 0 sits in the corner of that square. A new level starts in
+ * the **middle** of it, so an author who builds from nothing works where the levels of the game are, and the in-game map
+ * draws the level in the middle of it (2026-11-26, the owner).
+ *
+ * The **scene position** of the level is this origin: the polygons of the level are absolute (they stand around it), and
+ * the positions the DLF and the LLF store (the player, the entities, the lights) are **relative** to it, because the game
+ * adds the scene position to every one of them (2026-11-27, from the engine: `trans = fsh->Mscenepos`, added to the
+ * player, the entities and the lights on load).
+ */
+export const BLANK_LEVEL_ORIGIN = { x: 6000, y: 0, z: 6000 } as const
+
+/**
  * The side of one tile of a blank level, in game units.
  *
  * @remarks
@@ -116,15 +132,14 @@ const CELL_COUNT = 160 * 160
 /**
  * Builds one tile of the floor of a blank level.
  *
- * @param tileX Which tile it is on the X axis, from 0.
- * @param tileZ Which tile it is on the Z axis, from 0.
+ * @param left The X of the near left corner of the tile, in the coordinates of the level.
+ * @param near The Z of its near left corner.
+ * @param room The room the tile goes to: the floor's own, unless the tile is a guard of the map.
  *
  * @returns The polygon of that tile, with its corners one tile apart.
  */
-function blankTile(tileX: number, tileZ: number): ArxFTS['polygons'][number] {
-  const left = tileX * BLANK_LEVEL_TILE_SIZE
+function blankTile(left: number, near: number, room: number = 1): ArxFTS['polygons'][number] {
   const right = left + BLANK_LEVEL_TILE_SIZE
-  const near = tileZ * BLANK_LEVEL_TILE_SIZE
   const far = near + BLANK_LEVEL_TILE_SIZE
 
   return {
@@ -154,8 +169,21 @@ function blankTile(tileX: number, tileZ: number): ArxFTS['polygons'][number] {
     area: BLANK_LEVEL_TILE_SIZE * BLANK_LEVEL_TILE_SIZE,
     flags: 64,
     // the Arx Level Generator puts every polygon of a new level into room 1, and an empty room 0 stays reserved
-    room: 1,
+    room,
   }
+}
+
+/**
+ * How many polygons the files of a blank level carry: the floor.
+ *
+ * @param preset The preset of the new level.
+ *
+ * @returns The polygons of the level.
+ */
+function polygonCountOf(preset: NewLevelPreset): number {
+  const floor = preset.tiles * preset.tiles
+
+  return floor
 }
 
 /**
@@ -179,16 +207,25 @@ function floorSizeOf(preset: NewLevelPreset): number {
 function blankScene(preset: NewLevelPreset): ArxFTS {
   const size = floorSizeOf(preset)
   const middle = size / 2
+  // the floor stands around the origin of the level: the corner of the plane is half of it before it, on both axes
+  const left = BLANK_LEVEL_ORIGIN.x - middle
+  const near = BLANK_LEVEL_ORIGIN.z - middle
   const polygons: ArxFTS['polygons'] = []
 
   for (let tileZ = 0; tileZ < preset.tiles; tileZ = tileZ + 1) {
     for (let tileX = 0; tileX < preset.tiles; tileX = tileX + 1) {
-      polygons.push(blankTile(tileX, tileZ))
+      const across = tileX * BLANK_LEVEL_TILE_SIZE
+      const along = tileZ * BLANK_LEVEL_TILE_SIZE
+
+      polygons.push(blankTile(left + across, near + along))
     }
   }
 
   return {
-    header: { levelIdx: NEW_QUEST_LEVEL_INDEX, mScenePosition: { x: middle, y: 0, z: middle } },
+    header: {
+      levelIdx: NEW_QUEST_LEVEL_INDEX,
+      mScenePosition: { x: BLANK_LEVEL_ORIGIN.x, y: BLANK_LEVEL_ORIGIN.y, z: BLANK_LEVEL_ORIGIN.z },
+    },
     textureContainers: [FLOOR_TEXTURE],
     polygons,
     // every cell of the grid has to be in the file, an empty one carries no polygon and no anchor
@@ -226,7 +263,7 @@ function blankDescription(preset: NewLevelPreset): ArxDLF {
       lastModifiedBy: 'arx-fatalis-browser-editor',
       lastModifiedAt: 0,
       player: PLAYER,
-      numberOfPolygonsInFTS: preset.tiles * preset.tiles,
+      numberOfPolygonsInFTS: polygonCountOf(preset),
       levelIdx: NEW_QUEST_LEVEL_INDEX,
     },
     interactiveObjects: [],
@@ -276,7 +313,7 @@ function blankLighting(preset: NewLevelPreset): ArxLLF {
     header: {
       lastModifiedBy: 'arx-fatalis-browser-editor',
       lastModifiedAt: 0,
-      numberOfPolygonsInFTS: preset.tiles * preset.tiles,
+      numberOfPolygonsInFTS: polygonCountOf(preset),
     },
     lights,
     colors: [],

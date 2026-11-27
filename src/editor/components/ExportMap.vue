@@ -91,6 +91,16 @@ function texturesOfText(textures: number): string {
 const seed = ref<string>(levelSeed.value ?? '')
 
 /**
+ * Whether the archive carries the corners that put the level in the middle of the game's map.
+ *
+ * @remarks
+ * Off by default: the two quads that carry them are not faces the author made, and a level of the game must not get
+ * them (2026-11-27, the owner). The choice stays for the session the dialog lives in, and the level itself is not
+ * touched: the export adds them at the last minute.
+ */
+const centersMap = ref<boolean>(false)
+
+/**
  * The level index of the field: the one the level was opened with, and whatever the user writes then.
  *
  * @remarks
@@ -286,6 +296,8 @@ async function exportIt(): Promise<void> {
       },
       {
         levelIndex: levelIndexOf(String(levelIndex.value)),
+        // the corners that center the map, at the last minute: the level of the editor stays the way the author left it
+        centerMap: centersMap.value,
         // the switches of the light layer: a layer that is off is not in the file, and a static-off level is dark.
         // The profiles with a light of their own read no light, so their palette is in the file whatever the switch says
         staticLights: isStaticLightOn(),
@@ -365,6 +377,17 @@ onBeforeUnmount(() => {
           @update:model-value="levelIndex = $event"
         />
         <p class="helper">Set to 1 to make Arx Fatalis load the map upon starting a new quest.</p>
+      </div>
+
+      <div class="field">
+        <label class="check" for="export-center-map">
+          <input id="export-center-map" v-model="centersMap" type="checkbox" />
+          <span>Center the map in the world</span>
+        </label>
+        <p class="helper">
+          Moves the level to the middle of the map in the in-game quest book (F3 in Arx Fatalis by default). Keep it off
+          for the original levels of the game.
+        </p>
       </div>
 
       <div class="field">
@@ -468,6 +491,21 @@ onBeforeUnmount(() => {
       border-color: $interactive;
       outline: none;
     }
+  }
+
+  // a checkbox and its caption on one line: the label of the dialog sits above its field, and this one is the field
+  label.check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 0;
+    cursor: pointer;
+  }
+
+  input[type='checkbox'] {
+    width: auto;
+    margin: 0;
+    accent-color: $accent;
   }
 
   // the line under the field: what the value means, in the gray of a caption (the material ui helper text)

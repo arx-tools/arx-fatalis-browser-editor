@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { createBlankLevelFiles, FLAT_PRESET } from '../../../../../src/editor/modules/level/blankLevel.ts'
+import {
+  BLANK_LEVEL_ORIGIN,
+  createBlankLevelFiles,
+  FLAT_PRESET,
+} from '../../../../../src/editor/modules/level/blankLevel.ts'
 import { isFlatLevel, syncGeneratedPortals } from '../../../../../src/editor/modules/level/edit/generatedPortals.ts'
 import { ArxMap } from '../../../../../src/generator/ArxMap.ts'
 import { generatePortalsOf } from '../../../../../src/generator/portals.ts'
@@ -34,7 +38,7 @@ function splitRooms(map: ArxMap): ArxMap {
       const side = polygon.vertices[0]?.x ?? 0
       let room = 1
 
-      if (side < 600) {
+      if (side < BLANK_LEVEL_ORIGIN.x) {
         room = 2
       }
 

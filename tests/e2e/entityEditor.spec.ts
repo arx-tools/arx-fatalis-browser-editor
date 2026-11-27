@@ -232,7 +232,7 @@ test('the entity editor drops the picked entity to the floor, and the undo takes
 
 test('the entity editor drops the spawn of the player to the floor', async ({ page }) => {
   // the camera of the blank level stands 400 units over its floor, and it looks along the x of the level
-  await openEntities(page, '/?map=blank-flat&position=550,-570,700&rotation=0,180,0')
+  await openEntities(page, '/?map=blank-flat&position=6000,-570,6150&rotation=0,180,0')
 
   const list = page.locator('[data-widget-kind="entity-list"]')
   const editor = page.locator('[data-widget-kind="entity-editor"]')

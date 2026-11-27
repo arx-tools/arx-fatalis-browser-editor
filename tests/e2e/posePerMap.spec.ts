@@ -237,7 +237,7 @@ test('the camera does not move when a step is taken back or made again', async (
   await waitForLevel(page)
 
   // the camera looks down at the floor, so the crosshair has a face to pick
-  const looking = { x: '550', y: '-180', z: '550', pitch: '90', yaw: '180', roll: '0' }
+  const looking = { x: '6000', y: '-180', z: '6000', pitch: '90', yaw: '180', roll: '0' }
   const view = page.locator('[data-widget-kind="3d-view"] canvas').first()
 
   await lockPointer(page, view)

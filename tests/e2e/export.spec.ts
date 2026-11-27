@@ -255,9 +255,9 @@ test('a level of a zip opens on the camera pose the export wrote', async ({ page
   // the dialog goes, and the camera is taken somewhere else: the pose of the archive is not the one on the screen any more
   await dialog.locator('.close').click()
 
-  await writePose(page, { x: '550', y: '-180', z: '550', pitch: '0', yaw: '180', roll: '0' })
+  await writePose(page, { x: '6000', y: '-180', z: '6000', pitch: '0', yaw: '180', roll: '0' })
   // the camera store follows the form through a debounce, and the url is the mirror of it
-  await waitForUrlPose(page, [550, -180, 550])
+  await waitForUrlPose(page, [6000, -180, 6000])
 
   // the zip opens on the pose it was written with
   await openZip(page, 'mod.zip', data)

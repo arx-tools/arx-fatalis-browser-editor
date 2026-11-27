@@ -2,9 +2,11 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import type { ArxPolygon } from 'arx-convert/types'
 import { ArxMap } from '../../../../src/generator/ArxMap.ts'
 import { Settings } from '../../../../src/generator/Settings.ts'
 import {
+  BLANK_LEVEL_ORIGIN,
   BLANK_LEVEL_TILE_SIZE,
   createBlankLevelFiles,
   FLAT_PRESET,
@@ -13,7 +15,21 @@ import {
   type NewLevelPreset,
 } from '../../../../src/editor/modules/level/blankLevel.ts'
 import { createBlankLevelSource, loadLevel } from '../../../../src/editor/modules/level/source/levelSource.ts'
+import { NO_ROOM } from '../../../../src/editor/modules/rooms/roomList.ts'
 import { BLANK_LEVEL_TEXTURE, GENERATOR_ASSETS } from '../../../../src/generator/assets.ts'
+
+/**
+ * Reads the floor of a blank level: the faces in a room, without the guard the map has.
+ *
+ * @param map The map of the blank level.
+ *
+ * @returns The polygons of the floor.
+ */
+function floorOf(map: ArxMap): ArxPolygon[] {
+  return map.polygons.filter((polygon) => {
+    return polygon.room !== NO_ROOM
+  })
+}
 
 /**
  * Builds the map of a blank level the way the editor does: the three files go through the same loader the original
@@ -49,23 +65,46 @@ void describe('createBlankLevelFiles', () => {
       anchorCount: 0,
       portalCount: 0,
     })
-    assert.equal(map.polygons.length, 1)
+    assert.equal(floorOf(map).length, 1)
     // a quad is two triangles, so six vertices in the geometry of the mesh
     assert.equal(map.solidMeshes[0].geometry.getAttribute('position').count, 6)
   })
 
-  void it('stands the quad under the feet of the player', () => {
+  void it('starts in the middle of the game map, and stores the positions relative to it', () => {
     const map = blankMap()
-    const box = map.solidMeshes[0].geometry.boundingBox
-    const half = (100 * BLANK_LEVEL_TILE_SIZE) / 200
+    const half = BLANK_LEVEL_TILE_SIZE / 2
+    const vertices = floorOf(map)[0]?.vertices ?? []
 
-    // the mesh is built around the scene position, which is the middle of the quad
-    assert.deepEqual([box?.min.x, box?.min.z], [-half, -half])
-    assert.deepEqual([box?.max.x, box?.max.z], [half, half])
-    // the floor is flat, and the player stands above it: the stored position is relative to the scene position (the
-    // middle of the quad), and the game's Y axis points down, so the eye is below the floor's 0 on it
-    assert.deepEqual([box?.min.y, box?.max.y], [0, 0])
+    // a level of the game is a square of 16000 units, and the polygons of a level are absolute: a new one stands around
+    // 6000/0/6000 of it, not around 0 (2026-11-26, the owner)
+    assert.deepEqual(map.scenePosition, { x: BLANK_LEVEL_ORIGIN.x, y: BLANK_LEVEL_ORIGIN.y, z: BLANK_LEVEL_ORIGIN.z })
+    assert.deepEqual(
+      vertices.map((vertex) => {
+        return [vertex.x, vertex.z]
+      }),
+      [
+        [BLANK_LEVEL_ORIGIN.x - half, BLANK_LEVEL_ORIGIN.z - half],
+        [BLANK_LEVEL_ORIGIN.x + half, BLANK_LEVEL_ORIGIN.z - half],
+        [BLANK_LEVEL_ORIGIN.x - half, BLANK_LEVEL_ORIGIN.z + half],
+        [BLANK_LEVEL_ORIGIN.x + half, BLANK_LEVEL_ORIGIN.z + half],
+      ],
+    )
+    // the player is stored relative to the scene position, so the origin of the level does not move it: the middle of
+    // the floor is 0 from the scene
     assert.deepEqual(map.player.position, { x: 0, y: -170, z: 0 })
+  })
+
+  void it('keeps the plane of the Flat preset around the origin', () => {
+    const map = blankMap(FLAT_PRESET)
+    const half = (11 * BLANK_LEVEL_TILE_SIZE) / 2
+    const xs = floorOf(map).flatMap((polygon) => {
+      return polygon.vertices.map((vertex) => {
+        return vertex.x
+      })
+    })
+
+    assert.equal(Math.min(...xs), BLANK_LEVEL_ORIGIN.x - half)
+    assert.equal(Math.max(...xs), BLANK_LEVEL_ORIGIN.x + half)
   })
 
   void it('names the texture of the floor, which is the own one of the generator', () => {
@@ -118,7 +157,7 @@ void describe('the presets of a new level', () => {
   })
 
   void it('starts with the Minimal one', () => {
-    assert.equal(blankMap().statistics.faceCount, 1)
+    assert.equal(floorOf(blankMap()).length, 1)
     assert.equal(MINIMAL_PRESET.tiles, 1)
     assert.equal(NEW_LEVEL_PRESETS[0], MINIMAL_PRESET)
   })
@@ -126,14 +165,22 @@ void describe('the presets of a new level', () => {
   void it('makes an 11×11 plane of tiles on the Flat one', () => {
     const map = blankMap(FLAT_PRESET)
     const half = (11 * BLANK_LEVEL_TILE_SIZE) / 2
-    const box = map.solidMeshes[0].geometry.boundingBox
+    const corners = floorOf(map).flatMap((polygon) => {
+      return polygon.vertices
+    })
+    const xs = corners.map((vertex) => {
+      return vertex.x
+    })
+    const zs = corners.map((vertex) => {
+      return vertex.z
+    })
 
+    assert.equal(floorOf(map).length, 11 * 11)
     assert.equal(map.statistics.faceCount, 11 * 11)
-    assert.equal(map.statistics.quadCount, 11 * 11)
-    // the mesh is built around the scene position: a symmetric box means the scene sits in the middle of the plane,
-    // and the standing player is measured from there
-    assert.deepEqual([box?.min.x, box?.min.z], [-half, -half])
-    assert.deepEqual([box?.max.x, box?.max.z], [half, half])
+    // the plane stands around the origin of the level: the scene sits in the middle of it, and the player is measured
+    // from there
+    assert.deepEqual([Math.min(...xs), Math.max(...xs)], [BLANK_LEVEL_ORIGIN.x - half, BLANK_LEVEL_ORIGIN.x + half])
+    assert.deepEqual([Math.min(...zs), Math.max(...zs)], [BLANK_LEVEL_ORIGIN.z - half, BLANK_LEVEL_ORIGIN.z + half])
     assert.deepEqual(map.player.position, { x: 0, y: -170, z: 0 })
   })
 })

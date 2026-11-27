@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ArxPortal, ArxVector3 } from 'arx-convert/types'
 import { Vector3 } from 'three'
-import { createBlankLevelFiles, FLAT_PRESET } from '../../src/editor/modules/level/blankLevel.ts'
+import { BLANK_LEVEL_ORIGIN, createBlankLevelFiles, FLAT_PRESET } from '../../src/editor/modules/level/blankLevel.ts'
 import { ArxMap } from '../../src/generator/ArxMap.ts'
 import { DEFAULT_PORTAL_HEIGHT, generatePortalsOf } from '../../src/generator/portals.ts'
 import { Settings } from '../../src/generator/Settings.ts'
@@ -35,7 +35,7 @@ function splitRooms(map: ArxMap): ArxMap {
       const side = polygon.vertices[0]?.x ?? 0
       let room = 1
 
-      if (side < 600) {
+      if (side < BLANK_LEVEL_ORIGIN.x) {
         room = 2
       }
 
@@ -146,11 +146,15 @@ void describe('generatePortalsOf', () => {
       }),
       [1, 2],
     )
-    // the line is at x = 600, from one side of the floor to the other, and the quad is the default 2 m high
-    assert.equal(portal.polygon.min.x, 600)
-    assert.equal(portal.polygon.max.x, 600)
-    assert.equal(portal.polygon.min.z, 0)
-    assert.equal(portal.polygon.max.z, 1100)
+    // the line is the middle of the floor on the X axis, between its two rooms, from one side of the floor to the
+    // other, and the quad is the default 2 m high. The tiles start half a floor before the origin, so the edge of the
+    // line is the one of the six tiles: fifty units past the origin
+    const line = BLANK_LEVEL_ORIGIN.x + 50
+
+    assert.equal(portal.polygon.min.x, line)
+    assert.equal(portal.polygon.max.x, line)
+    assert.equal(portal.polygon.min.z, BLANK_LEVEL_ORIGIN.z - 550)
+    assert.equal(portal.polygon.max.z, BLANK_LEVEL_ORIGIN.z + 550)
     assert.equal(portal.polygon.max.y - portal.polygon.min.y, DEFAULT_PORTAL_HEIGHT)
     assert.equal(portal.polygon.vertices.length, 4)
   })
@@ -228,7 +232,7 @@ void describe('generatePortalsOf', () => {
 
         let room = 0
 
-        if (side < 600) {
+        if (side < BLANK_LEVEL_ORIGIN.x) {
           room = 2
         }
 

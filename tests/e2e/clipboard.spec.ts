@@ -28,7 +28,7 @@ test('the copied face pastes at its place, is selected, and the undo takes it ba
 
   // the preset with the camera form (the aim goes back after the lock), the statistics and the selection inspector
   await seedLayout(page, layoutWithSelectionInspector())
-  await page.goto('/?map=blank-flat&position=550,-180,550&rotation=35,180,0')
+  await page.goto('/?map=blank-flat&position=6000,-180,6000&rotation=35,180,0')
 
   const view = page.locator('[data-widget-kind="3d-view"] canvas').first()
 

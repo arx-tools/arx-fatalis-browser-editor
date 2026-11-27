@@ -149,13 +149,13 @@ test('a new room of the blank flat plane gets its portals at once', async ({ pag
 
   // the rooms preset holds the statistics, the selection and the room inspector
   await seedLayout(page, roomsLayout)
-  await page.goto('/?map=blank-flat&position=550,-180,550&rotation=35,180,0')
+  await page.goto('/?map=blank-flat&position=6000,-180,6000&rotation=35,180,0')
   await waitForLevel(page)
 
   // the pose of the url is applied after the level is on: the click of the crosshair needs the camera where the link
   // puts it, or the ray goes to the picture of the load and picks nothing
   await expect(page.locator('[data-widget-kind="3d-view"] .hud')).toContainText(
-    /position\s+550\.00\s+-180\.00\s+550\.00/u,
+    /position\s+6000\.00\s+-180\.00\s+6000\.00/u,
   )
 
   expect(await statOf(page, 'Portals')).toBe(0)

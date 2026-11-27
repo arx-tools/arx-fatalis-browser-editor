@@ -60,7 +60,6 @@ const failure = ref('')
 /**
  * What the archive took from the textures of the level, as the dialog says it when the export is done.
  */
-const summary = ref('')
 /**
  * What the archive left of the level, in the notices of the dialog: the faces the square of the map cut.
  */
@@ -86,25 +85,6 @@ function truncatedTextOf(clipped: number, dropped: number): string {
   }
 
   return ''
-}
-
-/**
- * Reads the count of the textures of an archive as a sentence.
- *
- * @param textures How many textures the archive carries.
- *
- * @returns The sentence, or an empty one when the archive carries none.
- */
-function texturesOfText(textures: number): string {
-  if (textures === 0) {
-    return ''
-  }
-
-  if (textures === 1) {
-    return 'The archive carries the one texture the game does not have.'
-  }
-
-  return `The archive carries the ${String(textures)} textures the game does not have.`
 }
 
 /**
@@ -300,7 +280,7 @@ async function exportIt(): Promise<void> {
   state.value = 'packing'
   percent.value = 0
   failure.value = ''
-  summary.value = ''
+  notices.value = []
 
   // the button has to read as busy **before** the packing takes the thread: one frame of it
   await nextTick()
@@ -315,7 +295,7 @@ async function exportIt(): Promise<void> {
     // are read here, where the page can fetch an asset of the build, and the archive only writes the bytes
     const textures = await exportTexturesFor(current, levelTextureSources())
 
-    const { name, data, clipped, dropped } = await exportLevelZip(
+    const { name, data, clipped, dropped, floor } = await exportLevelZip(
       current,
       (value): void => {
         percent.value = value
@@ -344,14 +324,16 @@ async function exportIt(): Promise<void> {
       },
     )
 
-    summary.value = texturesOfText(textures.textures.length)
+    notices.value = []
 
     const truncated = truncatedTextOf(clipped, dropped)
 
-    notices.value = []
-
     if (truncated !== '') {
-      notices.value = [truncated]
+      notices.value.push(truncated)
+    }
+
+    if (floor) {
+      notices.value.push('The level had no floor under the spawn, so a tile was added there.')
     }
 
     downloadBinaryAs(name, data, 'application/zip')
@@ -450,8 +432,6 @@ onBeforeUnmount(() => {
         <SectionTitle>Notices</SectionTitle>
         <p v-for="notice in notices" :key="notice" class="notice">{{ notice }}</p>
       </section>
-
-      <p v-if="summary !== ''" class="summary">{{ summary }}</p>
 
       <p v-if="failure !== ''" class="failure">{{ failure }}</p>
 
@@ -619,12 +599,6 @@ onBeforeUnmount(() => {
   color: $accent;
   font-size: 12px;
   line-height: 1.35;
-}
-
-// what the archive took from the textures of the level: a note, so it reads quiet next to a warning
-.summary {
-  margin: 0 0 14px;
-  color: $text-muted;
 }
 
 // why the file is not there

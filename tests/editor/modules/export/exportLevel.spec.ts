@@ -442,7 +442,7 @@ void describe('the corners that center the map', () => {
 })
 
 void describe('the spawn of the level', () => {
-  void it('puts a tile under a spawn that stands over a hole', () => {
+  void it('puts a tile under a spawn that stands over a hole', async () => {
     const map = flatMap()
 
     // the spawn of the flat level leaves the floor and stands over a hole of the map: the export puts the tile of the
@@ -465,6 +465,17 @@ void describe('the spawn of the level', () => {
     assert.equal(tile?.textureContainerId, map.textureContainerIdOfName(BLANK_LEVEL_TEXTURE))
     // the level of the editor is not touched: the tile lives in the archive
     assert.equal(map.polygons.length, 11 * 11)
+
+    // and the archive says it put the tile there, so the dialog can tell the author
+    const archive = await exportLevelZip(map, undefined, {})
+
+    assert.equal(archive.floor, true)
+  })
+
+  void it('says nothing of a floor when the spawn stands on one', async () => {
+    const archive = await exportLevelZip(flatMap(), undefined, {})
+
+    assert.equal(archive.floor, false)
   })
 
   void it('refuses a spawn that stands outside the map, instead of writing a level without a player', () => {

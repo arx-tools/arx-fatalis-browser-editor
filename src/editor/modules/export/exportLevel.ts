@@ -642,6 +642,10 @@ type ExportedPolygons = {
    * How many faces stood outside the map whole, and are left out.
    */
   readonly dropped: number
+  /**
+   * Whether the export put a tile under the spawn, because the level had no floor there.
+   */
+  readonly floor: boolean
 }
 
 /**
@@ -683,7 +687,9 @@ function exportedPolygonsOf(map: ArxMap, options: ExportOptions): ExportedPolygo
     )
   }
 
-  if (floorsUnderOf(exported, spawnFloorProbeOf(map)).length === 0) {
+  const floor = floorsUnderOf(exported, spawnFloorProbeOf(map)).length === 0
+
+  if (floor) {
     const nearest = nearestFaceOf(exported, feet)
     // the tile of a hole takes the placeholder of the generator (the jorge), so the author sees in the game where the
     // floor under the spawn was missing, and the room of the nearest face, so the game draws it at all (a face of no
@@ -697,7 +703,7 @@ function exportedPolygonsOf(map: ArxMap, options: ExportOptions): ExportedPolygo
     exported.push(...clippedToMapOf([tile]).polygons)
   }
 
-  return { ...clip, polygons: cellOrderedPolygonsOf(exported) }
+  return { ...clip, floor, polygons: cellOrderedPolygonsOf(exported) }
 }
 
 export function exportLevelFiles(map: ArxMap, options: ExportOptions = {}): LevelFiles {
@@ -1000,6 +1006,10 @@ export async function exportLevelZip(
    * How many faces stood outside the map whole, and are left out.
    */
   readonly dropped: number
+  /**
+   * Whether the export put a tile under the spawn, because the level had no floor there.
+   */
+  readonly floor: boolean
 }> {
   // the portals of a flat level come from its rooms: the file is written with the portals of the rooms it has now
   syncGeneratedPortals(map)
@@ -1103,5 +1113,6 @@ export async function exportLevelZip(
     textures: options.textures?.length ?? 0,
     clipped: exported.clipped,
     dropped: exported.dropped,
+    floor: exported.floor,
   }
 }

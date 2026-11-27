@@ -192,8 +192,9 @@ test('the archive carries the textures the game does not have', async ({ page })
 
   expect(manifest.files).toContain(path)
 
-  // the dialog says what the archive took from the textures of the level
-  await expect(dialog.locator('.summary')).toHaveText('The archive carries the one texture the game does not have.')
+  // the dialog has no note on the textures: the button says the export is done, and the textures of the archive are the
+  // business of the archive (2026-11-27, the owner)
+  await expect(dialog.locator('.summary')).toHaveCount(0)
 })
 
 test('the export leaves the lights of a switched off layer out, and a static-off level dark', async ({ page }) => {
@@ -418,7 +419,7 @@ test('the faces that stand past the map are cut down to it at the export', async
   await expect(dialog.locator('.notices')).toContainText(
     '6 faces are truncated from the export due to partially or fully being out of bounds.',
   )
-  await expect(dialog.locator('.summary')).toHaveText('The archive carries the one texture the game does not have.')
+  await expect(dialog.locator('.summary')).toHaveCount(0)
 
   // and the file carries no corner outside the square of the map, which is what the game can place
   const index = await dialog.locator('#export-level-index').inputValue()

@@ -446,7 +446,7 @@ export async function loadPictures(entries: readonly TextureEntry[]): Promise<vo
 }
 
 /**
- * Says what the paint of a level found.
+ * Publishes what the paint of a level found.
  *
  * @remarks
  * The paint of the level runs when the level is loaded (and again when the data directory arrives), and it knows where
@@ -475,6 +475,19 @@ export function publishLevelTextures(sources: LevelTextureSources): void {
   dropped.value = []
   bitmaps.clear()
   decoding.clear()
+}
+
+/**
+ * What the paint of the level on the screen found: where its textures came from.
+ *
+ * @remarks
+ * The export reads this, so the archive carries the textures the game does not have (the zip's own pictures and the
+ * placeholder of the generator) and leaves out the ones the data directory answered (TODO 324).
+ *
+ * @returns The textures of the level, or `undefined` before the paint of a level ran.
+ */
+export function levelTextureSources(): LevelTextureSources | undefined {
+  return levelSources.value
 }
 
 /**

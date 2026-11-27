@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ArxPolygon } from 'arx-convert/types'
-import type { ArxMap } from '../../../../../src/generator/ArxMap.ts'
-import type { RoomLink } from '../../../../../src/generator/rooms.ts'
-import { roomProblemsOf } from '../../../../../src/editor/components/widgets/RoomInspectorWidget/roomInspector.ts'
+import type { ArxMap } from '../../../../src/generator/ArxMap.ts'
+import type { RoomLink } from '../../../../src/generator/rooms.ts'
+import { roomProblemsOf } from '../../../../src/editor/modules/rooms/roomProblems.ts'
 
 /**
  * Builds a face of the test: only the room is read by the panel.

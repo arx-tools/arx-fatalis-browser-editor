@@ -208,9 +208,11 @@ export function paletteKeyOf(profile: LightingProfile, flatLight: number, rainbo
  * The options a bake of the palette of a level reads, from the profile of the widget.
  *
  * @remarks
- * The profiles that read the lights run without the shadow rays: the bake with them costs about five seconds on a big
- * level, and the widget has no switch for it. The ambient floor of the game-like profile is the 23 of its own palette
- * (`lighting.ts` overrides it for `Arx` anyway).
+ * The **`Realistic`** profile tests the way of the light against the level, so a mesh casts a shadow onto the faces under
+ * it; the bake with the rays costs about five seconds on a big level (the steps are chunks, and the spinner of the
+ * widget turns while they run). The other profiles read the lights without the rays: they are the look of the game, and
+ * the game's own bake does not test the way either. The ambient floor of the game-like profile is the 23 of its own
+ * palette (`lighting.ts` overrides it for `Arx` anyway).
  *
  * @param map The level to bake.
  *
@@ -223,6 +225,8 @@ export function paletteBakeOptionsOf(map: ArxMap): LightingOptions {
     rainbowLuminosity: rainbowLuminosity.value,
     occluders: map.solidMeshes,
     ambientFloor: 23,
-    shadows: false,
+    // the profile that says "realistic" is the one with the shadows (2026-11-27, the owner: the tree of an import cast
+    // none, because the editor's bake ran without the rays for every profile)
+    shadows: lightingProfile.value === 'Realistic',
   }
 }

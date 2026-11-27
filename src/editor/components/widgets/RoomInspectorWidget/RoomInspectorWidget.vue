@@ -33,7 +33,7 @@ import SectionTitle from '../../SectionTitle.vue'
 import ToggleButton from '../../ToggleButton.vue'
 import WidgetHeading from '../../WidgetHeading.vue'
 import { isMeshVisible, isRoomColorsVisible, toggleRoomColors } from '../shared/levelDisplay.ts'
-import { roomProblemsOf, type RoomProblem } from './roomInspector.ts'
+import { roomProblemsOf, type RoomProblem } from '../../../modules/rooms/roomProblems.ts'
 
 /**
  * The label of the widget, from the widget definition.
@@ -78,6 +78,24 @@ const rows = shallowRef<RoomRow[]>([])
  * What the author can not see in the view: the faces without a room, and the level that is one room.
  */
 const problems = shallowRef<RoomProblem[]>([])
+
+/**
+ * The problems the author has to fix, under the title of the warnings.
+ */
+const warnings = computed(() => {
+  return problems.value.filter((problem) => {
+    return problem.kind === 'warning'
+  })
+})
+
+/**
+ * The notes about the level, under the title of the notices.
+ */
+const notices = computed(() => {
+  return problems.value.filter((problem) => {
+    return problem.kind === 'info'
+  })
+})
 
 /**
  * The rooms the selected faces are in, `-1` for a face without a room.
@@ -637,9 +655,15 @@ function removeRowRoom(room: number): void {
         </button>
       </div>
     </section>
-    <section v-if="problems.length > 0" class="problems">
+    <section v-if="warnings.length > 0" class="problems">
       <SectionTitle>Warnings</SectionTitle>
-      <p v-for="problem in problems" :key="problem.text" class="problem" :class="`is-${problem.kind}`">
+      <p v-for="problem in warnings" :key="problem.text" class="problem is-warning">
+        {{ problem.text }}
+      </p>
+    </section>
+    <section v-if="notices.length > 0" class="problems">
+      <SectionTitle>Notices</SectionTitle>
+      <p v-for="problem in notices" :key="problem.text" class="problem is-info">
         {{ problem.text }}
       </p>
     </section>

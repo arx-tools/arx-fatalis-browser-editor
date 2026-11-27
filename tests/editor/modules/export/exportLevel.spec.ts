@@ -668,6 +668,29 @@ void describe('exportLevelFiles', () => {
 })
 
 void describe('exportLevelZip', () => {
+  void it('writes the textures it is given beside the level files, and lists them in the manifest', async () => {
+    const map = flatMap()
+    const path = 'graph/obj3d/textures/jorge-[stone].jpg'
+    const bytes = new TextEncoder().encode('the placeholder of the level').buffer
+    const { data, textures } = await exportLevelZip(map, undefined, {
+      textures: [{ path, bytes }],
+      exportedAt: '2026-11-27T10:00:00.000Z',
+    })
+    const archive = await JSZip.loadAsync(data)
+    const file = archive.file(path)
+
+    assert.equal(textures, 1)
+    assert.notEqual(file, null)
+    assert.deepEqual(new Uint8Array((await file?.async('arraybuffer')) ?? new ArrayBuffer(0)), new Uint8Array(bytes))
+
+    const manifest = JSON.parse((await archive.file('manifest.json')?.async('string')) ?? '{}') as {
+      readonly files?: readonly string[]
+    }
+
+    // the manifest lists every file of the archive, the textures too
+    assert.equal(manifest.files?.includes(path), true)
+  })
+
   void it('reports the steps of the export, in the order they run', async () => {
     const map = flatMap()
     const steps: number[] = []

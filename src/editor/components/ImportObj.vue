@@ -183,9 +183,10 @@ async function importMesh(): Promise<void> {
       rotation: rotation.value,
       origin: level.scenePosition,
       textureContainerId: texture.id,
-      // the faces of the mesh are in no room: a room is the part of the level the game walks through, and an imported
-      // mesh becomes one when the author gives it one (the room list, or the fill of a room map). The step keeps them
-      // out of every room (`NO_ROOM`), the way a pasted face is out of one (2026-11-26, the owner)
+      // the faces of the mesh are in no room: the game draws the polygons from the rooms of the level, so a face in no
+      // room has a collision and no picture (2026-11-27, the owner's test). A room of its own does not help, because the
+      // faces of the level are in theirs: the author puts the mesh into the rooms of the level it stands in (the Room
+      // Inspector's moves), and until then the export says that the faces have no room (2026-11-27, the owner)
       room: NO_ROOM,
     })
 

@@ -127,13 +127,22 @@ test('an OBJ file comes into the level, and the undo takes it out', async ({ pag
     })
     .toBe(CUBE_FACES)
 
-  // the file carries the cube around the origin of the level, in a room of its own, with the one container of the level
+  // the dialog says the imported faces are in no room: the game draws the faces of a room only
+  await page.locator('header button[aria-label="Export the level as a zip"]').click()
+
+  const exportDialog = page.locator('[role="dialog"][aria-label="Export Map"]')
+
+  await expect(exportDialog.locator('.warning')).toHaveText('6 faces have no room: the game never draws them.')
+  await exportDialog.locator('button[aria-label="Close"]').click()
+  await expect(exportDialog).toBeHidden()
+
+  // the file carries the cube around the origin of the level, with the one container of the level
   const imported = await exportedLevelOf(page)
 
   expect(imported.polygons.length).toBe(before + CUBE_FACES)
 
   // the export sorts the faces of the level into the cells of the file, so the faces of the cube are the ones with no
-  // room (the blank level has its floor in room 1, and an imported mesh is out of every room)
+  // room (the blank level has its floor in room 1, and an imported mesh is out of every room until the author moves it)
   const cube = imported.polygons.filter((polygon) => {
     return polygon.room === NO_ROOM
   })
@@ -172,7 +181,7 @@ test('an OBJ file comes into the level, and the undo takes it out', async ({ pag
     ),
   ).toBeCloseTo(scene.y + CUBE_HALF, 1)
 
-  // the cube is out of every room, and the faces of the level keep the room they had
+  // the cube is out of every room (the author moves it into the rooms of the level), and the level keeps its own
   expect(cube.length).toBe(CUBE_FACES)
   expect(
     new Set(

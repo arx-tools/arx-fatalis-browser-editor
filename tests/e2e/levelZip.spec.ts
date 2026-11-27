@@ -168,9 +168,10 @@ test('the export of a level that came from a zip keeps the keys of that zip', as
   expect(manifest.version).toBe('1.0.0')
   expect(manifest.editor?.name).toBe('arx-fatalis-browser-editor')
 
-  // and the files are the ones of this archive, not the machine paths the base wrote: the level, and the state of the
-  // editor beside it, every path relative the way a zip path is
-  expect(manifest.files).toHaveLength(6)
+  // and the files are the ones of this archive, not the machine paths the base wrote: the level, the state of the
+  // editor beside it, and the textures the game does not have (the placeholder of a blank level), every path relative
+  // the way a zip path is
+  expect(manifest.files).toHaveLength(7)
 
   for (const file of manifest.files ?? []) {
     expect(file.startsWith('/')).toBe(false)

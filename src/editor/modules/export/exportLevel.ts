@@ -36,6 +36,7 @@ import { editorSettingsJsonOf, SETTINGS_PATH, SOURCE_FOLDER } from '../level/sou
 import type { StoredPose } from '../level/source/maps/mapPoses.ts'
 import type { LevelFiles } from '../level/source/levelSource.ts'
 import { packLevelFile, packWholeFile } from '../level/source/packedFile.ts'
+import type { ExportTexture } from './exportTextures.ts'
 
 /**
  * The name the browser saves the archive of a level under.
@@ -546,6 +547,15 @@ export type ExportOptions = ExportLights & {
    * archive is only the result, as it always was.
    */
   readonly history?: HistorySnapshot
+  /**
+   * The textures the archive carries beside the level files.
+   *
+   * @remarks
+   * They are the ones the game does not have (the pictures of the level's zip and the placeholder of the generator), and
+   * the dialog reads them with `exportTexturesFor` before it calls this (TODO 324): the drawing and the reading of a
+   * build asset belong to the page, the bytes are what the archive writes.
+   */
+  readonly textures?: readonly ExportTexture[]
 }
 
 /**
@@ -848,6 +858,20 @@ function writeSource(map: ArxMap, archive: JSZip): string[] {
 }
 
 /**
+ * Writes the textures of the archive beside the level files.
+ *
+ * @param archive The zip the level is written into.
+ * @param textures The textures the archive carries, when the level has ones the game does not.
+ * @param written The list of the paths the archive holds, which the manifest lists.
+ */
+function writeTexturesOf(archive: JSZip, textures: readonly ExportTexture[] | undefined, written: string[]): void {
+  for (const texture of textures ?? []) {
+    archive.file(texture.path, texture.bytes)
+    written.push(texture.path)
+  }
+}
+
+/**
  * Zips the three files of a level, the way the game reads them.
  *
  * @remarks
@@ -867,7 +891,7 @@ export async function exportLevelZip(
   map: ArxMap,
   onProgress?: ExportProgressHandler,
   options: ExportOptions = {},
-): Promise<{ readonly name: string; readonly data: ArrayBuffer }> {
+): Promise<{ readonly name: string; readonly data: ArrayBuffer; readonly textures: number }> {
   // the portals of a flat level come from its rooms: the file is written with the portals of the rooms it has now
   syncGeneratedPortals(map)
   // the faces a group hides are not in the level that is written: they are out of the mesh, and the export leaves them out
@@ -915,6 +939,9 @@ export async function exportLevelZip(
   archive.file(written[1], dlf)
   archive.file(written[2], llf)
 
+  // the textures go beside the level files, under the folder of the game, so a level of a mod is complete on its own
+  writeTexturesOf(archive, options.textures, written)
+
   // the state of the editor: the pose of the camera, which is not the spawn of the level, and the steps of the level when
   // it has some. A level with steps is also a save of itself: the steps are indices of the level they were made on, so
   // that level goes beside the result, and only with them (the two are read together, or neither is)
@@ -960,5 +987,9 @@ export async function exportLevelZip(
 
   onProgress?.(EXPORT_PROGRESS.zipped)
 
-  return { name: exportZipNameOf(new Date(options.exportedAt ?? Date.now())), data }
+  return {
+    name: exportZipNameOf(new Date(options.exportedAt ?? Date.now())),
+    data,
+    textures: options.textures?.length ?? 0,
+  }
 }

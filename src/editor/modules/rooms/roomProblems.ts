@@ -1,9 +1,14 @@
-import type { ArxMap } from '../../../../generator/ArxMap.ts'
-import { roomSummaryOf } from '../../../../generator/rooms.ts'
-import { formatCount } from '../../../modules/format.ts'
+import type { ArxMap } from '../../../generator/ArxMap.ts'
+import { roomSummaryOf } from '../../../generator/rooms.ts'
+import { formatCount } from '../format.ts'
 
 /**
  * How serious a problem of the level is.
+ *
+ * @remarks
+ * A **warning** is a thing the author has to fix (a face in no room, a room without portals); an **info** is a note
+ * about the level that reads as a consequence of what it is (one room means the player can reach through the walls of
+ * it). The panel shows the two under their own title (2026-11-27, the owner).
  */
 export type ProblemKind = 'info' | 'warning'
 
@@ -52,7 +57,7 @@ export function roomProblemsOf(map: ArxMap): RoomProblem[] {
   if (rooms.length === 1) {
     problems.push({
       kind: 'info',
-      text: 'One room: an open level does not need more. Behind a wall, the player can reach through it.',
+      text: 'One room: an open level does not need more. Keep in mind, that players can reach through walls with this setup.',
     })
   }
 

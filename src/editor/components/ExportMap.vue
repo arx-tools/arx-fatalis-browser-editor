@@ -12,7 +12,11 @@ import { snapshotOfHistory } from '../modules/level/edit/editing.ts'
 import { levelSeed } from '../modules/level/seed.ts'
 import { levelStore } from '../modules/level/edit/levelStore.ts'
 import { currentMapId, currentMapManifest, poseOfMap } from '../modules/level/source/maps.ts'
+import { exportTexturesFor } from '../modules/export/exportTextures.ts'
+import { levelTextureSources } from '../modules/textures/textureCatalog.ts'
+import { roomProblemsOf } from '../modules/rooms/roomProblems.ts'
 import Modal from './Modal.vue'
+import SectionTitle from './SectionTitle.vue'
 import NumberField from './NumberField.vue'
 import Button from './Button.vue'
 
@@ -54,6 +58,30 @@ const percent = ref(0)
 const failure = ref('')
 
 /**
+ * What the archive took from the textures of the level, as the dialog says it when the export is done.
+ */
+const summary = ref('')
+
+/**
+ * Reads the count of the textures of an archive as a sentence.
+ *
+ * @param textures How many textures the archive carries.
+ *
+ * @returns The sentence, or an empty one when the archive carries none.
+ */
+function texturesOfText(textures: number): string {
+  if (textures === 0) {
+    return ''
+  }
+
+  if (textures === 1) {
+    return 'The archive carries the one texture the game does not have.'
+  }
+
+  return `The archive carries the ${String(textures)} textures the game does not have.`
+}
+
+/**
  * The seed of the field: the one of the url when the dialog opens, and whatever the user writes then.
  *
  * @remarks
@@ -78,6 +106,26 @@ let markTimer: ReturnType<typeof setTimeout> | undefined
  */
 const map = computed(() => {
   return levelStore.map.value
+})
+
+/**
+ * What is wrong with the rooms of the level, the lines the Room Inspector shows as warnings.
+ *
+ * @remarks
+ * A face in no room is a face the game draws nowhere (it has a collision only), so the dialog says it before the archive
+ * is written (2026-11-27, the owner). The notices of the panel are consequences of the level and not problems, so they
+ * stay out of the way of the export.
+ */
+const warnings = computed(() => {
+  const current = map.value
+
+  if (current === undefined) {
+    return []
+  }
+
+  return roomProblemsOf(current).filter((problem) => {
+    return problem.kind === 'warning'
+  })
 })
 
 /**
@@ -216,6 +264,7 @@ async function exportIt(): Promise<void> {
   state.value = 'packing'
   percent.value = 0
   failure.value = ''
+  summary.value = ''
 
   // the button has to read as busy **before** the packing takes the thread: one frame of it
   await nextTick()
@@ -226,6 +275,10 @@ async function exportIt(): Promise<void> {
   })
 
   try {
+    // the textures the game does not have: the pictures of the level's zip and the placeholder of the generator. They
+    // are read here, where the page can fetch an asset of the build, and the archive only writes the bytes
+    const textures = await exportTexturesFor(current, levelTextureSources())
+
     const { name, data } = await exportLevelZip(
       current,
       (value): void => {
@@ -249,9 +302,11 @@ async function exportIt(): Promise<void> {
         groups: faceGroupsJsonOf(),
         // the steps of the level: an archive with them is a save of the level, not only its result
         history: snapshotOfHistory(),
+        textures: textures.textures,
       },
     )
 
+    summary.value = texturesOfText(textures.textures.length)
     downloadBinaryAs(name, data, 'application/zip')
     showMark('done')
   } catch (error) {
@@ -327,6 +382,13 @@ onBeforeUnmount(() => {
       <div class="progress" :class="{ 'is-hidden': state !== 'packing' }">
         <div class="bar" :style="{ width: `${percent}%` }"></div>
       </div>
+
+      <section v-if="warnings.length > 0" class="warnings">
+        <SectionTitle>Warnings</SectionTitle>
+        <p v-for="warning in warnings" :key="warning.text" class="warning">{{ warning.text }}</p>
+      </section>
+
+      <p v-if="summary !== ''" class="summary">{{ summary }}</p>
 
       <p v-if="failure !== ''" class="failure">{{ failure }}</p>
 
@@ -434,6 +496,38 @@ onBeforeUnmount(() => {
     background: $interactive;
     transition: width 120ms linear;
   }
+}
+
+// the problems of the level the Room Inspector shows too: the author has to fix them before the archive goes out, so
+// they read in the warning color with the title of the inspector. The section **breaks out** of the padding of the
+// dialog (the 12px of `Modal`'s body), so the line over it runs from edge to edge, and the content keeps the inset of
+// the rest of the dialog (2026-11-27, the owner)
+.warnings {
+  margin: 0 -12px 14px;
+  padding: 8px 12px 0;
+  border-top: 1px solid $border-dark;
+
+  // the title of the inspector carries the inset of the panel's rows; in the dialog the warnings start where the fields
+  // start, so the two lines keep no horizontal padding (2026-11-27, the owner)
+  .SectionTitle {
+    padding: 0;
+  }
+}
+
+// the title of the block is the one of the Room Inspector (`SectionTitle`: a small white caption), so the two read the
+// same wherever the warnings of the level are shown
+
+.warning {
+  margin: 0 0 2px;
+  color: $accent;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+// what the archive took from the textures of the level: a note, so it reads quiet next to a warning
+.summary {
+  margin: 0 0 14px;
+  color: $text-muted;
 }
 
 // why the file is not there

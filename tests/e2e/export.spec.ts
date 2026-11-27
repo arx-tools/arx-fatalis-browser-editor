@@ -147,6 +147,39 @@ test('the export dialog writes the level under the fields of the dialog', async 
   await expect(dialog.locator('.export')).toHaveText('Downloaded')
 })
 
+test('the archive carries the textures the game does not have', async ({ page }) => {
+  await page.setViewportSize({ width: 1631, height: 850 })
+  await page.goto('/?map=blank-flat')
+
+  await page.locator('header button[aria-label="Export the level as a zip"]').click()
+
+  const dialog = page.locator('[role="dialog"][aria-label="Export Map"]')
+
+  await expect(dialog).toBeVisible()
+
+  const [download] = await Promise.all([page.waitForEvent('download'), dialog.locator('.export').click()])
+  const archive = await JSZip.loadAsync(await readFile((await download.path()) ?? ''))
+  const path = 'graph/obj3d/textures/jorge-[stone].jpg'
+  const texture = archive.file(path)
+
+  // the placeholder of the generator is not in the data directory of the game: the archive of the level brings it
+  expect(texture).not.toBeUndefined()
+
+  const bytes = (await texture?.async('uint8array')) ?? new Uint8Array()
+
+  // a JPEG file, so the picture and not an empty entry
+  expect([bytes[0], bytes[1]]).toEqual([0xff, 0xd8])
+
+  const manifest = JSON.parse((await archive.file('manifest.json')?.async('string')) ?? '{}') as {
+    readonly files?: readonly string[]
+  }
+
+  expect(manifest.files).toContain(path)
+
+  // the dialog says what the archive took from the textures of the level
+  await expect(dialog.locator('.summary')).toHaveText('The archive carries the one texture the game does not have.')
+})
+
 test('the export leaves the lights of a switched off layer out, and a static-off level dark', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
 

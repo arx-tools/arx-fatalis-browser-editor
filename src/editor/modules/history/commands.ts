@@ -5,6 +5,7 @@ import type { PolygonInsertion } from '../../../generator/arxMap/removal.ts'
 import { forgetRoomNames, renameRoom } from '../rooms/roomNames.ts'
 import { NO_ROOM } from '../rooms/roomList.ts'
 import { bumpRoomRevision } from '../rooms/roomRevision.ts'
+import { bumpLightingCacheVersion } from '../level/edit/lightingCache.ts'
 import { setPlayerSpawn } from '../level/entities/playerSpawn.ts'
 import {
   HISTORY_RECORD_VERSION,
@@ -607,6 +608,11 @@ function appendFacesOf(
   const block = colors ?? colorsOf(polygons, level.llf.colors)
 
   level.addLightingColors(block)
+
+  // the palette grew: a palette baked before this step (the cache of a profile switch) is shorter than the level needs,
+  // and writing it back would leave the new faces without a color (their index falls outside of it, and they draw black
+  // whatever the profile is). The step that appends the colors is the one that says so (2026-11-27, the owner)
+  bumpLightingCacheVersion()
 
   let offset = 0
 

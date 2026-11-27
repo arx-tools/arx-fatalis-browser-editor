@@ -11,6 +11,14 @@ import {
   createTranslateFacesRecord,
 } from '../../../modules/history/records/faces.ts'
 import { bumpLevelRevision, levelRevision, runStep } from '../../../modules/level/edit/editing.ts'
+import {
+  bakeDragOf,
+  footprintOfFaces,
+  footprintUnionOf,
+  type ShadowFootprint,
+} from '../../../modules/level/edit/lightPalette.ts'
+import { castsShadowsOf, lightingProfile } from '../../../modules/level/edit/lightingProfile.ts'
+import { accelerateRaycast } from '../../../../generator/meshes/bvh.ts'
 import { levelStore } from '../../../modules/level/edit/levelStore.ts'
 import { selectionStore } from '../../../modules/selection/selectionStore.ts'
 import { rotateVisible, scaleVisible, transformVisible } from '../shared/editModes.ts'
@@ -252,6 +260,11 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
    * The scale the model has taken since the press.
    */
   let appliedScale: ArxVector3 = { x: 1, y: 1, z: 1 }
+  /**
+   * The box the faces of the drag stood in at the frame before, so the shadow they cast follows the mouse and the place
+   * they have left takes the light of its own back.
+   */
+  let dragFootprint: ShadowFootprint | undefined
   /**
    * The snap of the translate drag, when it is on. The vertices are collected at the first frame that needs them.
    */
@@ -511,6 +524,49 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
   }
 
   /**
+   * Bakes the light of the frame of a drag: the faces the drag moved, and the shadow they cast on the corners under them.
+   *
+   * @remarks
+   * The bake of the step at the release writes the whole level; a drag runs on every pointer move, so a frame bakes only
+   * what the motion changes (see `bakeDragOf`), and the profile without the shadows pays for the moved faces alone.
+   *
+   * The tree of the raycast of the level (the BVH) is built again here: a drag moves the faces without the step that
+   * rebuilds it, so the rays of the shadows would test the place the mesh **used to stand** and the shadow would stay
+   * where it was until the release (2026-11-27, the owner: the shadow of a drag followed the mouse only when the button
+   * came up). The rebuild of a level is a few milliseconds at most.
+   */
+  function bakeDragFrameOf(): void {
+    if (map === undefined || faces.length === 0) {
+      return
+    }
+
+    if (castsShadowsOf(lightingProfile.value)) {
+      const mesh = map.solidMeshes[0]
+
+      if (mesh !== undefined) {
+        accelerateRaycast(mesh, { indirect: true })
+      }
+    }
+
+    const current = footprintOfFaces(map, faces)
+
+    if (current === undefined) {
+      return
+    }
+
+    // the frame bakes where the faces are now and where they were at the frame before: the box stays small, and a drag
+    // that runs long does not grow it into the whole level (the limit of a frame is `DRAG_BAKE_LIMIT` corners)
+    let box = current
+
+    if (dragFootprint !== undefined) {
+      box = footprintUnionOf(dragFootprint, current)
+    }
+
+    bakeDragOf(map, faces, box)
+    dragFootprint = current
+  }
+
+  /**
    * Scales the selected faces by the scale the gizmo has taken since the press.
    *
    * @remarks
@@ -542,6 +598,7 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
     appliedScale = total
     lastPress = performance.now()
     bumpLevelRevision()
+    bakeDragFrameOf()
   }
 
   /**
@@ -574,6 +631,7 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
     appliedTurn = total
     lastPress = performance.now()
     bumpLevelRevision()
+    bakeDragFrameOf()
   }
 
   /**
@@ -611,6 +669,7 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
     applied = snapped
     lastPress = performance.now()
     bumpLevelRevision()
+    bakeDragFrameOf()
   }
 
   /**
@@ -650,6 +709,7 @@ export function createSelectionGizmo(options: SelectionGizmoOptions): SelectionG
     startQuaternion = proxy.quaternion.clone()
     appliedTurn = new Quaternion()
     appliedScale = { x: 1, y: 1, z: 1 }
+    dragFootprint = undefined
     pivot = selectionCenterOf(map, faces)
   }
 

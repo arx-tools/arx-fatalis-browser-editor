@@ -3,7 +3,11 @@ import { beforeEach, describe, it } from 'node:test'
 import { ArxLightFlags, type ArxColor, type ArxLight } from 'arx-convert/types'
 import { Color, SRGBColorSpace } from 'three'
 import { createBlankLevelFiles, MINIMAL_PRESET } from '../../../../../src/editor/modules/level/blankLevel.ts'
-import { refreshLightPalette } from '../../../../../src/editor/modules/level/edit/lightPalette.ts'
+import {
+  footprintOfFaces,
+  footprintUnionOf,
+  refreshLightPalette,
+} from '../../../../../src/editor/modules/level/edit/lightPalette.ts'
 import { writeBakedColors } from '../../../../../src/editor/modules/level/edit/levelTextures/bakedColors.ts'
 import { lightingCacheVersion } from '../../../../../src/editor/modules/level/edit/lightingCache.ts'
 import { lightingProfile } from '../../../../../src/editor/modules/level/edit/lightingProfile.ts'
@@ -272,5 +276,27 @@ void describe('refreshLightPalette', () => {
 
     assert.deepEqual(map.llf.colors, palette)
     assert.deepEqual(colorsOf(map), colors)
+  })
+})
+
+void describe('footprintOfFaces', () => {
+  void it('mirrors the faces into the frame of the bake, with the margin of a shadow', () => {
+    const map = litFloor()
+
+    // the one tile of the level is 0..100 on both axes of the file, and its scene sits on 50: in the frame of the bake
+    // the tile runs -50..50 on both (the mirror and the shift), and the shadow may fall a margin outside it
+    assert.deepEqual(footprintOfFaces(map, [0]), { minX: -250, maxX: 250, minZ: -250, maxZ: 250 })
+  })
+
+  void it('gives nothing back when the faces are not in the level', () => {
+    assert.equal(footprintOfFaces(litFloor(), [99]), undefined)
+  })
+
+  void it('holds the box of the frame before, so the shadow leaves no trail', () => {
+    const one = { minX: -300, maxX: -100, minZ: 0, maxZ: 100 }
+    const other = { minX: -250, maxX: 250, minZ: -250, maxZ: 250 }
+
+    // the union of where the faces were at the frame before and where they are now
+    assert.deepEqual(footprintUnionOf(one, other), { minX: -300, maxX: 250, minZ: -250, maxZ: 250 })
   })
 })

@@ -16,6 +16,7 @@ import type { PolygonInsertion } from '../../../../src/generator/arxMap/removal.
 import type { PolygonTurn } from '../../../../src/generator/arxMap/transforms.ts'
 import type { FaceUv } from '../../../../src/generator/arxMap/uvs.ts'
 import { commandOf } from '../../../../src/editor/modules/history/commands.ts'
+import { lightingCacheVersion } from '../../../../src/editor/modules/level/edit/lightingCache.ts'
 import { roomNameOf, setRoomNamesOf } from '../../../../src/editor/modules/rooms/roomNames.ts'
 import {
   createDeleteFacesRecord,
@@ -462,6 +463,16 @@ void describe('commandOf', () => {
 
     command?.revert()
     assert.equal(polygons.length, 2)
+  })
+
+  void it('makes the palettes baked before the step stale, because the palette grew', () => {
+    const { level } = fakeLevel(2)
+    const version = lightingCacheVersion()
+
+    commandOf(createPasteFacesRecord([triangle(9)]), level)?.apply()
+
+    // a palette of the profile cached before the step is shorter than the level needs: the step says so
+    assert.equal(lightingCacheVersion() > version, true)
   })
 
   void it('leaves the room of the source behind: a pasted face is in no room yet', () => {

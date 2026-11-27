@@ -1,4 +1,4 @@
-import type { ArxColor } from 'arx-convert/types'
+import type { ArxColor, ArxFTS } from 'arx-convert/types'
 import { shallowRef, watch, type ShallowRef } from 'vue'
 import { bakeLlfColorsInChunks } from '../../../../generator/lighting.ts'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
@@ -6,6 +6,7 @@ import { writeBakedColors } from './levelTextures/bakedColors.ts'
 import { lightingCacheVersion } from './lightingCache.ts'
 import { setFlatLight } from './lightingFlat.ts'
 import {
+  castsShadowsOf,
   flatLightOfProfile,
   flatLuminosity,
   lightingProfile,
@@ -13,8 +14,27 @@ import {
   paletteKeyOf,
   rainbowLuminosity,
 } from './lightingProfile.ts'
+import { registerShadowBake } from './shadowBake.ts'
 import { paintLevel, repaintLevelColors } from './levelTextures.ts'
 import { levelStore } from './levelStore.ts'
+
+/**
+ * The scene of a bake: the level's files, with the polygons of the **editor**.
+ *
+ * @remarks
+ * The `fts` of a map is the file it came from: its `polygons` are the faces of that file, and an edit (an import, a paste,
+ * a move) writes the list of the editor (`map.polygons`), not that one. A bake of the whole palette has to read the
+ * faces the author sees: a bake of the file's list would leave the palette of the edited faces to whatever their step
+ * wrote, and the whole palette starts black, so a profile change made every imported face of the level black
+ * (2026-11-27, the owner: the tree of an import turned black on a profile switch and came back only on a drag).
+ *
+ * @param map The level to bake.
+ *
+ * @returns The scene the bake walks, with the polygons of the editor.
+ */
+function paletteSceneOf(map: ArxMap): ArxFTS {
+  return { ...map.fts, polygons: [...map.polygons] }
+}
 
 /**
  * The profiles of the lighting, and what a bake of the palette reads.
@@ -96,6 +116,12 @@ function cachedPaletteOf(map: ArxMap, key: string): readonly ArxColor[] | undefi
     return undefined
   }
 
+  // the palette of a level may grow (an imported mesh appends its colors): a palette of another length than the level's
+  // is stale, whatever the version says, and writing it back would leave the new faces without a color
+  if (entry.colors.length !== map.llf.colors.length) {
+    return undefined
+  }
+
   return entry.colors
 }
 
@@ -144,6 +170,8 @@ export async function bakeLighting(): Promise<void> {
   setFlatLight(map, flatLightOfProfile(profile, flatLuminosity.value))
 
   const key = paletteKeyOf(profile, flatLuminosity.value, rainbowLuminosity.value)
+  // a step may append colors while the chunks of the bake run: the palette of the start is not the palette of the end
+  const lengthAtStart = map.llf.colors.length
   const cached = cachedPaletteOf(map, key)
 
   if (cached !== undefined) {
@@ -161,10 +189,10 @@ export async function bakeLighting(): Promise<void> {
   isBakingLighting.value = true
 
   try {
-    const colors = await bakeLlfColorsInChunks(map.fts, map.llf, paletteBakeOptionsOf(map))
+    const colors = await bakeLlfColorsInChunks(paletteSceneOf(map), map.llf, paletteBakeOptionsOf(map))
 
-    // a newer profile or a newer map owns the palette: the colors of this bake are stale
-    if (generation !== bakeGeneration) {
+    // a newer profile, a newer map or a palette that grew owns the palette: the colors of this bake are stale
+    if (generation !== bakeGeneration || map.llf.colors.length !== lengthAtStart) {
       return
     }
 
@@ -197,6 +225,8 @@ export async function bakeLoadedMap(map: ArxMap): Promise<void> {
     return { r: 0, g: 0, b: 0, a: 255 }
   })
 
+  const lengthAtStart = map.llf.colors.length
+
   bakeGeneration = bakeGeneration + 1
 
   const generation = bakeGeneration
@@ -204,9 +234,9 @@ export async function bakeLoadedMap(map: ArxMap): Promise<void> {
   isBakingLighting.value = true
 
   try {
-    const colors = await bakeLlfColorsInChunks(map.fts, map.llf, paletteBakeOptionsOf(map))
+    const colors = await bakeLlfColorsInChunks(paletteSceneOf(map), map.llf, paletteBakeOptionsOf(map))
 
-    if (generation !== bakeGeneration) {
+    if (generation !== bakeGeneration || map.llf.colors.length !== lengthAtStart) {
       return
     }
 
@@ -261,6 +291,16 @@ export function startLighting(): void {
   })
 
   watch([flatLuminosity, rainbowLuminosity], () => {
+    void bakeLighting()
+  })
+
+  // a step of the level that changes the occluders asks for a bake too: the palette of the faces under a new mesh is
+  // stale until the whole level is baked again, and only the profile with the shadows pays for it
+  registerShadowBake(() => {
+    if (!castsShadowsOf(lightingProfile.value)) {
+      return
+    }
+
     void bakeLighting()
   })
 }

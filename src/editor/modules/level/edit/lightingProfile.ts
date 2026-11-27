@@ -205,6 +205,21 @@ export function paletteKeyOf(profile: LightingProfile, flatLight: number, rainbo
 }
 
 /**
+ * Tells whether the profile tests the way of the light, so a mesh casts a shadow onto the faces under it.
+ *
+ * @remarks
+ * Only the **`Realistic`** profile does: it is the one that says what a light does to a wall, and the bake with the rays
+ * costs about five seconds on a big level. The game's own look (and the flat one) reads the lights without them.
+ *
+ * @param profile The profile of the widget.
+ *
+ * @returns True when the bake of the profile casts shadows.
+ */
+export function castsShadowsOf(profile: LightingProfile): boolean {
+  return profile === 'Realistic'
+}
+
+/**
  * The options a bake of the palette of a level reads, from the profile of the widget.
  *
  * @remarks
@@ -227,6 +242,6 @@ export function paletteBakeOptionsOf(map: ArxMap): LightingOptions {
     ambientFloor: 23,
     // the profile that says "realistic" is the one with the shadows (2026-11-27, the owner: the tree of an import cast
     // none, because the editor's bake ran without the rays for every profile)
-    shadows: lightingProfile.value === 'Realistic',
+    shadows: castsShadowsOf(lightingProfile.value),
   }
 }

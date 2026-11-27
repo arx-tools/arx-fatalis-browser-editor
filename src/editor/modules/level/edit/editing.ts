@@ -14,6 +14,7 @@ import { refreshLightPalette, refreshLightPaletteOfFaces, type LightPaletteChang
 import { bumpLightingCacheVersion } from './lightingCache.ts'
 import { touchLights } from './lightEditing.ts'
 import { touchEntities } from './entityEditing.ts'
+import { requestShadowBake } from './shadowBake.ts'
 import { levelStore } from './levelStore.ts'
 
 /**
@@ -164,6 +165,37 @@ function appendsFaces(record: HistoryRecord): record is ImportMeshRecord | Paste
 }
 
 /**
+ * The steps that change what the light of the level falls on.
+ *
+ * @remarks
+ * The **shape** of the level is the one the shadows are cast by: a face added, moved, turned, scaled or taken out, and a
+ * group that hides a few of them. A light, a texture, a uv, a room, an entity or the spawn changes no shadow.
+ */
+const OCCLUDER_STEPS = new Set<HistoryRecord['kind']>([
+  'buildTunnel',
+  'createFaceGroup',
+  'deleteFaceGroups',
+  'deleteFaces',
+  'deleteRooms',
+  'importMesh',
+  'pasteFaces',
+  'rotateFaces',
+  'scaleFaces',
+  'translateFaces',
+])
+
+/**
+ * Tells whether a step changes what the light of the level falls on.
+ *
+ * @param record The record of the step.
+ *
+ * @returns True when the bake of the palette has to run again for the shadows.
+ */
+function changesOccluders(record: HistoryRecord): boolean {
+  return OCCLUDER_STEPS.has(record.kind)
+}
+
+/**
  * Bakes the light a step of the level asks for, by the kind of the step.
  *
  * @remarks
@@ -263,6 +295,12 @@ function withRevision(command: HistoryCommand): HistoryCommand {
     }
 
     bakeLightsOf(step.record)
+
+    // a step that adds, moves or takes away what the light of the level falls on changes where the shadows are: the
+    // bake of the palette runs again (only the Realistic profile casts them, the bake decides)
+    if (changesOccluders(step.record)) {
+      requestShadowBake()
+    }
   }
 
   return {

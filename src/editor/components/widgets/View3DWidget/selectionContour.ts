@@ -89,6 +89,34 @@ void main() {
 `
 
 /**
+ * Tells whether two lists of faces are the same list, face by face.
+ *
+ * @remarks
+ * A pick of the crosshair builds the faces of the group it lands on again, in a new array: the mask of the contour is the
+ * same picture while the author stands on one group, and building its geometry again is what a hover of a big group pays
+ * for (130 446 faces took the view to 5 FPS, 2026-11-26, the owner). The check is the identity of the faces and not a
+ * tag of the group: the same faces are the same mask, wherever the list came from.
+ *
+ * @param one The faces the mask holds.
+ * @param other The faces a pick asks for.
+ *
+ * @returns True when the two lists hold the same faces in the same order.
+ */
+export function sameFaceListOf(one: readonly ArxPolygon[], other: readonly ArxPolygon[]): boolean {
+  if (one.length !== other.length) {
+    return false
+  }
+
+  for (let index = 0; index < one.length; index = index + 1) {
+    if (one[index] !== other[index]) {
+      return false
+    }
+  }
+
+  return true
+}
+
+/**
  * The color of the contour of a mode.
  *
  * @param mode The mode of the click that is about to happen: green adds, red takes away.
@@ -143,6 +171,15 @@ export function createSelectionContour(renderer: WebGLRenderer, offset: Vector3)
 
   const screenCamera = new OrthographicCamera(-1, 1, 1, -1, 0, 1)
   let polygons: readonly ArxPolygon[] = []
+  /**
+   * Whether the mask holds the picture of the faces from the camera it was drawn with.
+   */
+  let maskDirty = true
+  /**
+   * The matrices the mask was drawn through: the world and the projection of the camera.
+   */
+  const maskCamera = new Float32Array(32)
+  let maskCameraKnown = false
 
   /**
    * Follows the size of the canvas: the target and the step of the shader read the same pixels as the scene.
@@ -160,11 +197,61 @@ export function createSelectionContour(renderer: WebGLRenderer, offset: Vector3)
 
     target.setSize(size.x, size.y)
     material.uniforms.texel = { value: new Vector2(1 / size.x, 1 / size.y) }
+    // the picture of the mask is the size of the canvas: a new size is a new picture
+    maskDirty = true
+  }
+
+  /**
+   * Reads the camera the mask was drawn through.
+   *
+   * @param camera The camera of the frame.
+   */
+  function rememberMaskCamera(camera: Camera): void {
+    maskCamera.set(camera.matrixWorld.elements, 0)
+    maskCamera.set(camera.projectionMatrix.elements, 16)
+    maskCameraKnown = true
+  }
+
+  /**
+   * Tells whether the camera of the frame sees the mask from another place than the one it was drawn from.
+   *
+   * @param camera The camera of the frame.
+   *
+   * @returns True when the mask has to be drawn again.
+   */
+  function maskCameraMoved(camera: Camera): boolean {
+    if (!maskCameraKnown) {
+      return true
+    }
+
+    const world = camera.matrixWorld.elements
+    const projection = camera.projectionMatrix.elements
+
+    for (let index = 0; index < 16; index = index + 1) {
+      if (maskCamera[index] !== world[index] || maskCamera[index + 16] !== projection[index]) {
+        return true
+      }
+    }
+
+    return false
   }
 
   return {
     set: (next: readonly ArxPolygon[], mode: SelectionMode): void => {
+      // the color of the contour is read on every ask: the same faces under a remove are red, and the mask is the same
+      const color = colorOf(mode)
+      const uniform = material.uniforms.color as { value: ThreeColor }
+
+      uniform.value.setRGB(color[0], color[1], color[2])
+
+      // the same faces are the same mask: a pick that lands on the same group keeps the geometry it built (2026-11-26,
+      // the owner: the hover of a big group took the view to 5 FPS)
+      if (sameFaceListOf(polygons, next)) {
+        return
+      }
+
       polygons = next
+      maskDirty = true
       mask.geometry.dispose()
 
       if (polygons.length === 0) {
@@ -174,11 +261,6 @@ export function createSelectionContour(renderer: WebGLRenderer, offset: Vector3)
       }
 
       mask.geometry = polygonFillGeometry(polygons, offset)
-
-      const color = colorOf(mode)
-      const uniform = material.uniforms.color as { value: ThreeColor }
-
-      uniform.value.setRGB(color[0], color[1], color[2])
     },
     render: (camera: Camera): void => {
       if (polygons.length === 0) {
@@ -187,9 +269,16 @@ export function createSelectionContour(renderer: WebGLRenderer, offset: Vector3)
 
       followCanvasSize()
 
-      renderer.setRenderTarget(target)
-      renderer.render(maskScene, camera)
-      renderer.setRenderTarget(null)
+      // the mask is a picture of the faces from the camera: it is drawn again only when one of them moved (2026-11-26,
+      // the owner: the mask was drawn on every frame of a still camera too)
+      if (maskDirty || maskCameraMoved(camera)) {
+        renderer.setRenderTarget(target)
+        renderer.render(maskScene, camera)
+        renderer.setRenderTarget(null)
+
+        maskDirty = false
+        rememberMaskCamera(camera)
+      }
 
       // the contour is painted over the scene that is already on the canvas
       const previousAutoClear = renderer.autoClear

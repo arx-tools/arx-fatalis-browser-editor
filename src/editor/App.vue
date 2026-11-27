@@ -185,8 +185,8 @@ onMounted(async () => {
         // the level of the `fromZip` url: its textures are painted before the views get the map, and a zip that does not
         // load is an error the walkable view shows (a silent blank level would hide the mistake of the url)
         await levelStore
-          .openLevel(source, async (map): Promise<void> => {
-            await prepareLoadedMap(map, source.data())
+          .openLevel(source, async (map, onProgress): Promise<void> => {
+            await prepareLoadedMap(map, source.data(), onProgress)
           })
           .catch(() => {
             // the store keeps the error of the load, the walkable view shows it
@@ -207,8 +207,8 @@ onMounted(async () => {
         // the blank level of the start is painted like any other: the containers it has draw with the placeholder (the
         // editor has no texture of the game at hand), so the floor is the jorge pattern and not the bare gray of a mesh
         await levelStore
-          .openLevel(source, async (map): Promise<void> => {
-            await prepareLoadedMap(map)
+          .openLevel(source, async (map, onProgress): Promise<void> => {
+            await prepareLoadedMap(map, undefined, onProgress)
           })
           .catch(() => {
             // the store keeps the error of the load, the walkable view shows it

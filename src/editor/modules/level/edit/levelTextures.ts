@@ -7,6 +7,7 @@ import { readDataFile } from '../source/dataDir.ts'
 import { TEXTURE_FOLDER } from '../source/dataDir/url.ts'
 import { flatColorOf, type FlatColor } from '../../../../generator/flatColors.ts'
 import { persistedRef } from '../../persistedRef/persistedRef.ts'
+import { announceProgress, progressOfStep, textureProgress, type LoadProgressHandler } from '../loadProgress.ts'
 import { bumpLevelRevision, textureRevision } from './editing.ts'
 import {
   createLevelTexture,
@@ -454,11 +455,25 @@ export function paintZipTextures(map: ArxMap, textures: Map<string, Texture>, mi
  *
  * @param map The map to paint.
  * @param zipData The bytes of the zip the level came from, when it came from one.
+ * @param onProgress The reader of the progress of the load, when the editor has a cover to fill: every texture read
+ * and every decode moves the bar of the cover.
  */
-export async function paintLevel(map: ArxMap, zipData?: ArrayBuffer): Promise<void> {
+export async function paintLevel(map: ArxMap, zipData?: ArrayBuffer, onProgress?: LoadProgressHandler): Promise<void> {
   lastZipData = zipData
 
   const names = textureNamesOf(map)
+  // every texture is read and then decoded, so the two walks together are the steps of the bar
+  const numberOfSteps = names.length * 2
+  let done = 0
+
+  // a read and a decode are both a step of the bar
+  function countTexture(): void {
+    done = done + 1
+    onProgress?.(textureProgress(done, numberOfSteps))
+  }
+
+  await announceProgress(onProgress, progressOfStep('textures'))
+
   let zipFiles = new Map<string, ArrayBuffer>()
 
   if (zipData !== undefined) {
@@ -471,6 +486,7 @@ export async function paintLevel(map: ArxMap, zipData?: ArrayBuffer): Promise<vo
   // the textures the zip does not have are the ones of the game itself: the data directory of the header or the url
   for (const name of names) {
     if (files.has(name)) {
+      countTexture()
       continue
     }
 
@@ -484,9 +500,11 @@ export async function paintLevel(map: ArxMap, zipData?: ArrayBuffer): Promise<vo
     } catch {
       // a folder that can not be read leaves the texture flat, the level is still complete
     }
+
+    countTexture()
   }
 
-  const textures = await decodeTextures(files)
+  const textures = await decodeTextures(files, countTexture)
 
   // a texture the table of the game does not know got its flat color from the decoded file (a custom texture of the
   // zip, a file of the data directory): the wireframe was built before the textures arrived, so it writes its lines
@@ -495,6 +513,11 @@ export async function paintLevel(map: ArxMap, zipData?: ArrayBuffer): Promise<vo
 
   // the containers left without a texture take the placeholder of the generator
   const missing = await loadMissingTexture()
+
+  // the reading is done: the faces get their groups and their materials now, which is the paint itself and the
+  // shortest step of the load
+  await announceProgress(onProgress, progressOfStep('paint'))
+
   const painted = paintZipTextures(map, textures, missing)
 
   // the texture list of the editor shows every texture it can paint a face with, and it reads the groups of it from

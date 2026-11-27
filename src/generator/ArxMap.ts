@@ -16,7 +16,7 @@ import { refillFromGeometry, refillGeometry } from './arxMap/removal.ts'
 import { type TextureRun, indexSolidGeometryInTextureOrder, readTextureRuns } from './arxMap/textureRuns.ts'
 import { Polygons, type PolygonChange } from './arxMap/polygons.ts'
 import { type FaceUv, writeFaceUvs } from './arxMap/uvs.ts'
-import { unpackArxFile } from './files.ts'
+import { type LevelFileBuffers, unpackArxFile } from './files.ts'
 import { fingerprintOf } from './fingerprint.ts'
 import { wireframeLineColorOf } from './flatColors.ts'
 import {
@@ -102,7 +102,8 @@ export type FaceRoom = {
  *
  * @remarks
  * - the constructor takes the files as the caller has them (the packed `ArrayBuffer`s), does the
- * unpacking and the parsing, and builds the meshes: one call gives a ready map
+ * unpacking and the parsing, and builds the meshes: one call gives a ready map. A caller that unpacks
+ * the files itself (to report the steps of the unpack) hands them in, and the unpack is skipped
  * - the meshes are **not** added to a scene: the renderer of the editor owns the scene, this class owns
  * the geometry
  * - the generator does not download anything: the bytes come from the caller, which keeps this class
@@ -366,19 +367,29 @@ export class ArxMap {
    * @param fts The packed FTS file: the scene and the mesh.
    * @param llf The packed LLF file: the lighting of the level.
    * @param settings What the level is made with: the seed, and whatever a level needs later.
+   * @param unpacked The three files, already unpacked, when the caller unpacked them itself: the editor does, so it can
+   * say which file it works on and how far the unpack is. A caller without them hands the packed files, and the
+   * constructor unpacks them.
    *
    * @throws When a file is not a valid Arx file of its format.
    */
-  constructor(dlf: ArrayBuffer, fts: ArrayBuffer, llf: ArrayBuffer, settings: Settings = new Settings()) {
+  // eslint-disable-next-line max-params -- the three files, the settings, and the parts a caller already unpacked
+  constructor(
+    dlf: ArrayBuffer,
+    fts: ArrayBuffer,
+    llf: ArrayBuffer,
+    settings: Settings = new Settings(),
+    unpacked?: LevelFileBuffers,
+  ) {
     // the settings first: their constructor starts the generator, so every random number of the level comes
     // from the seed they carry
     this.settings = settings
 
     this.fingerprint = fingerprintOf(fts)
     this.source = { dlf, fts, llf }
-    this.dlf = DLF.load(unpackArxFile(dlf, 'dlf'))
-    this.fts = FTS.load(unpackArxFile(fts, 'fts'))
-    this.llf = LLF.load(unpackArxFile(llf, 'llf'))
+    this.dlf = DLF.load(unpacked?.dlf ?? unpackArxFile(dlf, 'dlf'))
+    this.fts = FTS.load(unpacked?.fts ?? unpackArxFile(fts, 'fts'))
+    this.llf = LLF.load(unpacked?.llf ?? unpackArxFile(llf, 'llf'))
     this.player = new Player(this.dlf)
 
     const textureNames = new Map<number, string>()

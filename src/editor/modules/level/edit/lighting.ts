@@ -2,6 +2,7 @@ import type { ArxColor, ArxFTS } from 'arx-convert/types'
 import { shallowRef, watch, type ShallowRef } from 'vue'
 import { bakeLlfColorsInChunks } from '../../../../generator/lighting.ts'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
+import { announceProgress, bakeProgress, progressOfStep, type LoadProgressHandler } from '../loadProgress.ts'
 import { writeBakedColors } from './levelTextures/bakedColors.ts'
 import { lightingCacheVersion } from './lightingCache.ts'
 import { setFlatLight } from './lightingFlat.ts'
@@ -242,8 +243,10 @@ export async function bakeLighting(): Promise<void> {
  * the palette by `llfColorIdx`) and the bake fills them.
  *
  * @param map The level to bake, before it goes to the views.
+ * @param onProgress The reader of the progress of the load, when the editor has a cover to fill: the bake reports its
+ * chunks, so the cover says how far the palette is.
  */
-export async function bakeLoadedMap(map: ArxMap): Promise<void> {
+export async function bakeLoadedMap(map: ArxMap, onProgress?: LoadProgressHandler): Promise<void> {
   setFlatLight(map, flatLightOfProfile(lightingProfile.value, flatLuminosity.value))
   map.llf.colors = map.llf.colors.map(() => {
     return { r: 0, g: 0, b: 0, a: 255 }
@@ -258,7 +261,14 @@ export async function bakeLoadedMap(map: ArxMap): Promise<void> {
   isBakingLighting.value = true
 
   try {
-    const colors = await bakeLlfColorsInChunks(paletteSceneOf(map), map.llf, paletteBakeOptionsOf(map))
+    await announceProgress(onProgress, progressOfStep('bake'))
+
+    // the corners are the steps of the bake, and the chunk it just finished is how far the bar goes
+    function onChunk(done: number, total: number): void {
+      onProgress?.(bakeProgress(done, total))
+    }
+
+    const colors = await bakeLlfColorsInChunks(paletteSceneOf(map), map.llf, paletteBakeOptionsOf(map), onChunk)
 
     if (generation !== bakeGeneration || map.llf.colors.length !== lengthAtStart) {
       return
@@ -266,6 +276,8 @@ export async function bakeLoadedMap(map: ArxMap): Promise<void> {
 
     map.llf.colors = colors
     rememberPaletteOf(map, paletteKeyOf(lightingProfile.value, flatLuminosity.value, rainbowLuminosity.value), colors)
+
+    await announceProgress(onProgress, progressOfStep('baked'))
 
     // the mesh of the map carries the palette before the views wrap it: the first frame of the new level is the baked one
     writeBakedColors(map)
@@ -287,10 +299,16 @@ export async function bakeLoadedMap(map: ArxMap): Promise<void> {
  *
  * @param map The level that is being built.
  * @param zipData The bytes of the zip the level came from, when it came from one.
+ * @param onProgress The reader of the progress of the load, when the editor has a cover to fill.
  */
-export async function prepareLoadedMap(map: ArxMap, zipData?: ArrayBuffer): Promise<void> {
-  await paintLevel(map, zipData)
-  await bakeLoadedMap(map)
+export async function prepareLoadedMap(
+  map: ArxMap,
+  zipData?: ArrayBuffer,
+  onProgress?: LoadProgressHandler,
+): Promise<void> {
+  await paintLevel(map, zipData, onProgress)
+  await bakeLoadedMap(map, onProgress)
+  await announceProgress(onProgress, progressOfStep('done'))
 }
 
 let started = false

@@ -4,6 +4,7 @@ import {
   CHUNK_CORNERS,
   bakeContextOf,
   bakeCornerOf,
+  cornerCountOf,
   fillCandidatesOf,
   letThePagePaint,
 } from './bake.ts'
@@ -46,19 +47,30 @@ export function bakeLlfColors(fts: ArxFTS, llf: ArxLLF, options: LightingOptions
  * @param fts The scene of the level.
  * @param llf The lighting of the level, with the lights and the palette.
  * @param options The profile of the bake and what it reads.
+ * @param onChunk Called after every chunk with the corners that are baked, out of the corners of the level.
  *
  * @returns The colors of the palette, when every chunk is done.
  */
-export async function bakeLlfColorsInChunks(fts: ArxFTS, llf: ArxLLF, options: LightingOptions): Promise<ArxColor[]> {
+export async function bakeLlfColorsInChunks(
+  fts: ArxFTS,
+  llf: ArxLLF,
+  options: LightingOptions,
+  onChunk?: (done: number, total: number) => void,
+): Promise<ArxColor[]> {
   const steps = bakeLlfColorsSteps(fts, llf, options)
+  // the corners are the steps of the bake: the total is a walk over the polygons, which is nothing next to the bake
+  const total = cornerCountOf(fts)
+  let done = 0
   let step = steps.next()
   let budget = CHUNK_CORNERS
 
   while (!step.done) {
+    done = done + 1
     budget = budget - 1
 
     if (budget <= 0) {
       budget = CHUNK_CORNERS
+      onChunk?.(done, total)
       await letThePagePaint()
     }
 

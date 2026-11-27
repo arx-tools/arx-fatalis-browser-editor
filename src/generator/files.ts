@@ -7,6 +7,19 @@ import { concatArrayBuffers, explode, sliceArrayBufferAt } from 'node-pkware/sim
 export type ArxFileFormat = 'dlf' | 'fts' | 'llf'
 
 /**
+ * The three files of a level, by their format.
+ *
+ * @remarks
+ * A caller that unpacks the files itself (the editor reports the progress of the unpack, so it unpacks one file at a
+ * time) hands them to the map already unpacked, so nothing is unpacked twice.
+ */
+export type LevelFileBuffers = {
+  readonly dlf: ArrayBuffer
+  readonly fts: ArrayBuffer
+  readonly llf: ArrayBuffer
+}
+
+/**
  * Unpacks one Arx file, which is partially or fully compressed.
  *
  * @remarks

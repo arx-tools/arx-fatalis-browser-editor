@@ -2,7 +2,10 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { watch } from 'vue'
 import type { ArxMap } from '../../../../../src/generator/ArxMap.ts'
+import { MINIMAL_PRESET } from '../../../../../src/editor/modules/level/blankLevel.ts'
 import { createLevelStore } from '../../../../../src/editor/modules/level/edit/levelStore.ts'
+import { progressOfStep } from '../../../../../src/editor/modules/level/loadProgress.ts'
+import { createBlankLevelSource } from '../../../../../src/editor/modules/level/source/levelSource.ts'
 
 /**
  * A map of the test: the store only passes it through.
@@ -103,5 +106,66 @@ void describe('createLevelStore', () => {
 
     assert.equal(loads, 1)
     assert.equal(store.status.value, 'ready')
+  })
+})
+
+void describe('the progress of createLevelStore', () => {
+  void it('starts with the first step and follows the one the load reports', async () => {
+    const store = createLevelStore({
+      loadMap: (onProgress) => {
+        onProgress(progressOfStep('source'))
+        onProgress(progressOfStep('bake'))
+
+        return fakeMap()
+      },
+    })
+
+    assert.deepEqual(store.progress.value, { percent: 0, label: 'Preparing the level…' })
+
+    store.startLoading()
+    await waitForSettled(store)
+
+    assert.deepEqual(store.progress.value, { percent: 56, label: 'Baking the lights…' })
+  })
+
+  void it('keeps the furthest percent when a step reports a smaller one', async () => {
+    const store = createLevelStore({
+      loadMap: (onProgress) => {
+        onProgress(progressOfStep('bake'))
+        onProgress(progressOfStep('textures'))
+
+        return fakeMap()
+      },
+    })
+
+    store.startLoading()
+    await waitForSettled(store)
+
+    // the bar stays where the bake took it, and the words say what the load does now
+    assert.deepEqual(store.progress.value, { percent: 56, label: 'Reading the textures…' })
+  })
+
+  void it('starts the progress over with every load', async () => {
+    const store = createLevelStore()
+    const source = createBlankLevelSource(MINIMAL_PRESET)
+    const percents: number[] = []
+
+    watch(
+      () => {
+        return store.progress.value.percent
+      },
+      (percent) => {
+        percents.push(percent)
+      },
+    )
+
+    await store.openLevel(source)
+    // a blank level is not compressed: its unpack takes no time, and the steps are the ones of the load itself
+    assert.deepEqual(percents, [1, 3, 6, 26, 30])
+
+    await store.openLevel(source)
+    // the second load walks the same steps from the first one, whatever the one before it got to (the reset itself is
+    // not a frame of the cover: the first step of the load reports in the same turn, so the bar goes from 30 to 1)
+    assert.deepEqual(percents.slice(5), [1, 3, 6, 26, 30])
   })
 })

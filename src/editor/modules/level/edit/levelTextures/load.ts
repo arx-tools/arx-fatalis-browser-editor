@@ -282,7 +282,18 @@ export function learnFlatColorOfTexture(name: string, image: CanvasImageSource):
   return true
 }
 
-export async function decodeTextures(files: ReadonlyMap<string, ArrayBuffer>): Promise<Map<string, Texture>> {
+/**
+ * Decodes the texture files of a level.
+ *
+ * @param files The bytes of the textures, by the name the level calls them.
+ * @param onDecoded Called after every file, so the load can report how far the textures are.
+ *
+ * @returns The textures the browser decoded, by the name the level calls them.
+ */
+export async function decodeTextures(
+  files: ReadonlyMap<string, ArrayBuffer>,
+  onDecoded?: () => void,
+): Promise<Map<string, Texture>> {
   const textures = new Map<string, Texture>()
 
   for (const [name, bytes] of files) {
@@ -295,6 +306,8 @@ export async function decodeTextures(files: ReadonlyMap<string, ArrayBuffer>): P
     } catch {
       // a texture the browser can not read stays flat: the level is still complete
     }
+
+    onDecoded?.()
   }
 
   return textures

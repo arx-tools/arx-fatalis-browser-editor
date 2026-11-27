@@ -293,8 +293,8 @@ async function afterDataDirChanged(): Promise<void> {
       zipData = source.data()
     }
 
-    await levelStore.openLevel(source, async (map): Promise<void> => {
-      await prepareLoadedMap(map, zipData)
+    await levelStore.openLevel(source, async (map, onProgress): Promise<void> => {
+      await prepareLoadedMap(map, zipData, onProgress)
     })
 
     return

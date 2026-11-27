@@ -60,8 +60,8 @@ async function loadZip(event: Event): Promise<void> {
   // the textures of the zip are painted on the level before the views get it (see `openLevel`'s prepare step)
   const source = createZipLevelSource(file.name, data)
 
-  await levelStore.openLevel(source, async (map): Promise<void> => {
-    await prepareLoadedMap(map, source.data())
+  await levelStore.openLevel(source, async (map, onProgress): Promise<void> => {
+    await prepareLoadedMap(map, source.data(), onProgress)
   })
 
   if (levelStore.status.value !== 'ready') {

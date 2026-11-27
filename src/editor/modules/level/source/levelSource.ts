@@ -1,7 +1,9 @@
 import { ArxMap } from '../../../../generator/ArxMap.ts'
 import { Settings } from '../../../../generator/Settings.ts'
+import { type LevelFileBuffers, unpackArxFile } from '../../../../generator/files.ts'
 import { getUrlAdapter, readUrlValue, type UrlAdapter } from '../../persistedRef/url.ts'
 import { createBlankLevelFiles, FLAT_PRESET, type NewLevelPreset } from '../blankLevel.ts'
+import { announceProgress, progressOfStep, type LoadProgressHandler } from '../loadProgress.ts'
 import { levelSeed } from '../seed.ts'
 import { dataDirFromUrl, hasDataDir, readDataFile } from './dataDir.ts'
 import { createZipUrlLevelSource } from './zipSource.ts'
@@ -254,6 +256,34 @@ export function createBlankLevelSource(preset?: NewLevelPreset): LevelSource {
 }
 
 /**
+ * Unpacks the three files of a level, one at a time.
+ *
+ * @remarks
+ * The unpack of the scene is the longest step of a load that runs on the main thread (1.3 s for the 5.3 MB of level 1),
+ * so the files go one by one: the cover says which file is on, and the page paints between them. A file that is not
+ * compressed (a level made by the editor) comes back as it is, and its step is the paint alone.
+ *
+ * @param files The three packed files.
+ * @param onProgress The reader of the progress, when there is one.
+ *
+ * @returns The three files, unpacked, for {@link ArxMap}.
+ *
+ * @throws When a body is not a valid `blast()` stream.
+ */
+async function unpackLevelFiles(files: LevelFiles, onProgress?: LoadProgressHandler): Promise<LevelFileBuffers> {
+  await announceProgress(onProgress, progressOfStep('description'))
+  const dlf = unpackArxFile(files.dlf, 'dlf')
+
+  await announceProgress(onProgress, progressOfStep('scene'))
+  const fts = unpackArxFile(files.fts, 'fts')
+
+  await announceProgress(onProgress, progressOfStep('lighting'))
+  const llf = unpackArxFile(files.llf, 'llf')
+
+  return { dlf, fts, llf }
+}
+
+/**
  * Builds the map of a level from its source.
  *
  * @remarks
@@ -262,16 +292,29 @@ export function createBlankLevelSource(preset?: NewLevelPreset): LevelSource {
  *
  * @param source Where the files come from.
  * @param fetchImpl The fetch to use; the tests pass a fake one.
+ * @param onProgress The reader of the progress of the load, when the editor has a cover to fill.
  *
  * @returns The built map of that level.
+ *
+ * @throws When the source can not read its files, or one of them is not a valid Arx file.
  */
-export async function loadLevel(source: LevelSource, fetchImpl?: typeof fetch): Promise<ArxMap> {
+export async function loadLevel(
+  source: LevelSource,
+  fetchImpl?: typeof fetch,
+  onProgress?: LoadProgressHandler,
+): Promise<ArxMap> {
+  await announceProgress(onProgress, progressOfStep('source'))
   const files = await source.load(fetchImpl)
+  // the files are unpacked here and not in the map: the unpack is the step the cover says the most about, and it has to
+  // give the page a frame between its files
+  const unpacked = await unpackLevelFiles(files, onProgress)
+
+  await announceProgress(onProgress, progressOfStep('build'))
 
   // what the level is made with: the seed today, and whatever a level needs later (the lighting mode, the
   // level it comes from), so this stays the one place to build it
   const settings = new Settings({ seed: levelSeed.value })
-  const map = new ArxMap(files.dlf, files.fts, files.llf, settings)
+  const map = new ArxMap(files.dlf, files.fts, files.llf, settings, unpacked)
 
   // the level made its own seed when it had none: the ref writes it in the url, so the level comes back
   levelSeed.value = map.settings.seed
@@ -311,18 +354,20 @@ export function starterLevelSource(url: UrlAdapter | undefined = getUrlAdapter(u
  *
  * @param fetchImpl The fetch to use; the tests pass a fake one.
  * @param url The query string to read, the one of the page by default.
+ * @param onProgress The reader of the progress of the load, when the editor has a cover to fill.
  *
  * @returns The built map of the level of the session.
  */
 export async function loadStarterLevel(
   fetchImpl: typeof fetch = fetch,
   url: UrlAdapter | undefined = getUrlAdapter(undefined),
+  onProgress?: LoadProgressHandler,
 ): Promise<ArxMap> {
   const source = starterLevelSource(url)
 
   try {
-    return await loadLevel(source, fetchImpl)
+    return await loadLevel(source, fetchImpl, onProgress)
   } catch {
-    return await loadLevel(createBlankLevelSource(FLAT_PRESET))
+    return await loadLevel(createBlankLevelSource(FLAT_PRESET), fetchImpl, onProgress)
   }
 }

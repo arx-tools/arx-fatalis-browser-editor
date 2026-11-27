@@ -5,7 +5,12 @@ import { Mesh, MeshBasicMaterial, PlaneGeometry } from 'three'
 import { createBlankLevelFiles, MINIMAL_PRESET } from '../../src/editor/modules/level/blankLevel.ts'
 import { ArxMap } from '../../src/generator/ArxMap.ts'
 import { bakedCornersOf, cornersWithin } from '../../src/editor/modules/level/edit/levelTextures/bakedColors.ts'
-import { bakeLlfColors, bakeLlfColorsAt, type LightingOptions } from '../../src/generator/lighting.ts'
+import {
+  bakeLlfColors,
+  bakeLlfColorsAt,
+  bakeLlfColorsInChunks,
+  type LightingOptions,
+} from '../../src/generator/lighting.ts'
 import { Settings } from '../../src/generator/Settings.ts'
 
 /**
@@ -424,5 +429,46 @@ void describe('bakeLlfColorsAt', () => {
     })
 
     assert.deepEqual(sizes, [0, 0, 0, 0])
+  })
+})
+
+void describe('bakeLlfColorsInChunks', () => {
+  void it('reports the corners it got through, after every chunk', async () => {
+    const map = litFloor()
+    const polygon = map.fts.polygons[0]
+
+    if (polygon === undefined) {
+      throw new Error('the blank level has no face')
+    }
+
+    map.llf.lights = [lightOf({ x: 0, y: -200, z: 0 })]
+
+    // a chunk is 5000 corners and a face is four: enough faces for one report, and a part of a chunk left over
+    const faces = Array.from({ length: 1300 }, () => {
+      return { ...polygon }
+    })
+    const scene = { ...map.fts, polygons: faces }
+    const reports: Array<[number, number]> = []
+
+    const colors = await bakeLlfColorsInChunks(scene, map.llf, { mode: 'Arx' }, (done, total) => {
+      reports.push([done, total])
+    })
+
+    assert.deepEqual(reports, [[5000, 5200]])
+    assert.equal(colors.length, 4)
+  })
+
+  void it('bakes the palette of a level without a chunk when the level is small', async () => {
+    const map = litFloor()
+    let reports = 0
+
+    map.llf.lights = [lightOf({ x: 0, y: -200, z: 0 })]
+
+    const colors = await bakeLlfColorsInChunks(map.fts, map.llf, { mode: 'Arx' }, () => {
+      reports = reports + 1
+    })
+
+    assert.equal(reports, 0)
+    assert.deepEqual(colors, bakeLlfColors(map.fts, map.llf, { mode: 'Arx' }))
   })
 })

@@ -1,19 +1,32 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, shallowRef } from 'vue'
+import { computed, onBeforeUnmount, onMounted, shallowRef } from 'vue'
+import { levelStore } from '../modules/level/edit/levelStore.ts'
 
 /**
  * The wait of a level load, over the whole editor.
  *
  * @remarks
- * A level of the game takes a while (the textures of the data directory are read one by one), and the editor is not
- * usable until it arrives: the cover takes the clicks away from the surface behind it and dims it, and the words sit
- * **on** the cover, in white, where the eye finds them. It is a `Teleport` to the body because the header is
- * positioned with a transform, which would keep a fixed overlay under the dock.
+ * A level of the game takes a while (the textures of the data directory are read one by one, and the palette is baked
+ * with the profile of the author), and the editor is not usable until it arrives: the cover takes the clicks away from
+ * the surface behind it and dims it, and the words sit **on** the cover, in white, where the eye finds them. It is a
+ * `Teleport` to the body because the header is positioned with a transform, which would keep a fixed overlay under the
+ * dock.
+ *
+ * The words under the title are the step the load is on and its percentage, and a thin bar fills with it (2026-11-27,
+ * the owner: the worst case is a big level, the data directory of the game and the `Realistic` profile, where the load
+ * takes ten seconds and the title alone says nothing). The steps and their weights are in `loadProgress.ts`.
  *
  * The words are placed on the **walkable view** (2026-11-09, the owner): the level arrives for that view, and a line in
  * the middle of the whole window sits over the numbers and the panels, where nothing is coming. The view is looked up by
  * its kind, and the words fall back to the middle of the window while the dock has no such widget.
  */
+
+/**
+ * The step of the load, and how far it is.
+ */
+const progress = computed(() => {
+  return levelStore.progress.value
+})
 
 /**
  * The middle of the walkable view, in the pixels of the window.
@@ -67,9 +80,13 @@ onBeforeUnmount(() => {
   <Teleport to="body">
     <div class="LoadingOverlay" role="status" aria-live="polite">
       <div class="cover" />
-      <p class="words" :style="spot === undefined ? {} : { left: `${spot.x}px`, top: `${spot.y}px` }">
-        Loading the level…
-      </p>
+      <div class="words" :style="spot === undefined ? {} : { left: `${spot.x}px`, top: `${spot.y}px` }">
+        <p class="title">Loading the level…</p>
+        <p class="step">{{ progress.label }} {{ progress.percent }}%</p>
+        <div class="bar">
+          <div class="fill" :style="{ width: `${progress.percent}%` }" />
+        </div>
+      </div>
     </div>
   </Teleport>
 </template>
@@ -97,13 +114,42 @@ onBeforeUnmount(() => {
   // fall back to the middle of the cover while the dock has no such widget
   .words {
     position: fixed;
+    width: 24rem;
+    max-width: 70vw;
     margin: 0;
     transform: translate(-50%, -50%);
     color: $on-veil;
+    text-align: center;
+    text-shadow: 0 1px 3px $ink;
+  }
+
+  .title {
+    margin: 0;
     font-size: 1.5rem;
     font-weight: 600;
     letter-spacing: 0.02em;
-    text-shadow: 0 1px 3px $ink;
+  }
+
+  // the step and the percentage under the title: quieter than it, and the digits keep their place as the number grows
+  .step {
+    margin: 6px 0 0;
+    color: rgba($on-veil, 0.8);
+    font-size: 0.95rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .bar {
+    height: 3px;
+    margin-top: 10px;
+    overflow: hidden;
+    background: rgba($on-veil, 0.25);
+    border-radius: 2px;
+
+    .fill {
+      height: 100%;
+      background: $on-veil;
+      transition: width 120ms linear;
+    }
   }
 }
 </style>

@@ -819,8 +819,8 @@ export async function openMap(id: string, options: OpenMapOptions = {}): Promise
     zipData = source.data()
   }
 
-  await levelStore.openLevel(source, async (map): Promise<void> => {
-    await prepareLoadedMap(map, zipData)
+  await levelStore.openLevel(source, async (map, onProgress): Promise<void> => {
+    await prepareLoadedMap(map, zipData, onProgress)
   })
 
   // the map of the link is not missing any more: the notice of the view has nothing to say

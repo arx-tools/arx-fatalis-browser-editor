@@ -1,6 +1,7 @@
 import { ref, shallowRef, type Ref, type ShallowRef } from 'vue'
 import type { ArxMap } from '../../../../generator/ArxMap.ts'
 import type { LoadingStatus } from '../../../types.ts'
+import { laterOf, progressOfStep, type LoadProgress, type LoadProgressHandler } from '../loadProgress.ts'
 import { loadLevel, loadStarterLevel, type LevelSource } from '../source/levelSource.ts'
 
 /**
@@ -15,9 +16,12 @@ export type LevelStoreOptions = {
    * them: it drives the state and the tests hand in a fake step. A step may be synchronous; the store
    * awaits it either way.
    *
+   * @param onProgress The reader of the progress the store keeps for the cover: a step that knows its own steps
+   * reports them, and one that does not leaves the cover on the first step.
+   *
    * @returns The map, when it is built.
    */
-  readonly loadMap?: () => ArxMap | Promise<ArxMap>
+  readonly loadMap?: (onProgress: LoadProgressHandler) => ArxMap | Promise<ArxMap>
 }
 
 /**
@@ -34,6 +38,14 @@ export type LevelStore = {
    * Where the loading is.
    */
   readonly status: Ref<LoadingStatus>
+  /**
+   * How far the load is, and what it is doing.
+   *
+   * @remarks
+   * The cover over the editor reads this (`LoadingOverlay`): the percent of the bar and the words under it. The store
+   * keeps the value of the last step that reported, and the percent never walks back.
+   */
+  readonly progress: Ref<LoadProgress>
   /**
    * The map of the level, once it is built.
    */
@@ -59,10 +71,17 @@ export type LevelStore = {
    * selection belong to the level that is going away, and they are dropped by the editing module when the map
    * changes. A failure keeps the error of the source, so an unusable zip says why.
    *
+   * The preparation of the map (its textures and its light) runs in the prepare step of the caller, and it is the half
+   * of the load that takes the longest on a level of the game: the step gets the same reader of the progress the store
+   * keeps, so the cover says how far the textures and the bake are.
+   *
    * @param source Where the files of the new level come from.
    * @param prepare A step that runs on the map before the views get it.
    */
-  openLevel: (source: LevelSource, prepare?: (map: ArxMap) => Promise<void>) => Promise<void>
+  openLevel: (
+    source: LevelSource,
+    prepare?: (map: ArxMap, onProgress: LoadProgressHandler) => Promise<void>,
+  ) => Promise<void>
 }
 
 /**
@@ -90,25 +109,36 @@ function messageOf(error: unknown): string | undefined {
 export function createLevelStore(options: LevelStoreOptions = {}): LevelStore {
   const loadMap =
     options.loadMap ??
-    (async (): Promise<ArxMap> => {
-      return await loadStarterLevel()
+    (async (onProgress: LoadProgressHandler): Promise<ArxMap> => {
+      return await loadStarterLevel(fetch, undefined, onProgress)
     })
   const status = ref<LoadingStatus>('idle')
   const map = shallowRef<ArxMap>()
   const error = ref<string>()
+  const progress = ref<LoadProgress>(progressOfStep('start'))
 
   let pending: Promise<void> | undefined
 
   /**
    * Runs a load and writes the outcome into the state.
    *
+   * @remarks
+   * The progress starts over with every load, and a step only moves it forward: a step that reports a smaller percent
+   * than the last one (a counted work that ends early, a level that falls back to a blank one) keeps the percent of
+   * the cover and takes the new words.
+   *
    * @param build The step that produces the map.
    */
-  async function load(build: () => ArxMap | Promise<ArxMap>): Promise<void> {
+  async function load(build: (onProgress: LoadProgressHandler) => ArxMap | Promise<ArxMap>): Promise<void> {
     status.value = 'loading'
+    progress.value = progressOfStep('start')
+
+    function onProgress(next: LoadProgress): void {
+      progress.value = laterOf(progress.value, next)
+    }
 
     try {
-      map.value = await build()
+      map.value = await build(onProgress)
       error.value = undefined
       status.value = 'ready'
     } catch (error_) {
@@ -119,6 +149,7 @@ export function createLevelStore(options: LevelStoreOptions = {}): LevelStore {
 
   return {
     status,
+    progress,
     map,
     error,
     startLoading: (): void => {
@@ -126,17 +157,22 @@ export function createLevelStore(options: LevelStoreOptions = {}): LevelStore {
         return
       }
 
-      pending = load(loadMap)
+      pending = load((onProgress: LoadProgressHandler): ArxMap | Promise<ArxMap> => {
+        return loadMap(onProgress)
+      })
     },
-    openLevel: async (source: LevelSource, prepare?: (map: ArxMap) => Promise<void>): Promise<void> => {
+    openLevel: async (
+      source: LevelSource,
+      prepare?: (map: ArxMap, onProgress: LoadProgressHandler) => Promise<void>,
+    ): Promise<void> => {
       // one level at a time: a load that is already running finishes first, so the two do not race for the map
       await pending
-      pending = load(async (): Promise<ArxMap> => {
-        const map = await loadLevel(source)
+      pending = load(async (onProgress: LoadProgressHandler): Promise<ArxMap> => {
+        const map = await loadLevel(source, undefined, onProgress)
 
         // the views wrap the meshes of the map as soon as it is published, and a wrapper keeps the material it found
         // then: what the level is painted with has to be on the map before that
-        await prepare?.(map)
+        await prepare?.(map, onProgress)
 
         return map
       })

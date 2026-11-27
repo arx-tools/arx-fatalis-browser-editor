@@ -200,6 +200,27 @@ export async function letThePagePaint(): Promise<void> {
 }
 
 /**
+ * How many corners the level has: the steps a bake walks, and the total of its progress.
+ *
+ * @remarks
+ * The bake yields once per corner, so the corners are the steps of {@link bakeLlfColorsSteps}: a caller that draws a
+ * bar of the bake reads the total here, up front, and counts the chunks it got through.
+ *
+ * @param fts The scene of the level.
+ *
+ * @returns The corners of the polygons, three or four for each.
+ */
+export function cornerCountOf(fts: ArxFTS): number {
+  let corners = 0
+
+  for (const polygon of fts.polygons) {
+    corners = corners + colorCountOf(polygon)
+  }
+
+  return corners
+}
+
+/**
  * Reads what a bake of the lights needs, once.
  *
  * @remarks

@@ -9,11 +9,12 @@ import { roomNamesJson } from '../modules/rooms/roomNames.ts'
 import { authorOf, exportSeedOf, levelIndexOf, projectOf } from '../modules/export/exportOptions.ts'
 import { isDynamicLightsVisible, isStaticLightOn } from '../modules/level/edit/dynamicLights.ts'
 import { snapshotOfHistory } from '../modules/level/edit/editing.ts'
+import type { HistorySnapshot } from '../modules/history/mapHistory.ts'
 import { levelSeed } from '../modules/level/seed.ts'
 import { levelStore } from '../modules/level/edit/levelStore.ts'
 import { currentMapId, currentMapManifest, poseOfMap } from '../modules/level/source/maps.ts'
 import { exportTexturesFor } from '../modules/export/exportTextures.ts'
-import { levelTextureSources } from '../modules/textures/textureCatalog.ts'
+import { bytesOf, entryOfName, levelTextureSources } from '../modules/textures/textureCatalog.ts'
 import { roomProblemsOf } from '../modules/rooms/roomProblems.ts'
 import Modal from './Modal.vue'
 import SectionTitle from './SectionTitle.vue'
@@ -66,6 +67,15 @@ const failure = ref('')
 const notices = ref<string[]>([])
 
 /**
+ * The problems the export found, beside the ones of the rooms of the level.
+ *
+ * @remarks
+ * Today one: a copy of a texture the split of a big level made (TODO 104) whose bytes are not in the editor, so the
+ * faces of its batch will not draw in the game.
+ */
+const exportProblems = ref<string[]>([])
+
+/**
  * Reads the faces the square of the map left out of the archive, as one short notice.
  *
  * @param clipped How many faces lost a part of themselves to the square of the map.
@@ -107,6 +117,17 @@ const seed = ref<string>(levelSeed.value ?? '')
 const centersMap = ref<boolean>(false)
 
 /**
+ * Whether the archive carries the steps of the level, which make it a save of itself.
+ *
+ * @remarks
+ * Off by default (2026-11-28, the owner): the steps are the author's work in the browser, and the big ones are heavy.
+ * A level built from an imported mesh has an import record of tens of thousands of polygons, and the settings of the
+ * archive grew to 272 MB with it (TODO 335). The archive is the **result** of the level, and a save of it only when
+ * the author asks for one.
+ */
+const withHistory = ref<boolean>(false)
+
+/**
  * The level index of the field: the one the level was opened with, and whatever the user writes then.
  *
  * @remarks
@@ -145,11 +166,72 @@ const warnings = computed(() => {
 })
 
 /**
+ * The lines of the Warnings section: what is wrong with the rooms, and what the export found.
+ */
+const warningTexts = computed(() => {
+  return [
+    ...warnings.value.map((problem) => {
+      return problem.text
+    }),
+    ...exportProblems.value,
+  ]
+})
+
+/**
  * Whether there is a level to write.
  */
 const hasLevel = computed(() => {
   return map.value !== undefined
 })
+
+/**
+ * Reads the bytes of a texture the split of the batches copied.
+ *
+ * @remarks
+ * The copy is a second file of a texture the level already has, so its bytes are the ones of the level's file: the
+ * catalog knows where they came from (the zip of the level, the assets of the generator, the data directory) and the
+ * extension of the file decides how the game reads the archive's copy.
+ *
+ * @param from The name of the texture the level has.
+ *
+ * @returns The bytes and the extension of the file, or `undefined` when no source of the editor has it.
+ */
+async function readTextureFileOf(
+  from: string,
+): Promise<{ readonly bytes: ArrayBuffer; readonly extension: string } | undefined> {
+  const entry = entryOfName(from)
+
+  if (entry === undefined) {
+    return undefined
+  }
+
+  const dot = entry.name.lastIndexOf('.')
+
+  if (dot <= 0) {
+    return undefined
+  }
+
+  const bytes = await bytesOf(entry)
+
+  if (bytes === undefined) {
+    return undefined
+  }
+
+  return { bytes, extension: entry.name.slice(dot) }
+}
+
+/**
+ * The steps of the level, when the author wants the archive to be a save of it.
+ *
+ * @returns The steps, or `undefined` when the archive is only the result of the level.
+ */
+function historyOfArchive(): HistorySnapshot | undefined {
+  if (!withHistory.value) {
+    return undefined
+  }
+
+  return snapshotOfHistory()
+}
 
 /**
  * The text of the export button of the current state.
@@ -215,16 +297,13 @@ function open(): void {
   seed.value = levelSeed.value ?? ''
   levelIndex.value = String(current.dlf.header.levelIdx)
 
-  // the manifest of the zip the level came from stands in an empty field: what the author typed before wins
+  // the author and the page of the level are the ones the zip carries, and only while that zip is the level on the
+  // screen: a value left from another map would sign this archive with them (2026-11-28, the owner: a flat level kept
+  // the name and the page of the custom map exported before it)
   const inherited = currentMapManifest.value
 
-  if (authorName.value === '' && inherited?.author?.name !== undefined) {
-    authorName.value = inherited.author.name
-  }
-
-  if (projectHomepage.value === '' && inherited?.project?.homepage !== undefined) {
-    projectHomepage.value = inherited.project.homepage
-  }
+  authorName.value = inherited?.author?.name ?? ''
+  projectHomepage.value = inherited?.project?.homepage ?? ''
 
   if (state.value !== 'packing') {
     state.value = 'idle'
@@ -281,6 +360,7 @@ async function exportIt(): Promise<void> {
   percent.value = 0
   failure.value = ''
   notices.value = []
+  exportProblems.value = []
 
   // the button has to read as busy **before** the packing takes the thread: one frame of it
   await nextTick()
@@ -290,12 +370,16 @@ async function exportIt(): Promise<void> {
     })
   })
 
+  // the steps of the level: an archive with them is a save of the level, not only its result, and the author decides
+  // whether it is one
+  const history = historyOfArchive()
+
   try {
     // the textures the game does not have: the pictures of the level's zip and the placeholder of the generator. They
     // are read here, where the page can fetch an asset of the build, and the archive only writes the bytes
     const textures = await exportTexturesFor(current, levelTextureSources())
 
-    const { name, data, clipped, dropped, floor } = await exportLevelZip(
+    const { name, data, clipped, dropped, floor, copies, uncopied } = await exportLevelZip(
       current,
       (value): void => {
         percent.value = value
@@ -318,9 +402,11 @@ async function exportIt(): Promise<void> {
         project: projectOf(projectHomepage.value),
         roomNames: roomNamesJson(),
         groups: faceGroupsJsonOf(),
-        // the steps of the level: an archive with them is a save of the level, not only its result
-        history: snapshotOfHistory(),
+        history,
         textures: textures.textures,
+        // a level too big for the game gets a copy of its texture (TODO 104): the bytes come from here, where the
+        // catalog can reach the zip of the level, the assets of the generator and the data directory
+        readTextureFile: readTextureFileOf,
       },
     )
 
@@ -334,6 +420,18 @@ async function exportIt(): Promise<void> {
 
     if (floor) {
       notices.value.push('The level had no floor under the spawn, so a tile was added there.')
+    }
+
+    if (copies === 1) {
+      notices.value.push('1 texture is copied, because a batch of a room may hold 65 535 indices.')
+    } else if (copies > 1) {
+      notices.value.push(`${String(copies)} textures are copied, because a batch of a room may hold 65 535 indices.`)
+    }
+
+    if (uncopied.length > 0) {
+      exportProblems.value.push(
+        `The copy of ${uncopied.join(', ')} is not in the archive, because the editor has no file for it: the faces of that batch will not draw in the game.`,
+      )
     }
 
     downloadBinaryAs(name, data, 'application/zip')
@@ -408,6 +506,17 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="field">
+        <label class="check" for="export-history">
+          <input id="export-history" v-model="withHistory" type="checkbox" />
+          <span>Export editing history for persisting undo/redo steps</span>
+        </label>
+        <p class="helper">
+          The archive opens with its undo history and the level it was made on, so it is a save of itself. A big import
+          makes the file a lot bigger, and the steps are in the browser of the editor anyway.
+        </p>
+      </div>
+
+      <div class="field">
         <label for="export-author-name">Author's name</label>
         <input id="export-author-name" v-model="authorName" type="text" autocomplete="off" />
       </div>
@@ -423,9 +532,9 @@ onBeforeUnmount(() => {
         <div class="bar" :style="{ width: `${percent}%` }"></div>
       </div>
 
-      <section v-if="warnings.length > 0" class="warnings">
+      <section v-if="warningTexts.length > 0" class="warnings">
         <SectionTitle>Warnings</SectionTitle>
-        <p v-for="warning in warnings" :key="warning.text" class="warning">{{ warning.text }}</p>
+        <p v-for="warning in warningTexts" :key="warning" class="warning">{{ warning }}</p>
       </section>
 
       <section v-if="notices.length > 0" class="notices">

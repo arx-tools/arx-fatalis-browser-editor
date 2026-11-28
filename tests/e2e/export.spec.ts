@@ -163,6 +163,76 @@ test('the export dialog writes the level under the fields of the dialog', async 
   await expect(dialog.locator('.export')).toHaveText('Downloaded')
 })
 
+test('the author and the page of the dialog are the ones of the zip on the screen, and they leave with it', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1631, height: 850 })
+  await seedLayout(page, testLayout)
+  await page.goto('/?map=blank-flat')
+  await waitForLevel(page)
+
+  const exportDialog = page.locator('[role="dialog"][aria-label="Export Map"]')
+  const author = exportDialog.locator('#export-author-name')
+  const homepage = exportDialog.locator('#export-homepage')
+
+  await page.locator('header button[aria-label="Export the level as a zip"]').click()
+  await author.fill('Lali')
+  await homepage.fill('https://example.com/lali')
+
+  const [download] = await Promise.all([page.waitForEvent('download'), exportDialog.locator('.export').click()])
+  const data = await readFile((await download.path()) ?? '')
+
+  await exportDialog.locator('.close').click()
+
+  // the archive is a zip the editor opens: its manifest carries the author and the page, and the dialog starts from them
+  await openZip(page, 'mod.zip', data)
+  await waitForLevel(page)
+  await page.locator('header button[aria-label="Export the level as a zip"]').click()
+  await expect(author).toHaveValue('Lali')
+  await expect(homepage).toHaveValue('https://example.com/lali')
+
+  // the values are the level's, not the browser's: nothing of them is written down
+  const stored = await page.evaluate(() => {
+    return [localStorage.getItem('exportAuthorName'), localStorage.getItem('exportProjectHomepage')]
+  })
+
+  expect(stored).toEqual([null, null])
+
+  await exportDialog.locator('.close').click()
+
+  // a blank level has no zip behind it: the fields are empty, the archive of the custom map leaves them behind
+  await page.getByRole('combobox', { name: /The maps the editor can open/u }).selectOption('blank:flat')
+  await waitForLevel(page)
+  await page.locator('header button[aria-label="Export the level as a zip"]').click()
+  await expect(author).toHaveValue('')
+  await expect(homepage).toHaveValue('')
+})
+
+test('the steps of the level are an option of the dialog, and the settings are minified', async ({ page }) => {
+  await page.setViewportSize({ width: 1631, height: 850 })
+  await seedLayout(page, testLayout)
+  await page.goto('/?map=blank-flat')
+  await waitForLevel(page)
+
+  await page.locator('header button[aria-label="Export the level as a zip"]').click()
+
+  const dialog = page.locator('[role="dialog"][aria-label="Export Map"]')
+  const keep = dialog.locator('#export-history')
+
+  // the steps stay out of the archive unless the author asks for them: a save of a big import is hundreds of megabytes
+  await expect(keep).toBeVisible()
+  await expect(keep).not.toBeChecked()
+
+  const [download] = await Promise.all([page.waitForEvent('download'), dialog.locator('.export').click()])
+  const data = await readFile((await download.path()) ?? '')
+  const archive = await JSZip.loadAsync(data)
+  const text = (await archive.file('editor/settings.json')?.async('string')) ?? ''
+
+  // the editor is the only reader of the settings: no indentation, and no steps without the tick
+  expect(text).not.toContain('\n')
+  expect((JSON.parse(text) as { readonly history?: unknown }).history).toBeUndefined()
+})
+
 test('the archive carries the textures the game does not have', async ({ page }) => {
   await page.setViewportSize({ width: 1631, height: 850 })
   await page.goto('/?map=blank-flat')

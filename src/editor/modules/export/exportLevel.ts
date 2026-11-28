@@ -48,7 +48,8 @@ import { editorSettingsJsonOf, SETTINGS_PATH, SOURCE_FOLDER } from '../level/sou
 import type { StoredPose } from '../level/source/maps/mapPoses.ts'
 import type { LevelFiles } from '../level/source/levelSource.ts'
 import { packLevelFile, packWholeFile } from '../level/source/packedFile.ts'
-import type { ExportTexture } from './exportTextures.ts'
+import { TEXTURE_FOLDER, type ExportTexture } from './exportTextures.ts'
+import { splitTextureBatchesOf, textureStemOf, type TextureCopy } from './textureBatches.ts'
 
 /**
  * The name the browser saves the archive of a level under.
@@ -478,6 +479,22 @@ async function freshPaletteInChunksOf(
 /**
  * The values the export dialog lets the user change before the archive is written.
  */
+/**
+ * Reads the bytes of the texture a copy of the split is made of.
+ *
+ * @remarks
+ * The extension is the one of the **file** the bytes came from (`[stone]_wall1.bmp` may be a `.jpg` on the disk), and
+ * the archive writes the copy with it: the game looks a texture up by its stem and tries the image extensions, so the
+ * name the FTS carries and the file of the archive may differ in the extension, and the file is the one that decides.
+ *
+ * @param from The name of the texture the copy is made of, as the level has it.
+ *
+ * @returns The bytes and the extension of the file, or `undefined` when no source of the editor has it.
+ */
+export type TextureCopyReader = (
+  from: string,
+) => Promise<{ readonly bytes: ArrayBuffer; readonly extension: string } | undefined>
+
 export type ExportOptions = ExportLights & {
   /**
    * The index the level gets: the paths inside the archive, and the header of the description.
@@ -579,6 +596,17 @@ export type ExportOptions = ExportLights & {
    * build asset belong to the page, the bytes are what the archive writes.
    */
   readonly textures?: readonly ExportTexture[]
+  /**
+   * Reads the file of a texture the split of the batches copied.
+   *
+   * @remarks
+   * A level that is too big for the game (a batch of a room holds more than 65 535 indices) gets a copy of its texture
+   * for the faces that do not fit (TODO 104), and the copy is a file of the archive of its own: the dialog reads the
+   * bytes here, where the page can reach the data directory and the assets of the build, and the archive writes them
+   * under the name the copy carries. A texture whose bytes can not be read is named in the result, and the faces of its
+   * batch will not draw in the game.
+   */
+  readonly readTextureFile?: TextureCopyReader
 }
 
 /**
@@ -706,14 +734,84 @@ function exportedPolygonsOf(map: ArxMap, options: ExportOptions): ExportedPolygo
   return { ...clip, floor, polygons: cellOrderedPolygonsOf(exported) }
 }
 
+/**
+ * What the export writes: the faces and the scene after the split of the texture batches.
+ */
+export type PreparedExport = {
+  /**
+   * The scene of the file: its containers, and the copies of the textures the split made.
+   */
+  readonly fts: ArxFTS
+  /**
+   * The faces of the archive, in the order the FTS writes them, with the container the split gave them.
+   */
+  readonly polygons: readonly ArxPolygon[]
+  /**
+   * The copies of the textures the split made: a file for the archive, and the name the FTS carries for it.
+   */
+  readonly copies: readonly TextureCopy[]
+  /**
+   * How many faces the square of the map cut a part of.
+   */
+  readonly clipped: number
+  /**
+   * How many faces stood outside the map whole, and are left out.
+   */
+  readonly dropped: number
+  /**
+   * Whether the export put a tile under the spawn, because the level had no floor there.
+   */
+  readonly floor: boolean
+}
+
+/**
+ * Prepares the faces and the scene of a level for the files of the archive.
+ *
+ * @remarks
+ * The steps of {@link exportLevelFiles} before the files are saved: the faces the level writes (the guards that center
+ * the map, the cut at the square of the map, the tile under the spawn) and the split of the texture batches a big level
+ * needs (TODO 104). The polygons keep the order of the cells, and only the faces over the limit of a batch take a
+ * container of a copy.
+ *
+ * @param map The level to write.
+ * @param options The options of the export: whether the archive centers the map.
+ *
+ * @returns The scene, the faces and what the map cut of them.
+ *
+ * @throws When the spawn of the level stands outside the map: the game would open the level without a player.
+ */
+export function prepareExportOf(map: ArxMap, options: ExportOptions = {}): PreparedExport {
+  const exported = exportedPolygonsOf(map, options)
+  const split = splitTextureBatchesOf(exported.polygons, map.fts.textureContainers)
+  const polygons = exported.polygons.map((polygon, index) => {
+    const containerId = split.containerIds[index] ?? polygon.textureContainerId
+
+    if (containerId === polygon.textureContainerId) {
+      return polygon
+    }
+
+    return { ...polygon, textureContainerId: containerId }
+  })
+
+  return {
+    fts: { ...map.fts, textureContainers: [...split.containers] },
+    polygons,
+    copies: split.copies,
+    clipped: exported.clipped,
+    dropped: exported.dropped,
+    floor: exported.floor,
+  }
+}
+
 export function exportLevelFiles(map: ArxMap, options: ExportOptions = {}): LevelFiles {
   // the portals of a flat level come from its rooms: the file is written with the portals of the rooms it has now, even
   // if the watch of the editor has not run since the last step of the rooms
   syncGeneratedPortals(map)
   // the faces a group hides are not in the level that is written: they are out of the mesh, and the export leaves them
   // out. The polygons go in the order the FTS file writes them: the loader gives the palette its indices in that order
-  const source = exportedPolygonsOf(map, options).polygons
-  const scene = FTS.save(buildExportFts(map.fts, source))
+  const prepared = prepareExportOf(map, options)
+  const source = prepared.polygons
+  const scene = FTS.save(buildExportFts(prepared.fts, source))
   const colors = freshPaletteOf(map, source, options)
   const lighting = LLF.save(buildExportLlf({ ...map.llf, colors }, source, options))
   const description = DLF.save(buildExportDlf(map.dlf, source.length, options.levelIndex))
@@ -975,6 +1073,47 @@ function writeTexturesOf(archive: JSZip, textures: readonly ExportTexture[] | un
 }
 
 /**
+ * Reads the files of the copies the split of the texture batches made.
+ *
+ * @remarks
+ * A copy is a file of the archive of its own: the bytes are the ones of the texture the level has, and the name is the
+ * stem of the copy with the extension of the file the bytes came from. The game looks a texture up by its stem and tries
+ * the image extensions (`TextureContainer::LoadFile`), so the name of the FTS (`[stone]_wall1~2.bmp`) and the file of
+ * the archive (`[stone]_wall1~2.jpg`) may differ in the extension, and the file is the one that decides how the bytes
+ * are read.
+ *
+ * @param copies The copies the split made.
+ * @param read The reader of the bytes, when the page has one.
+ *
+ * @returns The files of the archive, and the names of the copies no source of the editor had.
+ */
+async function textureCopiesOf(
+  copies: readonly TextureCopy[],
+  read: TextureCopyReader | undefined,
+): Promise<{ readonly textures: readonly ExportTexture[]; readonly uncopied: readonly string[] }> {
+  const textures: ExportTexture[] = []
+  const uncopied: string[] = []
+
+  for (const copy of copies) {
+    let file: { readonly bytes: ArrayBuffer; readonly extension: string } | undefined
+
+    if (read !== undefined) {
+      file = await read(copy.from)
+    }
+
+    if (file === undefined) {
+      uncopied.push(copy.name)
+
+      continue
+    }
+
+    textures.push({ path: `${TEXTURE_FOLDER}/${textureStemOf(copy.name)}${file.extension}`, bytes: file.bytes })
+  }
+
+  return { textures, uncopied }
+}
+
+/**
  * Zips the three files of a level, the way the game reads them.
  *
  * @remarks
@@ -999,6 +1138,14 @@ export async function exportLevelZip(
   readonly data: ArrayBuffer
   readonly textures: number
   /**
+   * How many copies of textures the split of the batches of the level made (TODO 104).
+   */
+  readonly copies: number
+  /**
+   * The names of the copies the archive does not carry, because no source of the editor had their bytes.
+   */
+  readonly uncopied: readonly string[]
+  /**
    * How many faces the square of the map cut a part of.
    */
   readonly clipped: number
@@ -1015,14 +1162,14 @@ export async function exportLevelZip(
   syncGeneratedPortals(map)
   // the faces a group hides are not in the level that is written: they are out of the mesh, and the export leaves them
   // out. The polygons go in the order the FTS file writes them: the loader gives the palette its indices in that order
-  const exported = exportedPolygonsOf(map, options)
-  const source = exported.polygons
+  const prepared = prepareExportOf(map, options)
+  const source = prepared.polygons
 
   onProgress?.(EXPORT_PROGRESS.start)
   await nextPaint()
 
   // the scene: the file itself, then the compressed body (the long step)
-  const scene = FTS.save(buildExportFts(map.fts, source))
+  const scene = FTS.save(buildExportFts(prepared.fts, source))
 
   onProgress?.(EXPORT_PROGRESS.sceneBuilt)
   await nextPaint()
@@ -1059,8 +1206,12 @@ export async function exportLevelZip(
   archive.file(written[1], dlf)
   archive.file(written[2], llf)
 
-  // the textures go beside the level files, under the folder of the game, so a level of a mod is complete on its own
+  // the textures go beside the level files, under the folder of the game, so a level of a mod is complete on its own.
+  // The copies the split made of a texture of the level go with them: the game knows the level's file, not the copy
+  const copies = await textureCopiesOf(prepared.copies, options.readTextureFile)
+
   writeTexturesOf(archive, options.textures, written)
+  writeTexturesOf(archive, copies.textures, written)
 
   // the state of the editor: the pose of the camera, which is not the spawn of the level, and the steps of the level when
   // it has some. A level with steps is also a save of itself: the steps are indices of the level they were made on, so
@@ -1074,7 +1225,9 @@ export async function exportLevelZip(
 
   const settings = { camera: options.camera, history: stepsOfTheArchive }
 
-  archive.file(SETTINGS_PATH, JSON.stringify(editorSettingsJsonOf(settings), undefined, 2))
+  // the settings carry the steps of the level when the archive has them, and a big import is hundreds of megabytes of
+  // JSON: the archive writes it without the indentation, the editor is the only reader of it (2026-11-28, the owner)
+  archive.file(SETTINGS_PATH, JSON.stringify(editorSettingsJsonOf(settings)))
   written.push(SETTINGS_PATH)
 
   // the metadata of the editor, in files of their own: a reader finds the names and the groups without the manifest, and
@@ -1110,9 +1263,11 @@ export async function exportLevelZip(
   return {
     name: exportZipNameOf(new Date(options.exportedAt ?? Date.now())),
     data,
-    textures: options.textures?.length ?? 0,
-    clipped: exported.clipped,
-    dropped: exported.dropped,
-    floor: exported.floor,
+    textures: (options.textures?.length ?? 0) + copies.textures.length,
+    copies: copies.textures.length,
+    uncopied: copies.uncopied,
+    clipped: prepared.clipped,
+    dropped: prepared.dropped,
+    floor: prepared.floor,
   }
 }

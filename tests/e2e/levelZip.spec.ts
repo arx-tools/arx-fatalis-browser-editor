@@ -220,6 +220,10 @@ test('a level of a zip comes back with the steps it was exported with', async ({
   await page.locator('header button[aria-label="Export the level as a zip"]').click()
 
   const dialog = page.locator('[role="dialog"][aria-label="Export Map"]')
+
+  // the steps of the level are an option of the dialog now, and the test is about them: the archive carries them
+  await dialog.locator('#export-history').check()
+
   const [download] = await Promise.all([page.waitForEvent('download'), dialog.locator('.export').click()])
   const data = await readFile((await download.path()) ?? '')
 

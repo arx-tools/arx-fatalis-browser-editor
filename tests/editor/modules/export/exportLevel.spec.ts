@@ -28,6 +28,7 @@ import {
   renumberedRoomNamesOf,
   exportLevelFiles,
   exportLevelZip,
+  prepareExportOf,
   exportZipNameOf,
   levelFilePath,
 } from '../../../../src/editor/modules/export/exportLevel.ts'
@@ -1032,6 +1033,21 @@ void describe('exportLevelZip', () => {
     assert.equal(settings.history, undefined)
   })
 
+  void it('minifies the settings of the editor, which carry the steps of a big level', async () => {
+    const map = flatMap()
+    const record = { version: 1, kind: 'deleteFaces', faces: [0] } as const
+    const { data } = await exportLevelZip(map, undefined, { history: { records: [record], position: 1 } })
+    const archive = await JSZip.loadAsync(data)
+    const text = (await archive.file(SETTINGS_PATH)?.async('string')) ?? ''
+
+    // the steps of an import are hundreds of megabytes of JSON: the indentation is a waste, and the editor is the only
+    // reader of the file
+    assert.equal(text.includes('\n'), false)
+    assert.deepEqual((JSON.parse(text) as { readonly history?: { readonly records?: unknown } }).history?.records, [
+      record,
+    ])
+  })
+
   void it('writes the names of the rooms and the groups into the editor folder', async () => {
     const { data } = await exportLevelZip(flatMap(), undefined, {
       roomNames: { '1': 'The yard' },
@@ -1141,5 +1157,109 @@ void describe('exportZipNameOf', () => {
       exportZipNameOf(new Date(2026, 0, 5, 3, 4, 5)),
       'arx-fatalis-browser-editor-export-2026-01-05T03-04-05.zip',
     )
+  })
+})
+
+void describe('the texture batches of a level that is too big', () => {
+  /**
+   * The Flat level with more faces than a batch of the game may hold.
+   *
+   * @param count How many faces to add to the floor, in the room of its first face.
+   *
+   * @returns The map, ready to be exported.
+   *
+   * @throws When the Flat level has no face to copy.
+   */
+  function crowdedMapOf(count: number): ArxMap {
+    const map = flatMap()
+    const face = map.polygons[0]
+
+    if (face === undefined) {
+      throw new Error('the flat level has no face')
+    }
+
+    map.polygons.push(
+      ...Array.from({ length: count }, () => {
+        return { ...face, room: face.room }
+      }),
+    )
+
+    // the visible faces are a list of their own (a group that hides its faces leaves it): a hidden set is the public
+    // step that writes the view again, and the two calls below put every face of the level back into it
+    map.setHiddenPolygons(new Set([face]))
+    map.setHiddenPolygons(new Set())
+
+    return map
+  }
+
+  void it('leaves the batches of a level that fits alone', () => {
+    const prepared = prepareExportOf(flatMap())
+
+    assert.deepEqual(prepared.copies, [])
+    assert.deepEqual(prepared.fts.textureContainers, flatMap().fts.textureContainers)
+  })
+
+  void it('gives the faces over the limit a copy of the texture', () => {
+    const map = crowdedMapOf(12_000)
+    const prepared = prepareExportOf(map)
+    const copy = prepared.copies[0]
+
+    assert.deepEqual(copy, { name: 'jorge-[stone]~2.jpg', from: BLANK_LEVEL_TEXTURE })
+    assert.equal(prepared.fts.textureContainers.length, map.fts.textureContainers.length + 1)
+    assert.equal(prepared.polygons.length, 12_121)
+
+    const copyId = prepared.fts.textureContainers.at(-1)?.id
+    const onCopy = prepared.polygons.filter((polygon) => {
+      return polygon.textureContainerId === copyId
+    }).length
+
+    // a batch holds 10 922 quads (65 535 indices of six), and the rest of the faces draw with the copy
+    assert.equal(onCopy, 12_121 - 10_922)
+  })
+
+  void it('carries the copy under the extension of the file it came from', async () => {
+    const map = crowdedMapOf(12_000)
+    const bytes = new TextEncoder().encode('the floor of the level').buffer
+    const { data, copies, uncopied, textures } = await exportLevelZip(map, undefined, {
+      readTextureFile: async () => {
+        // a tick of the event loop: the page reads the file of a copy the same way
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, 0)
+        })
+
+        return { bytes, extension: '.png' }
+      },
+    })
+    const archive = await JSZip.loadAsync(data)
+    const path = 'graph/obj3d/textures/jorge-[stone]~2.png'
+    const file = archive.file(path)
+    const level = map.dlf.header.levelIdx
+    const scene = await archive.file(levelFilePath(level, 'fts'))?.async('arraybuffer')
+    const fts = FTS.load(unpackArxFile(scene as ArrayBuffer, 'fts'))
+
+    assert.equal(copies, 1)
+    assert.deepEqual(uncopied, [])
+    assert.equal(textures, 1)
+    assert.notEqual(file, null)
+    assert.deepEqual(new Uint8Array((await file?.async('arraybuffer')) ?? new ArrayBuffer(0)), new Uint8Array(bytes))
+
+    // the copy is a container of the file with the name of the FTS, which keeps the extension of the level's name
+    assert.deepEqual(fts.textureContainers.at(-1), {
+      id: fts.textureContainers.at(-1)?.id,
+      filename: 'jorge-[stone]~2.jpg',
+    })
+
+    const manifest = JSON.parse((await archive.file('manifest.json')?.async('string')) ?? '{}') as {
+      readonly files?: readonly string[]
+    }
+
+    assert.equal(manifest.files?.includes(path), true)
+  })
+
+  void it('says which copies the archive does not carry, when no source has their bytes', async () => {
+    const { copies, uncopied } = await exportLevelZip(crowdedMapOf(12_000))
+
+    assert.equal(copies, 0)
+    assert.deepEqual(uncopied, ['jorge-[stone]~2.jpg'])
   })
 })
